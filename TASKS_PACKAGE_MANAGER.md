@@ -261,15 +261,17 @@ complete.
     image, and any platform-specific executable chain not admitted by the
     closed backend remain;
   - macOS Git launches now have a concrete Seatbelt and inherited-resource-limit
-    floor, but file reads remain broad and the deprecated host launcher is not
-    a portable or future-stable backend contract. Network children are confined
-    to one compiler-owned loopback broker port and the broker admits only the
-    validated requested endpoint; Linux and Windows route through the broker
-    without yet denying direct egress. Linux currently receives inherited rlimits
-    without filesystem/network/exec confinement, and Windows retains only the
-    existing process container. No backend yet enforces process-count,
-    aggregate descendant CPU/memory, during-write object-store, or transferred-
-    byte ceilings. Process-container cleanup contains ordinary descendants but
+    floor, but SSH discovery/fetch content reads and metadata reads remain broad,
+    and the deprecated host launcher is not a portable or future-stable backend
+    contract. Network children are confined to one compiler-owned loopback
+    broker port and the broker admits only the validated requested endpoint;
+    Linux and Windows route through the broker without yet denying direct egress.
+    The broker now enforces one whole-resolution bidirectional transfer ceiling,
+    but only macOS prevents helpers from bypassing it. Linux currently receives
+    inherited rlimits without filesystem/network/exec confinement, and Windows
+    retains only the existing process container. No backend yet enforces
+    process-count, aggregate descendant CPU/memory, or during-write object-store
+    ceilings. Process-container cleanup contains ordinary descendants but
     not a hostile Unix process that deliberately changes session; its separate
     two-second allowance means neither command nor whole-resolution timeout is
     a strict wall-clock guarantee. Post-helper logical resident ceilings can
@@ -923,7 +925,10 @@ complete.
   guarantee: macOS endpoint confinement prevents direct child egress, while
   Linux/Windows helpers can still bypass the broker. It does not mark
   `AggregateResourcesConfined` or close object-store, descendant-resource,
-  transport-trust, credential-custody, or package-admission work.
+  transport-trust, credential-custody, or package-admission work. The live
+  non-admitting `omega audit source` report exposes the broker ceiling and
+  directional counts for Git sources; local sources omit those inapplicable
+  rows.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
