@@ -718,6 +718,27 @@ fn omega_product_entry_remains_a_tiny_dispatcher() {
 }
 
 #[test]
+fn omega_product_publishes_compiler_artifacts() {
+    let root = workspace_root();
+    let command_path = root.join("source/omega-rust/omega/src/command.rs");
+    let command = std::fs::read_to_string(&command_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", command_path.display()));
+    assert!(
+        command.contains("RequestedCompileProduct::NativeArtifact"),
+        "the omega product must request an in-memory native artifact"
+    );
+    assert!(
+        !command.contains("write_output: !arguments.check_only"),
+        "the product must not route ordinary publication back through compiler policy"
+    );
+    assert!(
+        root.join("source/omega-rust/omega/src/command/output.rs")
+            .is_file(),
+        "the omega product must own its output publication policy"
+    );
+}
+
+#[test]
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =

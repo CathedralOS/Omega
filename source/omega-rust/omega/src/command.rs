@@ -1,11 +1,12 @@
+mod output;
 mod probe;
 
 use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest, compile,
-    compile_harness, compile_to_checked,
+    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest,
+    RequestedCompileProduct, compile, compile_harness, compile_to_checked,
 };
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
@@ -73,7 +74,7 @@ pub(crate) fn run() {
         build_dir: arguments.build_dir,
         root_path: arguments.root_path,
         target_name: arguments.target_name,
-        write_output: !arguments.check_only,
+        write_output: false,
     };
 
     let artifact_policy = if arguments.output_only {
@@ -88,14 +89,27 @@ pub(crate) fn run() {
             std::process::exit(1);
         }
     };
-    let mut request = CompileRequest::new(options).with_artifact_policy(artifact_policy);
+    let build_dir = options.build_dir();
+    let requested_product = if arguments.check_only {
+        RequestedCompileProduct::Check
+    } else {
+        RequestedCompileProduct::NativeArtifact
+    };
+    let mut request = CompileRequest::new(options)
+        .with_requested_product(requested_product)
+        .with_artifact_policy(artifact_policy);
     if let Some(package_inputs) = package_inputs {
         request = request.with_package_inputs(package_inputs);
     }
     match compile(request) {
-        Ok(report) => {
-            println!("{}", report.summary());
-        }
+        Ok(report) if arguments.check_only => println!("{}", report.summary()),
+        Ok(report) => match output::publish_native_artifact(report, &build_dir) {
+            Ok(path) => println!("published native output to {}", path.display()),
+            Err(error) => {
+                eprintln!("{error}");
+                std::process::exit(1);
+            }
+        },
         Err(diagnostics) => {
             for diagnostic in diagnostics {
                 eprintln!("{diagnostic}");
