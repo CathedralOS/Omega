@@ -3268,7 +3268,7 @@ mod tests {
         let _ = fs::remove_dir_all(&directory);
         fs::create_dir_all(&directory).expect("create receiver-free publication fixture");
         let source = include_str!(
-            "../../../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+            "../../../../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
         );
         let prefix = source
             .split_once("data Boot {")

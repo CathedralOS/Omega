@@ -7,5 +7,5 @@ terminal Psi and Omega artifact emission. The target-neutral implementation
 lives under `source/psi/`; target realization and these product entrypoints live
 under `source/omega/`.
 
-The current Rust development CLI lives with its migration/reference producer at
-`source/on-ramp/rust/apps/omega-cli/`.
+The current Rust development command is the product package rooted at
+`source/on-ramp/rust/omega/`.
