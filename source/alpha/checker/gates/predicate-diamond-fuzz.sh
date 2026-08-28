@@ -34,7 +34,7 @@ stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavai
 b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
 # Third oracle: the type-checked checker, mechanically type-erased to what the interpreter runs.
 TYPED=""
-if python3 "${OMEGA_PATH_GAMMA}"/erase_types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma" 2>/dev/null; then
+if python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/erase-gamma-types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma" 2>/dev/null; then
   TYPED="$T/erased.gamma"
 fi
 python3 corpus/fuzz/predicate-diamond-fuzz.py "$T/check.exe" "$T/interp.exe" "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma "$TYPED" "${1:-60}"

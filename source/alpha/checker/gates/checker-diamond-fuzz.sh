@@ -35,7 +35,7 @@ b "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta
 # Third oracle: the type-checked checker (implementations/gamma/checker_typed.gamma, which typeck.beta accepts), mechanically
 # type-erased to what the interpreter runs -- so "the checker the type system validates" is fuzzed too.
 TYPED=""
-if python3 "${OMEGA_PATH_GAMMA}"/erase_types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma" 2>/dev/null; then
+if python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/erase-gamma-types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma" 2>/dev/null; then
   TYPED="$T/erased.gamma"
 fi
 python3 corpus/fuzz/checker-diamond-fuzz.py "$T/check.exe" "$T/interp.exe" "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma "$TYPED" "${1:-60}"

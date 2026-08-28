@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# erase_types.py — mechanical type-eraser: typed Gamma (checker_typed.gamma) -> the
+# erase-gamma-types.py — checker-owned mechanical type eraser: typed Gamma -> the
 # untyped Gamma that interp.beta runs (the surface of checker.gamma). This lets the
 # SAME artifact that typeck.beta accepts be fed to the behavioral checker diamond, so
 # "the checker is type-safe" and "the checker is correct" become claims about ONE file.
