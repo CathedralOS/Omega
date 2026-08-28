@@ -1,4 +1,4 @@
-use super::build_config::{
+use crate::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
@@ -14,7 +14,7 @@ const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
 const VERSION: u16 = 6;
 
-/// Resource ceilings for compiler-owned recovery of one partial filesystem
+/// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
 /// limits.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -138,7 +138,7 @@ pub fn recover_review_only_build_filesystem_replay_record(
     })
 }
 
-pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
+pub fn rehydrate_review_only_build_filesystem_replay_record(
     record: &ReviewOnlyBuildFilesystemReplayRecord,
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
@@ -185,7 +185,7 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
         events.push(
             psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::ReadChain(
                 psi_checked_interpreter::FilesystemSourceReadChainReplayRecord::new(
-                    super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+                    crate::BUILD_SOURCE_ROOT_IDENTITY,
                     clone_bytes(source_path.bytes)?,
                     logical_handle_identity,
                     open.post_error,
@@ -230,7 +230,7 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
         unreachable!("validated receipted output write returns a scalar")
     };
     let output_record = psi_checked_interpreter::FilesystemOutputWriteChainReplayRecord::new(
-        super::build_config::BUILD_OUTPUT_ROOT_IDENTITY,
+        crate::BUILD_OUTPUT_ROOT_IDENTITY,
         clone_bytes(rooted.bytes)?,
         output.identity,
         create.post_error,
@@ -245,7 +245,7 @@ pub(super) fn rehydrate_review_only_build_filesystem_replay_record(
         )
     })?;
     let expected_included_source = psi_checked_interpreter::BuildIncludedSource::from_coordinate(
-        super::build_config::BUILD_OUTPUT_ROOT_IDENTITY,
+        crate::BUILD_OUTPUT_ROOT_IDENTITY,
         clone_bytes(rooted.bytes)?,
         shapes.len(),
     )
@@ -318,9 +318,9 @@ fn rehydrate_path_metadata_shape(
     );
     psi_checked_interpreter::FilesystemSourcePathMetadataReplayRecord::new(
         kind,
-        super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+        crate::BUILD_SOURCE_ROOT_IDENTITY,
         clone_bytes(rooted.bytes)?,
-        super::build_config::BUILD_SOURCE_ROOT_IDENTITY,
+        crate::BUILD_SOURCE_ROOT_IDENTITY,
         clone_bytes(authorized.bytes)?,
         shape.post_error,
         clone_bytes(mutable_resolution)?,
@@ -391,7 +391,7 @@ fn decode_shapes(
             "unsupported filesystem replay record version",
         ));
     }
-    if decoder.u32()? != super::build_config::BUILD_OBSERVATION_SCHEMA_VERSION
+    if decoder.u32()? != crate::BUILD_OBSERVATION_SCHEMA_VERSION
         || decoder.u32()? != psi_checked_interpreter::FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION
     {
         return Err(BuildFilesystemReplayRecordError::new(

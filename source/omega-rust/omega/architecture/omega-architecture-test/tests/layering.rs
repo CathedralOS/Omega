@@ -688,7 +688,9 @@ fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
     let root = workspace_root();
     assert!(
         !root
-            .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage")
+            .join(
+                "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage"
+            )
             .exists(),
         "program-storage domain ownership must not return to omega-compiler"
     );
@@ -710,6 +712,32 @@ fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
     assert!(
         !manifest.contains("omega-provider-planning"),
         "program storage must consume a provider projection without creating an orchestration cycle"
+    );
+}
+
+#[test]
+fn build_evaluation_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    let compiler_build =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/build");
+    assert!(
+        !compiler_build.exists(),
+        "build evaluation, observations, and replay records must not return to omega-compiler"
+    );
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-build-evaluation must own build execution"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/Cargo.toml"),
+    )
+    .expect("read build-evaluation manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "build evaluation must supply checked results without depending back on its coordinator"
     );
 }
 
@@ -1179,9 +1207,8 @@ fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
 #[test]
 fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
     let root = workspace_root();
-    let path = root.join(
-        "source/omega-rust/omega/orchestration/omega-program-storage/src/entry.rs",
-    );
+    let path =
+        root.join("source/omega-rust/omega/orchestration/omega-program-storage/src/entry.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 

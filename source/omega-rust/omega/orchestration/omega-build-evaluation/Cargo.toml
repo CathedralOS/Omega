@@ -1,0 +1,30 @@
+[package]
+name = "omega-build-evaluation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_build_evaluation"
+path = "src/lib.rs"
+
+[dependencies]
+omega-build-output = { path = "../omega-build-output" }
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
+omega-program-storage = { path = "../omega-program-storage" }
+omega-provider-planning = { path = "../omega-provider-planning" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
+psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-effects = { path = "../../../psi/representations/psi-effects" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+sha2 = "0.10.9"
