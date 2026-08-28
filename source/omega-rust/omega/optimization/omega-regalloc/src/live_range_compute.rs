@@ -170,91 +170,140 @@ pub(crate) fn derive_early_clobbers(
         .iter()
         .filter(|operand| operand.early_clobber)
         .collect::<Vec<_>>();
-    let Some(definition) = early_definitions.first().copied() else {
-        return Ok(Vec::new());
-    };
-    if early_definitions.len() != 1 || definition.access != RegisterOperandAccess::Def {
-        return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
-            function,
-            instruction: definition.instruction.0,
-            operand: early_definitions
-                .get(1)
-                .copied()
-                .unwrap_or(definition)
-                .operand,
-        });
-    }
-    let operands = liveness
-        .operand_positions
-        .iter()
-        .filter(|operand| operand.instruction == definition.instruction)
-        .collect::<Vec<_>>();
-    let mut participants = BTreeSet::new();
-    let mut tied_participants = BTreeSet::new();
-    for tied_definition in liveness
+    let tied_edges = liveness
         .operand_positions
         .iter()
         .filter(|operand| operand.tied_to.is_some())
-    {
-        tied_participants.insert(tied_definition.virtual_register);
-        if let Some(tied_use) = liveness.operand_positions.iter().find(|operand| {
-            operand.instruction == tied_definition.instruction
-                && Some(operand.operand) == tied_definition.tied_to
-        }) {
-            tied_participants.insert(tied_use.virtual_register);
-        }
-    }
-    if operands.len() < 2
-        || operands.iter().any(|operand| {
-            operand.tied_to.is_some()
-                || (operand.operand != definition.operand
-                    && operand.access != RegisterOperandAccess::Use)
-                || !participants.insert(operand.virtual_register)
+        .filter_map(|tied_definition| {
+            liveness
+                .operand_positions
+                .iter()
+                .find(|operand| {
+                    operand.instruction == tied_definition.instruction
+                        && Some(operand.operand) == tied_definition.tied_to
+                })
+                .map(|tied_use| (tied_use.virtual_register, tied_definition.virtual_register))
         })
-        || participants
+        .collect::<Vec<_>>();
+    let mut rows = Vec::with_capacity(early_definitions.len());
+    for definition in early_definitions {
+        let operands = liveness
+            .operand_positions
             .iter()
-            .any(|register| tied_participants.contains(register))
-    {
-        return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
-            function,
-            instruction: definition.instruction.0,
-            operand: definition.operand,
+            .filter(|operand| operand.instruction == definition.instruction)
+            .collect::<Vec<_>>();
+        let tied_source = match definition.tied_to {
+            None => None,
+            Some(source_operand) => Some(
+                operands
+                    .iter()
+                    .copied()
+                    .find(|operand| operand.operand == source_operand)
+                    .ok_or(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                        function,
+                        instruction: definition.instruction.0,
+                        operand: definition.operand,
+                    })?,
+            ),
+        };
+        let mut participants = BTreeSet::new();
+        let source_is_valid = tied_source.is_none_or(|source| {
+            source.access == RegisterOperandAccess::Use
+                && source.operand < definition.operand
+                && source.virtual_register != definition.virtual_register
+                && source.class == definition.class
+                && source.tied_to.is_none()
+        });
+        let unrelated = operands
+            .iter()
+            .copied()
+            .filter(|operand| {
+                operand.operand != definition.operand
+                    && tied_source.is_none_or(|source| source.operand != operand.operand)
+            })
+            .collect::<Vec<_>>();
+        let tie_is_isolated = tied_source.is_none_or(|source| {
+            tied_edges
+                .iter()
+                .filter(|(left, right)| {
+                    *left == source.virtual_register
+                        || *right == source.virtual_register
+                        || *left == definition.virtual_register
+                        || *right == definition.virtual_register
+                })
+                .copied()
+                .eq(std::iter::once((
+                    source.virtual_register,
+                    definition.virtual_register,
+                )))
+        });
+        let untied_definition_is_free = tied_source.is_some()
+            || tied_edges.iter().all(|(left, right)| {
+                *left != definition.virtual_register && *right != definition.virtual_register
+            });
+        if definition.access != RegisterOperandAccess::Def
+            || operands
+                .iter()
+                .filter(|operand| operand.early_clobber)
+                .count()
+                != 1
+            || operands.len() < 2
+            || !source_is_valid
+            || tied_source.is_some() && unrelated.is_empty()
+            || operands.iter().any(|operand| {
+                (operand.operand != definition.operand
+                    && (operand.access != RegisterOperandAccess::Use || operand.tied_to.is_some()))
+                    || !participants.insert(operand.virtual_register)
+            })
+            || !tie_is_isolated
+            || !untied_definition_is_free
+            || unrelated.iter().any(|operand| {
+                tied_edges.iter().any(|(left, right)| {
+                    *left == operand.virtual_register || *right == operand.virtual_register
+                })
+            })
+        {
+            return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        }
+        let block = liveness
+            .blocks
+            .iter()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.instruction == definition.instruction)
+            })
+            .ok_or(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            })?;
+        let uses = unrelated
+            .into_iter()
+            .map(|operand| TerminalEarlyClobberUse {
+                operand: operand.operand,
+                virtual_register: operand.virtual_register,
+                class: operand.class,
+            })
+            .collect();
+        rows.push(TerminalEarlyClobberConstraint {
+            block: block.block,
+            position: definition.position,
+            instruction: definition.instruction,
+            early_point: before_point(function, definition.position)?,
+            def_operand: definition.operand,
+            def_virtual_register: definition.virtual_register,
+            def_class: definition.class,
+            def_point: after_point(function, definition.position)?,
+            uses,
         });
     }
-    let block = liveness
-        .blocks
-        .iter()
-        .find(|block| {
-            block
-                .instructions
-                .iter()
-                .any(|instruction| instruction.instruction == definition.instruction)
-        })
-        .ok_or(TerminalLiveRangeError::UnsupportedEarlyClobber {
-            function,
-            instruction: definition.instruction.0,
-            operand: definition.operand,
-        })?;
-    let uses = operands
-        .into_iter()
-        .filter(|operand| operand.operand != definition.operand)
-        .map(|operand| TerminalEarlyClobberUse {
-            operand: operand.operand,
-            virtual_register: operand.virtual_register,
-            class: operand.class,
-        })
-        .collect();
-    Ok(vec![TerminalEarlyClobberConstraint {
-        block: block.block,
-        position: definition.position,
-        instruction: definition.instruction,
-        early_point: before_point(function, definition.position)?,
-        def_operand: definition.operand,
-        def_virtual_register: definition.virtual_register,
-        def_class: definition.class,
-        def_point: after_point(function, definition.position)?,
-        uses,
-    }])
+    Ok(rows)
 }
 
 pub(crate) fn derive_tied_pairs(
@@ -740,6 +789,83 @@ mod tests {
                 end: TerminalLiveRangePoint(4),
             }]
         );
+
+        let mut multiple = live;
+        multiple.operand_positions.extend([
+            TerminalOperandPosition {
+                position: TerminalLivenessPosition(2),
+                instruction: TerminalSelectedInstructionId(2),
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(1),
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            },
+            TerminalOperandPosition {
+                position: TerminalLivenessPosition(2),
+                instruction: TerminalSelectedInstructionId(2),
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(2),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: true,
+            },
+        ]);
+        multiple.blocks[0]
+            .instructions
+            .push(instruction(2, &[1], &[2], &[1], &[2]));
+        let rows = derive_early_clobbers(0, &multiple).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[1].early_point, TerminalLiveRangePoint(4));
+        assert_eq!(rows[1].def_point, TerminalLiveRangePoint(5));
+        assert_eq!(
+            rows[1].uses[0].virtual_register,
+            TerminalVirtualRegisterId(1)
+        );
+        assert_eq!(rows[1].def_virtual_register, TerminalVirtualRegisterId(2));
+    }
+
+    #[test]
+    fn isolated_tied_early_clobber_separates_tie_from_unrelated_hazard_uses() {
+        let selected = crate::compute::tests::supported_isolated_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let ties = derive_tied_pairs(0, &live).unwrap();
+        let rows = derive_early_clobbers(0, &live).unwrap();
+
+        assert_eq!(ties.len(), 1);
+        assert_eq!(ties[0].use_virtual_register, TerminalVirtualRegisterId(0));
+        assert_eq!(ties[0].def_virtual_register, TerminalVirtualRegisterId(2));
+        assert_eq!(ties[0].use_point, TerminalLiveRangePoint(0));
+        assert_eq!(ties[0].def_point, TerminalLiveRangePoint(1));
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].early_point, TerminalLiveRangePoint(0));
+        assert_eq!(rows[0].def_point, TerminalLiveRangePoint(1));
+        assert_eq!(
+            rows[0]
+                .uses
+                .iter()
+                .map(|operand| operand.virtual_register)
+                .collect::<Vec<_>>(),
+            vec![TerminalVirtualRegisterId(1)]
+        );
+        assert_eq!(
+            virtual_fragments(0, &live.blocks[0], TerminalVirtualRegisterId(2)).unwrap(),
+            vec![TerminalLiveRangeFragment {
+                block: TerminalSelectedBlockId(0),
+                start: TerminalLiveRangePoint(1),
+                end: TerminalLiveRangePoint(2),
+            }]
+        );
+
+        let selected =
+            crate::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &selected).unwrap();
+        assert_eq!(derive_tied_pairs(0, &live).unwrap().len(), 2);
+        assert_eq!(derive_early_clobbers(0, &live).unwrap().len(), 2);
     }
 
     #[test]

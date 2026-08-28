@@ -443,6 +443,8 @@ machine Lexer::push_token(&mut self, kind: TokenKind) {
             KeywordKind::Use -> tagged(retained, 5, 27, 0, 0)
             KeywordKind::When -> tagged(retained, 5, 28, 0, 0)
             KeywordKind::While -> tagged(retained, 5, 29, 0, 0)
+            KeywordKind::Case -> tagged(retained, 5, 30, 0, 0)
+            KeywordKind::Copy -> tagged(retained, 5, 31, 0, 0)
             _ -> tagged(retained, 5, 255, 0, 0)
         }
     }
@@ -620,7 +622,9 @@ machine Lexer::classify_keyword(&mut self) {
     state true_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "true"); let matched: bool = self.predicate_result; transition matched { true -> true_yes() _ -> use_kw() } }
     state use_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "use"); let matched: bool = self.predicate_result; transition matched { true -> use_yes() _ -> when_kw() } }
     state when_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "when"); let matched: bool = self.predicate_result; transition matched { true -> when_yes() _ -> while_kw() } }
-    state while_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "while"); let matched: bool = self.predicate_result; transition matched { true -> while_yes() _ -> identifier() } }
+    state while_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "while"); let matched: bool = self.predicate_result; transition matched { true -> while_yes() _ -> case_kw() } }
+    state case_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "case"); let matched: bool = self.predicate_result; transition matched { true -> case_yes() _ -> copy_kw() } }
+    state copy_kw(&mut self) { self.span_equals(self.token_start, self.token_end, "copy"); let matched: bool = self.predicate_result; transition matched { true -> copy_yes() _ -> identifier() } }
 
     state as_kw(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::As }); }
     state calling_convention_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::CallingConvention }); }
@@ -652,6 +656,8 @@ machine Lexer::classify_keyword(&mut self) {
     state use_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Use }); }
     state when_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::When }); }
     state while_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::While }); }
+    state case_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Case }); }
+    state copy_yes(&mut self) { self.push_token(TokenKind::Keyword { keyword: KeywordKind::Copy }); }
     state identifier(&mut self) { self.push_token(TokenKind::Identifier); }
 }
 

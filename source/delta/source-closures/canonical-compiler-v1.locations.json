@@ -5,7 +5,7 @@
   "sources": [
     {
       "id": "delta.compiler.lowermachine",
-      "relative_path": "samples/lowermachine.alp",
+      "relative_path": "compiler/main.alp",
       "repository_role": "delta"
     }
   ],

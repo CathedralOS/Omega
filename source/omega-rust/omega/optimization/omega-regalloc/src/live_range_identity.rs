@@ -9,7 +9,7 @@ use crate::{
 
 pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v6\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());

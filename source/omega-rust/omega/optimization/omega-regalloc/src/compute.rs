@@ -163,9 +163,8 @@ fn reject_unsupported_constraints(
     function_index: usize,
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
-    let mut tied_registers = BTreeSet::new();
-    let mut early_registers = Vec::new();
-    let mut early_instruction_seen = false;
+    let mut tied_edges = Vec::new();
+    let mut early_rows = Vec::new();
     for instruction in function.blocks.iter().flat_map(block_instructions) {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
@@ -184,18 +183,40 @@ fn reject_unsupported_constraints(
         if !early.is_empty() {
             let definition = early[0];
             let mut participants = BTreeSet::new();
-            let valid = !early_instruction_seen
-                && early.len() == 1
+            let tied_source = definition.tied_to.and_then(|operand| {
+                instruction
+                    .operands
+                    .iter()
+                    .find(|candidate| candidate.operand == operand)
+            });
+            let valid_source = tied_source.is_none_or(|source| {
+                source.access == RegisterOperandAccess::Use
+                    && source.operand < definition.operand
+                    && source.virtual_register != definition.virtual_register
+                    && source.class == definition.class
+                    && source.tied_to.is_none()
+            });
+            let valid = early.len() == 1
                 && definition.access == RegisterOperandAccess::Def
-                && definition.tied_to.is_none()
                 && instruction.operands.len() > 1
+                && valid_source
                 && instruction.operands.iter().all(|operand| {
-                    operand.tied_to.is_none()
-                        && (operand.operand == definition.operand
-                            || operand.access == RegisterOperandAccess::Use)
+                    (operand.operand == definition.operand
+                        || (tied_source.is_some_and(|source| source.operand == operand.operand)
+                            && operand.tied_to.is_none())
+                        || (operand.tied_to.is_none()
+                            && operand.access == RegisterOperandAccess::Use))
                         && participants.insert(operand.virtual_register)
                 });
-            if !valid {
+            let unrelated_use_count = instruction
+                .operands
+                .iter()
+                .filter(|operand| {
+                    operand.operand != definition.operand
+                        && tied_source.is_none_or(|source| source.operand != operand.operand)
+                })
+                .count();
+            if !valid || tied_source.is_some() && unrelated_use_count == 0 {
                 let operand = early.get(1).copied().unwrap_or(definition).operand;
                 return Err(TerminalLivenessError::UnsupportedEarlyClobber {
                     function: function_index,
@@ -203,13 +224,21 @@ fn reject_unsupported_constraints(
                     operand,
                 });
             }
-            early_instruction_seen = true;
-            early_registers.extend(
+            early_rows.push((
+                instruction.id.0,
+                definition.operand,
+                definition.virtual_register,
+                tied_source.map(|source| source.virtual_register),
                 instruction
                     .operands
                     .iter()
-                    .map(|operand| (operand.virtual_register, instruction.id.0, operand.operand)),
-            );
+                    .filter(|operand| {
+                        operand.operand != definition.operand
+                            && tied_source.is_none_or(|source| source.operand != operand.operand)
+                    })
+                    .map(|operand| (operand.virtual_register, operand.operand))
+                    .collect::<Vec<_>>(),
+            ));
         }
         let tied = instruction
             .operands
@@ -241,19 +270,47 @@ fn reject_unsupported_constraints(
                     operand: definition.operand,
                 });
             }
-            tied_registers.insert(use_operand.virtual_register);
-            tied_registers.insert(definition.virtual_register);
+            tied_edges.push((use_operand.virtual_register, definition.virtual_register));
         }
     }
-    if let Some((_, instruction, operand)) = early_registers
-        .into_iter()
-        .find(|(register, _, _)| tied_registers.contains(register))
-    {
-        return Err(TerminalLivenessError::UnsupportedEarlyClobber {
-            function: function_index,
-            instruction,
-            operand,
+    for (instruction, def_operand, definition, tied_source, unrelated) in early_rows {
+        let valid_tie = tied_source.is_none_or(|source| {
+            tied_edges
+                .iter()
+                .filter(|(left, right)| {
+                    *left == source
+                        || *right == source
+                        || *left == definition
+                        || *right == definition
+                })
+                .copied()
+                .eq(std::iter::once((source, definition)))
         });
+        let untied_definition_is_free = tied_source.is_some()
+            || tied_edges
+                .iter()
+                .all(|(left, right)| *left != definition && *right != definition);
+        if !valid_tie
+            || !untied_definition_is_free
+            || unrelated.iter().any(|(register, _)| {
+                tied_edges
+                    .iter()
+                    .any(|(left, right)| left == register || right == register)
+            })
+        {
+            return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+                function: function_index,
+                instruction,
+                operand: unrelated
+                    .iter()
+                    .find(|(register, _)| {
+                        tied_edges
+                            .iter()
+                            .any(|(left, right)| left == register || right == register)
+                    })
+                    .map_or(def_operand, |(_, operand)| *operand),
+            });
+        }
     }
     Ok(())
 }
@@ -566,6 +623,127 @@ pub(crate) mod tests {
         function
     }
 
+    pub(crate) fn supported_multiple_early_clobber_function() -> TerminalSelectedFunction {
+        let mut function = supported_early_clobber_function();
+        let key = function.blocks[0].instructions[0].constraint;
+        function.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(1),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![
+                    TerminalSelectedOperand {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(1),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 1,
+                        virtual_register: TerminalVirtualRegisterId(2),
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: true,
+                    },
+                ],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.id = TerminalSelectedInstructionId(2);
+        function
+    }
+
+    pub(crate) fn supported_isolated_tied_early_clobber_function() -> TerminalSelectedFunction {
+        let mut function = function_with_operand(RegisterOperandAccess::Use);
+        function.blocks[0].instructions[0].operands.extend([
+            TerminalSelectedOperand {
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(1),
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            },
+            TerminalSelectedOperand {
+                operand: 2,
+                virtual_register: TerminalVirtualRegisterId(2),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: Some(0),
+                early_clobber: true,
+            },
+        ]);
+        function
+    }
+
+    pub(crate) fn supported_multiple_isolated_tied_early_clobber_function()
+    -> TerminalSelectedFunction {
+        let mut function = supported_isolated_tied_early_clobber_function();
+        let key = function.blocks[0].instructions[0].constraint;
+        function.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(1),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![
+                    TerminalSelectedOperand {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(3),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 1,
+                        virtual_register: TerminalVirtualRegisterId(4),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 2,
+                        virtual_register: TerminalVirtualRegisterId(5),
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: Some(0),
+                        early_clobber: true,
+                    },
+                ],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.id = TerminalSelectedInstructionId(2);
+        function
+    }
+
     #[test]
     fn admits_only_distinct_use_to_def_ties_and_rejects_other_phase_frontiers() {
         let use_def = function_with_operand(RegisterOperandAccess::UseDef);
@@ -596,6 +774,109 @@ pub(crate) mod tests {
 
         let early_supported = supported_early_clobber_function();
         assert_eq!(reject_unsupported_constraints(0, &early_supported), Ok(()));
+
+        let multiple_early = supported_multiple_early_clobber_function();
+        assert_eq!(reject_unsupported_constraints(0, &multiple_early), Ok(()));
+
+        let composed = supported_isolated_tied_early_clobber_function();
+        assert_eq!(reject_unsupported_constraints(0, &composed), Ok(()));
+
+        let multiple_composed = supported_multiple_isolated_tied_early_clobber_function();
+        assert_eq!(
+            reject_unsupported_constraints(0, &multiple_composed),
+            Ok(())
+        );
+
+        let mut ordinary_reuse = supported_isolated_tied_early_clobber_function();
+        let key = ordinary_reuse.blocks[0].instructions[0].constraint;
+        ordinary_reuse.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(1),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![TerminalSelectedOperand {
+                    operand: 0,
+                    virtual_register: TerminalVirtualRegisterId(2),
+                    access: RegisterOperandAccess::Use,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                }],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        assert_eq!(reject_unsupported_constraints(0, &ordinary_reuse), Ok(()));
+
+        let mut no_unrelated = supported_isolated_tied_early_clobber_function();
+        no_unrelated.blocks[0].instructions[0].operands.remove(1);
+        assert!(matches!(
+            reject_unsupported_constraints(0, &no_unrelated),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut tied_unrelated = supported_isolated_tied_early_clobber_function();
+        tied_unrelated.blocks[0].instructions[0].operands[1].tied_to = Some(0);
+        assert!(matches!(
+            reject_unsupported_constraints(0, &tied_unrelated),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut extra_definition = supported_isolated_tied_early_clobber_function();
+        extra_definition.blocks[0].instructions[0].operands[1].access = RegisterOperandAccess::Def;
+        assert!(matches!(
+            reject_unsupported_constraints(0, &extra_definition),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut duplicate_composed = supported_isolated_tied_early_clobber_function();
+        duplicate_composed.blocks[0].instructions[0].operands[1].virtual_register =
+            TerminalVirtualRegisterId(0);
+        assert!(matches!(
+            reject_unsupported_constraints(0, &duplicate_composed),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut nonisolated = supported_isolated_tied_early_clobber_function();
+        let key = nonisolated.blocks[0].instructions[0].constraint;
+        nonisolated.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(1),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![
+                    TerminalSelectedOperand {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(2),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 1,
+                        virtual_register: TerminalVirtualRegisterId(3),
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: Some(0),
+                        early_clobber: false,
+                    },
+                ],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        assert!(matches!(
+            reject_unsupported_constraints(0, &nonisolated),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
 
         let mut tied = function_with_operand(RegisterOperandAccess::Use);
         tied.blocks[0].instructions[0].operands[0].tied_to = Some(0);
@@ -633,6 +914,44 @@ pub(crate) mod tests {
             });
         assert!(matches!(
             reject_unsupported_constraints(0, &second_definition),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut tied_overlap = supported_early_clobber_function();
+        let key = tied_overlap.blocks[0].instructions[0].constraint;
+        tied_overlap.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(1),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![
+                    TerminalSelectedOperand {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(1),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 1,
+                        virtual_register: TerminalVirtualRegisterId(2),
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: Some(0),
+                        early_clobber: false,
+                    },
+                ],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        assert!(matches!(
+            reject_unsupported_constraints(0, &tied_overlap),
             Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
         ));
     }

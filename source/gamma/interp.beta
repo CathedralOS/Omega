@@ -917,6 +917,38 @@ proc env_lookup(qoff) {
     state miss { return result }
 }
 
+; A variable AST has one fixed lexical position inside one parsed function
+; body. Gamma has no closures and env_lookup never crosses the current frame,
+; so the binding's slot relative to the frame base is invariant across calls
+; and recursive re-entry. Resolve its source name once, then keep `-slot-1` in
+; the interpreter-private AST word, as resolve_call does for function indexes.
+; Unbound variables retain their source offset and continue to evaluate to 0.
+proc resolve_var(expr) {
+    let ref = word[expr + 8]
+    state cached { to hit when (ref < 0)  to lookup }
+    state hit {
+        let slot = 0 - ref - 1
+        return word[7340032 + (word[2097104] + slot) * 16 + 8]
+    }
+    state lookup {
+        let j = word[2097112] - 1
+        let base = word[2097104]
+        state loop {
+            to miss when (j < base)
+            let boff = word[7340032 + j * 16]
+            to named when (boff >= 0)
+            to next
+        }
+        state named { to found when (name_eq(ref, boff) == 1)  to next }
+        state found {
+            word[expr + 8] = 0 - (j - base) - 1
+            return word[7340032 + j * 16 + 8]
+        }
+        state next { j = j - 1  to loop }
+        state miss { return 0 }
+    }
+}
+
 ; ---- evaluator (fuel-bounded) ----
 
 proc eval_args(args, fuel) {         ; AST arg-CONS -> value-CONS (evaluated)
@@ -1250,7 +1282,7 @@ proc eval(expr, fuel) {
     }
     state t_int { return mk_int(word[expr + 8]) }          ; INT literal -> VINT
     state t1 { to t_var when (tag == 1)  to t2 }
-    state t_var { return env_lookup(word[expr + 8]) }      ; VAR -> value pointer
+    state t_var { return resolve_var(expr) }                ; VAR -> value pointer
     state t2 { to t_prim when (tag == 2)  to t3 }
     state t_prim {                   ; PRIM op a b (on integers)
         let a = get_int(eval(word[expr + 16], fuel))

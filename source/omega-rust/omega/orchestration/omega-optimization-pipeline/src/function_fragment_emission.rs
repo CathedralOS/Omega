@@ -43,6 +43,126 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
     ),
 }
 
+impl StagedOptimizedFunctionFragmentEmissionSource {
+    pub fn pre_physical_manifest(
+        &self,
+    ) -> &omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
+        }
+    }
+
+    pub const fn function_relative_manifest(
+        &self,
+    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization.manifest(),
+            Self::Aarch64CbnzDirect(realization) => realization.manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.manifest(),
+        }
+    }
+
+    pub const fn post_allocation_manifest(
+        &self,
+    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+        match self {
+            Self::X86Rel8Direct(realization) => realization.homes().post_allocation_manifest(),
+            Self::X86Rel8AfterSelectedLowering(realization) => {
+                realization.homes().post_allocation_manifest()
+            }
+            Self::Aarch64CbnzDirect(realization) => realization.homes().post_allocation_manifest(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => {
+                realization.homes().post_allocation_manifest()
+            }
+        }
+    }
+
+    /// Borrow the exact verifier-owned input retained through every admitted realization route.
+    /// This accessor does not detach the semantic or proof context from its staged custody.
+    pub fn verified_input(
+        &self,
+    ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
+        match self {
+            Self::X86Rel8Direct(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
+            Self::X86Rel8AfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
+            Self::Aarch64CbnzDirect(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
+            Self::Aarch64CbnzAfterSelectedLowering(realization) => realization
+                .homes()
+                .selected_lowering_run()
+                .source_legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionSourceKind {
     X86Rel8V1,
@@ -246,6 +366,30 @@ impl StagedOptimizedFunctionFragmentEmission {
     }
     pub const fn custody(&self) -> StagedFunctionFragmentEmissionCustodyReceipt {
         self.custody
+    }
+
+    pub fn verified_input(
+        &self,
+    ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
+        self.source.verified_input()
+    }
+
+    pub const fn function_relative_manifest(
+        &self,
+    ) -> &crate::ValidatedFunctionRelativeOptimizationRealizationManifest {
+        self.source.function_relative_manifest()
+    }
+
+    pub const fn post_allocation_manifest(
+        &self,
+    ) -> &omega_regalloc::ValidatedPostAllocationOptimizationManifest {
+        self.source.post_allocation_manifest()
+    }
+
+    pub fn pre_physical_manifest(
+        &self,
+    ) -> &omega_optimization_validation::ValidatedPrePhysicalOptimizationManifest {
+        self.source.pre_physical_manifest()
     }
 
     #[cfg(test)]

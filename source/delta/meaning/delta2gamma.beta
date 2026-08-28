@@ -1,10 +1,10 @@
-; omega2gamma.beta — the Omega -> gamma MEANING translator (covers the Omega KERNEL SUBSET, née delta), written in Beta (Rust-FREE).
+; delta2gamma.beta — the provisional Delta -> Gamma meaning elaborator, written in Beta (Rust-free).
 ;
-; Rust-free counterpart to delta-rs/src/gamma_emit.rs. rungs/delta.md: delta's meaning is defined
-; by the reference interpreter, not the native backend. gamma_emit.rs pins that meaning but is RUST; this
-; removes it — reads delta SOURCE on stdin, prints a gamma s-expr on stdout, which the Rust-free
-; reference interpreter (gamma/interp.beta) runs. Both halves of the meaning route are now Rust-free.
-; It ALSO understands the shared OMEGA machine surface (delta is omega's on-ramp): dotted field paths
+; This implementation reads Delta source on stdin and prints a Gamma s-expression
+; which the Rust-free reference interpreter (`gamma/interp.beta`) evaluates. It
+; does not select the independent Delta v1 semantic contract against which this
+; elaboration must eventually be validated. It currently also understands
+; Omega-like machine spellings used by the canonical compiler: dotted field paths
 ; `self.state.n` (each path = one threaded slot), subjectless `transition { _ -> x() }` (subject := 0),
 ; `state name(&mut self)` headers, state-body lets (collected machine-wide, deduped), `use` decls, data
 ; attributes, and `in Domain` annotations (tolerated; domains are semantic no-ops while values stay in

@@ -1,6 +1,6 @@
 # Optimizer Tasks
 
-Last audited: 2026-08-27.
+Last audited: 2026-08-28.
 
 This file is the execution queue for Omega optimization. The durable semantic
 model, pass architecture, folder ownership, build hook, verification boundary,
@@ -44,8 +44,10 @@ These facts constrain the work below.
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
   for bounded liveness, ranges, candidate legality, the first strict
   transition-free physical-home assignment, arbitrary transitive components
-  of distinct earlier-Use-to-later-Def ties, one exact single-Def-against-Uses
-  early-clobber form, and a separately validated local pressure-victim
+  of distinct earlier-Use-to-later-Def ties, any number of exact
+  single-Def-against-Uses early-clobber rows, the first isolated composition
+  whose early Def is tied to one earlier source while clobbering unrelated
+  Uses, and a separately validated local pressure-victim
   decision. It is not yet a
   general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
@@ -186,9 +188,12 @@ These facts constrain the work below.
   owned plan now gives every placed function one private `MachineId`-rooted
   symbol, binds the semantic entry to one object-local symbol, serializes a
   strict relocation-free Omega object container, and independently replays the
-  exact zero-relocation conclusion. External/process entry bridging, native
-  image construction, installation, and publication remain closed and install
-  no output.
+  exact zero-relocation conclusion. A following canonical Terminal artifact
+  now owns the verified semantic/proof input and clean object by value, binds
+  every retained lowering/layout/object manifest and rebuild root, and exposes
+  strict `OMGOTA`/`OMGOTM` v1 records through the cumulative report. External/
+  process entry bridging, native image construction, installation, and
+  publication remain closed and install no output.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -841,12 +846,19 @@ dependency.
   private symbols, the object-local semantic entry, canonical container bytes,
   and the independently replayed absence of relocation records while declaring
   the external entry bridge, image, installation, and publication unavailable.
-  This task
-  now also includes an explicit suppressible root-build human-report request
-  and a pipeline-owned cumulative carrier over all currently available
-  records. This task remains open for general frame/call/save-restore data,
-  emission and relocation custody, final artifact/rebuild metadata, and
-  materializing the retained request on successful native publication.
+  `ValidatedOptimizedTerminalObjectArtifactV1` now joins that clean object to
+  the exact decoded Terminal module and proof bundle, optimization selection,
+  target, semantic entry, every pre-physical through object manifest, canonical
+  object roots, and zero-relocation statistics. Its strict `OMGOTA`/`OMGOTM`
+  v1 codecs provide canonical artifact/rebuild records; independent replay
+  reconstructs the join from the source carrier and leaves entry bridging,
+  image, installation, and publication explicitly unavailable. This task now
+  also includes an explicit suppressible root-build human-report request and a
+  pipeline-owned cumulative carrier over all currently available records,
+  including the artifact manifest only when projected from that opaque carrier.
+  It remains open for general frame/call/save-restore data, ordinary-callable
+  and process-entry custody, native image/publication records, and materializing
+  the retained request on successful native publication.
 
 ## P1 — Optimization representation and rule engine
 
@@ -1235,11 +1247,23 @@ dependency.
   exact fixed-width signed/unsigned `0 << count` or `0 >> count` to the existing
   direct typed zero operand. The count need not be literal, but the operation
   must retain the exact verifier-accepted obligation proving its authored shift
-  is defined; wrapping shifts remain outside this proof-bearing family.
+  is defined; wrapping shifts remain outside this proof-bearing family. The
+  seventh rule,
+  `live-proof-certified-exact-integer-self-subtract-elimination.v1`, replaces a
+  live signed/unsigned exact `x - x` node in place with a typed zero while
+  preserving its result `ValueId`, location, operation/provenance/fuel custody,
+  and empty substitution set. The eighth rule,
+  `live-proof-certified-integer-self-remainder-elimination.v1`, applies that
+  same in-place typed-zero contract to signed/unsigned `x % x` for exact,
+  wrapping, and saturating remainder. In both rules, the exact accepted
+  obligation is what proves the authored operation defined; the active
+  operation reference disappears, the accepted catalog remains immutable, and
+  independent replay reconstructs the literal-zero fact and rejects mismatched
+  operands, policy, type, proof, or custody.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v10. The named v6 pass, prephysical manifest v19, and projection validator
-  v20 bind the expanded rule schedule;
+  v10. The named v8 pass, prephysical manifest v21, and projection validator
+  v22 bind the expanded eight-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.
@@ -1525,13 +1549,18 @@ dependency.
   Multiple Defs may
   target one Use, and a VReg may join later ties, so chains and forks form one
   transitive same-home component while preserving every ordered tie-edge row.
-  It also admits
-  `SingleDistinctDefAgainstUsesEarlyClobberV1`: at most one instruction per
-  function with exactly one early-clobber Def and one or more distinct Uses,
-  with no UseDef, tie, additional Def, or repeated participant. Other
-  UseDef, overlapping tie/early-clobber participants, and other early-clobber
-  topologies reject rather than pretending their phase semantics are complete.
-  Disjoint tied components and the one admitted early-clobber row may coexist.
+  It also admits any number of disjoint
+  `MultipleSingleDistinctDefAgainstUsesEarlyClobberV1` rows. Each instruction
+  has exactly one early-clobber Def and one or more distinct Uses, with no
+  UseDef, additional Def, or repeated participant. The separately closed
+  `IsolatedTiedDefAgainstOtherUsesEarlyClobberV1` composition permits that Def
+  to be tied to exactly one earlier distinct same-class Use while retaining at
+  least one unrelated Use. The tied source/Def form an isolated size-two
+  component; unrelated Uses cannot be tied and are the only members of the
+  before-phase early-clobber hazard. Multiple disjoint rows and ordinary
+  cross-instruction SSA reuse remain valid. Other UseDef, tie-component, and
+  early-clobber compositions reject rather than pretending their phase
+  semantics are complete.
   A second independently validated artifact converts
   the facts into maximal half-open fragments within each block, exact
   polarity/edge connectors across blocks, ordered occurrence and fixed-view
@@ -1570,7 +1599,11 @@ dependency.
   unordered member pair must be noninterfering. Component interference,
   disjoint candidates, unresolved transitions, and pressure requiring a spill
   reject. Spill-choice also fails closed while any tied component is present.
-  Liveness/live-range identity is v4 and the strict home identity/codec is v5.
+  The tied source and early Def receive the same home while that complete write
+  footprint remains disjoint from every unrelated Use home. Spill choice stays
+  fail-closed for every tied or early-clobber topology. Liveness and live-range
+  identities are v6; the strict home identity/codec remains v5 because its
+  schema did not change.
   This does not authorize
   physical emission. Home production and independent replay separately require
   the early Def view's complete write footprint to be disjoint from every Use
@@ -1609,7 +1642,7 @@ dependency.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, UseDef representation,
-  and early-clobber/tie composition beyond the disjoint exact admitted forms.
+  and early-clobber/tie composition beyond the exact isolated admitted forms.
   General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
@@ -2021,9 +2054,38 @@ dependency.
   count. External/process entry bridging, native image construction,
   installation, and publication remain unavailable.
 
+  A canonical semantic/proof-to-object boundary now consumes both the verified
+  Terminal artifact and clean object carrier by value.
+  `ValidatedOptimizedTerminalObjectArtifactV1` requires exact decoded module
+  and proof-bundle equality, then binds the Terminal artifact, Psi and proof
+  roots, optional debug fingerprint, selection set, target, semantic entry,
+  every pre-physical through object manifest, canonical object/container roots,
+  byte and symbol statistics, and zero relocations. Production and an
+  independently coded replay traverse the retained custody through different
+  access paths. The strict `OMGOTA` and `OMGOTM` v1 codecs are canonical
+  artifact/rebuild metadata records, and the cumulative report can gain its
+  fragment, text, object, and artifact records only from this opaque carrier.
+  Entry bridging, image construction, installation, and publication remain
+  explicitly unavailable.
+
+  Next engineering slice: add
+  `ValidatedOptimizedTerminalOrdinaryCallableEntryV1`. It consumes that artifact
+  by value and classifies the private semantic-entry symbol as an ordinary
+  target-ABI callable, binding its parameter/result ValueIds, selected VRegs,
+  fixed views/storage units, exact exit policy and hardening, stack alignment,
+  red-zone facts, and caller-created return-state assumption. Its disposition
+  must remain `ExternalProcessEntryBridgeRequiredV1`; it creates no `main` or
+  `_main`, wrapper byte, relocation, image, installation, or publication
+  authority. Strict `OMGOER`/`OMGOEM` v1 records and independent reconstruction
+  from the retained Terminal, selection, homes, symbol, and exit custody are
+  required. This classifier is engineering-ready. A real process-entry bridge
+  remains blocked on an authoritative source/sink for process arguments,
+  result/termination behavior, and return-state establishment.
+
   Remaining for the named rel8 rule: replace the current compiler execution
   gate with an end-to-end selected-build path that carries the validated object
-  container through external entry, native artifact, and publication custody.
+  artifact through ordinary-callable classification, an authoritative process
+  entry bridge, native image, and publication custody.
   Until those downstream authorities exist, a build that explicitly selects
   the rule is parsed and identified but still fails without installing output.
 

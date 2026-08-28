@@ -41,6 +41,7 @@ mod report;
 mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
+mod terminal_object_artifact;
 mod whole_function_exit_contract;
 mod x86_branch_relaxation;
 
@@ -201,6 +202,7 @@ pub use register_homes::{
 };
 pub use report::{
     OptimizationPipelineReport, OptimizationReportRequest, optimization_pipeline_report,
+    optimization_pipeline_report_from_terminal_object_artifact,
 };
 pub use resolved_selected_form_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
@@ -221,6 +223,16 @@ pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
     stage_optimized_instruction_selection, validate_optimized_selection_custody,
+};
+pub use terminal_object_artifact::{
+    OptimizedTerminalObjectArtifactCustodyReceipt, OptimizedTerminalObjectArtifactError,
+    OptimizedTerminalObjectArtifactManifest, OptimizedTerminalObjectArtifactManifestDecodeError,
+    OptimizedTerminalObjectArtifactRecord, OptimizedTerminalObjectArtifactRecordDecodeError,
+    OptimizedTerminalObjectArtifactStage, OptimizedTerminalObjectArtifactStatistics,
+    OptimizedTerminalObjectArtifactUnavailableData, StagedValidatedOptimizedTerminalObjectArtifact,
+    ValidatedOptimizedTerminalObjectArtifactManifest,
+    stage_validated_optimized_terminal_object_artifact,
+    validate_optimized_terminal_object_artifact,
 };
 pub use whole_function_exit_contract::{
     TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
@@ -415,6 +427,15 @@ mod tests {
 
     fn selected_lowering_budget() -> OptimizationWorkBudget {
         OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 64).unwrap()
+    }
+
+    fn canonical_terminal_artifact(
+        semantic: &[u8],
+        proof: &[u8],
+    ) -> psi_terminal_codec::CanonicalTerminalArtifact {
+        let module = psi_terminal_codec::decode_module(semantic).unwrap();
+        let proof = psi_terminal_codec::decode_proof_bundle(proof).unwrap();
+        psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, None).unwrap()
     }
 
     fn artifact() -> (Vec<u8>, Vec<u8>) {
@@ -7924,6 +7945,267 @@ mod tests {
     }
 
     #[test]
+    fn optimized_rel8_terminal_object_artifact_binds_replays_and_reports_without_authority() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let terminal = canonical_terminal_artifact(&semantic, &proof);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let physical_report = optimization_pipeline_report(&physical);
+        assert_eq!(physical_report.function_fragment(), None);
+        assert_eq!(physical_report.text_section(), None);
+        assert_eq!(physical_report.object_container(), None);
+        assert_eq!(physical_report.terminal_object_artifact(), None);
+        let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
+            physical
+        else {
+            panic!("rel8 must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+        let mut staged =
+            stage_validated_optimized_terminal_object_artifact(terminal, object).unwrap();
+
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged).unwrap(),
+            staged.custody()
+        );
+        let artifact = staged.artifact();
+        assert_eq!(artifact.terminal_psi, staged.source().object().terminal_psi);
+        assert_eq!(
+            artifact.semantic_entry,
+            staged.source().object().semantic_entry
+        );
+        assert_eq!(artifact.statistics.relocation_records, 0);
+        assert_eq!(
+            artifact.pre_physical_manifest,
+            staged
+                .source()
+                .source()
+                .source()
+                .function_relative_manifest()
+                .record()
+                .pre_physical_manifest
+        );
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&artifact.encode()),
+            Ok(artifact.clone())
+        );
+        let manifest = staged.manifest().record();
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&manifest.encode()),
+            Ok(manifest.clone())
+        );
+        assert_eq!(
+            manifest.external_entry_bridge,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.executable_image,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.installation,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.publication,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+
+        let artifact_identity = artifact.identity;
+        let object_bytes = staged.source().container().bytes.clone();
+        let report = optimization_pipeline_report_from_terminal_object_artifact(&staged);
+        assert_eq!(
+            report.render_human_text(OptimizationReportRequest::Suppressed),
+            None
+        );
+        let rendered = report
+            .render_human_text(OptimizationReportRequest::EmitHumanText)
+            .unwrap();
+        assert!(rendered.contains("[optimized Terminal object artifact]"));
+        assert!(rendered.contains("publication: unavailable"));
+        assert_eq!(staged.artifact().identity, artifact_identity);
+        assert_eq!(staged.source().container().bytes, object_bytes);
+        assert_eq!(
+            report.function_fragment().unwrap().identity,
+            artifact.function_fragment_manifest
+        );
+        assert_eq!(
+            report.text_section().unwrap().identity,
+            artifact.text_section_manifest
+        );
+        assert_eq!(
+            report.object_container().unwrap().identity,
+            artifact.object_container_manifest
+        );
+        assert_eq!(
+            report.terminal_object_artifact().unwrap().artifact,
+            artifact.identity
+        );
+
+        let original_artifact = staged.artifact().clone();
+        staged.artifact_mut().statistics.relocation_records = 1;
+        let corrupted_artifact_identity = staged.artifact().recomputed_identity();
+        staged.artifact_mut().identity = corrupted_artifact_identity;
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ArtifactMismatch)
+        );
+        *staged.artifact_mut() = original_artifact;
+
+        let original_manifest = staged.manifest().record().clone();
+        staged
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .function_symbols += 1;
+        let corrupted_manifest_identity = staged.manifest().record().recomputed_identity();
+        staged.manifest_mut().record_mut().identity = corrupted_manifest_identity;
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ManifestMismatch)
+        );
+        *staged.manifest_mut().record_mut() = original_manifest;
+        staged.corrupt_custody_for_test();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ReceiptMismatch)
+        );
+    }
+
+    #[test]
+    fn optimized_cbnz_terminal_object_artifact_retains_zero_span_and_rejects_detached_proof() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+
+        let module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let mut detached_proof = psi_terminal_codec::decode_proof_bundle(&proof).unwrap();
+        detached_proof.evidence.pop();
+        let detached = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &detached_proof,
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_validated_optimized_terminal_object_artifact(detached, object),
+            Err(OptimizedTerminalObjectArtifactError::ProofMismatch)
+        ));
+
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+        let staged = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap();
+        assert!(
+            staged.source().source().text_section().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| instruction.byte_count == 0)
+        );
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged).unwrap(),
+            staged.custody()
+        );
+
+        let mut wrong_magic = staged.artifact().encode();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&wrong_magic),
+            Err(OptimizedTerminalObjectArtifactRecordDecodeError::WrongMagic)
+        );
+        let mut wrong_version = staged.manifest().record().encode();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&wrong_version),
+            Err(OptimizedTerminalObjectArtifactManifestDecodeError::UnsupportedVersion(2))
+        );
+        let mut trailing = staged.artifact().encode();
+        trailing.push(0);
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&trailing),
+            Err(OptimizedTerminalObjectArtifactRecordDecodeError::TrailingBytes)
+        );
+        let mut stale = staged.manifest().record().encode();
+        stale[12] ^= 1;
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&stale),
+            Err(OptimizedTerminalObjectArtifactManifestDecodeError::IdentityMismatch)
+        );
+    }
+
+    #[test]
     fn relocation_free_text_section_preserves_disconnected_function_order_without_padding() {
         let (semantic, proof) = conditional_exact_binary_artifact(false);
         let selections =
@@ -8037,6 +8319,15 @@ mod tests {
             validate_optimized_relocation_free_terminal_object_container(&x86).unwrap(),
             x86.custody()
         );
+        let x86 = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            x86,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&x86).unwrap(),
+            x86.custody()
+        );
 
         let arm_selections = OptimizationSelections::new([
             Optimization::SelectedIncomingU12ExactAddImmediate,
@@ -8080,6 +8371,15 @@ mod tests {
         let arm = stage_optimized_relocation_free_terminal_object_container(arm).unwrap();
         assert_eq!(
             validate_optimized_relocation_free_terminal_object_container(&arm).unwrap(),
+            arm.custody()
+        );
+        let arm = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            arm,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&arm).unwrap(),
             arm.custody()
         );
     }
