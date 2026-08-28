@@ -86,16 +86,13 @@ Containment facts are closed rows such as
 evidence or marked unavailable. An accepted strict receipt has no unavailable
 required row.
 
-The current `SourceCachePolicyRecord` remains diagnostic scaffolding. Its free
-strings and mutable paths are not this receipt and cannot enter an accepted
-lock. Its persistence path is nevertheless bounded and canonical: reads reject
-symlink/non-regular leaves and noncanonical encodings, while writes use an
-exclusive private same-directory stage, synchronized byte revalidation,
-no-overwrite atomic publication, stage cleanup, and parent-directory
-synchronization on Unix. The operation resolves and rechecks one canonical
-parent, but
-does not claim hostile same-user handle-relative custody or give the record
-authority.
+The former JSON `SourceCachePolicyRecord` diagnostic and its CLI persistence
+surface are deleted. They duplicated a subset of live resolver state through
+free strings and mutable paths but could never become this receipt. `omega
+audit source` prints a bounded human diagnostic from a fresh live resolution;
+it cannot be recovered or promoted into an accepted lock. Authoritative source
+persistence must begin with the future opaque receipt rather than a caller-
+readable intermediate record.
 
 The native execution crate now returns a narrower opaque policy observation
 with each command it constructs. It binds the verified backend, closed phase,
@@ -552,8 +549,8 @@ retains an execution profile distinct from transport-neutral hosted-repository
 lineage: an HTTPS request permits only Git's `https` protocol, and either SSH
 locator spelling permits only `ssh`. The cache key and exact metadata bind that
 profile, so normalized HTTPS and SSH spellings cannot reuse custody established
-under the other's authority. Resolved-source observations, human source-audit
-output, and legacy diagnostic cache-policy schema v3 retain the selected
+under the other's authority. Resolved-source observations and human source-audit
+output retain the selected
 profile separately from normalized lineage. HTTP, unauthenticated `git://`, every unselected
 protocol, and HTTP redirects remain disabled; `file` exists solely in the
 explicit test-only local-repository adapter. This prevents a validated HTTPS

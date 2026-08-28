@@ -329,9 +329,6 @@ fn map_baseline_file_error(error: RecordFileError) -> ReviewOnlyBaselineFileErro
         RecordFileError::DestinationExists { path } => {
             ReviewOnlyBaselineFileError::DestinationExists { path }
         }
-        RecordFileError::ParentDirectoryChanged { path } => {
-            ReviewOnlyBaselineFileError::DirectoryCustodyChanged { path }
-        }
         RecordFileError::PublishedButUnconfirmed { path, message } => {
             ReviewOnlyBaselineFileError::PublishedButUnconfirmed { path, message }
         }
