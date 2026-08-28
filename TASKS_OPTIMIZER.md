@@ -596,21 +596,32 @@ These facts constrain the work below.
   readable affine, unqualified, claim-free structural parameter, one relevant
   Boolean Record field, a Boolean scalar parameter, no content-entry claims,
   one observation pair, and nominal cleanup on every scalar return.
-  `ReturnStructural` accepts only a structural parameter or the exact current
-  `CallStructural` operation result and requires type, multiplicity, and
+  `ReturnStructural` accepts only a structural parameter, the exact current
+  `CallStructural` operation result, or this milestone's exact bounded
+  `EstablishPayloadlessCase` result, and requires type, multiplicity, and
   qualifications to equal the declared result. Focused corruption matrices
   cover logical-root duplication and the observation/return signature axes,
   and the source-derived nominal
   Boolean convergence program now passes verified optimizer admission with
   identical observation roots. The
+  optimizer-only artifact path now retains exact payloadless Sum construction
+  and the complete bounded `CallStructural` surface: requirement obligations,
+  crash continuations, selected evidence, callee machine contract, and
+  evidence-contract lane membership. Independent validation replays Terminal's
+  direct producer exits, empty caller/callee custody and ordinary contract
+  lanes, forbidden callee calls, exact result carrier, outcome-proposition root
+  confinement, and selected-evidence surface. The ordinary abstract lowering
+  path and target realization remain explicitly fenced. Real direct-producer
+  and guarded selected-evidence source canaries plus independently refreshed
+  corruption units cover this admission boundary.
+  The
   builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, full ownership/custody replay, exact
-  payloadless-callee classification, root-service reach, and the
-  crash/requirement and remaining effect vocabulary also remain across the
-  Terminal-Psi lowering boundary.
+  proof/range evidence, full ownership/custody replay, root-service reach, and
+  the crash/requirement and remaining effect vocabulary also remain across
+  the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -921,7 +932,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v12 and ledger v4 already encode the output and
+  optimization-unit identity v13 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1299,9 +1310,12 @@ dependency.
   `ReturnStructural` source-kind and signature equality now receive exact
   independent replay; focused corruptions and the real nominal-Boolean source
   canary cover that rung. Remaining full ownership/custody replay—including
-  hidden local-operation
-  provenance—exact payloadless-callee classification, root-service reach, and
+  hidden local-operation provenance—root-service reach, and
   the crash/requirement and remaining effect vocabulary remain open. The
+  exact payloadless-callee classifier is complete: optimizer-only lowering
+  retains the case producer and complete call/contract/evidence-lane surface,
+  independent replay matches Terminal's bounded predicate, and ordinary and
+  target lowering retain their materialization fence. The
   service-catalog rung is complete: unit identity v12 retains the exact
   declaration graph; independent replay checks hierarchy closure, function and
   boundary ceilings, internal/boundary call reach, `PortWrite` membership, and
@@ -1479,7 +1493,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v12, ledger v4,
+  replay. Candidate v20, optimization-unit identity v13, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1571,7 +1585,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v12, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v13, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 

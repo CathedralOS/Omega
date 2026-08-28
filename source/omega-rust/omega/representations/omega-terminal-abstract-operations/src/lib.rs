@@ -9,14 +9,14 @@
 
 use psi_core::{
     BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerType, IntegerValue, MachineId, OperationId,
-    PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+    PlaceId, ScalarType, ServiceId, StructuralCaseId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ClaimTransfer, CompletionReceipt, ContentEntryClaim, CrashCause,
-    EntryClaim, ProviderCandidateConformance, StructuralArgument, StructuralOperationResult,
-    StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
-    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
-    TerminalPsiIdentity,
+    CrashRouteBucket, EntryClaim, OutcomeSpecificCallEvidence, ProviderCandidateConformance,
+    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
+    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
 /// Exact caller claim source needed to replay boundary-completion custody after
@@ -136,6 +136,14 @@ impl TerminalAbstractFunctionResult {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalAbstractOperation {
+    /// Establish one exact payloadless case of a declared structural sum.
+    /// Target realization remains deliberately separate from retention in the
+    /// optimizer's target-neutral semantic vocabulary.
+    EstablishPayloadlessCase {
+        psi_operation: OperationId,
+        result: StructuralOperationResult,
+        result_case: StructuralCaseId,
+    },
     /// Establish one exact immutable byte payload in a verifier-declared
     /// borrowed-view place. The bytes remain semantic data until target
     /// realization chooses their physical code/data placement.
@@ -173,6 +181,9 @@ pub enum TerminalAbstractOperation {
         structural_arguments: Vec<StructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
         returned_claim_transfers: Vec<StructuralResultClaimTransfer>,
+        requirement_obligations: Vec<psi_core::ObligationId>,
+        crash_continuations: Vec<CrashRouteBucket>,
+        selected_evidence: Option<OutcomeSpecificCallEvidence>,
     },
     BoundaryCall {
         psi_operation: OperationId,

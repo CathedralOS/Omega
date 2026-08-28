@@ -729,8 +729,9 @@ function's immutable signature and structural custody are likewise exact,
 including nominal attachment, ordered scalar and structural parameters,
 Unit/scalar/structural result shape, the complete structural-place catalog,
 ordinary and content entry claims, and the normalized published service
-ceiling. These are not optimizer summaries. Unit content identity v12 encodes
-every field, transformed-revision validation compares them with an independent
+ceiling, exact verified machine contract, and per-machine evidence-contract
+lane roster. These are not optimizer summaries. Unit content identity v13
+encodes every field, transformed-revision validation compares them with an independent
 projection of the immutable verified input, and abstract-plan projection reads
 them from the unit before an independent round-trip check. Passes may inspect
 this custody but cannot rewrite it.
@@ -837,13 +838,29 @@ trivial affine locals. `BooleanStructuralField` is restricted to the entry
 machine's exact readable affine, unqualified and unclaimed structural parameter,
 one relevant Boolean Record field, one observation pair, no content-entry
 claims, a Boolean scalar parameter, and nominal cleanup at every scalar return.
-`ReturnStructural` may source only a structural parameter or the exact retained
-`CallStructural` operation result, with structural type, multiplicity, and
-qualifications equal to the declared result. Focused corruption matrices cover
-the root and signature axes, and the nominal Boolean convergence source canary
-crosses verified optimizer admission with its exact observation roots intact.
-Remaining ownership/custody replay, exact
-payloadless-callee classification, root-service reach, and the wider
+`ReturnStructural` may source only a structural parameter, the exact retained
+`CallStructural` operation result, or the exact bounded
+`EstablishPayloadlessCase` result admitted below, with structural type,
+multiplicity, and qualifications equal to the declared result. Focused
+corruption matrices cover the root and signature axes, and the nominal Boolean
+convergence source canary crosses verified optimizer admission with its exact
+observation roots intact.
+Payloadless structural values cross a deliberately asymmetric boundary.
+Optimizer-only artifact lowering retains `EstablishPayloadlessCase`, the exact
+structural result and case identity, and every bounded `CallStructural` field
+including requirements, crash continuations, and selected evidence. The
+verified optimization unit additionally retains the callee's complete machine
+contract and evidence-contract lane membership. Its independent validator
+reconstructs Terminal's exact direct-producer exits, rejects calls or payload
+construction in the leaf, requires empty scalar/structural signatures and
+custody transfers, confines outcome-proposition roots to the declared result,
+and checks the selected-evidence surface separately. Ordinary abstract lowering
+still returns `UnsupportedPayloadlessCase`, and target lowering still rejects
+materialization; optimizer retention does not silently create a tagged-sum ABI.
+Real direct-constructor and guarded selected-evidence source programs exercise
+the positive boundary, while independently refreshed corruptions cover every
+retained classifier lane.
+Remaining ownership/custody replay, root-service reach, and the wider
 crash/requirement and remaining effect vocabulary remain explicit unfinished
 validator layers. It
 also rechecks the complete current
@@ -1213,7 +1230,7 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v20, optimization-unit content identity v12, `ControlFlowCleanup` v11,
+v20, optimization-unit content identity v13, `ControlFlowCleanup` v11,
 prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
@@ -1455,7 +1472,7 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v24,
-optimization-unit content identity v12, the named v7 pass, prephysical
+optimization-unit content identity v13, the named v7 pass, prephysical
 manifest v23, and optimized-plan projection validation v24 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
@@ -1582,10 +1599,11 @@ keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
 operator policy, operands, facts, observation/liveness boundary, provenance,
 fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
 retain the typed-zero realization.
-Candidate schema remains v24. Optimization-unit identity v12 intentionally
-rekeys revision-bound candidate identities because the retained service
-catalog is now part of the input revision; deterministic tie breaks between
-otherwise equivalent candidates can therefore change at this schema migration.
+Candidate schema remains v24. Optimization-unit identity v13 intentionally
+rekeys revision-bound candidate identities because the payloadless-call
+surface, verified machine contracts, and evidence-contract lane rosters are now
+part of the input revision; deterministic tie breaks between otherwise
+equivalent candidates can therefore change at this schema migration.
 The named v11 pass, prephysical manifest identity v26, and optimized-plan
 projection validation v27 bind the expanded eleven-rule schedule.
 Ledger v4 already represents the relocation. Runtime

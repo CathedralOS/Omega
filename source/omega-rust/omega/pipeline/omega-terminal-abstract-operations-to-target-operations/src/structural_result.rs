@@ -33,6 +33,7 @@ pub(super) fn lower_direct_return(
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
+            ..
         },
         TerminalAbstractOperation::ReturnStructural {
             psi_edge,

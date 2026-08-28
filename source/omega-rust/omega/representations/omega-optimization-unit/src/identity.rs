@@ -13,7 +13,9 @@ use psi_core::{
 };
 use psi_terminal::{
     BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,
-    ContentConservationGuarantee, CrashCause, CrashPredicateTerm, EntryClaim,
+    ContentConservationGuarantee, CrashCause, CrashPredicateTerm, CrashRouteBucket,
+    CrashRouteGuard, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
+    EvidenceInterfaceIdentity, MachineContract, OutcomeSpecificCallEvidence,
     ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ServiceDeclaration,
     StructuralAccess, StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
@@ -29,7 +31,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v12\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v13\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -216,6 +218,15 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
     }
     bytes.slice(&function.entry_claim_declarations, encode_entry_claim);
     bytes.slice(&function.content_entry_claims, encode_content_entry_claim);
+    encode_optional(
+        bytes,
+        function.verified_contract.as_ref(),
+        |bytes, contract| encode_machine_contract(bytes, contract),
+    );
+    bytes.slice(
+        &function.evidence_contract_lanes,
+        encode_evidence_contract_lane,
+    );
     bytes.len(function.entry_claims.len());
     for claim in &function.entry_claims {
         bytes.id(*claim);
@@ -385,6 +396,16 @@ fn encode_fact(bytes: &mut CanonicalBytes, fact: &OptimizationFact) {
 fn encode_operation(bytes: &mut CanonicalBytes, operation: &TerminalAbstractOperation) {
     use TerminalAbstractOperation as O;
     match operation {
+        O::EstablishPayloadlessCase {
+            psi_operation,
+            result,
+            result_case,
+        } => {
+            bytes.u8(48);
+            bytes.id(*psi_operation);
+            encode_structural_operation_result(bytes, result);
+            bytes.id(*result_case);
+        }
         O::EstablishByteSequenceLiteral {
             psi_operation,
             place,
@@ -447,6 +468,9 @@ fn encode_operation(bytes: &mut CanonicalBytes, operation: &TerminalAbstractOper
             structural_arguments,
             claim_transfers,
             returned_claim_transfers,
+            requirement_obligations,
+            crash_continuations,
+            selected_evidence,
         } => {
             bytes.u8(5);
             bytes.id(*psi_operation);
@@ -460,6 +484,11 @@ fn encode_operation(bytes: &mut CanonicalBytes, operation: &TerminalAbstractOper
             bytes.slice(returned_claim_transfers, |bytes, transfer| {
                 bytes.id(transfer.callee_claim);
                 bytes.id(transfer.caller_claim);
+            });
+            encode_ids(bytes, requirement_obligations);
+            bytes.slice(crash_continuations, encode_crash_route_bucket);
+            encode_optional(bytes, selected_evidence.as_ref(), |bytes, evidence| {
+                encode_outcome_specific_call_evidence(bytes, evidence)
             });
         }
         O::BoundaryCall {
@@ -1694,6 +1723,86 @@ fn encode_crash_cause(bytes: &mut CanonicalBytes, cause: CrashCause) {
 
 fn encode_crash_predicate(bytes: &mut CanonicalBytes, predicate: &CrashPredicateTerm) {
     encode_proposition(bytes, predicate.proposition());
+}
+
+fn encode_crash_route_bucket(bytes: &mut CanonicalBytes, bucket: &CrashRouteBucket) {
+    encode_crash_cause(bytes, bucket.cause);
+    bytes.slice(
+        &bucket.alternatives,
+        |bytes, alternative| match alternative {
+            CrashRouteGuard::Truth => bytes.u8(1),
+            CrashRouteGuard::Predicate(predicate) => {
+                bytes.u8(2);
+                encode_crash_predicate(bytes, predicate);
+            }
+        },
+    );
+}
+
+fn encode_evidence_interface(bytes: &mut CanonicalBytes, interface: &EvidenceInterfaceIdentity) {
+    bytes.string(&interface.trait_identity);
+    bytes.slice(&interface.arguments, |bytes, argument| {
+        bytes.string(argument)
+    });
+    bytes.slice(&interface.requirements, |bytes, requirement| {
+        bytes.string(&requirement.declaring_trait_identity);
+        bytes.slice(&requirement.declaring_trait_arguments, |bytes, argument| {
+            bytes.string(argument)
+        });
+        bytes.string(&requirement.requirement_identity);
+    });
+}
+
+fn encode_outcome_specific_call_evidence(
+    bytes: &mut CanonicalBytes,
+    evidence: &OutcomeSpecificCallEvidence,
+) {
+    bytes.id(evidence.guard.result_type);
+    bytes.id(evidence.guard.result_case);
+    bytes.u32(evidence.position);
+    bytes.id(evidence.callee_obligation);
+    bytes.id(evidence.callee_term);
+    bytes.string(&evidence.output_field);
+    bytes.id(evidence.proposition);
+    bytes.id(evidence.output);
+    bytes.id(evidence.validity.result);
+    encode_ids(bytes, &evidence.validity.proposition_dependencies);
+    encode_evidence_interface(bytes, &evidence.validity.evidence_interface);
+    encode_ids(bytes, &evidence.validity.interface_dependencies);
+}
+
+fn encode_machine_contract(bytes: &mut CanonicalBytes, contract: &MachineContract) {
+    bytes.id(contract.id);
+    bytes.slice(&contract.crash_routes, encode_crash_route_bucket);
+    bytes.slice(&contract.requires, encode_proposition);
+    bytes.slice(&contract.ensures, |bytes, clause| {
+        bytes.id(clause.obligation);
+        encode_proposition(bytes, &clause.proposition);
+    });
+    bytes.slice(&contract.outcome_specific_ensures, |bytes, row| {
+        bytes.id(row.guard.result_type);
+        bytes.id(row.guard.result_case);
+        bytes.u32(row.position);
+        bytes.id(row.obligation);
+        encode_proposition(bytes, &row.proposition);
+        encode_optional(bytes, row.evidence.as_ref(), |bytes, evidence| {
+            bytes.id(evidence.term);
+            bytes.string(&evidence.output_field);
+        });
+    });
+}
+
+fn encode_evidence_contract_lane(bytes: &mut CanonicalBytes, lane: &EvidenceContractLane) {
+    bytes.id(lane.machine);
+    bytes.u8(match lane.kind {
+        EvidenceContractLaneKind::Requires => 1,
+        EvidenceContractLaneKind::Ensures => 2,
+    });
+    bytes.u32(lane.position);
+    bytes.id(lane.term);
+    encode_optional(bytes, lane.output_field.as_ref(), |bytes, output| {
+        bytes.string(output)
+    });
 }
 
 fn encode_proposition(bytes: &mut CanonicalBytes, proposition: &Proposition) {

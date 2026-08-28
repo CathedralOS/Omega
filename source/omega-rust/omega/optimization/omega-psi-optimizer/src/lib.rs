@@ -168,6 +168,8 @@ mod tests {
             declared_places: BTreeSet::new(),
             entry_claim_declarations: Vec::new(),
             content_entry_claims: Vec::new(),
+            verified_contract: None,
+            evidence_contract_lanes: Vec::new(),
             entry_claims: BTreeSet::new(),
             published_service_ceiling: Vec::new(),
             facts: Vec::new(),

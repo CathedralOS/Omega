@@ -408,7 +408,8 @@ fn operation_observations(
         | O::SaturatingIntegerDivide { .. }
         | O::SaturatingIntegerRemainder { .. }
         | O::SaturatingIntegerMultiply { .. } => (Vec::new(), No, No),
-        O::EstablishByteSequenceLiteral { .. }
+        O::EstablishPayloadlessCase { .. }
+        | O::EstablishByteSequenceLiteral { .. }
         | O::EstablishTrivialAffineLocal { .. }
         | O::BooleanStructuralField { .. } => (vec![event(C::StructuralState)], No, No),
         O::CallUnit { .. }

@@ -3,7 +3,7 @@
 //! Lower verified terminal Psi into source-independent Omega realization
 //! requirements.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
@@ -11,7 +11,10 @@ use omega_terminal_abstract_operations::{
     TerminalAbstractResult, TerminalAbstractSuccessor, TerminalCompletionClaimSource,
     TerminalValueBinding,
 };
-use psi_core::{BlockId, MachineId, ObligationId, OperationId, ScalarType, StructuralPlaceKind};
+use psi_core::{
+    BlockId, ContentTerm, MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm,
+    ScalarType, StructuralPlaceKind,
+};
 use psi_terminal::{
     CompletionReceipt, OperationKind, OperationResult, ProviderCandidateConformance,
     StructuralArgument, StructuralMultiplicity, StructuralResultDeclaration,
@@ -141,6 +144,14 @@ pub fn build_verified_psi_optimization_unit(
             )?;
         function.structural_places = source.structural_places.clone();
         function.content_entry_claims = source.content_entry_claims.clone();
+        function.verified_contract = Some(source.contract.clone());
+        function.evidence_contract_lanes = context
+            .terminal_module()
+            .evidence_contract_lanes
+            .iter()
+            .filter(|lane| lane.machine == function.machine)
+            .cloned()
+            .collect();
     }
     seed.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&seed);
     let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
@@ -399,7 +410,7 @@ pub fn lower_artifact_sections(
         .map_err(ArtifactLoweringError::ProofDecode)?;
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
-    lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+    lower_decoded_verified_module(&verified, false).map_err(ArtifactLoweringError::Lowering)
 }
 
 /// Construct the required optimizer carrier without affecting the ordinary
@@ -446,7 +457,7 @@ pub fn lower_replay_artifact_sections(
         .map_err(ArtifactLoweringError::ProofDecode)?;
     let verified = psi_terminal_verifier::verify_module(&module, &proof, profile)
         .map_err(ArtifactLoweringError::Verification)?;
-    lower_decoded_verified_module(&verified).map_err(ArtifactLoweringError::Lowering)
+    lower_decoded_verified_module(&verified, false).map_err(ArtifactLoweringError::Lowering)
 }
 
 /// Replay the persisted obligation ledger and retain the complete admitted
@@ -480,7 +491,8 @@ pub fn lower_replay_artifact_sections_for_optimization(
 fn retain_verified_optimization_input(
     verified: &VerifiedTerminalModule<'_>,
 ) -> Result<VerifiedTerminalOptimizationInput, ArtifactLoweringError> {
-    let plan = lower_decoded_verified_module(verified).map_err(ArtifactLoweringError::Lowering)?;
+    let plan =
+        lower_decoded_verified_module(verified, true).map_err(ArtifactLoweringError::Lowering)?;
     let proof_bundle_fingerprint =
         psi_terminal_codec::proof_bundle_fingerprint(verified.proof_bundle())
             .map_err(ArtifactLoweringError::ProofFingerprint)?;
@@ -911,6 +923,7 @@ pub enum ProviderInstallationError {
 /// ordered.
 fn lower_decoded_verified_module(
     verified: &VerifiedTerminalModule<'_>,
+    retain_payloadless_for_optimization: bool,
 ) -> Result<TerminalAbstractOperationPlan, LoweringError> {
     let module = verified.module();
     if !module
@@ -920,10 +933,23 @@ fn lower_decoded_verified_module(
     {
         return Err(LoweringError::VerifiedEntryMachineMissing(module.entry));
     }
+    let machines = module
+        .machines
+        .iter()
+        .map(|machine| (machine.id, machine))
+        .collect::<BTreeMap<_, _>>();
     let functions = module
         .machines
         .iter()
-        .map(|machine| lower_machine(machine, &module.structural_types))
+        .map(|machine| {
+            lower_machine(
+                module,
+                machine,
+                &machines,
+                &module.structural_types,
+                retain_payloadless_for_optimization,
+            )
+        })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAbstractOperationPlan {
         terminal_psi: terminal_psi_identity(module).map_err(LoweringError::SemanticIdentity)?,
@@ -935,27 +961,346 @@ fn lower_decoded_verified_module(
     })
 }
 
-fn lower_machine(
-    machine: &TerminalMachine,
-    structural_types: &[psi_terminal::StructuralTypeDeclaration],
-) -> Result<TerminalAbstractFunction, LoweringError> {
-    if let Some(operation) = machine
-        .blocks
-        .iter()
-        .flat_map(|block| &block.operations)
-        .find(|operation| {
-            matches!(
-                operation.kind,
-                OperationKind::EstablishPayloadlessCase { .. }
-            ) || matches!(operation.kind, OperationKind::CallStructural { .. })
-                && operation.result.structural().is_some_and(|result| {
-                    result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+/// Reconstruct the same closed leaf producer recognized by Terminal. This is
+/// used only after `VerifiedTerminalModule` admission, so proposition-root and
+/// evidence-row validity have already been checked by Terminal; the optimizer
+/// projection still retains those rows for its independent validator.
+fn exact_payloadless_case_return_exits(machine: &TerminalMachine) -> bool {
+    let Some(result) = machine.result.structural() else {
+        return false;
+    };
+    if !result.qualifications.is_empty()
+        || result.multiplicity != StructuralMultiplicity::Unrestricted
+        || machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .any(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::CallStructural { .. }
+                        | OperationKind::BoundaryCall { .. }
+                )
+            })
+    {
+        return false;
+    }
+    let mut exits = 0_usize;
+    for block in &machine.blocks {
+        let Terminator::ReturnStructural {
+            source,
+            returned_claims,
+            ..
+        } = &block.terminator
+        else {
+            continue;
+        };
+        if !returned_claims.is_empty() {
+            return false;
+        }
+        let Some(producer) = machine.structural_places.iter().find_map(|place| {
+            (place.id == *source)
+                .then_some(place.kind)
+                .and_then(|kind| match kind {
+                    StructuralPlaceKind::OperationResult {
+                        producer,
+                        structural_type,
+                    } if structural_type == result.structural_type => Some(producer),
+                    _ => None,
                 })
+        }) else {
+            return false;
+        };
+        let Some(operation) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| operation.id == producer)
+        else {
+            return false;
+        };
+        let Some(operation_result) = operation.result.structural() else {
+            return false;
+        };
+        if !matches!(
+            operation.kind,
+            OperationKind::EstablishPayloadlessCase { .. }
+        ) || operation_result.place != *source
+            || operation_result.structural_type != result.structural_type
+            || operation_result.multiplicity != StructuralMultiplicity::Unrestricted
+            || !operation_result.claims.is_empty()
+            || !operation_result.qualifications.is_empty()
+        {
+            return false;
+        }
+        exits += 1;
+    }
+    exits != 0
+}
+
+/// Exact union of Terminal's `proposition_boolean_field_roots` and
+/// `proposition_content_roots` projections.
+fn proposition_structural_roots(proposition: &Proposition) -> BTreeSet<PlaceId> {
+    fn scalar_term_roots(term: &ScalarTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ScalarTerm::BooleanField { root, .. } | ScalarTerm::IntegerField { root, .. } => {
+                roots.insert(*root);
+            }
+            ScalarTerm::BooleanNot { operand }
+            | ScalarTerm::IntegerBitwiseNot { operand, .. }
+            | ScalarTerm::IntegerWiden { operand, .. }
+            | ScalarTerm::IntegerExactCast { operand, .. } => scalar_term_roots(operand, roots),
+            ScalarTerm::BooleanEqual { left, right }
+            | ScalarTerm::IntegerEqual { left, right, .. }
+            | ScalarTerm::IntegerLessThan { left, right, .. }
+            | ScalarTerm::IntegerLessOrEqual { left, right, .. }
+            | ScalarTerm::IntegerBitwiseAnd { left, right, .. }
+            | ScalarTerm::IntegerBitwiseOr { left, right, .. }
+            | ScalarTerm::IntegerBitwiseXor { left, right, .. }
+            | ScalarTerm::ExactIntegerAdd { left, right, .. }
+            | ScalarTerm::ExactIntegerSubtract { left, right, .. }
+            | ScalarTerm::ExactIntegerMultiply { left, right, .. }
+            | ScalarTerm::ExactIntegerDivide { left, right, .. }
+            | ScalarTerm::ExactIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerDivide { left, right, .. }
+            | ScalarTerm::WrappingIntegerRemainder { left, right, .. }
+            | ScalarTerm::SaturatingIntegerDivide { left, right, .. }
+            | ScalarTerm::SaturatingIntegerRemainder { left, right, .. }
+            | ScalarTerm::WrappingIntegerAdd { left, right, .. }
+            | ScalarTerm::SaturatingIntegerAdd { left, right, .. }
+            | ScalarTerm::WrappingIntegerSubtract { left, right, .. }
+            | ScalarTerm::SaturatingIntegerSubtract { left, right, .. }
+            | ScalarTerm::WrappingIntegerMultiply { left, right, .. }
+            | ScalarTerm::SaturatingIntegerMultiply { left, right, .. } => {
+                scalar_term_roots(left, roots);
+                scalar_term_roots(right, roots);
+            }
+            ScalarTerm::WrappingIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::WrappingIntegerShiftRight { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftLeft { value, count, .. }
+            | ScalarTerm::ExactIntegerShiftRight { value, count, .. } => {
+                scalar_term_roots(value, roots);
+                scalar_term_roots(count, roots);
+            }
+            ScalarTerm::Value { .. } | ScalarTerm::Boolean(_) | ScalarTerm::Integer { .. } => {}
+        }
+    }
+
+    fn content_term_roots(term: &ContentTerm, roots: &mut BTreeSet<PlaceId>) {
+        match term {
+            ContentTerm::Projection { subject, .. } => {
+                roots.insert(subject.root);
+            }
+            ContentTerm::Separate(terms) => {
+                for term in terms {
+                    content_term_roots(term, roots);
+                }
+            }
+        }
+    }
+
+    fn collect(proposition: &Proposition, roots: &mut BTreeSet<PlaceId>) {
+        match proposition {
+            Proposition::Equal(left, right)
+            | Proposition::LessThan(left, right)
+            | Proposition::LessOrEqual(left, right) => {
+                scalar_term_roots(left, roots);
+                scalar_term_roots(right, roots);
+            }
+            Proposition::IeeeFloatComparison { left, right, .. } => {
+                roots.insert(left.root());
+                roots.insert(right.root());
+            }
+            Proposition::ByteSequenceEqual { left, right } => {
+                roots.insert(left.root());
+                roots.insert(right.root());
+            }
+            Proposition::StructuralCaseMembership { subject, .. } => {
+                roots.insert(subject.root());
+            }
+            Proposition::ContentConservation(conservation) => {
+                content_term_roots(conservation.left(), roots);
+                content_term_roots(conservation.right(), roots);
+            }
+            Proposition::Conjunction(propositions) | Proposition::Disjunction(propositions) => {
+                for proposition in propositions {
+                    collect(proposition, roots);
+                }
+            }
+            Proposition::Implication {
+                premise,
+                conclusion,
+            } => {
+                collect(premise, roots);
+                collect(conclusion, roots);
+            }
+            Proposition::Truth | Proposition::Falsehood | Proposition::Atom(_) => {}
+        }
+    }
+
+    let mut roots = BTreeSet::new();
+    collect(proposition, &mut roots);
+    roots
+}
+
+fn exact_payloadless_structural_call(
+    module: &psi_terminal::TerminalModule,
+    operation: &psi_terminal::Operation,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    let OperationKind::CallStructural {
+        callee,
+        structural_arguments,
+        claim_transfers,
+        returned_claim_transfers,
+        requirement_obligations,
+        crash_continuations,
+        selected_evidence: _,
+    } = &operation.kind
+    else {
+        return false;
+    };
+    let Some(result) = operation.result.structural() else {
+        return false;
+    };
+    let Some(callee) = machines.get(callee).copied() else {
+        return false;
+    };
+    let Some(callee_result) = callee.result.structural() else {
+        return false;
+    };
+    callee.parameters.is_empty()
+        && callee.structural_parameters.is_empty()
+        && callee.entry_claims.is_empty()
+        && callee.content_entry_claims.is_empty()
+        && callee.contract.requires.is_empty()
+        && callee.contract.ensures.is_empty()
+        && callee.contract.crash_routes.is_empty()
+        && module
+            .evidence_contract_lanes
+            .iter()
+            .all(|lane| lane.machine != callee.id)
+        && structural_arguments.is_empty()
+        && claim_transfers.is_empty()
+        && returned_claim_transfers.is_empty()
+        && requirement_obligations.is_empty()
+        && crash_continuations.is_empty()
+        && result.structural_type == callee_result.structural_type
+        && result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.multiplicity == callee_result.multiplicity
+        && result.qualifications.is_empty()
+        && result.qualifications == callee_result.qualifications
+        && result.claims.is_empty()
+        && callee.contract.outcome_specific_ensures.iter().all(|row| {
+            proposition_structural_roots(&row.proposition)
+                .into_iter()
+                .all(|root| root == callee_result.place)
         })
+        && exact_payloadless_case_return_exits(callee)
+}
+
+fn exact_unrestricted_payloadless_result(
+    module: &psi_terminal::TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+) -> bool {
+    let Some(result) = machine.result.structural() else {
+        return false;
+    };
+    result.multiplicity == StructuralMultiplicity::Unrestricted
+        && result.qualifications.is_empty()
+        && machine
+            .blocks
+            .iter()
+            .any(|block| matches!(block.terminator, Terminator::ReturnStructural { .. }))
+        && machine.blocks.iter().all(|block| {
+            let Terminator::ReturnStructural {
+                source,
+                returned_claims,
+                ..
+            } = &block.terminator
+            else {
+                return true;
+            };
+            returned_claims.is_empty()
+                && machine
+                    .structural_places
+                    .iter()
+                    .find(|place| place.id == *source)
+                    .and_then(|place| match place.kind {
+                        StructuralPlaceKind::OperationResult { producer, .. } => machine
+                            .blocks
+                            .iter()
+                            .flat_map(|block| &block.operations)
+                            .find(|operation| operation.id == producer),
+                        _ => None,
+                    })
+                    .is_some_and(|operation| {
+                        (matches!(
+                            operation.kind,
+                            OperationKind::EstablishPayloadlessCase { .. }
+                        ) || exact_payloadless_structural_call(module, operation, machines))
+                            && operation
+                                .result
+                                .structural()
+                                .is_some_and(|operation_result| {
+                                    operation_result.place == *source
+                                        && operation_result.structural_type
+                                            == result.structural_type
+                                        && operation_result.multiplicity
+                                            == StructuralMultiplicity::Unrestricted
+                                        && operation_result.qualifications.is_empty()
+                                        && operation_result.claims.is_empty()
+                                })
+                    })
+        })
+        && machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .all(|operation| {
+                !matches!(
+                    operation.kind,
+                    OperationKind::Call { .. }
+                        | OperationKind::CallUnit { .. }
+                        | OperationKind::CallStructuralScalar { .. }
+                        | OperationKind::BoundaryCall { .. }
+                ) && (!matches!(operation.kind, OperationKind::CallStructural { .. })
+                    || exact_payloadless_structural_call(module, operation, machines))
+            })
+}
+
+fn lower_machine(
+    module: &psi_terminal::TerminalModule,
+    machine: &TerminalMachine,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    structural_types: &[psi_terminal::StructuralTypeDeclaration],
+    retain_payloadless_for_optimization: bool,
+) -> Result<TerminalAbstractFunction, LoweringError> {
+    if !retain_payloadless_for_optimization
+        && let Some(operation) = machine
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| {
+                matches!(
+                    operation.kind,
+                    OperationKind::EstablishPayloadlessCase { .. }
+                ) || matches!(operation.kind, OperationKind::CallStructural { .. })
+                    && operation.result.structural().is_some_and(|result| {
+                        result.multiplicity == psi_terminal::StructuralMultiplicity::Unrestricted
+                    })
+            })
     {
         return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
     }
-    if let Some(result) = machine.result.structural() {
+    if let Some(result) = machine.result.structural()
+        && !(retain_payloadless_for_optimization
+            && exact_unrestricted_payloadless_result(module, machine, machines))
+    {
         return lower_structural_machine(machine, result, structural_types);
     }
     let result = machine.result.scalar();
@@ -1024,8 +1369,18 @@ fn lower_machine(
         });
         for operation in &block.operations {
             match operation.kind.clone() {
-                OperationKind::EstablishPayloadlessCase { .. } => {
-                    return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
+                OperationKind::EstablishPayloadlessCase { result_case } => {
+                    if !retain_payloadless_for_optimization {
+                        return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
+                    }
+                    let Some(result) = operation.result.structural().cloned() else {
+                        return Err(LoweringError::UnsupportedPayloadlessCase(operation.id));
+                    };
+                    operations.push(TerminalAbstractOperation::EstablishPayloadlessCase {
+                        psi_operation: operation.id,
+                        result,
+                        result_case,
+                    });
                 }
                 OperationKind::EstablishByteSequenceLiteral { destination, bytes } => {
                     let (place, ordinal, structural_type) = byte_sequence_literals
@@ -1124,7 +1479,9 @@ fn lower_machine(
                     structural_arguments,
                     claim_transfers,
                     returned_claim_transfers,
-                    ..
+                    requirement_obligations,
+                    crash_continuations,
+                    selected_evidence,
                 } => {
                     let Some(result) = operation.result.structural().cloned() else {
                         return Err(LoweringError::UnsupportedStructuralResult(machine.id));
@@ -1136,6 +1493,9 @@ fn lower_machine(
                         structural_arguments,
                         claim_transfers,
                         returned_claim_transfers,
+                        requirement_obligations,
+                        crash_continuations,
+                        selected_evidence,
                     });
                 }
                 OperationKind::BoundaryCall {
@@ -1896,6 +2256,24 @@ fn lower_machine(
                         .collect(),
                 });
             }
+            Terminator::ReturnStructural {
+                edge,
+                source,
+                returned_claims,
+                trivial_affine_discards,
+            } if retain_payloadless_for_optimization
+                && machine.result.structural().is_some_and(|result| {
+                    result.multiplicity == StructuralMultiplicity::Unrestricted
+                }) =>
+            {
+                operations.push(TerminalAbstractOperation::ReturnStructural {
+                    psi_edge: *edge,
+                    source: *source,
+                    returned_claims: returned_claims.clone(),
+                    trivial_affine_locals: Vec::new(),
+                    trivial_affine_discards: trivial_affine_discards.clone(),
+                });
+            }
             Terminator::ReturnStructural { edge, .. } => {
                 return Err(LoweringError::UnsupportedStructuralReturn {
                     machine: machine.id,
@@ -1931,12 +2309,17 @@ fn lower_machine(
             })
             .collect(),
         structural_parameters: machine.structural_parameters.clone(),
-        result: match result {
-            Some(result) => TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
-                value: result.id,
-                scalar_type: result.scalar_type,
-            }),
-            None => TerminalAbstractFunctionResult::Unit,
+        result: match &machine.result {
+            psi_terminal::TerminalMachineResult::Unit => TerminalAbstractFunctionResult::Unit,
+            psi_terminal::TerminalMachineResult::Scalar(result) => {
+                TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                    value: result.id,
+                    scalar_type: result.scalar_type,
+                })
+            }
+            psi_terminal::TerminalMachineResult::Structural(result) => {
+                TerminalAbstractFunctionResult::Structural(result.clone())
+            }
         },
         entry_claims: machine.entry_claims.clone(),
         published_service_ceiling: machine.published_service_ceiling.clone(),
@@ -1976,7 +2359,7 @@ fn lower_structural_machine(
             returned_claim_transfers,
             requirement_obligations,
             crash_continuations,
-            selected_evidence: _,
+            selected_evidence,
         } = &operation.kind
         && let Some(operation_result) = operation.result.structural()
         && let Terminator::ReturnStructural {
@@ -2065,6 +2448,9 @@ fn lower_structural_machine(
                     structural_arguments: structural_arguments.clone(),
                     claim_transfers: claim_transfers.clone(),
                     returned_claim_transfers: returned_claim_transfers.clone(),
+                    requirement_obligations: requirement_obligations.clone(),
+                    crash_continuations: crash_continuations.clone(),
+                    selected_evidence: selected_evidence.clone(),
                 },
                 TerminalAbstractOperation::ReturnStructural {
                     psi_edge: *edge,
