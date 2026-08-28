@@ -571,53 +571,13 @@ exact_block_identity_load:
         load r0, r1
         ret
 
-; Resolve independently scanned source procedure ID r0 to its unique entry-block
-; artifact PC. The untrusted witness supplies block locations, but it cannot
-; select this identity: source procedure ownership and entry kind are checked in
-; the canonical block tables before the one matching PC is returned. Clobbers
-; only r0..r5.
+; Resolve independently scanned source procedure ID r0 through the canonical
+; procedure-span inventory. The inventory has already required one total,
+; ordered partition of the checked block tables. Clobbers only r0..r5.
 exact_proc_entry_pc:
         mov r5, r0
-        imm r4, 0                      ; block row
-        imm r3, 0                      ; matching entries
-        imm r0, 0                      ; selected artifact PC
-exact_proc_entry_loop:
-        imm r1, 524320                 ; independently scanned block count
-        load r1, r1
-        jlt r4, r1, exact_proc_entry_row
-        imm r1, 1
-        jeq r3, r1, exact_proc_entry_done
-        jmp reject
-exact_proc_entry_row:
-        mov r2, r4
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3145728
-        add r1, r2
-        load r1, r1
-        jeq r1, r5, exact_proc_entry_kind
-        jmp exact_proc_entry_next
-exact_proc_entry_kind:
-        imm r1, 3178496
-        add r1, r2
-        load r1, r1
-        imm r2, 0
-        jeq r1, r2, exact_proc_entry_match
-        jmp exact_proc_entry_next
-exact_proc_entry_match:
-        imm r1, 1
-        add r3, r1
-        mov r2, r4
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3235840
-        add r1, r2
-        load r0, r1
-exact_proc_entry_next:
-        imm r1, 1
-        add r4, r1
-        jmp exact_proc_entry_loop
-exact_proc_entry_done:
+        call exact_proc_span_identity_core
+        mov r0, r2
         ret
 
 ; Destination adapters let semantic consumers replace an absolute entry PC
@@ -1072,38 +1032,16 @@ exact_effect_event_next:
 
 ; Blocks [r20,r21] inclusive all and only belong to procedure r22.
 exact_require_proc_blocks:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        imm r10, 0
-        imm r11, 0
-exact_proc_block_loop:
-        imm r1, 355
-        jlt r10, r1, exact_proc_block_row
-        mov r2, r26
-        sub r2, r25
-        imm r1, 1
-        add r2, r1
-        jeq r11, r2, exact_shape_ok
+        mov r5, r22
+        call exact_proc_span_identity_core
+        jeq r0, r20, exact_proc_blocks_end
         jmp reject
-exact_proc_block_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3145728
-        add r1, r2
-        load r3, r1
-        jeq r3, r27, exact_proc_block_match
-        jmp exact_proc_block_next
-exact_proc_block_match:
-        jlt r10, r25, reject
-        jlt r26, r10, reject
+exact_proc_blocks_end:
+        mov r4, r1
         imm r1, 1
-        add r11, r1
-exact_proc_block_next:
-        imm r1, 1
-        add r10, r1
-        jmp exact_proc_block_loop
+        sub r4, r1
+        jeq r4, r21, exact_shape_ok
+        jmp reject
 
 ; Compatibility entry for regions with no direct output or raw byte access.
 ; Inputs r20..r24 are start/end/call/ret/store totals.

@@ -107,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-80,581 bytes for the current exact subjects, SHA-256
-`47d87b15bac99eb7974df98483cf367004ab3bc06637916062e0da7bdc7ffbff`.
+80,974 bytes for the current exact subjects, SHA-256
+`84f47e0c891293d60f6477c9c13774cdf0d542e86109db1a8ecc805fd95d0457`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -147,6 +147,19 @@ whitespace tranche closes semantic identity localization. Same-key direct
 writes now have a shared occurrence/cardinality identity. The only remaining
 coordinate-taking calls are inside the three low-level owners or the two checks
 whose coordinates were already returned by an independent semantic identity.
+
+One live-count-derived procedure inventory proves that the checked block tables
+form one total ordered partition: procedure IDs are contiguous, every procedure
+has one entry followed only by state blocks, and all 359 rows are consumed.
+It publishes only process-local first/exclusive block rows and entry/exclusive
+artifact PCs. Existing procedure-entry and block-range queries rejoin that
+structural product; frame, effect, memory, stack, and meaning remain separate.
+
+The whole-artifact frame summary retains one canonical per-PC reachability,
+relative-depth, frame-kind, and saved-frame product. Ranged-store transfer
+rejoins its selected slurp/declare sites through checked accessors to that
+product instead of running a second, weaker fixed point. Its operand/value
+classification, exact row joins, and stack custody remain separate obligations.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

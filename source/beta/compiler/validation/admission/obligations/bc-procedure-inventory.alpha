@@ -1,0 +1,158 @@
+; Canonical procedure-span inventory for the whole-bc checker.
+;
+; The common source owner has already reconstructed the procedure and block
+; identities, and the CFG owner has already required every witness-selected
+; block PC to be a decoded instruction start in strict source order.  Build one
+; total process-local index over those checked tables.  No witness field or
+; semantic obligation is introduced here.
+;
+; Per-procedure tables, each with room for the exact 71 procedures:
+;   17170432 first block row
+;   17178624 exclusive block row
+;   17186816 entry PC
+;   17195008 exclusive procedure-region PC
+
+build_proc_inventory_init:
+        imm r1, 524312
+        load r30, r1                    ; live procedure count
+        imm r1, 524320
+        load r31, r1                    ; live block count
+        imm r1, 0
+        jlt r1, r30, build_proc_inventory_blocks_nonempty
+        jmp reject
+build_proc_inventory_blocks_nonempty:
+        imm r1, 0
+        jlt r1, r31, build_proc_inventory_first
+        jmp reject
+
+build_proc_inventory_first:
+        imm r10, 0                      ; current block row
+        imm r11, 0                      ; current procedure identity
+        call proc_inventory_load_block
+        imm r1, 0
+        jeq r2, r1, build_proc_inventory_first_kind
+        jmp reject
+build_proc_inventory_first_kind:
+        imm r1, 0
+        jeq r3, r1, build_proc_inventory_first_store
+        jmp reject
+build_proc_inventory_first_store:
+        call proc_inventory_store_begin
+        imm r1, 1
+        add r10, r1
+
+build_proc_inventory_loop:
+        jlt r10, r31, build_proc_inventory_row
+        jmp build_proc_inventory_finish
+build_proc_inventory_row:
+        call proc_inventory_load_block
+        jeq r2, r11, build_proc_inventory_state
+        mov r4, r11
+        imm r1, 1
+        add r4, r1
+        jeq r2, r4, build_proc_inventory_next_proc
+        jmp reject
+build_proc_inventory_state:
+        imm r1, 1
+        jeq r3, r1, build_proc_inventory_advance
+        jmp reject
+build_proc_inventory_next_proc:
+        imm r1, 0
+        jeq r3, r1, build_proc_inventory_close_prior
+        jmp reject
+build_proc_inventory_close_prior:
+        call proc_inventory_store_end
+        imm r1, 1
+        add r11, r1
+        call proc_inventory_store_begin
+build_proc_inventory_advance:
+        imm r1, 1
+        add r10, r1
+        jmp build_proc_inventory_loop
+
+build_proc_inventory_finish:
+        imm r1, 524296
+        load r5, r1                     ; last region ends at exact tape length
+        call proc_inventory_store_end
+        mov r2, r11
+        imm r1, 1
+        add r2, r1
+        jeq r2, r30, build_proc_inventory_done
+        jmp reject
+build_proc_inventory_done:
+        jmp read_transition_pcs_init
+
+; Load current row r10. Return source procedure in r2, block kind in r3, and
+; checked block PC in r5.
+proc_inventory_load_block:
+        mov r4, r10
+        imm r1, 8
+        mul r4, r1
+        imm r1, 3145728
+        add r1, r4
+        load r2, r1
+        imm r1, 3178496
+        add r1, r4
+        load r3, r1
+        imm r1, 3235840
+        add r1, r4
+        load r5, r1
+        ret
+
+; Store the current procedure r11 beginning at block row r10 / checked PC r5.
+proc_inventory_store_begin:
+        mov r4, r11
+        imm r1, 8
+        mul r4, r1
+        imm r1, 17170432
+        add r1, r4
+        store r1, r10
+        imm r1, 17186816
+        add r1, r4
+        store r1, r5
+        ret
+
+; Store the current procedure r11 ending before block row r10 / checked PC r5.
+proc_inventory_store_end:
+        mov r4, r11
+        imm r1, 8
+        mul r4, r1
+        imm r1, 17178624
+        add r1, r4
+        store r1, r10
+        imm r1, 17195008
+        add r1, r4
+        store r1, r5
+        ret
+
+; Query one checked procedure span. Input r20 is the independently scanned
+; procedure identity. Return first block row, exclusive block row, entry PC,
+; and exclusive region PC in r0..r3. Preserve r20 and clobber r0..r5.
+exact_proc_span_identity:
+        mov r5, r20
+        jmp exact_proc_span_identity_core
+
+; Private compatibility entry with the procedure identity already in r5.
+exact_proc_span_identity_core:
+        imm r1, 0
+        jlt r5, r1, reject
+        imm r1, 524312
+        load r2, r1
+        jlt r5, r2, exact_proc_span_identity_load
+        jmp reject
+exact_proc_span_identity_load:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 17170432
+        add r1, r5
+        load r0, r1
+        imm r1, 17178624
+        add r1, r5
+        load r1, r1
+        imm r2, 17186816
+        add r2, r5
+        load r2, r2
+        imm r3, 17195008
+        add r3, r5
+        load r3, r3
+        ret

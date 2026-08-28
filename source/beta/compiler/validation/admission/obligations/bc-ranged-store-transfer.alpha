@@ -9,17 +9,16 @@
 ;   declare.NLOC  -> [fp-8] -> NAMEOFF+s*8 / NAMELEN+s*8
 ;   declare.s+1   -> machine NLOC
 ;
-; It also computes a decoded-CFG fixed point for the two call-free procedures.
-; Relative to an aligned valid entry pair (r15=S,r14=F), both preserve the
-; caller pair, every selected local/temporary access is within S-32..S-8, and
-; every return has restored depth zero.  This is deliberately conditional on
-; the invocation satisfying aligned 524320<=S<=F<=1048576; declare additionally
-; assumes actual machine NLOC equals source NLOC in [0,1024]. Lifting the BCT9
-; root potential and NLOC relation to every call remains a whole-artifact
+; The preceding whole-artifact frame summary already computes the stronger
+; decoded-CFG fixed point for all procedures.  This phase consumes its retained
+; canonical per-PC state for the two call-free procedures: relative to an
+; aligned valid entry pair (r15=S,r14=F), both preserve the caller pair, every
+; selected local/temporary access is within S-32..S-8, and every return has
+; restored depth zero.  This is deliberately conditional on the invocation
+; satisfying aligned 524320<=S<=F<=1048576; declare additionally assumes actual
+; machine NLOC equals source NLOC in [0,1024]. Lifting the BCT9 root potential
+; and NLOC relation to every call remains a whole-artifact
 ; counter/saved-frame/reset obligation.
-;
-; Fresh state maps, indexed by tape PC:
-;   visited 10625024; depth 10887168; fp-kind 12984320; saved-fp 13246464.
 
 ranged_transfer_init:
         call transfer_require_selected_rows
@@ -779,24 +778,19 @@ transfer_value_require_hi:
 transfer_value_require_ok:
         ret
 
-; Analyze slurp from its stable procedure identity to the next procedure entry,
-; then require both explicit returns and selected local/store identities.
+; Consume the canonical frame-summary product for both explicit returns and
+; selected local/store identities in slurp.
 transfer_slurp_frame_init:
-        imm r20, 0
-        call exact_proc_entry_r20
-        imm r21, 1
-        call exact_proc_entry_r21
-        call transfer_frame_region
         imm r20, 0
         imm r21, 3
         call exact_require_event_epilogue
         mov r20, r4
-        call transfer_require_visited
+        call fs_require_visited
         imm r20, 0
         imm r21, 4
         call exact_require_event_epilogue
         mov r20, r4
-        call transfer_require_visited
+        call fs_require_visited
         imm r20, 0
         imm r21, 2
         imm r22, 2
@@ -804,7 +798,7 @@ transfer_slurp_frame_init:
         call exact_memory_identity_pc
         mov r20, r0
         imm r21, 24
-        call transfer_require_depth
+        call fs_require_depth
         imm r20, 4
         imm r21, 2
         imm r22, 1
@@ -812,7 +806,7 @@ transfer_slurp_frame_init:
         call exact_local_identity_pc
         mov r20, r0
         imm r21, 32
-        call transfer_require_depth
+        call fs_require_depth
         imm r20, 6
         imm r21, 2
         imm r22, 2
@@ -820,25 +814,21 @@ transfer_slurp_frame_init:
         call exact_local_identity_pc
         mov r20, r0
         imm r21, 24
-        call transfer_require_depth
+        call fs_require_depth
         jmp transfer_declare_frame_init
 
+; Consume the same whole-artifact product for declare.
 transfer_declare_frame_init:
-        imm r20, 34
-        call exact_proc_entry_r20
-        imm r21, 35
-        call exact_proc_entry_r21
-        call transfer_frame_region
         imm r20, 34
         imm r21, 171
         call exact_require_event_epilogue
         mov r20, r4
-        call transfer_require_visited
+        call fs_require_visited
         imm r20, 34
         imm r21, 172
         call exact_require_event_epilogue
         mov r20, r4
-        call transfer_require_visited
+        call fs_require_visited
         imm r20, 39
         imm r21, 172
         imm r22, 2
@@ -846,7 +836,7 @@ transfer_declare_frame_init:
         call exact_memory_identity_pc
         mov r20, r0
         imm r21, 16
-        call transfer_require_depth
+        call fs_require_depth
         imm r20, 41
         imm r21, 172
         imm r22, 2
@@ -854,7 +844,7 @@ transfer_declare_frame_init:
         call exact_memory_identity_pc
         mov r20, r0
         imm r21, 16
-        call transfer_require_depth
+        call fs_require_depth
         imm r20, 43
         imm r21, 172
         imm r22, 2
@@ -862,497 +852,5 @@ transfer_declare_frame_init:
         call exact_memory_identity_pc
         mov r20, r0
         imm r21, 16
-        call transfer_require_depth
+        call fs_require_depth
         jmp counter_transfer_init
-
-transfer_require_visited:
-        imm r1, 10625024
-        add r1, r20
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, transfer_require_visited_ok
-        jmp reject
-transfer_require_visited_ok:
-        ret
-
-transfer_require_depth:
-        mov r22, r20
-        call transfer_require_visited
-        imm r1, 8
-        mul r22, r1
-        imm r1, 10887168
-        add r1, r22
-        load r2, r1
-        jeq r2, r21, transfer_require_depth_ok
-        jmp reject
-transfer_require_depth_ok:
-        ret
-
-; Region r20..r21 is checked under symbolic entry r15=S/r14=F.
-transfer_frame_region:
-        imm r1, 525216
-        store r1, r20
-        imm r1, 525224
-        store r1, r21
-        imm r21, 0                     ; depth S-r15
-        imm r22, 0                     ; fp kind: caller F
-        imm r23, 0                     ; saved caller fp not installed
-        call transfer_state_add
-transfer_frame_fixedpoint:
-        imm r0, 0
-        imm r1, 525232
-        store r1, r0
-        imm r1, 525216
-        load r10, r1
-transfer_frame_scan:
-        imm r1, 525224
-        load r2, r1
-        jlt r10, r2, transfer_frame_scan_pc
-        imm r1, 525232
-        load r2, r1
-        imm r3, 1
-        jeq r2, r3, transfer_frame_fixedpoint
-        ret
-transfer_frame_scan_pc:
-        imm r1, 10625024
-        add r1, r10
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, transfer_frame_interpret
-transfer_frame_scan_next:
-        imm r1, 1
-        add r10, r1
-        jmp transfer_frame_scan
-
-transfer_frame_interpret:
-        mov r27, r10                    ; current pc
-        imm r1, 8
-        mul r10, r1
-        imm r1, 10887168
-        add r1, r10
-        load r24, r1                    ; depth
-        mov r10, r27
-        imm r1, 12984320
-        add r1, r10
-        loadb r25, r1                   ; fp kind
-        imm r1, 13246464
-        add r1, r10
-        loadb r26, r1                   ; saved-fp fact
-        imm r1, 2097152
-        add r1, r10
-        loadb r28, r1                   ; opcode
-        imm r1, 21
-        jlt r28, r1, transfer_frame_opcode
-        jmp reject
-
-transfer_frame_opcode:
-        imm r1, 0
-        jeq r28, r1, reject
-        imm r1, 1
-        jeq r28, r1, transfer_frame_imm
-        imm r1, 2
-        jeq r28, r1, transfer_frame_mov
-        imm r1, 3
-        jeq r28, r1, transfer_frame_add
-        imm r1, 4
-        jeq r28, r1, transfer_frame_sub
-        imm r1, 8
-        jlt r28, r1, transfer_frame_rr_write
-        imm r1, 8
-        jeq r28, r1, transfer_frame_loadb
-        imm r1, 9
-        jeq r28, r1, transfer_frame_storeb
-        imm r1, 10
-        jeq r28, r1, transfer_frame_load
-        imm r1, 11
-        jeq r28, r1, transfer_frame_store
-        imm r1, 12
-        jeq r28, r1, transfer_frame_jmp
-        imm r1, 15
-        jlt r28, r1, transfer_frame_cond10
-        imm r1, 17
-        jlt r28, r1, transfer_frame_cond11
-        imm r1, 17
-        jeq r28, r1, transfer_frame_read
-        imm r1, 18
-        jeq r28, r1, transfer_frame_next2
-        imm r1, 19
-        jeq r28, r1, reject             ; selected procedures are call-free
-        jmp transfer_frame_ret
-
-; Reject any unrecognized write to r14/r15.
-transfer_frame_imm:
-        call transfer_load_dest
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, reject
-        jmp transfer_frame_next10
-transfer_frame_read:
-        call transfer_load_dest
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, reject
-        jmp transfer_frame_next2
-transfer_frame_rr_write:
-        call transfer_load_dest
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, reject
-        jmp transfer_frame_next3
-transfer_frame_loadb:
-        call transfer_load_operands
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r2, r1, transfer_frame_stack_access
-        jmp transfer_frame_next3
-
-transfer_frame_mov:
-        call transfer_load_operands
-        imm r1, 14
-        jeq r0, r1, transfer_frame_set_fp
-        imm r1, 15
-        jeq r0, r1, transfer_frame_set_sp_from_fp
-        jmp transfer_frame_next3
-transfer_frame_set_fp:
-        imm r1, 15
-        jeq r2, r1, transfer_frame_set_fp_depth
-        jmp reject
-transfer_frame_set_fp_depth:
-        imm r1, 8
-        jeq r24, r1, transfer_frame_set_fp_now
-        jmp reject
-transfer_frame_set_fp_now:
-        imm r25, 1
-        jmp transfer_frame_next3
-transfer_frame_set_sp_from_fp:
-        imm r1, 14
-        jeq r2, r1, transfer_frame_set_sp_from_fp_kind
-        jmp reject
-transfer_frame_set_sp_from_fp_kind:
-        imm r1, 1
-        jeq r25, r1, transfer_frame_set_sp_from_fp_now
-        jmp reject
-transfer_frame_set_sp_from_fp_now:
-        imm r24, 8
-        jmp transfer_frame_next3
-
-transfer_frame_add:
-        call transfer_load_operands
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, transfer_frame_pop
-        jmp transfer_frame_next3
-transfer_frame_pop:
-        mov r20, r27
-        mov r21, r2
-        call transfer_require_setup
-        mov r3, r0
-        jlt r24, r3, reject
-        sub r24, r3
-        jmp transfer_frame_next3
-
-transfer_frame_sub:
-        call transfer_load_operands
-        imm r1, 14
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r0, r1, transfer_frame_push
-        jmp transfer_frame_next3
-transfer_frame_push:
-        mov r20, r27
-        mov r21, r2
-        call transfer_require_setup
-        add r24, r0
-        imm r1, 33
-        jlt r24, r1, transfer_frame_next3
-        jmp reject
-
-transfer_frame_load:
-        call transfer_load_operands
-        imm r1, 14
-        jeq r0, r1, transfer_frame_restore_fp
-        imm r1, 15
-        jeq r0, r1, reject
-        imm r1, 15
-        jeq r2, r1, transfer_frame_stack_access
-        jmp transfer_frame_next3
-transfer_frame_restore_fp:
-        imm r1, 15
-        jeq r2, r1, transfer_frame_restore_fp_depth
-        jmp reject
-transfer_frame_restore_fp_depth:
-        imm r1, 8
-        jeq r24, r1, transfer_frame_restore_fp_saved
-        jmp reject
-transfer_frame_restore_fp_saved:
-        imm r1, 1
-        jeq r26, r1, transfer_frame_restore_fp_now
-        jmp reject
-transfer_frame_restore_fp_now:
-        imm r25, 0
-        jmp transfer_frame_next3
-
-transfer_frame_storeb:
-        call transfer_load_operands
-        imm r1, 15
-        jeq r0, r1, transfer_frame_stack_access
-        jmp transfer_frame_next3
-transfer_frame_store:
-        call transfer_load_operands
-        imm r1, 15
-        jeq r0, r1, transfer_frame_store_stack
-        jmp transfer_frame_next3
-transfer_frame_store_stack:
-        imm r1, 14
-        jeq r2, r1, transfer_frame_save_fp
-        imm r1, 16
-        jlt r24, r1, reject
-        jmp transfer_frame_next3
-transfer_frame_save_fp:
-        imm r1, 8
-        jeq r24, r1, transfer_frame_save_fp_kind
-        jmp reject
-transfer_frame_save_fp_kind:
-        imm r1, 0
-        jeq r25, r1, transfer_frame_save_fp_now
-        jmp reject
-transfer_frame_save_fp_now:
-        imm r26, 1
-        jmp transfer_frame_next3
-transfer_frame_stack_access:
-        imm r1, 8
-        jlt r24, r1, reject
-        jmp transfer_frame_next3
-
-transfer_frame_jmp:
-        mov r20, r27
-        imm r1, 1
-        add r20, r1
-        call transfer_load_tape_word
-        mov r20, r0
-        call transfer_reject_effect_branch_target
-        mov r20, r0
-        call transfer_propagate_current
-        jmp transfer_frame_scan_next
-transfer_frame_cond10:
-        mov r20, r27
-        imm r1, 2
-        add r20, r1
-        call transfer_load_tape_word
-        mov r20, r0
-        call transfer_reject_effect_branch_target
-        mov r20, r0
-        call transfer_propagate_current
-        mov r20, r27
-        imm r1, 10
-        add r20, r1
-        call transfer_propagate_current
-        jmp transfer_frame_scan_next
-transfer_frame_cond11:
-        mov r20, r27
-        imm r1, 3
-        add r20, r1
-        call transfer_load_tape_word
-        mov r20, r0
-        call transfer_reject_effect_branch_target
-        mov r20, r0
-        call transfer_propagate_current
-        mov r20, r27
-        imm r1, 11
-        add r20, r1
-        call transfer_propagate_current
-        jmp transfer_frame_scan_next
-
-transfer_frame_ret:
-        imm r1, 0
-        jeq r24, r1, transfer_frame_ret_fp
-        jmp reject
-transfer_frame_ret_fp:
-        jeq r25, r1, transfer_frame_ret_saved
-        jmp reject
-transfer_frame_ret_saved:
-        imm r1, 1
-        jeq r26, r1, transfer_frame_scan_next
-        jmp reject
-
-transfer_frame_next2:
-        imm r1, 2
-        jmp transfer_frame_fallthrough
-transfer_frame_next3:
-        imm r1, 3
-        jmp transfer_frame_fallthrough
-transfer_frame_next10:
-        imm r1, 10
-transfer_frame_fallthrough:
-        mov r20, r27
-        add r20, r1
-        call transfer_propagate_current
-        jmp transfer_frame_scan_next
-
-; Read destination/source register bytes for current pc r27.
-transfer_load_dest:
-        imm r1, 2097153
-        add r1, r27
-        loadb r0, r1
-        ret
-transfer_load_operands:
-        call transfer_load_dest
-        imm r1, 2097154
-        add r1, r27
-        loadb r2, r1
-        ret
-
-; Resolve a stack-adjustment operand. r13 is the ABI-owned word size; all
-; other registers still require an immediately preceding aligned immediate.
-transfer_require_setup:
-        imm r1, 13
-        jeq r21, r1, transfer_setup_word_size
-        imm r1, 10
-        jlt r20, r1, reject
-        sub r20, r1
-        imm r1, 2097152
-        add r1, r20
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, transfer_setup_register
-        jmp reject
-transfer_setup_register:
-        imm r2, 1
-        add r1, r2
-        loadb r3, r1
-        jeq r3, r21, transfer_setup_value
-        jmp reject
-transfer_setup_value:
-        add r1, r2
-        load r0, r1
-        imm r1, 0
-        jlt r1, r0, transfer_setup_aligned
-        jmp reject
-transfer_setup_aligned:
-        mov r2, r0
-        imm r1, 8
-        mod r2, r1
-        imm r1, 0
-        jeq r2, r1, transfer_setup_ok
-        jmp reject
-transfer_setup_ok:
-        ret
-transfer_setup_word_size:
-        imm r0, 8
-        ret
-
-transfer_load_tape_word:
-        imm r1, 2097152
-        add r1, r20
-        load r0, r1
-        ret
-
-; Direct branches may not enter an r14/r15-writing instruction after its setup.
-transfer_reject_effect_branch_target:
-        mov r6, r20
-        imm r1, 2097152
-        add r1, r6
-        loadb r2, r1
-        imm r3, 2
-        jeq r2, r3, transfer_branch_target_dest
-        imm r3, 8
-        jlt r2, r3, transfer_branch_target_dest
-        imm r3, 8
-        jeq r2, r3, transfer_branch_target_dest
-        imm r3, 10
-        jeq r2, r3, transfer_branch_target_dest
-        imm r3, 17
-        jeq r2, r3, transfer_branch_target_dest
-        mov r0, r6
-        ret
-transfer_branch_target_dest:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 14
-        jeq r2, r3, reject
-        imm r3, 15
-        jeq r2, r3, reject
-        mov r0, r6
-        ret
-
-transfer_propagate_current:
-        mov r21, r24
-        mov r22, r25
-        mov r23, r26
-        call transfer_state_add
-        ret
-
-; Join exact abstract state at pc r20. Any nonidentical merge rejects.
-transfer_state_add:
-        imm r1, 525216
-        load r2, r1
-        jlt r20, r2, reject
-        imm r1, 525224
-        load r2, r1
-        jlt r20, r2, transfer_state_start
-        jmp reject
-transfer_state_start:
-        imm r1, 4194304
-        add r1, r20
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, transfer_state_visited
-        jmp reject
-transfer_state_visited:
-        imm r1, 10625024
-        add r1, r20
-        loadb r2, r1
-        imm r3, 0
-        jeq r2, r3, transfer_state_new
-        imm r3, 1
-        jeq r2, r3, transfer_state_merge
-        jmp reject
-transfer_state_new:
-        imm r2, 1
-        storeb r1, r2
-        mov r12, r20
-        imm r1, 8
-        mul r12, r1
-        imm r1, 10887168
-        add r1, r12
-        store r1, r21
-        imm r1, 12984320
-        add r1, r20
-        storeb r1, r22
-        imm r1, 13246464
-        add r1, r20
-        storeb r1, r23
-        imm r1, 525232
-        store r1, r2
-        ret
-transfer_state_merge:
-        mov r12, r20
-        imm r1, 8
-        mul r12, r1
-        imm r1, 10887168
-        add r1, r12
-        load r2, r1
-        jeq r2, r21, transfer_state_merge_fp
-        jmp reject
-transfer_state_merge_fp:
-        imm r1, 12984320
-        add r1, r20
-        loadb r2, r1
-        jeq r2, r22, transfer_state_merge_saved
-        jmp reject
-transfer_state_merge_saved:
-        imm r1, 13246464
-        add r1, r20
-        loadb r2, r1
-        jeq r2, r23, transfer_state_merge_ok
-        jmp reject
-transfer_state_merge_ok:
-        ret

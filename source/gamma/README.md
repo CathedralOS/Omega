@@ -23,12 +23,19 @@ prematurely reclaim an observable Gamma value. Known `Nil`, `ZeroTree`, `Cons`,
 value constructors retain their ordinary representation. Direct call
 expressions also cache their resolved function-table index after the first
 lookup; this is interpreter-private AST metadata and does not alter name
-resolution, evaluation order, fuel, or printed values. These are bounded
+resolution, evaluation order, fuel, or printed values. Variable expressions
+likewise cache their frame-relative lexical slot after the first complete
+lookup; subsequent reads use the current invocation's frame base, so recursion
+and repeated calls do not retain a prior invocation's value. These are bounded
 execution properties of the canonical interpreter. Its checked evaluator entry
 establishes positive fuel; subexpression evaluation preserves that invariant,
 and every function-call decrement is checked at the tail-transfer boundary.
 The internal evaluator therefore does not repeat the same fuel test for every
-AST child. This is not extra Gamma syntax; printed values and pattern matching
+AST child. Literal, arithmetic, comparison, and condition hot paths encode or
+decode the canonical nonnegative-u32 immediate representation directly;
+negative and oversized results still rejoin the single boxed implementation,
+and explicit boundary cases pin both paths. This is not extra Gamma syntax;
+printed values and pattern matching
 retain the language definition in [`LANGUAGE.md`](LANGUAGE.md). Canonical
 source input has a checked 4 MiB ceiling; the adjacent byte exits 252 without
 evaluation or output rather than overlapping the function table. Evaluated call arguments use

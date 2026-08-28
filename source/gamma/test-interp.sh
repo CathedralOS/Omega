@@ -93,10 +93,15 @@ cv '(Cons 1 2 3)' '(Cons 1 2 3)'
 # A formerly boxed compiler-sized value remains exact under the immediate path.
 ov '70001' '70001'
 # Nonnegative u32 values use the canonical interpreter's immediate representation;
-# the adjacent value and negative arithmetic retain the semantics-preserving boxed path.
+# zero/one, the adjacent value, negative arithmetic, and arithmetic crossing the
+# boundary pin the evaluator's direct encode/decode paths and boxed fallback.
+ov '0' '0'
+ov '1' '1'
 ov '4294967295' '4294967295'
 ov '4294967296' '4294967296'
+ov '(- 0 1)' '-1'
 ov '(- 0 2)' '-2'
+ov '(+ 4294967295 1)' '4294967296'
 # Known persistent-array constructors use compact tagged handles without changing
 # their canonical printed tree.
 cv '(Chunks 2 (Node ZeroTree ZeroTree))' '(Chunks 2 (Node ZeroTree ZeroTree))'

@@ -1035,7 +1035,7 @@ cfg_secondary_done:
 cfg_verify_block_roots:
         imm r1, 359
         jlt r10, r1, cfg_verify_block_root
-        jmp read_transition_pcs_init
+        jmp build_proc_inventory_init
 cfg_verify_block_root:
         mov r2, r10
         imm r1, 8
