@@ -178,6 +178,11 @@ canonical Terminal Psi semantic + proof sections
     -> validated assigned target operations
     -> machine scheduling / peepholes / block layout
     -> symbolic machine instructions
+    -> named physical realization and independently replayed encoding
+    -> relocation-free function fragments
+    -> validated dense text-section placement
+    -> private-symbol Omega object container
+       (external/process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
 
@@ -1328,11 +1333,17 @@ fixed-width signed/unsigned family `0 / x -> 0` and `0 % x -> 0` for exact,
 wrapping, and saturating operations. The zero must be the direct typed left
 literal and the operation must retain its exact accepted obligation; production
 and replay consume both fact identities while retaining the historical accepted
-catalog. Candidate schema remains v24, so extending the closed identity-kind
-tags does not rehash or change tie breaks for existing candidates. Optimization-
-unit identity remains v10; the named v5 pass, prephysical manifest v18, and
-optimized-plan projection validation v19 bind the expanded schedule. Ledger v4
-already represents the relocation. Runtime
+catalog. The sixth rule,
+`live-proof-certified-exact-integer-zero-value-shift-elimination.v1`, rewrites
+exact fixed-width signed/unsigned `0 << count` and `0 >> count` to the existing
+direct typed zero operand. The count need not be literal, but the operation must
+retain the verifier-accepted obligation proving that its authored shift is
+defined. Wrapping shifts are obligation-free and remain outside this proof-
+bearing family. Candidate schema remains v24, so extending the closed identity-
+kind tags does not rehash or change tie breaks for existing candidates.
+Optimization-unit identity remains v10; the named v6 pass, prephysical manifest
+v19, and optimized-plan projection validation v20 bind the expanded schedule.
+Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
 
@@ -1657,16 +1668,18 @@ validator reconstructs selected instruction order, CFG successors, operand
 roles, machine-state effects, fixed positions, canonical exact sets, and the
 full content identity before an opaque result is issued. Orchestration nests
 that result with the complete selected carrier and revalidates both layers.
-The v3 slice admits two exact constraint topologies. The first,
-`DistinctUseToDefTiedHomesV1`: a distinct earlier Use and later Def in the same
-instruction, with each VReg in at most one pair per function. It preserves a
-canonical tied-pair row through liveness and block-domain ranges. The second,
+The v4 slice admits distinct earlier-Use-to-later-Def ties in the same
+instruction as canonical edge rows through liveness and block-domain ranges.
+Any number of edges may form transitive same-home components: multiple Defs may
+target one Use, and a VReg may participate in later ties, admitting both chains
+and forks. The separately named early-clobber topology,
 `SingleDistinctDefAgainstUsesEarlyClobberV1`, permits at most one instruction
 per function with exactly one early Def and one or more distinct Uses, excluding
-UseDef, ties, other Defs, and repeated participants. General ties, UseDef,
-early-clobber compositions, spills, loops, calls, crashes, cleanup, and
-suspension remain refused until they have explicit selected-IR frontiers and
-dedicated validation rules.
+UseDef, overlapping tied participants, other Defs, and repeated participants.
+Disjoint tied components and that one early-clobber row may coexist. UseDef,
+overlapping tie/early-clobber compositions, general early-clobber forms, spills,
+loops, calls, crashes, cleanup, and suspension remain refused until they have
+explicit selected-IR frontiers and dedicated validation rules.
 
 A two-machine disconnected fixture exercises the complete current vertical on
 x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
@@ -1715,13 +1728,15 @@ general allocation candidate, but it must still have the right class and avoid
 reserved or architectural units. Production and replay independently derive
 the exact nonempty, sorted candidate rows.
 
-For the admitted tie topology, home assignment treats the two live ranges as a
-single canonical bundle. It takes the union envelope, intersects the exact
-point candidates of both members, chooses the lowest stable common view, and
-assigns that view to both. Independent replay rejects member interference,
-disjoint candidates, malformed topology, or unequal homes. Spill-choice fails
-closed while such a bundle is present rather than separating tied values
-without a proved copy/storage strategy.
+For each admitted tied component, home assignment takes the union envelope,
+intersects every member's ordinary and early-clobber point candidates, chooses
+the lowest stable common view, and assigns that view to every member. Production
+uses union-find while independent replay uses separately coded set merging.
+Every unordered component member pair must be noninterfering. Replay rejects
+component interference, disjoint candidates, malformed topology, or unequal
+homes. Spill-choice fails closed while any tied component is present rather
+than separating tied values without a proved copy/storage strategy. Liveness
+and live-range identities are v4; the strict home identity and codec are v5.
 
 The same artifact exposes incompatible entry and operand fixed views as
 transition requirements. In the current forwarded-value fixture, the shared
@@ -2032,11 +2047,25 @@ alignment, entry, statistics, and closed no-relocation conclusion. The strict
 container and serialization, external entry bridge, executable image,
 installation, and publication unavailable.
 
+The next object-owned boundary consumes that validated text section by value.
+`ValidatedRelocationFreeTerminalObjectContainerV1` creates exactly one private
+object-local symbol per placed function in source order, with canonical one-
+based symbol IDs and `MachineId`-rooted names. Dense symbol intervals cover the
+text bytes exactly. Precisely one symbol carries the semantic-entry role, even
+when that function is second and begins at a nonzero offset; this is not a
+`main`/`_main` process-entry claim. The strict `OMGTRO` v1 container and
+`OMGTOM` v1 manifest bind the canonical target, source text-section identity,
+symbol roster, semantic entry, exact bytes, and independently replayed zero-
+relocation conclusion. This clean sibling does not acquire authority from the
+legacy object plan. External/process entry bridging, native image construction,
+installation, and publication remain unavailable.
+
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The next
-join gives the validated text section symbol/entry and object-container custody,
-then carries it into the native artifact; the compiler gate can be removed only
-together with selected-build publication tests.
+join must give the object-local semantic entry an authoritative external entry
+bridge and carry the validated object container into a native artifact; the
+compiler gate can be removed only together with selected-build publication
+tests.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and
@@ -2289,10 +2318,14 @@ bytes, the semantic-entry coordinate, and the independently proved absence of
 relocation requirements for the current inventory. It still declares symbols,
 object container/serialization, external entry bridge, image, installation,
 and publication unavailable. The pre-physical, post-allocation, and function-
-relative records have strict self-authenticating codecs and are joined by the
-pipeline-owned cumulative report carrier; that carrier, the fragment manifest,
-and the text-section manifest are not yet wired into a compiler-owned artifact
-or rebuild-metadata section.
+relative records have strict self-authenticating codecs. A third strict v1
+object-container manifest binds the clean object plan, private function symbols,
+object-local semantic-entry binding, strict `OMGTRO` bytes, and independently
+replayed zero relocation-record count while keeping external entry, native
+image, installation, and publication unavailable. The pipeline-owned cumulative
+report carrier joins the earlier records; that carrier and the fragment, text-
+section, and object-container manifests are not yet wired into a compiler-owned
+artifact or rebuild-metadata section.
 `OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
 publication records and enter that metadata path; successful native compiler
 publication must then materialize the already-retained report request.
