@@ -1,10 +1,11 @@
 use crate::{CompilerIssuedPackageReview, ImmutableSourceResolution, PackageKey};
+use omega_build_provenance::CompilerExecutableCommitment;
 use omega_compiler::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
     BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
+    BuildObservationClass, BuildObservationSummary,
 };
 use omega_package_compilation::PackageSourceConsumptionCommitment;
 use omega_package_review::{

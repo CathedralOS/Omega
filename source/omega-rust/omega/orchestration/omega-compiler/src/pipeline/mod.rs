@@ -10,7 +10,6 @@ mod build_replay_record;
 mod calling_policy_plans;
 mod checked_entry;
 mod compile_policy;
-mod compiler_executable_commitment;
 #[path = "provider/component_progress.rs"]
 mod component_progress;
 mod emitted_program;
@@ -125,9 +124,6 @@ pub use checked_entry::{
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
 };
 pub use compile_policy::ExecutableTcbBuildPolicy;
-pub use compiler_executable_commitment::{
-    CompilerExecutableCommitment, CompilerExecutableCommitmentError,
-};
 pub(crate) use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyClosure, PackageGeneratedSourceBundle,
     PackageSourceConsumptionCommitment,
