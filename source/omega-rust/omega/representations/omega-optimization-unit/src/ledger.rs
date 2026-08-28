@@ -718,16 +718,17 @@ mod tests {
         );
 
         let mut unknown_disposition = ledger.encode();
-        let mut cursor = LedgerCursor::new(&unknown_disposition);
-        cursor.take(LEDGER_MAGIC.len()).unwrap();
-        cursor.take(2 + 32 + 4 + 32 + 32).unwrap();
-        assert_eq!(cursor.length().unwrap(), 1);
-        cursor.take(32 * 5).unwrap();
-        assert_eq!(cursor.length().unwrap(), 0);
-        assert_eq!(cursor.length().unwrap(), 2);
-        cursor.take(1 + 8 + 8 + 4).unwrap();
-        let disposition_offset = cursor.offset;
-        drop(cursor);
+        let disposition_offset = {
+            let mut cursor = LedgerCursor::new(&unknown_disposition);
+            cursor.take(LEDGER_MAGIC.len()).unwrap();
+            cursor.take(2 + 32 + 4 + 32 + 32).unwrap();
+            assert_eq!(cursor.length().unwrap(), 1);
+            cursor.take(32 * 5).unwrap();
+            assert_eq!(cursor.length().unwrap(), 0);
+            assert_eq!(cursor.length().unwrap(), 2);
+            cursor.take(1 + 8 + 8 + 4).unwrap();
+            cursor.offset
+        };
         unknown_disposition[disposition_offset] = 99;
         assert_eq!(
             PsiTransformationLedger::decode(&unknown_disposition),
