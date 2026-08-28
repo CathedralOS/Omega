@@ -18,3 +18,8 @@ repository-wide stress orchestration layer.
 `paths.sh` only maps semantic-owner roles to repository locations. Shell and
 Python helpers may coordinate or test commands, but no bootstrap claim depends
 on this runner, its working directory, or transformations performed by it.
+
+The retired root `compiler/` cache, `.lattice-cache` receipt profiles, and their
+ignore rules are gone. The remaining roles and Delta manifests each have a live
+gate consumer; they are subject identities or invocation paths, not historical
+aliases or hidden bridge stages.
