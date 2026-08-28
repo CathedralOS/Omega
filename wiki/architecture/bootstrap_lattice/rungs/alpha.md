@@ -78,11 +78,10 @@ Gaps versus this target, all small and self-contained:
   seeds both implement it; div/mod now trap on `INT_MIN/-1` to match the x64
   `idiv` overflow.)
 - **Fixed memory hole** — memory size should be an execution *parameter* with a
-  defined out-of-memory result, not baked into the artifact. Interim: the arm64
-  seed's hole was grown 32 KB → 256 KB (`.space 0x40000`) to fit the self-hosting
-  Beta compiler; the x64 seed is still 32 KB pending a forge rebuild to match
-  (`HOLE_SIZE` in `seed_env.sh` is now per-platform). Hole size is a capacity, not
-  a semantic—the realizations agree for any tape that fits both.
+  defined out-of-memory result, not baked into the artifact. Interim: both
+  committed seeds now reserve 256 KiB (`0x40000`) to fit the self-hosting Beta
+  compiler. Hole size is a capacity, not a semantic—the realizations agree for
+  any tape that fits both.
 - **Memory accesses are unchecked** — out-of-bounds is silent, not a defined
   trap. A trust-root executor should trap, not corrupt. (Spelled out as the only
   *undefined* corner in SEMANTICS.md §8; the hardening is the next step here.)

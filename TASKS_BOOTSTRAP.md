@@ -1,6 +1,6 @@
 # Bootstrap lattice — active work
 
-Last pruned: 2026-08-27.
+Last pruned: 2026-08-28.
 
 This queue builds one direct compiler sequence. It does not define a second
 orchestration language, a separately named hosted bridge, or a collection of

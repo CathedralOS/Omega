@@ -1,4 +1,4 @@
-# `source/alpha/checker/` — certificate-checking assurance
+# `source/alpha/checker/` — Alpha certificate checker
 
 This Alpha-owned service is where the lattice's whole thesis — **trust by
 checking, not by pedigree** — becomes concrete. The bootstrap spine gives us a
@@ -10,7 +10,7 @@ Beta compiler, below `bc`, and reconstructed byte-for-byte by
 regression and differential evidence, but cannot admit its own producer.
 
 This tree is checker infrastructure rather than a compiler or language rung.
-Canonical callers resolve the `proof-kernel` role through `tools/lattice/paths.sh`.
+Canonical callers resolve the `alpha-checker` role through `tools/lattice/paths.sh`.
 Internal ownership is split by responsibility; the host language of a file does
 not determine its owner.
 See the
@@ -167,7 +167,7 @@ bug-finding evidence while the soundness bridge matures:
   through **both** and requires identical verdicts. This agreement does not
   itself prove either checker sound.
 - [`implementations/gamma/checker_typed.gamma`](implementations/gamma/checker_typed.gamma) is that Gamma checker
-  fully annotated, and Gamma's own static type checker (`../../rungs/gamma/typeck.beta`) accepts
+  fully annotated, and Gamma's own static type checker (`../../gamma/typeck.beta`) accepts
   it — so the trust anchor's *code* is shown statically type-safe.
 
 The logic is now **first-order intuitionistic predicate logic with induction**: all
