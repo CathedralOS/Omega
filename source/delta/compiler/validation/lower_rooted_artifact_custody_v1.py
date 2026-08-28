@@ -50,7 +50,8 @@ MH_MAGIC_64 = 0xFEEDFACF
 CPU_TYPE_ARM64 = 0x0100000C
 CPU_SUBTYPE_ARM64_ALL = 0
 MH_EXECUTE = 2
-MH_REQUIRED_FLAGS = 0x1 | 0x4 | 0x80 | 0x200000  # NOUNDEFS, DYLDLINK, TWOLEVEL, PIE
+MH_EXACT_FLAGS = 0x1 | 0x4 | 0x80 | 0x200000  # NOUNDEFS, DYLDLINK, TWOLEVEL, PIE
+MH_ALLOW_STACK_EXECUTION = 0x20000
 
 LC_SEGMENT_64 = 0x19
 LC_LOAD_DYLIB = 0xC
@@ -173,7 +174,7 @@ def validate_macho(raw: bytes) -> dict:
         or subtype != CPU_SUBTYPE_ARM64_ALL
         or filetype != MH_EXECUTE
         or reserved != 0
-        or flags & MH_REQUIRED_FLAGS != MH_REQUIRED_FLAGS
+        or flags != MH_EXACT_FLAGS
     ):
         fail("Mach-O target/header profile")
     if count == 0 or count > 128 or command_bytes > 64 * 1024:

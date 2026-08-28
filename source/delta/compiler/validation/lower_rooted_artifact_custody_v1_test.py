@@ -84,7 +84,7 @@ def minimal_macho(extra_commands: tuple[bytes, ...] = ()) -> bytes:
     header = struct.pack(
         "<IIIIIIII", custody.MH_MAGIC_64, custody.CPU_TYPE_ARM64,
         custody.CPU_SUBTYPE_ARM64_ALL, custody.MH_EXECUTE, len(commands),
-        len(load_commands), custody.MH_REQUIRED_FLAGS, 0,
+        len(load_commands), custody.MH_EXACT_FLAGS, 0,
     )
     prefix = header + load_commands
     if len(prefix) > text_offset:
@@ -240,6 +240,12 @@ class ArtifactCustodyTests(unittest.TestCase):
     def test_macho_target_identity_and_metadata_teeth(self) -> None:
         raw = bytearray(minimal_macho())
         struct.pack_into("<I", raw, 4, 0x01000007)
+        with self.assertRaises(custody.CustodyError):
+            custody.validate_macho(raw)
+
+        raw = bytearray(minimal_macho())
+        flags = struct.unpack_from("<I", raw, 24)[0]
+        struct.pack_into("<I", raw, 24, flags | custody.MH_ALLOW_STACK_EXECUTION)
         with self.assertRaises(custody.CustodyError):
             custody.validate_macho(raw)
 
