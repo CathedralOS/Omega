@@ -36,10 +36,11 @@ pub use identities::{
     OptimizedTerminalOrdinaryCallableEntryIdentity,
     OptimizedTerminalOrdinaryCallableEntryManifestIdentity, OwnershipFrontierFactIdentity,
     PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
-    TargetCostModelIdentity, TerminalFunctionFragmentEmissionIdentity,
-    TerminalRelocationFreeObjectContainerIdentity, TerminalRelocationFreeObjectPlanIdentity,
-    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
+    ProofQuestionIdentity, ScalarConstantFactIdentity,
+    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
+    TerminalFunctionFragmentEmissionIdentity, TerminalRelocationFreeObjectContainerIdentity,
+    TerminalRelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
+    TransformationLedgerIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
