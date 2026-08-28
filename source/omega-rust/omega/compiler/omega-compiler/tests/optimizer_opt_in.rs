@@ -147,6 +147,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
     builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
     builder.optimizations.enable(Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1);
+    builder.optimizations.enable(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1);
 }
 "#,
         ),
@@ -165,6 +166,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
             Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
         ]
     );
     assert_eq!(
@@ -346,7 +348,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
         .expect("the named function-relative-layout selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -399,7 +401,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
         .expect("the named post-allocation machine selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -430,6 +432,39 @@ machine build(builder: &mut Build) {
 }
 
 #[test]
+fn aarch64_movn_materialization_selection_round_trips_but_remains_default_off() {
+    let absent = project("aarch64-movn-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave AArch64 MOVN materialization disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1)
+    );
+
+    let selected = project(
+        "aarch64-movn-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-aarch64-movn-selected");
+    builder.optimizations.enable(Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named MOVN materialization selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+}
+
+#[test]
 fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() {
     let absent = project("shared-entry-copy-default-off", None);
     let checked = compile_to_checked(&absent.join("main.omg"), None)
@@ -452,7 +487,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
         .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),
@@ -505,7 +540,7 @@ machine build(builder: &mut Build) {
 "#,
         ),
     );
-    let checked = compile_to_checked(&selected.join("main.omg"), None)
+    let checked = compile_to_checked(&selected.join("main.omg"), Some("windows_x64"))
         .expect("the named allocation-recovery selection should evaluate");
     assert_eq!(
         checked.optimization_selections().as_slice(),

@@ -2233,8 +2233,12 @@ rewrites.
 Target alternatives state uncertainty instead of guessing. AArch64 arbitrary
 i64 materialization is encoder-resolved because its current canonical variant
 may expand from one zero-seeded MOVZ through three ascending nonzero MOVKs. A
-future MOVN/minimal-seed materializer must use a separately named/versioned
-policy. x86 branch and register-dependent forms remain encoder-resolved.
+separately named/versioned
+`Aarch64SelectShortestMovnSeededI64MaterializationV1` policy now derives the
+canonical lowest-halfword MOVN seed and ascending MOVK patches after allocation
+and selects them only for a strict word-count reduction. It does not alter the
+zero-seeded baseline. x86 branch and register-dependent forms remain
+encoder-resolved.
 The x86 exact-subtract pseudo exposes ordered alias-safe cases, including the
 right-alias case only when the left input is distinct, and carries the RFLAGS
 clobber from its constraint row. AArch64 exposes one flag-transparent SUB
@@ -2330,6 +2334,27 @@ resolved layouts; whole-function exit identity v4 independently admits only
 the exact elided-compare custody. Emission, relocation, image, installation,
 and publication remain later boundaries.
 
+The second exact, default-off post-allocation transformation is
+`Aarch64SelectShortestMovnSeededI64MaterializationV1`. It accepts only an
+allocated AArch64 `MaterializeI64` variant-zero row whose sole destination is a
+canonical 64-bit X view with an exact qualified write footprint. Its bounded
+symbolic artifact retains literal bits, instruction/operand/VReg/class/view,
+storage and write units, write semantics, baseline word count, canonical
+lowest-halfword MOVN seed, ascending MOVK patches, attempts/actions, work
+usage, and revision history. It selects a recipe only when it is strictly
+shorter than the unchanged zero-seeded MOVZ/MOVK baseline. A strict v1 codec
+authenticates the artifact, while a separately implemented machine validator
+reconstructs the roots, physical write, baseline, and recipe.
+
+The AArch64 ISA owner independently derives and decodes the MOVN/MOVK sequence,
+reconstructs the exact destination and 64-bit value, and rejects noncanonical,
+corrupt, or non-shrinking bytes. Layout-independent selected-form encoding v6
+joins this proof to the selected and post-allocation-machine roots and emits
+the shorter validated scalar row without granting layout, emission, or
+publication authority. The build hook is the exact named selection; empty
+builds retain the baseline. Multiple post-allocation selections fail closed
+until their ordering and combined custody are designed.
+
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
 are resolved by exhaustive target-owned architectural-name tables rather than
@@ -2342,7 +2367,7 @@ noncanonical bytes, and publish decoded register/flag footprints.
 `omega-optimization-pipeline` then builds an immutable pre-layout fragment
 artifact rooted in both the selected plan and post-allocation machine sidecar.
 Every row binds its instruction, chosen alternative, canonical bytes, resolved
-size, decoded footprint, and encoded-realization effects under its v3 identity.
+size, decoded footprint, and encoded-realization effects under its v6 identity.
 Replayed validation compares external physical reads/writes, implicit units,
 memory, stack, trap, control, and catalog size bounds with the chosen catalog
 alternative. x86-64 near return is independently decoded as canonical `C3` and
@@ -2682,7 +2707,7 @@ The target-owned x86 encoder produces and independently decodes the canonical
 pointer rebinding, balanced frame, flags, scratch register, fault, and call
 effects. Its zero `E8` displacement is explicitly owned by a typed unresolved
 internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
-executable-byte authority. Layout-independent selected-form encoding v5 now
+executable-byte authority. Layout-independent selected-form encoding v6 now
 retains a parallel structural-function roster with that exact template,
 decoded footprint, typed fixup, separately encoded `C3` return, and exact
 ordinary/structural counts under independent replay. Resolved-layout v5 retains
@@ -2975,6 +3000,7 @@ data Optimization {
     case X86RelaxConditionalBranchesToRel8V1;
     case SelectedIncomingU12ExactSubtractImmediate;
     case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
+    case Aarch64SelectShortestMovnSeededI64MaterializationV1;
     case SharedEntryFixedViewCopyAfterCompareBeforeBranchV1;
     case ActiveResidentImmediateU64MultiUseRematerializationV1;
 }
@@ -3005,8 +3031,8 @@ Omega's ordinary method and build-evaluation rules. Its semantic requirement is
 an exact set of named selections. Empty means disabled. Registry metadata may
 mark an individual optimization experimental, preview, or stable, but that is
 an admission/support label on that optimization—not a broad compiler mode.
-The canonical `OMGOPT` selection codec and domain are v7 after adding the
-twelfth exact family; the version change prevents an older vocabulary from
+The canonical `OMGOPT` selection codec and domain are v8 after adding the
+thirteenth exact family; the version change prevents an older vocabulary from
 silently interpreting the new build request.
 
 Each named transformation also has one closed execution phase. Phase routing

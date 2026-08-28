@@ -31,12 +31,15 @@ pub use register_model::{
     aarch64_register_constraint_catalog, validate_aarch64_register_constraint_catalog,
 };
 pub use selected_form_encoding::{
-    Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding,
+    Aarch64MovkPatch, Aarch64MovnSeed, Aarch64SelectedFormEncodingError,
+    Aarch64SelectedFormFootprint, Aarch64ShortestMovnMaterializationRecipe,
+    ValidatedAarch64SelectedFormEncoding, aarch64_shortest_movn_materialization_recipe,
     encode_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     encode_aarch64_selected_form, encode_aarch64_selected_nonzero_branch_form,
+    encode_aarch64_shortest_movn_materialization,
     validate_aarch64_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_selected_form_encoding, validate_aarch64_selected_nonzero_branch_form,
+    validate_aarch64_shortest_movn_materialization,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};

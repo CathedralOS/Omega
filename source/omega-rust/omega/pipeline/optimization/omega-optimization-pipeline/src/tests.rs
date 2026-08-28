@@ -112,6 +112,7 @@ fn artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -213,6 +214,7 @@ fn conditional_immediate_machine(
         attachment: None,
         parameters: vec![declaration(condition, ScalarType::Boolean)],
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -378,6 +380,7 @@ fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -568,6 +571,7 @@ fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 attachment: None,
                 parameters: Vec::new(),
                 structural_parameters: parameters(caller_places),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: places(caller_places),
                 entry_claims: Vec::new(),
@@ -609,6 +613,7 @@ fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
                 attachment: None,
                 parameters: Vec::new(),
                 structural_parameters: parameters(callee_places),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: places(callee_places),
                 entry_claims: Vec::new(),
@@ -706,6 +711,7 @@ fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
                 declaration(forwarded, scalar_type),
             ],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -808,6 +814,7 @@ fn constant_conditional_prune_artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: vec![declaration(forwarded, scalar_type)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -912,6 +919,7 @@ fn linear_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1007,6 +1015,7 @@ fn adjacent_block_merge_artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: vec![boolean(input)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(boolean(result)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1096,6 +1105,7 @@ fn adjacent_conditional_merge_artifact() -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: vec![boolean(condition)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1208,6 +1218,7 @@ fn path_qualified_empty_block_artifact() -> (Vec<u8>, Vec<u8>) {
                 scalar_type: ScalarType::Boolean,
             }],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1363,6 +1374,7 @@ fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec<u8>) {
             attachment: None,
             parameters: vec![declaration(condition, ScalarType::Boolean)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1503,6 +1515,14 @@ fn conditional_exact_binary_artifact(subtract: bool) -> (Vec<u8>, Vec<u8>) {
 }
 
 fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) {
+    conditional_active_resident_exact_add_chain_artifact_with_false_literal(IntegerValue::Unsigned(
+        11,
+    ))
+}
+
+fn conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+    false_literal: IntegerValue,
+) -> (Vec<u8>, Vec<u8>) {
     let machine = MachineId::new(5_201).unwrap();
     let entry = BlockId::new(5_202).unwrap();
     let when_true = BlockId::new(5_203).unwrap();
@@ -1556,6 +1576,7 @@ fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) 
             attachment: None,
             parameters: vec![declaration(condition, ScalarType::Boolean)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(machine_result, scalar_type)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -1651,7 +1672,7 @@ fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) 
                         false_operation,
                         false_value,
                         OperationKind::IntegerConstant {
-                            value: IntegerValue::Unsigned(11),
+                            value: false_literal,
                         },
                     )],
                     terminator: Terminator::Return {
@@ -1897,6 +1918,7 @@ fn conditional_widened_u8_exact_binary_artifact_with_values(
             attachment: None,
             parameters: vec![declaration(condition, ScalarType::Boolean)],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(declaration(result, u64_type)),
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -2151,9 +2173,10 @@ fn empty_selection_cannot_enter_or_decode_artifacts() {
 }
 
 #[test]
-fn compiler_identity_request_retains_the_canonical_optimizer_stage() {
-    let request = compiler_baseline_request_v1(&OptimizationSelections::default());
-    assert!(request.selections().is_empty());
+fn compiler_baseline_request_retains_the_selection_and_canonical_budget() {
+    let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+    let request = compiler_baseline_request_v1(&selections).unwrap();
+    assert_eq!(request.selections(), &selections);
     assert_eq!(
         request.budget_per_pass(),
         OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000).unwrap()
@@ -2162,8 +2185,8 @@ fn compiler_identity_request_retains_the_canonical_optimizer_stage() {
     let (semantic, proof) = artifact();
     let optimized =
         optimize_artifact_sections(&semantic, &proof, &AdmissionProfile::default(), request)
-            .expect("identity optimization must replay and project the verified unit");
-    assert!(optimized.selections().is_empty());
+            .expect("the compiler baseline request must run the selected optimization");
+    assert_eq!(optimized.selections(), &selections);
 }
 
 #[test]
@@ -8156,6 +8179,119 @@ fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
     assert_eq!(
         validate_aarch64_cbnz_function_relative_realization_custody(realization).unwrap(),
         *realization.custody()
+    );
+}
+
+#[test]
+fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
+    let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+        IntegerValue::Unsigned(u64::MAX as u128),
+    );
+    let selections = OptimizationSelections::new([
+        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+    ])
+    .unwrap();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget()).unwrap(),
+    )
+    .unwrap();
+    let target =
+        lower_optimized_to_target_operations(optimized, NativeTarget::linux_arm64()).unwrap();
+    let selected = stage_optimized_instruction_selection(target).unwrap();
+    let liveness = stage_optimized_liveness(selected).unwrap();
+    let ranges = stage_optimized_live_ranges(liveness).unwrap();
+    let legality = stage_optimized_allocation_legality(ranges).unwrap();
+    let homes = stage_optimized_register_homes(legality).unwrap();
+    let machine = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+    let materialization = stage_optimized_aarch64_movn_materialization(&homes, &machine).unwrap();
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let physical = selected_stage.register_environment().physical();
+    let baseline = stage_optimized_layout_independent_selected_form_encoding(
+        selected_stage.selected(),
+        &machine,
+        physical,
+    )
+    .unwrap();
+    let encoded =
+        stage_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &materialization,
+        )
+        .unwrap();
+
+    let receipt = materialization.custody();
+    assert!(receipt.action_count() > 0);
+    assert!(receipt.selected_words() < receipt.baseline_words());
+    assert_eq!(receipt.selections(), selections.identity());
+    assert_eq!(
+        receipt.post_allocation_machine_selections(),
+        selections.identity()
+    );
+    assert_eq!(
+        encoded.movn_optimization().unwrap().materialization(),
+        receipt.materialization()
+    );
+    assert_ne!(baseline.identity(), encoded.identity());
+
+    let action = &materialization.materialization().plan().actions[0];
+    let baseline_row = baseline
+        .rows()
+        .iter()
+        .find(|row| row.instruction == action.instruction)
+        .unwrap();
+    let optimized_row = encoded
+        .rows()
+        .iter()
+        .find(|row| row.instruction == action.instruction)
+        .unwrap();
+    let encoded_len = |row: &SelectedFormEncodingRow| match &row.state {
+        SelectedFormEncodingState::Encoded { bytes, .. } => bytes.len(),
+        SelectedFormEncodingState::DeferredControl { .. } => 0,
+    };
+    assert_eq!(
+        encoded_len(optimized_row),
+        action.recipe.word_count().unwrap() as usize * 4
+    );
+    assert!(encoded_len(optimized_row) < encoded_len(baseline_row));
+    validate_optimized_aarch64_movn_materialization_custody(&homes, &machine, &materialization)
+        .unwrap();
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization(
+        selected_stage.selected(),
+        &machine,
+        physical,
+        &materialization,
+        &encoded,
+    )
+    .unwrap();
+
+    let mut corrupted = encoded.clone();
+    let row = corrupted
+        .rows_mut()
+        .iter_mut()
+        .find(|row| row.instruction == action.instruction)
+        .unwrap();
+    let SelectedFormEncodingState::Encoded { bytes, .. } = &mut row.state else {
+        panic!("MOVN materialization must own pre-layout bytes")
+    };
+    bytes[0] ^= 1;
+    assert_eq!(
+        validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &materialization,
+            &corrupted,
+        ),
+        Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     );
 }
 
