@@ -53,7 +53,7 @@ fixed point. It was built slice by slice and is now the sole compiler path:
 
 | Slice | Adds | Notes |
 | --- | --- | --- |
-| 1  | arithmetic (`+ - * / %`, parens, precedence) | stack-machine codegen, same shape as the on-ramp |
+| 1  | arithmetic (`+ - * / %`, parens, precedence) | direct stack-machine code generation |
 | 2a | `let` locals, assignment, variable refs | tokenizer + per-proc symbol table; a pre-scan (`count_lets`) sizes the frame |
 | 2b | the six comparisons; CFG control flow — `state` blocks + guarded `to … when …` transitions (Beta has no if/while) | generated labels; 0/1 materialization; loops are self-transitioning states |
 | 3  | procedures, parameters, calls, recursion | the calling convention (args r0..r3, frames via fp) |

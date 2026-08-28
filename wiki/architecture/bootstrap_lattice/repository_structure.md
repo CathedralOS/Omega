@@ -15,6 +15,8 @@ source/
   gamma/                 Gamma language, interpreter, and type checker
   delta/                 Delta language, compiler, meaning, tests, and artifacts
     compiler/            canonical compiler source and adjacent validation
+      artifacts/         admitted compiler artifacts, when publication closes
+      validation/        exact producer-edge verification and custody
     meaning/             canonical lower-rung elaboration
     tests/               Delta language cases
   omega/                 complete Omega-written product compiler
@@ -79,6 +81,7 @@ a rebuild of one compiler, not an untracked generation change.
 | current Rust comparator | `source/omega-rust/` |
 | root proof checking | `source/alpha/checker/` |
 | Beta compiler and its admission | `source/beta/compiler/` |
+| Delta compiler, artifacts, and admission | `source/delta/compiler/` |
 | language libraries | `source/library/` |
 | shared lattice inputs | `tests/lattice/` |
 | Omega language cases | `tests/omega/` |

@@ -12,8 +12,8 @@ omega₀ + the same C → omega
 ```
 
 `C` is the production compiler source closure, deliberately written with a
-compositional subset of ordinary Omega. There is no separately named bridge compiler
-between Delta and `omega₀`.
+compositional subset of ordinary Omega. There is no separately named bridge
+compiler between Delta and `omega₀`.
 
 ## Contents
 
@@ -21,8 +21,6 @@ between Delta and `omega₀`.
 - [`tests/`](tests/) contains the executable Delta language corpus.
 - [`meaning/`](meaning/) contains the lower-rung Delta-to-Gamma elaboration and
   its byte transport helpers.
-- [`build/`](build/) contains provisional artifacts. They are inputs to
-  reconstruction, never authorities.
 - [`source-closures/`](source-closures/) contains the exact canonical compiler
   source and tool manifests.
 - [`lower_rooted_assembly_publication_v1_driver.py`](lower_rooted_assembly_publication_v1_driver.py)
@@ -41,6 +39,12 @@ between Delta and `omega₀`.
 source. Its fixed storage and host I/O choices are
 implementation/resource commitments only where the Delta contract explicitly
 retains them.
+
+The retired `build/delta{0,1,2}.exe` files had no live consumer and were not
+members of the canonical source closure. Git history retains them. A published
+compiler artifact belongs under `compiler/artifacts/` only after its exact
+producer edge and custody receipt exist; publication machinery belongs beside
+it under `compiler/validation/`.
 
 ## Boundaries
 
