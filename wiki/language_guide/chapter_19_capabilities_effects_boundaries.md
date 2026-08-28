@@ -1582,6 +1582,17 @@ owned by the registration. Per-instance state remains an ordinary Omega value;
 the foreign protocol carries an explicit context token or a checked
 generational handle into package-owned state.
 
+The deployment foundation already retains the corresponding finite runtime
+capacity transactionally. One exact provider-bound, non-clonable occurrence
+moves into a reclaimable callback only when the matching registrar receipt
+reports success. A rejected registration returns it unchanged; failed
+unregister and incomplete root quiescence keep it inside the live callback; and
+successful unregister plus quiescence returns it beside the reclaimed external-
+root slot. This capacity bounds live registrations, not emitted thunk count,
+and is distinct from a consumable lifetime budget. The source-level
+`Registration` carrier and ordinary registrar invocation remain later
+engineering.
+
 Platform packages normally expose a safer handler API above a re-entrant native
 callback. Bodyless package surfaces declare direct synchronous entry through
 `invokes`; bodyful handlers infer it. The checker rejects cycles in the

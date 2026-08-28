@@ -12,9 +12,10 @@ use omega_backend_plan::CallbackInstallationEntry;
 use omega_executable_installation::{InstalledCode, InstalledCodeContext};
 use omega_external_roots::{
     CompletedOpaqueCallbackUnregistration, InstalledExternalRoot, InstalledRootLedger,
-    OpaqueCallbackRegistrationReceipt, OpaqueCallbackUnregistrationReceipt, ProviderExecution,
-    ReclaimableOpaqueCallback, RootAdmission, RootAdmissionId, RootRemovalReceipt,
-    RootSlotAuthority, ValidatedExternalRoot, admit_reclaimable_opaque_callback,
+    OpaqueCallbackRegistrationCapacityOccurrence, OpaqueCallbackRegistrationReceipt,
+    OpaqueCallbackUnregistrationReceipt, ProviderExecution, ReclaimableOpaqueCallback,
+    RootAdmission, RootAdmissionId, RootRemovalReceipt, RootSlotAuthority, ValidatedExternalRoot,
+    admit_reclaimable_opaque_callback,
 };
 
 /// Project compiler-issued callback entries into canonical artifact decode
@@ -374,11 +375,13 @@ impl<'deployment> PendingReclaimableCallbackRegistration<'deployment> {
         &self.attribution
     }
 
-    /// Consume the exact provider result. A false or substituted receipt
-    /// returns the installed pending root and receipt intact for correction.
+    /// Consume the exact provider result and its provider-bound capacity.
+    /// A false or substituted receipt returns the pending root, receipt, and
+    /// exact capacity occurrence intact for correction.
     pub fn admit_registration(
         self,
         receipt: OpaqueCallbackRegistrationReceipt,
+        capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     ) -> Result<
         InstalledReclaimableCallback<'deployment>,
         CallbackRegistrationAdmissionError<'deployment>,
@@ -388,7 +391,7 @@ impl<'deployment> PendingReclaimableCallbackRegistration<'deployment> {
             roots,
             attribution,
         } = self;
-        match admit_reclaimable_opaque_callback(root, receipt) {
+        match admit_reclaimable_opaque_callback(root, receipt, capacity) {
             Ok(registration) => Ok(InstalledReclaimableCallback {
                 registration,
                 roots,
@@ -396,7 +399,7 @@ impl<'deployment> PendingReclaimableCallbackRegistration<'deployment> {
             }),
             Err(error) => {
                 let diagnostic = error.diagnostic().0.clone();
-                let (root, receipt) = (*error).into_parts();
+                let (root, receipt, capacity) = (*error).into_parts();
                 Err(CallbackRegistrationAdmissionError {
                     pending: PendingReclaimableCallbackRegistration {
                         root,
@@ -404,6 +407,7 @@ impl<'deployment> PendingReclaimableCallbackRegistration<'deployment> {
                         attribution,
                     },
                     receipt,
+                    capacity,
                     diagnostic,
                 })
             }
@@ -542,6 +546,7 @@ impl CompletedPendingCallbackRootRemoval {
 /// Successful provider unregister and root quiescence with exact installed
 /// callback attribution preserved beside the reclaimed slot receipt.
 #[derive(Debug)]
+#[must_use = "completed callback unregistration retains returned slot, capacity, and installed attribution"]
 pub struct CompletedAttributedCallbackUnregistration {
     completed: CompletedOpaqueCallbackUnregistration,
     attribution: InstalledCallbackEntryAttribution,
@@ -591,11 +596,13 @@ impl std::fmt::Display for CallbackRootDeploymentError {
 
 impl std::error::Error for CallbackRootDeploymentError {}
 
-/// Provider-result rejection retaining the installed root and receipt.
+/// Provider-result rejection retaining the installed root, receipt, and exact
+/// live-registration capacity occurrence.
 #[derive(Debug)]
 pub struct CallbackRegistrationAdmissionError<'deployment> {
     pending: PendingReclaimableCallbackRegistration<'deployment>,
     receipt: OpaqueCallbackRegistrationReceipt,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     diagnostic: String,
 }
 
@@ -609,8 +616,9 @@ impl<'deployment> CallbackRegistrationAdmissionError<'deployment> {
     ) -> (
         PendingReclaimableCallbackRegistration<'deployment>,
         OpaqueCallbackRegistrationReceipt,
+        OpaqueCallbackRegistrationCapacityOccurrence,
     ) {
-        (self.pending, self.receipt)
+        (self.pending, self.receipt, self.capacity)
     }
 }
 
@@ -1174,6 +1182,13 @@ mod tests {
             .expect("rejected input retries against its exact installation");
         let root_identity = pending.root().root();
 
+        let false_capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+            external_id(
+                6039,
+                omega_external_roots::OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+            ),
+            external_id(6026, OpaqueCallbackProviderId::from_normalized_identity),
+        );
         let false_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
             external_id(
                 6024,
@@ -1186,12 +1201,18 @@ mod tests {
                 OpaqueCallbackUnregistrationContractId::from_normalized_identity,
             ),
             pending.root(),
+            &false_capacity,
             false,
         );
         let rejected = pending
-            .admit_registration(false_receipt)
+            .admit_registration(false_receipt, false_capacity)
             .expect_err("false registrar result establishes no registration");
-        let (pending, _) = rejected.into_parts();
+        let (pending, _, false_capacity) = rejected.into_parts();
+        assert_eq!(false_capacity.identity().normalized_identity(), 6039);
+        assert_eq!(
+            false_capacity.provider(),
+            external_id(6026, OpaqueCallbackProviderId::from_normalized_identity)
+        );
         assert!(pending.roots().record(root_identity).is_some());
         let nonquiescent = RootRemovalReceipt::from_provider(
             external_id(6028, RootRemovalReceiptId::from_normalized_identity),
@@ -1228,18 +1249,29 @@ mod tests {
             ),
         )
         .expect("cleaned root and attribution remain reusable");
+        let registration_provider =
+            external_id(6033, OpaqueCallbackProviderId::from_normalized_identity);
+        let capacity_identity = external_id(
+            6040,
+            omega_external_roots::OpaqueCallbackRegistrationCapacityOccurrenceId::from_normalized_identity,
+        );
+        let capacity = OpaqueCallbackRegistrationCapacityOccurrence::from_provider(
+            capacity_identity,
+            registration_provider,
+        );
         let registration_receipt = OpaqueCallbackRegistrationReceipt::from_provider(
             external_id(
                 6031,
                 OpaqueCallbackRegistrationReceiptId::from_normalized_identity,
             ),
             external_id(6032, OpaqueCallbackRegistrationId::from_normalized_identity),
-            external_id(6033, OpaqueCallbackProviderId::from_normalized_identity),
+            registration_provider,
             external_id(
                 6034,
                 OpaqueCallbackUnregistrationContractId::from_normalized_identity,
             ),
             pending.root(),
+            &capacity,
             true,
         );
         let nonquiescent = RootRemovalReceipt::from_provider(
@@ -1255,8 +1287,12 @@ mod tests {
             true,
         );
         let registered = pending
-            .admit_registration(registration_receipt)
+            .admit_registration(registration_receipt, capacity)
             .expect("exact true registrar result establishes registration custody");
+        assert_eq!(
+            registered.registration().capacity().identity(),
+            capacity_identity
+        );
         let incomplete = OpaqueCallbackUnregistrationReceipt::from_provider(
             external_id(
                 6036,
@@ -1269,6 +1305,10 @@ mod tests {
             .unregister_and_quiesce(incomplete, nonquiescent)
             .expect_err("failed provider unregister retains live custody");
         let (registered, _, _) = (*rejected).into_parts();
+        assert_eq!(
+            registered.registration().capacity().identity(),
+            capacity_identity
+        );
         let unregistered = OpaqueCallbackUnregistrationReceipt::from_provider(
             external_id(
                 6038,
@@ -1282,7 +1322,10 @@ mod tests {
             .expect("unregister and quiescence return exact attribution and slot");
         let (completed, attribution) = completed.into_parts();
         assert_eq!(attribution.entry(), entry_id);
-        assert_eq!(completed.into_slot_authority().slot(), slot_identity);
+        let (slot, capacity) = completed.into_parts();
+        assert_eq!(slot.slot(), slot_identity);
+        assert_eq!(capacity.identity(), capacity_identity);
+        assert_eq!(capacity.provider(), registration_provider);
         assert!(roots.record(root_identity).is_none());
     }
 }

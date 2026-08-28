@@ -7754,8 +7754,14 @@ Owners:
   catalog is now joined through one sealed installation manifest entry to the
   exact installed bytes, entry offset, root entry, and requirement, and that
   complete attribution survives every pending/live/terminal result. Invoking
-  the registrar, creating the source-level linear `Registration`, and binding
-  live-registration capacity remain engineering rungs.
+  the registrar and creating the source-level linear `Registration` remain
+  engineering rungs. The deployment admission now also consumes one exact
+  non-clonable provider-bound live-registration capacity occurrence only with
+  the matching successful registrar receipt. Registration rejection returns
+  the occurrence unchanged, the live callback retains it across every
+  unsuccessful unregister or nonquiescent removal, and successful unregister
+  plus root quiescence returns that exact occurrence beside the reclaimed root
+  slot. This capacity is neither a lifetime budget nor a static thunk count.
 - **FOREIGN-RETAINED-ARGUMENT-BACKING — generalize outside callbacks.** Keep
   argument backing and retention off callback-materialization rows. Specify the
   ordinary outbound-plan dispositions for call-scoped storage, public
