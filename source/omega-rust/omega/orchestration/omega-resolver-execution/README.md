@@ -13,11 +13,13 @@ text or containment claims.
 
 ## Current enforcement
 
-- macOS uses a compiler-fixed Seatbelt profile. Canaries prove ordinary writes
-  and remote TCP are denied in closed phases and unlisted descendant execution
-  is denied on the tested host. The profile imports Apple's mutable
-  `system.sb`, which grants special-file writes and local socket access, so
-  these canaries are not reported as universal strict guarantees.
+- macOS uses compiler-fixed Seatbelt profiles. Repository inspection does not
+  import a host profile: it admits broad reads, the exact compiler-selected
+  executable set, and write-data only to the fixed `/dev/null` sink. Its
+  filesystem-write, network-denial, and executable-path rows are therefore
+  enforced. Discovery, initialization, and fetch still import Apple's mutable
+  `system.sb`, whose special-file writes and local socket access keep those
+  phases' corresponding rows unavailable.
 - The exact root-owned `system.sb` and `dyld-support.sb` bytes, metadata, ACL
   custody, and accepted direct-import syntax are opened and revalidated with the
   launcher and enter backend identity. A bounded scanner balances lists,
@@ -40,7 +42,8 @@ text or containment claims.
   content identity; `require_strict` rejects the current backends.
 
 This is engineering enforcement and one input to a future package-source
-receipt, not that accepted receipt. The macOS profile still permits broad file
-reads, imported system exceptions, and unbrokered outbound endpoints; aggregate resource quotas and
-Linux/Windows strict backends remain package-manager tasks. See
+receipt, not that accepted receipt. macOS still permits broad file reads in
+every phase, imported system exceptions outside inspection, and unbrokered
+outbound endpoints; aggregate resource quotas and Linux/Windows strict backends
+remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).

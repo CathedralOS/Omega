@@ -42,6 +42,8 @@ const MACOS_SANDBOX_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
 const MACOS_SYSTEM_PROFILE: &str = "/System/Library/Sandbox/Profiles/system.sb";
 #[cfg(target_os = "macos")]
 const MACOS_DYLD_PROFILE: &str = "/System/Library/Sandbox/Profiles/dyld-support.sb";
+#[cfg(target_os = "macos")]
+const MACOS_NULL_DEVICE: &str = "/dev/null";
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -602,11 +604,20 @@ impl ResolverExecutionBackend {
                 "macOS resolver selected a non-Seatbelt backend",
             ));
         };
-        let mut profile = String::from(
-            "(version 1) (deny default) (import \"system.sb\") \
-             (allow process-fork) (allow signal) (allow file-read*) \
-             (allow process-exec (literal (param \"EXECUTABLE_0\"))",
-        );
+        let mut profile = if phase == ResolverExecutionPhase::RepositoryInspection {
+            format!(
+                "(version 1) (deny default) \
+                 (allow process-fork) (allow signal) (allow file-read*) \
+                 (allow file-test-existence file-write-data (literal \"{MACOS_NULL_DEVICE}\")) \
+                 (allow process-exec (literal (param \"EXECUTABLE_0\"))"
+            )
+        } else {
+            String::from(
+                "(version 1) (deny default) (import \"system.sb\") \
+                 (allow process-fork) (allow signal) (allow file-read*) \
+                 (allow process-exec (literal (param \"EXECUTABLE_0\"))",
+            )
+        };
         for index in 0..additional_executables.len() {
             profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
         }
@@ -656,11 +667,23 @@ fn guarantee_disposition(
     use ResolverExecutionGuaranteeDisposition::{Enforced, NotRequired, Unavailable};
 
     match guarantee {
+        FilesystemWritesConfined | ExecutablePathsConfined
+            if matches!(backend, MacosSeatbelt { .. })
+                && phase == ResolverExecutionPhase::RepositoryInspection =>
+        {
+            Enforced
+        }
         FilesystemWritesConfined | ExecutablePathsConfined => Unavailable,
         FilesystemReadsConfined
         | DescendantProcessesContained
         | ProcessCountConfined
         | AggregateResourcesConfined => Unavailable,
+        NetworkDenied
+            if matches!(backend, MacosSeatbelt { .. })
+                && phase == ResolverExecutionPhase::RepositoryInspection =>
+        {
+            Enforced
+        }
         NetworkDenied if phase.permits_network() => NotRequired,
         NetworkDenied => Unavailable,
         NetworkEndpointsConfined if !phase.permits_network() => NotRequired,
@@ -1506,7 +1529,7 @@ mod tests {
         let mutable_root = std::env::temp_dir()
             .canonicalize()
             .expect("canonical temporary root");
-        let (_, inspection) = backend
+        let (inspection_command, inspection) = backend
             .command_with_observation(
                 executable,
                 &[],
@@ -1514,7 +1537,7 @@ mod tests {
                 None,
             )
             .expect("issue inspection policy observation");
-        let (_, fetch) = backend
+        let (fetch_command, fetch) = backend
             .command_with_observation(
                 executable,
                 &[],
@@ -1529,6 +1552,28 @@ mod tests {
             fetch.generated_policy_sha256()
         );
 
+        let profile = |command: &std::process::Command| {
+            let arguments = command.get_args().collect::<Vec<_>>();
+            let profile_index = arguments
+                .iter()
+                .position(|argument| *argument == "-p")
+                .expect("Seatbelt command carries an inline policy")
+                + 1;
+            arguments[profile_index]
+                .to_str()
+                .expect("compiler-generated policy is UTF-8")
+                .to_owned()
+        };
+        let inspection_profile = profile(&inspection_command);
+        assert!(!inspection_profile.contains("(import"));
+        assert!(!inspection_profile.contains("network-outbound"));
+        assert!(!inspection_profile.contains("file-write*"));
+        assert!(
+            inspection_profile
+                .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
+        );
+        assert!(profile(&fetch_command).contains("(import \"system.sb\")"));
+
         let disposition = |observation: &super::ResolverExecutionPolicyObservation, guarantee| {
             observation
                 .guarantees()
@@ -1542,7 +1587,7 @@ mod tests {
                 &inspection,
                 ResolverExecutionGuarantee::FilesystemWritesConfined
             ),
-            ResolverExecutionGuaranteeDisposition::Unavailable
+            ResolverExecutionGuaranteeDisposition::Enforced
         );
         assert_eq!(
             disposition(
@@ -1553,7 +1598,14 @@ mod tests {
         );
         assert_eq!(
             disposition(&inspection, ResolverExecutionGuarantee::NetworkDenied),
-            ResolverExecutionGuaranteeDisposition::Unavailable
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(
+                &inspection,
+                ResolverExecutionGuarantee::ExecutablePathsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
         );
         assert_eq!(
             disposition(&fetch, ResolverExecutionGuarantee::NetworkDenied),
@@ -1787,6 +1839,55 @@ mod tests {
         assert!(!outside.exists());
         std::fs::remove_file(inside).expect("remove sandbox output");
         std::fs::remove_dir(root).expect("remove sandbox root");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_inspection_allows_only_the_fixed_null_write_sink() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "omega-resolver-inspection-write-{}-{sequence}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).expect("create inspection canary root");
+        let root = root.canonicalize().expect("canonicalize inspection root");
+        let marker = root.join("marker");
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let helper_executables = [Path::new("/bin/bash").to_path_buf()];
+
+        let mut allowed = backend
+            .command(
+                Path::new("/bin/sh"),
+                &helper_executables,
+                ResolverExecutionPhase::RepositoryInspection,
+                None,
+            )
+            .expect("build inspection sandbox");
+        let status = allowed
+            .args(["-c", "printf allowed > /dev/null"])
+            .status()
+            .expect("write the fixed null sink");
+        assert!(status.success());
+
+        let mut denied = backend
+            .command(
+                Path::new("/bin/sh"),
+                &helper_executables,
+                ResolverExecutionPhase::RepositoryInspection,
+                None,
+            )
+            .expect("build inspection sandbox");
+        let status = denied
+            .args(["-c", "printf denied > \"$1\"", "resolver-test"])
+            .arg(&marker)
+            .status()
+            .expect("attempt ordinary inspection write");
+        assert!(!status.success());
+        assert!(!marker.exists());
+        std::fs::remove_dir(root).expect("remove inspection canary root");
     }
 
     #[cfg(target_os = "macos")]
