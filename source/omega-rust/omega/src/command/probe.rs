@@ -53,8 +53,9 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
             root_path: main_path.clone(),
             build_dir: Some(build_dir.clone()),
             target_name: target_name.clone(),
-            write_output: true,
+            write_output: false,
         })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(artifact_policy),
     ) {
         Ok(report) => report,
@@ -63,6 +64,13 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
             for diagnostic in diagnostics {
                 eprintln!("  {diagnostic}");
             }
+            std::process::exit(200);
+        }
+    };
+    let exe = match super::output::publish_native_artifact(report, &build_dir) {
+        Ok(path) => path,
+        Err(error) => {
+            eprintln!("native publication FAILED: {error}");
             std::process::exit(200);
         }
     };
@@ -78,10 +86,6 @@ pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
         std::process::exit(0);
     }
 
-    let exe = report.checked_native_executable_path().unwrap_or_else(|| {
-        eprintln!("native compile returned no consistently retained executable receipt");
-        std::process::exit(200);
-    });
     let output = Command::new(&exe)
         .output()
         .unwrap_or_else(|error| panic!("native run failed to spawn {}: {error}", exe.display()));
