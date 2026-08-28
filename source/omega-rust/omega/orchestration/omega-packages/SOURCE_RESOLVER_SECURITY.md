@@ -157,6 +157,18 @@ snapshot. This narrows pathname substitution but does not make a
 multi-file capture atomic or defeat a hostile same-user process that mutates
 ordinary files and directories through its own credentials.
 
+Cache-tree custody is now walked from a retained canonical-root capability.
+Root acquisition opens each absolute path component no-follow; directory
+enumeration and metadata classification remain relative to retained parents;
+and every child directory is opened no-follow and checked for stable file
+identity before descent. The same bounded walk serves Git cache entries and
+local snapshot publications. This prevents a directory leaf reclassified as a
+symlink from redirecting the later traversal and keeps a walk bound to an
+already-opened root if its pathname is replaced. It does not yet make cache
+locks, metadata reads, staging, publication, invalidation, or macOS ACL
+inspection handle-relative, and it does not claim exclusion of an actively
+hostile same-user process.
+
 Transport erasure now retains the original file, byte, and depth limits beside
 each package snapshot. Review orchestration checks canonical read-only modes
 and re-hashes every transitive snapshot under those limits immediately before
