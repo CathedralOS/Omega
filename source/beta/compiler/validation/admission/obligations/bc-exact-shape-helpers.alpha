@@ -904,140 +904,94 @@ exact_epilogue_ret_linked:
         mov r4, r26
         ret
 
-; Exhaust local/memory/transition/event rows for blocks [r20,r21].
+; Bind exact local/memory/transition/event intervals for blocks [r20,r21] to
+; the canonical boundary-prefix index. Preserve the historical r20..r29 ABI.
 exact_require_effect_census:
+        call exact_effect_census_prefix_matches
+        imm r1, 1
+        jeq r0, r1, exact_shape_ok
+        jmp reject
+
+; Boolean form used both by the rejecting adapter and the owner's four private
+; mutation teeth. It consumes no semantic row content.
+exact_effect_census_prefix_matches:
+        mov r34, r22
+        mov r35, r23
+        mov r36, r24
+        mov r37, r25
+        mov r38, r26
+        mov r39, r27
+        mov r42, r28
+        mov r43, r29
+        imm r1, 0
+        jlt r20, r1, exact_effect_census_prefix_no
+        jlt r21, r20, exact_effect_census_prefix_no
+        imm r1, 359
+        jlt r21, r1, exact_effect_census_prefix_offsets
+        jmp exact_effect_census_prefix_no
+exact_effect_census_prefix_offsets:
         mov r30, r20
+        imm r1, 8
+        mul r30, r1
         mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r36, r26
-        mov r37, r27
-        mov r38, r28
-        mov r39, r29
-        imm r1, 524608                 ; validated live local-access count
-        load r12, r1
-        imm r10, 0
-        imm r11, 0
-exact_effect_local_loop:
-        jlt r10, r12, exact_effect_local_row
-        mov r2, r33
-        sub r2, r32
-        jeq r11, r2, exact_effect_memory_init
-        jmp reject
-exact_effect_local_row:
-        mov r2, r10
+        imm r1, 1
+        add r31, r1
         imm r1, 8
-        mul r2, r1
-        imm r1, 7168000
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, exact_effect_local_next
-        jlt r31, r3, exact_effect_local_next
-        jlt r10, r32, reject
-        jlt r10, r33, exact_effect_local_match
-        jmp reject
-exact_effect_local_match:
+        mul r31, r1
+        mov r32, r34
+        mov r33, r35
+        imm r1, 17055744
+        call exact_effect_census_prefix_pair
         imm r1, 1
-        add r11, r1
-exact_effect_local_next:
+        jeq r0, r1, exact_effect_census_prefix_memory
+        ret
+exact_effect_census_prefix_memory:
+        mov r32, r36
+        mov r33, r37
+        imm r1, 17059840
+        call exact_effect_census_prefix_pair
         imm r1, 1
-        add r10, r1
-        jmp exact_effect_local_loop
+        jeq r0, r1, exact_effect_census_prefix_transition
+        ret
+exact_effect_census_prefix_transition:
+        mov r32, r38
+        mov r33, r39
+        imm r1, 17063936
+        call exact_effect_census_prefix_pair
+        imm r1, 1
+        jeq r0, r1, exact_effect_census_prefix_event
+        ret
+exact_effect_census_prefix_event:
+        mov r32, r42
+        mov r33, r43
+        imm r1, 17068032
+        call exact_effect_census_prefix_pair
+        ret
 
-exact_effect_memory_init:
-        imm r1, 524648                 ; validated live memory-site count
-        load r12, r1
-        imm r10, 0
-        imm r11, 0
-exact_effect_memory_loop:
-        jlt r10, r12, exact_effect_memory_row
-        mov r2, r35
-        sub r2, r34
-        jeq r11, r2, exact_effect_transition_init
-        jmp reject
-exact_effect_memory_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7602176
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, exact_effect_memory_next
-        jlt r31, r3, exact_effect_memory_next
-        jlt r10, r34, reject
-        jlt r10, r35, exact_effect_memory_match
-        jmp reject
-exact_effect_memory_match:
-        imm r1, 1
-        add r11, r1
-exact_effect_memory_next:
-        imm r1, 1
-        add r10, r1
-        jmp exact_effect_memory_loop
-
-exact_effect_transition_init:
-        imm r1, 524328                 ; validated live transition count
-        load r12, r1
-        imm r10, 0
-        imm r11, 0
-exact_effect_transition_loop:
-        jlt r10, r12, exact_effect_transition_row
-        mov r2, r37
-        sub r2, r36
-        jeq r11, r2, exact_effect_event_init
-        jmp reject
-exact_effect_transition_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 3215360
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, exact_effect_transition_next
-        jlt r31, r3, exact_effect_transition_next
-        jlt r10, r36, reject
-        jlt r10, r37, exact_effect_transition_match
-        jmp reject
-exact_effect_transition_match:
-        imm r1, 1
-        add r11, r1
-exact_effect_transition_next:
-        imm r1, 1
-        add r10, r1
-        jmp exact_effect_transition_loop
-
-exact_effect_event_init:
-        imm r1, 524456                 ; validated live source-event count
-        load r12, r1
-        imm r10, 0
-        imm r11, 0
-exact_effect_event_loop:
-        jlt r10, r12, exact_effect_event_row
-        mov r2, r39
-        sub r2, r38
-        jeq r11, r2, exact_shape_ok
-        jmp reject
-exact_effect_event_row:
-        mov r2, r10
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7077888
-        add r1, r2
-        load r3, r1
-        jlt r3, r30, exact_effect_event_next
-        jlt r31, r3, exact_effect_event_next
-        jlt r10, r38, reject
-        jlt r10, r39, exact_effect_event_match
-        jmp reject
-exact_effect_event_match:
-        imm r1, 1
-        add r11, r1
-exact_effect_event_next:
-        imm r1, 1
-        add r10, r1
-        jmp exact_effect_event_loop
+; Array base in r1, byte offsets in r30/r31, expected pair in r32/r33.
+; Preserve the established empty-family convention: when the canonical prefix
+; endpoints are equal, any caller-supplied empty half-open interval is valid.
+exact_effect_census_prefix_pair:
+        mov r2, r1
+        add r2, r30
+        load r2, r2                  ; canonical start
+        add r1, r31
+        load r3, r1                  ; canonical end
+        jeq r2, r32, exact_effect_census_prefix_pair_start
+        jmp exact_effect_census_prefix_pair_empty
+exact_effect_census_prefix_pair_start:
+        jeq r3, r33, exact_effect_census_prefix_yes
+exact_effect_census_prefix_pair_empty:
+        jeq r2, r3, exact_effect_census_prefix_expected_empty
+        jmp exact_effect_census_prefix_no
+exact_effect_census_prefix_expected_empty:
+        jeq r32, r33, exact_effect_census_prefix_yes
+exact_effect_census_prefix_no:
+        imm r0, 0
+        ret
+exact_effect_census_prefix_yes:
+        imm r0, 1
+        ret
 
 ; Blocks [r20,r21] inclusive all and only belong to procedure r22.
 exact_require_proc_blocks:
