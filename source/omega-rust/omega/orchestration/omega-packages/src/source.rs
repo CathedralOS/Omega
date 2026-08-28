@@ -432,6 +432,7 @@ pub struct ResolvedGitSource {
     /// configured during this resolution. These rows are provenance, not accepted source
     /// authority; strict admission must reject any unavailable required row.
     pub(crate) execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
+    pub(crate) command_execution_observations: Vec<GitCommandExecutionObservation>,
 }
 
 impl ResolvedGitSource {
@@ -441,6 +442,10 @@ impl ResolvedGitSource {
 
     pub fn execution_helper_executables(&self) -> &[GitTransportExecutableIdentity] {
         &self.execution_helper_executables
+    }
+
+    pub fn command_execution_observations(&self) -> &[GitCommandExecutionObservation] {
+        &self.command_execution_observations
     }
 }
 
@@ -494,6 +499,59 @@ impl GitTransportExecutableIdentity {
     }
 }
 
+/// Bounded result provenance for one successfully completed native Git
+/// command. This is locally constructed observation, not an admission receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitCommandExecutionObservation {
+    phase: ResolverExecutionPhase,
+    policy_identity: String,
+    command_identity: String,
+    status_code: Option<i32>,
+    termination_signal: Option<i32>,
+    stdout_length: u64,
+    stdout_identity: String,
+    stderr_length: u64,
+    stderr_identity: String,
+}
+
+impl GitCommandExecutionObservation {
+    pub const fn phase(&self) -> ResolverExecutionPhase {
+        self.phase
+    }
+
+    pub fn policy_identity(&self) -> &str {
+        &self.policy_identity
+    }
+
+    pub fn command_identity(&self) -> &str {
+        &self.command_identity
+    }
+
+    pub const fn status_code(&self) -> Option<i32> {
+        self.status_code
+    }
+
+    pub const fn termination_signal(&self) -> Option<i32> {
+        self.termination_signal
+    }
+
+    pub const fn stdout_length(&self) -> u64 {
+        self.stdout_length
+    }
+
+    pub fn stdout_identity(&self) -> &str {
+        &self.stdout_identity
+    }
+
+    pub const fn stderr_length(&self) -> u64 {
+        self.stderr_length
+    }
+
+    pub fn stderr_identity(&self) -> &str {
+        &self.stderr_identity
+    }
+}
+
 #[derive(Debug)]
 struct GitExecutor {
     identity: GitExecutableIdentity,
@@ -505,6 +563,7 @@ struct GitExecutor {
     timeout: Duration,
     launches: Cell<usize>,
     execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
+    command_execution_observations: RefCell<Vec<GitCommandExecutionObservation>>,
     maximum_launches: usize,
     execution_backend: ResolverExecutionBackend,
 }
@@ -1094,6 +1153,7 @@ fn resolve_verified_git_cache_entry(
             .map(|executable| executable.identity.clone())
             .collect(),
         execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
+        command_execution_observations: executor.command_execution_observations.borrow().clone(),
     })
 }
 
@@ -2637,6 +2697,12 @@ fn execute_git_blob_batch(
     )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
+    let stdin_identity = git_batch_stdin_identity(entries);
+    let command_identity = git_command_configuration_identity(
+        &command,
+        ResolverExecutionPhase::RepositoryInspection,
+        &stdin_identity,
+    );
     let result = run_command_bounded_with_stdin(
         &mut command,
         Stdio::from(request),
@@ -2646,6 +2712,11 @@ fn execute_git_blob_batch(
         command_timeout,
     );
     let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
+    executor.record_command_execution(
+        ResolverExecutionPhase::RepositoryInspection,
+        command_identity,
+        &output,
+    )?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file --batch".to_owned(),
@@ -6491,6 +6562,7 @@ impl GitExecutor {
             timeout,
             launches: Cell::new(0),
             execution_policy_observations: RefCell::new(Vec::new()),
+            command_execution_observations: RefCell::new(Vec::new()),
             maximum_launches,
             execution_backend,
         })
@@ -6551,6 +6623,13 @@ impl GitExecutor {
                     .to_owned(),
             });
         }
+        let command_observations = self.command_execution_observations.borrow();
+        if command_observations.len() != self.launches.get() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "native command outcome count does not match launched command count"
+                    .to_owned(),
+            });
+        }
         for observation in observations.iter() {
             if observation.executable() != self.identity.path {
                 return Err(SourceResolveError::GitExecutionBoundaryInvalid {
@@ -6586,6 +6665,63 @@ impl GitExecutor {
                 });
             }
         }
+        for (policy, command) in observations.iter().zip(command_observations.iter()) {
+            if command.phase != policy.phase()
+                || command.policy_identity
+                    != format_sha256(&Sha256::digest(policy.canonical_bytes()))
+            {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command outcome is not joined to its policy observation"
+                        .to_owned(),
+                });
+            }
+        }
+        Ok(())
+    }
+
+    fn record_command_execution(
+        &self,
+        phase: ResolverExecutionPhase,
+        command_identity: String,
+        output: &BoundedCommandOutput,
+    ) -> Result<(), SourceResolveError> {
+        let policy_identity = {
+            let policies = self.execution_policy_observations.borrow();
+            let index = self.command_execution_observations.borrow().len();
+            let policy = policies.get(index).ok_or_else(|| {
+                SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command completed without a matching policy observation"
+                        .to_owned(),
+                }
+            })?;
+            if policy.phase() != phase {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command phase does not match its policy observation"
+                        .to_owned(),
+                });
+            }
+            format_sha256(&Sha256::digest(policy.canonical_bytes()))
+        };
+        #[cfg(unix)]
+        let termination_signal = {
+            use std::os::unix::process::ExitStatusExt;
+            output.status.signal()
+        };
+        #[cfg(not(unix))]
+        let termination_signal = None;
+        self.command_execution_observations
+            .borrow_mut()
+            .push(GitCommandExecutionObservation {
+                phase,
+                policy_identity,
+                command_identity,
+                status_code: output.status.code(),
+                termination_signal,
+                stdout_length: output.stdout.len() as u64,
+                stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
+                stderr_length: output.stderr.len() as u64,
+                stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
+            });
         Ok(())
     }
 
@@ -7218,6 +7354,97 @@ fn observe_git_executable_metadata(
     }
 }
 
+enum GitCommandStdinIdentity {
+    Null,
+    ExactBytes { length: u64, identity: String },
+}
+
+fn git_batch_stdin_identity(entries: &[GitTreeEntry]) -> GitCommandStdinIdentity {
+    let mut hasher = Sha256::new();
+    let mut length = 0_u64;
+    for entry in entries
+        .iter()
+        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
+    {
+        hasher.update(entry.oid.as_bytes());
+        hasher.update(b"\n");
+        length = length
+            .saturating_add(entry.oid.len() as u64)
+            .saturating_add(1);
+    }
+    GitCommandStdinIdentity::ExactBytes {
+        length,
+        identity: format_sha256(&hasher.finalize()),
+    }
+}
+
+fn git_command_configuration_identity(
+    command: &Command,
+    phase: ResolverExecutionPhase,
+    stdin: &GitCommandStdinIdentity,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"omega-git-command-configuration-v1\0");
+    hasher.update([match phase {
+        ResolverExecutionPhase::TransportDiscovery => 1,
+        ResolverExecutionPhase::RepositoryInitialization => 2,
+        ResolverExecutionPhase::Fetch => 3,
+        ResolverExecutionPhase::RepositoryInspection => 4,
+    }]);
+    hash_command_os_str(&mut hasher, command.get_program());
+    let arguments = command.get_args().collect::<Vec<_>>();
+    hash_length(&mut hasher, arguments.len() as u64);
+    for argument in arguments {
+        hash_command_os_str(&mut hasher, argument);
+    }
+    let mut environment = command.get_envs().collect::<Vec<_>>();
+    environment.sort_by(|left, right| left.0.cmp(right.0));
+    hash_length(&mut hasher, environment.len() as u64);
+    for (name, value) in environment {
+        hash_command_os_str(&mut hasher, name);
+        match value {
+            Some(value) => {
+                hasher.update([1]);
+                hash_command_os_str(&mut hasher, value);
+            }
+            None => hasher.update([0]),
+        }
+    }
+    match command.get_current_dir() {
+        Some(directory) => {
+            hasher.update([1]);
+            hash_command_os_str(&mut hasher, directory.as_os_str());
+        }
+        None => hasher.update([0]),
+    }
+    match stdin {
+        GitCommandStdinIdentity::Null => hasher.update([1]),
+        GitCommandStdinIdentity::ExactBytes { length, identity } => {
+            hasher.update([2]);
+            hasher.update(length.to_le_bytes());
+            hash_bytes(&mut hasher, identity.as_bytes());
+        }
+    }
+    format_sha256(&hasher.finalize())
+}
+
+fn hash_command_os_str(hasher: &mut Sha256, value: &OsStr) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        hash_bytes(hasher, value.as_bytes());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let units = value.encode_wide().collect::<Vec<_>>();
+        hash_length(hasher, units.len() as u64);
+        for unit in units {
+            hasher.update(unit.to_le_bytes());
+        }
+    }
+}
+
 fn run_git<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
@@ -7297,6 +7524,8 @@ where
     let mut command = sealed_git_command(executor, working_directory, phase)?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
+    let command_identity =
+        git_command_configuration_identity(&command, phase, &GitCommandStdinIdentity::Null);
     let result = run_command_bounded(
         &mut command,
         "command",
@@ -7304,7 +7533,9 @@ where
         GIT_STDERR_LIMIT,
         command_timeout,
     );
-    reconcile_git_command_result(result, executor.verify(), executor.verify_budget())
+    let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
+    executor.record_command_execution(phase, command_identity, &output)?;
+    Ok(output)
 }
 
 fn reconcile_git_command_result<T>(
@@ -9710,6 +9941,21 @@ mod tests {
         assert_eq!(resolved.local.file_count, 1);
         assert!(!resolved.tree.is_empty());
         assert!(!resolved.execution_policy_observations().is_empty());
+        assert_eq!(
+            resolved.command_execution_observations().len(),
+            resolved.execution_policy_observations().len()
+        );
+        assert!(
+            resolved
+                .command_execution_observations()
+                .iter()
+                .all(|observation| observation.policy_identity().len() == 64
+                    && observation.command_identity().len() == 64
+                    && observation.status_code() == Some(0)
+                    && observation.termination_signal().is_none()
+                    && observation.stdout_identity().len() == 64
+                    && observation.stderr_identity().len() == 64)
+        );
         assert!(
             resolved
                 .execution_policy_observations()

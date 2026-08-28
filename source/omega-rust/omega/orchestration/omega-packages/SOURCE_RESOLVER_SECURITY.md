@@ -128,6 +128,20 @@ identities for that phase. The result now retains those fixed helper identities
 instead of dropping them. This closes configuration-to-content association for
 successful resolution; it still is not an execution-result receipt.
 
+Each completed Git command now also contributes one bounded package-layer
+execution observation after output capture, executable/backend revalidation,
+and budget reconciliation succeed. A domain-separated command commitment binds
+the closed phase, actual native program and ordered arguments, complete explicit
+environment, working directory, and either null stdin or the exact object-batch
+stdin length and digest. The outcome binds exit code or Unix signal plus exact
+bounded stdout/stderr lengths and digests, and joins positionally to the digest
+of its native policy observation. Successful resolution requires outcome,
+policy, and launch counts to agree. Output text and package-controlled arguments
+are not rendered into this fixed record. This establishes completed-command
+provenance for successful resolution, but still omits effective endpoint,
+transferred-byte accounting, aggregate resource use, and the final source-
+receipt verdict.
+
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
 dependency request occurrence joined to its alias, selected package key, and
