@@ -2392,7 +2392,10 @@ fn lower_unit_function(
             function.machine,
         ));
     }
-    if function.block_entries.len() != 1 || function.block_entries[0].block != function.entry {
+    if function.block_entries.len() != 1
+        || function.block_entries[0].block != function.entry
+        || !function.block_entries[0].parameters.is_empty()
+    {
         return Err(LoweringError::UnitFunctionNotStraightLine(function.machine));
     }
 
@@ -2993,7 +2996,28 @@ fn lower_unit_function(
                             function.machine,
                         ));
                     };
+                    let fixed_array_call_count = structural_types
+                        .get(&parameter.structural_type)
+                        .and_then(|declaration| match declaration.shape {
+                            StructuralTypeShape::FixedArray { length: 2, .. } => Some(1),
+                            StructuralTypeShape::FixedArray { length: 3, .. } => Some(2),
+                            _ => None,
+                        });
                     if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+                        || fixed_array_call_count.is_some_and(|expected_calls| {
+                            function.structural_parameters.len() != 1
+                                || !function.entry_claims.is_empty()
+                                || !function.published_service_ceiling.is_empty()
+                                || parameter.position != 0
+                                || parameter.is_self
+                                || parameter.access != psi_terminal::StructuralAccess::Owned
+                                || !parameter.qualifications.is_empty()
+                                || !local_places.is_empty()
+                                || operations.len() != expected_calls
+                                || operations.iter().any(|operation| {
+                                    !matches!(operation, TerminalTargetUnitOperation::Call { .. })
+                                })
+                        })
                         || root_discards != local_places.iter().rev().copied().collect::<Vec<_>>()
                         || expected_roots.get(local_places.len()..) != Some(&[residual_root][..])
                         || expected_residuals.len() != residual_discards.len()
@@ -3664,14 +3688,16 @@ fn expected_maximal_residual_subtrees(
     if moved.is_empty() {
         return None;
     }
-    if let [(path, moved_type)] = moved
-        && let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
+    if moved
+        .iter()
+        .all(|(path, _)| matches!(path.as_slice(), [StructuralPathSegment::FixedIndex(_)]))
     {
         let declaration = declarations.get(&root_type).copied()?;
-        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return None;
         };
-        if moved_type != &element
+        if !matches!((length, moved.len()), (2, 1) | (3, 2))
+            || moved.iter().any(|(_, moved_type)| *moved_type != element)
             || !matches!(
                 declarations
                     .get(&element)
@@ -3681,10 +3707,21 @@ fn expected_maximal_residual_subtrees(
         {
             return None;
         }
-        return Some(vec![(
-            vec![StructuralPathSegment::FixedIndex(1 - index)],
-            element,
-        )]);
+        let moved_indexes = moved
+            .iter()
+            .filter_map(|(path, _)| match path.as_slice() {
+                [StructuralPathSegment::FixedIndex(index)] if *index < length => Some(*index),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>();
+        if moved_indexes.len() != moved.len() {
+            return None;
+        }
+        let residuals = (0..length)
+            .filter(|index| !moved_indexes.contains(index))
+            .map(|index| (vec![StructuralPathSegment::FixedIndex(index)], element))
+            .collect::<Vec<_>>();
+        return (residuals.len() == 1).then_some(residuals);
     }
     let borrowed = moved
         .iter()
@@ -3699,7 +3736,7 @@ fn is_partial_cleanup_path(path: &[StructuralPathSegment]) -> bool {
     (!path.is_empty()
         && path.iter().all(
             |segment| matches!(segment, StructuralPathSegment::Field(identity) if !identity.is_empty()),
-        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
+        )) || matches!(path, [StructuralPathSegment::FixedIndex(0 | 1 | 2)])
 }
 
 fn append_maximal_residual_subtrees(

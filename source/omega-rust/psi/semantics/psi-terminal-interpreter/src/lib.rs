@@ -2926,14 +2926,15 @@ fn split_affine_frontier_at_projection(
             }
             selected
         }
-        StructuralTypeShape::FixedArray { element, length: 2 }
-            if matches!(next_segment, StructuralPathSegment::FixedIndex(0 | 1)) =>
-        {
+        StructuralTypeShape::FixedArray {
+            element,
+            length: length @ (2 | 3),
+        } if matches!(next_segment, StructuralPathSegment::FixedIndex(index) if index < length) => {
             let StructuralPathSegment::FixedIndex(selected_index) = next_segment else {
                 unreachable!()
             };
             let mut selected = None;
-            for index in 0..2 {
+            for index in 0..*length {
                 let mut path = current.path.clone();
                 path.push(StructuralPathSegment::FixedIndex(index));
                 let child = StructuralAffineDiscard {

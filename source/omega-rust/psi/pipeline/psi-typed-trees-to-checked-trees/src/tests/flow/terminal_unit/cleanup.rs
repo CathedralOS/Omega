@@ -465,6 +465,90 @@ fn two_element_affine_array_may_move_both_elements_without_residual_cleanup() {
 }
 
 #[test]
+fn three_element_affine_array_moves_two_indices_and_discards_the_sole_residual() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::middle(values: [Token; 3]) {
+            Sink::take(values[2]);
+            Sink::take(values[0]);
+        }
+        machine Root::last(values: [Token; 3]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+        }
+        machine Root::first(values: [Token; 3]) {
+            Sink::take(values[1]);
+            Sink::take(values[2]);
+        }
+        machine Root::one_move(values: [Token; 3]) {
+            Sink::take(values[0]);
+        }
+        machine Root::all(values: [Token; 3]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+            Sink::take(values[2]);
+        }
+        "#,
+    );
+    for (machine, expected_paths, residual) in [
+        ("middle", [2, 0], 1),
+        ("last", [0, 1], 2),
+        ("first", [1, 2], 0),
+    ] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .for_machine(machine_named(&checked, machine))
+            .expect("two distinct moves from an affine triple leave one exact residual");
+        assert_eq!(plan.machine.operations.len(), 3);
+        assert_eq!(
+            plan.machine.operations[..2]
+                .iter()
+                .map(|operation| {
+                    let CheckedUnitEffectOperationPlan::CallUnit {
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } = operation
+                    else {
+                        panic!("triple cleanup contains Unit calls before return")
+                    };
+                    assert!(claim_transfers.is_empty());
+                    let [CheckedUnitStructuralPathSegment::FixedIndex(index)] =
+                        structural_arguments[0].path.as_slice()
+                    else {
+                        panic!("triple move retains one literal index")
+                    };
+                    *index
+                })
+                .collect::<Vec<_>>(),
+            expected_paths
+        );
+        assert_eq!(plan.residual_affine_discards.len(), 1);
+        assert_eq!(
+            plan.residual_affine_discards[0].path,
+            [CheckedUnitStructuralPathSegment::FixedIndex(residual)]
+        );
+    }
+    for machine in ["one_move", "all"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "one move exposes Q5 and three moves belong to a separate no-residual rung"
+        );
+    }
+}
+
+#[test]
 fn affine_array_partial_cleanup_fences_other_lengths() {
     let checked = checked(
         r#"
@@ -478,9 +562,13 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
         machine Root::three(values: [Token; 3]) {
             Sink::take(values[1]);
         }
+        machine Root::four(values: [Token; 4]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+        }
         "#,
     );
-    for machine in ["one", "three"] {
+    for machine in ["one", "three", "four"] {
         assert!(
             checked
                 .facts
@@ -488,7 +576,47 @@ fn affine_array_partial_cleanup_fences_other_lengths() {
                 .terminal_partial_affine_unit_cleanups
                 .for_machine(machine_named(&checked, machine))
                 .is_none(),
-            "`{machine}` remains outside the exact two-element array slice"
+            "`{machine}` remains outside the exact bounded array slice"
+        );
+    }
+}
+
+#[test]
+fn affine_triple_partial_cleanup_rejects_nominal_elements_and_qualification() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+
+        data NominalToken { value: u64; }
+        machine NominalToken::drop(&mut self) {}
+        machine Sink::take_nominal(token: NominalToken) {}
+
+        domain [Token; 3]::Ready
+        requires
+            true;
+
+        data Root {}
+        machine Root::nominal(values: [NominalToken; 3]) {
+            Sink::take_nominal(values[0]);
+            Sink::take_nominal(values[1]);
+        }
+        machine Root::qualified(values: [Token; 3] in Ready) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+        }
+        "#,
+    );
+    for machine in ["nominal", "qualified"] {
+        assert!(
+            checked
+                .facts
+                .flow
+                .terminal_partial_affine_unit_cleanups
+                .for_machine(machine_named(&checked, machine))
+                .is_none(),
+            "`{machine}` is outside the exact claim-free unqualified structural-affine carrier"
         );
     }
 }

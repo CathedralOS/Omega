@@ -197,9 +197,10 @@ General fixed-array cleanup, including partial arrays with more than one live
 element, needs one deterministic semantic order before checked cleanup plans,
 fuel, proof traces, and native artifacts can agree. Choosing increasing or
 decreasing index order in the compiler would silently add language semantics.
-The bounded two-element slice with exactly one moved element and one residual
-does not expose this choice, but wider arrays and multiple residuals remain
-blocked on it.
+The bounded two-element slice with exactly one moved element and one residual,
+and the bounded three-element slice with exactly two moved elements and one
+residual, do not expose this choice. Wider-array partitions with multiple live
+residuals remain blocked on it.
 
 ### Proposed direction
 

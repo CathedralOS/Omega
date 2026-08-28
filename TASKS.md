@@ -8292,11 +8292,27 @@ reach or trust, and private proof improvements do not change public identity.
   missing, duplicate, reordered, wrong-layout, or cleanup-bearing artifacts
   reject without weakening either projected call in isolation.
 
-  Other lengths, nested/dynamic/mixed projections,
+  One exact wider residual-bearing successor is closed. Under the same
+  claim-free affine, unqualified, record-element, and no-nominal-cleanup
+  restrictions, `[T; 3]` may move exactly two distinct literal indices through
+  two ordinary one-parameter Unit calls in authored order. The complement is
+  the one exact typed no-code residual on `ReturnUnitPartialAffine`. Checked
+  production and Terminal shape/frontier replay reject one move, three moves,
+  duplicate or nested paths, scalar parameters, extra control, claims/content,
+  qualifications, contracts, and residual/type drift. Codec and interpreter
+  replay preserve the two calls, singleton residual, authored order, and exact
+  five closure units. All five target pipelines independently retain the
+  length-three layout, canonical element stride and offsets, operation/edge
+  fuel, two-call custody, and the one object/image/installation cleanup action;
+  target, assigned-machine, object, and installed tampering fail closed. The
+  singleton complement makes no array cleanup-order choice.
+
+  Other partitions, including any fixed array with multiple live residuals,
+  and nested/dynamic/mixed projections,
   scalar/float/byte/linear/nominal/qualified/content elements, arrays with
   claims, sums, joins, and cycles remain fenced. General array cleanup order
   remains the language-design question recorded in `OWNER_QUESTIONS.md` Q5;
-  neither exact length-two rung chooses that order.
+  none of these singleton- or zero-residual rungs chooses that order.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
   selection kind. The package-agnostic selection ledger rejects the exact hook

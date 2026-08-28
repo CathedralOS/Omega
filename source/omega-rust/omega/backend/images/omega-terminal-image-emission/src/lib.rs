@@ -71,7 +71,9 @@ pub use stack_demand::{derive_terminal_stack_demand, derive_terminal_unit_stack_
 use boundary_results::boundary_result_is_exact;
 use byte_sequence_custody::linux_write_line_custody_is_exact;
 use completion_receipts::{CompletionCustodyError, validate_completion_custody};
-use fully_consumed_affine_pair::exact_fully_consumed_affine_pair;
+use fully_consumed_affine_pair::{
+    exact_fully_consumed_affine_pair, exact_partially_consumed_affine_triple,
+};
 use scalar_cleanup_preservation::validate_scalar_cleanup_preservation;
 use scalar_conditional_call_paths::{conditional_call_path, conditional_paths_are_exclusive};
 use scalar_control_cleanup::{cleanup_for_owner, validate_scalar_control_cleanup_evidence};
@@ -688,6 +690,11 @@ pub fn build_terminal_object_artifact(
             &function.internal_unit_calls,
             default_affine_cleanup,
         );
+        let partially_consumed_affine_triple = exact_partially_consumed_affine_triple(
+            parameter_homes,
+            &function.internal_unit_calls,
+            default_affine_cleanup,
+        );
         for custody in &function.internal_unit_calls {
             let target_returns_scalar = machine_functions
                 .get(&custody.target)
@@ -786,6 +793,7 @@ pub fn build_terminal_object_artifact(
                 cleanup,
                 false,
                 fully_consumed_affine_pair,
+                partially_consumed_affine_triple,
             )?,
             (None, None) => {}
             _ => {
@@ -811,6 +819,7 @@ pub fn build_terminal_object_artifact(
                 &machine_functions,
                 cleanup,
                 true,
+                false,
                 false,
             )?;
         }
@@ -844,6 +853,7 @@ pub fn build_terminal_object_artifact(
                     &machine_functions,
                     &record.cleanup,
                     true,
+                    false,
                     false,
                 )?;
             }

@@ -131,6 +131,116 @@ fn exact_fully_consumed_affine_pair_root(
         .then_some(parameter.place)
 }
 
+fn exact_partially_consumed_affine_triple_root(
+    body: &TerminalAssignedUnitBody,
+    return_ordinal: usize,
+) -> Option<psi_core::PlaceId> {
+    let [parameter] = body.parameters.as_slice() else {
+        return None;
+    };
+    if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || parameter.access != psi_terminal::StructuralAccess::Owned
+        || return_ordinal != 2
+        || body
+            .structural_types
+            .windows(2)
+            .any(|pair| pair[0].id >= pair[1].id)
+        || body
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.identity.is_empty())
+        || body
+            .structural_types
+            .iter()
+            .map(|declaration| declaration.identity.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != body.structural_types.len()
+    {
+        return None;
+    }
+    let declaration = body
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)?;
+    let psi_terminal::StructuralTypeShape::FixedArray { element, length: 3 } = declaration.shape
+    else {
+        return None;
+    };
+    if !matches!(
+        body.structural_types
+            .iter()
+            .find(|declaration| declaration.id == element)
+            .map(|declaration| &declaration.shape),
+        Some(psi_terminal::StructuralTypeShape::Record { .. })
+    ) {
+        return None;
+    }
+    let [
+        first,
+        second,
+        TerminalAssignedUnitOperation::Return {
+            cleanup_actions, ..
+        },
+    ] = body.operations.as_slice()
+    else {
+        return None;
+    };
+    let moved_index = |operation: &TerminalAssignedUnitOperation| {
+        let TerminalAssignedUnitOperation::Call {
+            result: None,
+            copies,
+            claim_transfers,
+            ..
+        } = operation
+        else {
+            return None;
+        };
+        let [copy] = copies.as_slice() else {
+            return None;
+        };
+        let [psi_terminal::StructuralPathSegment::FixedIndex(index @ (0 | 1 | 2))] =
+            copy.path.as_slice()
+        else {
+            return None;
+        };
+        let stride = copy.element_stride?;
+        let expected_stride = u32::from(copy.shape.byte_size)
+            .checked_next_multiple_of(u32::from(copy.shape.alignment))?;
+        (claim_transfers.is_empty()
+            && copy.place == parameter.place
+            && copy.access == psi_terminal::StructuralAccess::Owned
+            && copy.root_structural_type == parameter.structural_type
+            && copy.structural_type == element
+            && copy.fixed_array_length == Some(3)
+            && stride == expected_stride
+            && copy.source == parameter.placement
+            && copy.source.shape == parameter.shape
+            && copy.source.shape.alignment == copy.shape.alignment
+            && u32::from(copy.source.shape.byte_size) == stride.checked_mul(3)?
+            && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
+        .then_some((*index, copy.shape, stride))
+    };
+    let first = moved_index(first)?;
+    let second = moved_index(second)?;
+    if first.0 == second.0 || first.1 != second.1 || first.2 != second.2 {
+        return None;
+    }
+    let residual_index = (0_u64..3).find(|index| *index != first.0 && *index != second.0)?;
+    let [psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)] =
+        cleanup_actions.as_slice()
+    else {
+        return None;
+    };
+    (residual.place == parameter.place
+        && residual.structural_type == element
+        && residual.path
+            == [psi_terminal::StructuralPathSegment::FixedIndex(
+                residual_index,
+            )])
+    .then_some(parameter.place)
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct X86UnitParameterHome {
     place: psi_core::PlaceId,
@@ -513,6 +623,8 @@ pub(super) fn emit_unit_body(
             } => {
                 let fully_consumed_affine_pair =
                     exact_fully_consumed_affine_pair_root(body, operation_ordinal);
+                let partially_consumed_affine_triple =
+                    exact_partially_consumed_affine_triple_root(body, operation_ordinal);
                 let transferred_roots = body.operations[..operation_ordinal]
                     .iter()
                     .filter_map(|operation| match operation {
@@ -591,6 +703,25 @@ pub(super) fn emit_unit_body(
                         .collect::<Vec<_>>();
                     cleanup_actions.get(..expected_local_actions.len())
                         == Some(expected_local_actions.as_slice())
+                        && residual_root.is_some_and(|root| {
+                            body.parameters
+                                .iter()
+                                .find(|parameter| parameter.place == root)
+                                .and_then(|parameter| {
+                                    body.structural_types.iter().find(|declaration| {
+                                        declaration.id == parameter.structural_type
+                                    })
+                                })
+                                .is_none_or(|declaration| {
+                                    !matches!(
+                                        declaration.shape,
+                                        psi_terminal::StructuralTypeShape::FixedArray {
+                                            length: 3,
+                                            ..
+                                        }
+                                    ) || partially_consumed_affine_triple == Some(root)
+                                })
+                        })
                         && !residuals.is_empty()
                         && residuals.len() == residual_actions.len()
                         && residual_root.is_some_and(|root| {
@@ -837,7 +968,7 @@ fn is_partial_cleanup_path(path: &[psi_terminal::StructuralPathSegment]) -> bool
         }))
         || matches!(
             path,
-            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1)]
+            [psi_terminal::StructuralPathSegment::FixedIndex(0 | 1 | 2)]
         )
 }
 

@@ -722,6 +722,17 @@ object/image and installation replay rederive this exact two-call form at
 function scope, retain its canonical stride/offset and empty return cleanup,
 and never exempt a projected call unless the complete pair is present.
 
+The residual-bearing successor accepts the same exact carrier restrictions for
+`[T; 3]`. It requires exactly two distinct direct literal-index calls in
+authored order and one `ReturnUnitPartialAffine` discard naming the sole
+complement index and exact element type. Shape and frontier validation reject a
+missing, duplicate, third, nested, out-of-bounds, mistyped, qualified,
+claim-bearing, contract-bearing, or cleanup-drifted form. Interpretation still
+charges five closure units. Target and machine lowering plus object/image and
+installation replay independently retain the length-three layout, stride,
+offsets, two-call custody, singleton residual, and operation/edge fuel. Since
+there is only one residual, this carrier makes no cleanup-order choice.
+
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
 the list from state-exit permission events in reverse parameter declaration

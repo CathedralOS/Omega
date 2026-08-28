@@ -1523,12 +1523,18 @@ pub(super) fn is_bounded_partial_affine_path(
     path: &[StructuralPathSegment],
 ) -> bool {
     is_nonempty_field_path(path)
-        || (matches!(path, [StructuralPathSegment::FixedIndex(0 | 1)])
+        || (matches!(path, [StructuralPathSegment::FixedIndex(_)])
             && module.structural_types.iter().any(|declaration| {
                 declaration.id == root_type
                     && matches!(
-                        declaration.shape,
-                        StructuralTypeShape::FixedArray { length: 2, .. }
+                        (&declaration.shape, path),
+                        (
+                            StructuralTypeShape::FixedArray { length: 2, .. },
+                            [StructuralPathSegment::FixedIndex(0 | 1)]
+                        ) | (
+                            StructuralTypeShape::FixedArray { length: 3, .. },
+                            [StructuralPathSegment::FixedIndex(0 | 1 | 2)]
+                        )
                     )
             }))
 }
@@ -1545,15 +1551,15 @@ pub(super) fn partial_affine_residuals(
     {
         return None;
     }
-    if moved_paths.len() == 1
-        && let Some(path) = moved_paths.first()
-        && let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
+    if moved_paths
+        .iter()
+        .all(|path| matches!(path.as_slice(), [StructuralPathSegment::FixedIndex(_)]))
     {
         let declaration = module
             .structural_types
             .iter()
             .find(|declaration| declaration.id == root_type)?;
-        let StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape else {
+        let StructuralTypeShape::FixedArray { element, length } = declaration.shape else {
             return None;
         };
         if !matches!(
@@ -1566,10 +1572,37 @@ pub(super) fn partial_affine_residuals(
         ) {
             return None;
         }
-        return Some(vec![(
-            vec![StructuralPathSegment::FixedIndex(1 - index)],
-            element,
-        )]);
+        match length {
+            2 if moved_paths.len() == 1 => {
+                let [StructuralPathSegment::FixedIndex(index @ (0 | 1))] =
+                    moved_paths.first()?.as_slice()
+                else {
+                    return None;
+                };
+                return Some(vec![(
+                    vec![StructuralPathSegment::FixedIndex(1 - index)],
+                    element,
+                )]);
+            }
+            3 if moved_paths.len() == 2 => {
+                let moved = moved_paths
+                    .iter()
+                    .filter_map(|path| match path.as_slice() {
+                        [StructuralPathSegment::FixedIndex(index @ (0 | 1 | 2))] => Some(*index),
+                        _ => None,
+                    })
+                    .collect::<BTreeSet<_>>();
+                if moved.len() != 2 {
+                    return None;
+                }
+                let residual = (0_u64..3).find(|index| !moved.contains(index))?;
+                return Some(vec![(
+                    vec![StructuralPathSegment::FixedIndex(residual)],
+                    element,
+                )]);
+            }
+            _ => return None,
+        }
     }
     if moved_paths.iter().enumerate().any(|(index, path)| {
         moved_paths

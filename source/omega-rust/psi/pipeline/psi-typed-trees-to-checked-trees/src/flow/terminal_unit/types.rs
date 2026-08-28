@@ -1067,7 +1067,7 @@ impl<'program> ShapeCollector<'program> {
         self.add_data_shape(identity, data, binders, local_substitutions)
     }
 
-    pub(super) fn add_partial_affine_pair_type(
+    pub(super) fn add_partial_affine_array_type(
         &mut self,
         type_reference: TypeReferenceHandle,
         binders: &[(SymbolHandle, String)],
@@ -1084,7 +1084,7 @@ impl<'program> ShapeCollector<'program> {
         }
         let TypeReferenceNode::FixedArray {
             element_type,
-            length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+            length: psi_typed_trees::types::FixedArrayLength::Literal(length @ (2 | 3)),
         } = self.program.type_reference_table.type_reference(resolved)
         else {
             return self.add_type(type_reference, binders, &[]);
@@ -1128,7 +1128,7 @@ impl<'program> ShapeCollector<'program> {
                 identity: identity.clone(),
                 shape: CheckedUnitStructuralTypeShape::FixedArray {
                     element_type_identity,
-                    length: 2,
+                    length: u64::try_from(*length).ok()?,
                 },
             },
         );
