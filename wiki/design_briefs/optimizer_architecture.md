@@ -183,7 +183,8 @@ canonical Terminal Psi semantic + proof sections
     -> validated dense text-section placement
     -> private-symbol Omega object container
     -> canonical Terminal semantic/proof-to-object artifact + rebuild record
-       (ordinary-callable/process entry, native image, install, and publication closed)
+    -> validated ordinary-callable entry classification
+       (process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
 
@@ -356,7 +357,18 @@ the already-executed segment. Immediately before the sole future use, the
 transform inserts one deterministic fresh VReg and `MaterializeI64`, rewrites
 only that operand, and gives the new instruction zero logical fuel plus only
 the original source-value lineage—never operation, edge, or obligation
-custody. Its strict v1 recipe codec roots the sealed selected analysis,
+custody.
+
+The sibling
+`SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1`
+admits the same exact active-resident literal only when it has at least two
+strictly later same-block flexible uses, one local unconnected range, and no
+later fixed use. It inserts one fresh zero-fuel, value-lineage-only
+`MaterializeI64` before the first future-use instruction and rewrites every
+classified future use to that same fresh VReg in canonical
+instruction/operand order. Earlier and unrelated uses are untouched. Both
+policies use one ordered rewrite-row action schema. Its strict v2 recipe codec
+roots the sealed selected analysis,
 spill-choice/classification evidence, availability, environment, budget, and
 transformed identity. A structurally independent validator replays the recipe;
 fresh liveness, ranges, interference, legality, and home assignment prove the
@@ -1206,14 +1218,31 @@ The exact `GlobalValueNumbering` suite expands in canonical order to
 `dominator-obligation-free-total-scalar-gvn.v1`,
 `dominator-proof-certified-total-scalar-gvn.v1`,
 `phi-translated-obligation-free-total-scalar-gvn.v1`, and
-`phi-translated-proof-certified-total-scalar-gvn.v1`. Each local rule scans a block
-in node order and replaces a later equivalent result with the earliest admitted
-leader. The obligation-free vocabulary contains literals, Boolean operations,
+`phi-translated-proof-certified-total-scalar-gvn.v1`, followed by
+`same-block-proof-certified-compatible-policy-scalar-cse.v1` and
+`dominator-proof-certified-compatible-policy-scalar-gvn.v1`. Each local rule
+scans a block in node order and replaces a later equivalent result with the
+earliest admitted leader. The obligation-free vocabulary contains literals,
+Boolean operations,
 integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
 saturating add/subtract/multiply. The proof-certified vocabulary contains exact
 integer casts, shifts, add/subtract/multiply/divide/remainder, and wrapping or
 saturating divide/remainder. Calls, structural work, boundary/service work, and
 control operations remain excluded.
+
+The two compatible-policy rules are directional equal-value joins. A redundant
+proof-certified exact add, subtract, or multiply may reuse an earlier
+obligation-free wrapping or saturating operation with the same signed/unsigned
+fixed-width family, domain, and operands. A redundant proof-certified exact
+left or right shift may reuse the matching wrapping shift. Add and multiply
+canonicalize swapped operands; subtraction and shifts preserve order. Division
+and remainder are excluded because their proof-bearing leaders require a
+different two-fact contract, and the reverse obligation-free-to-exact rewrite
+is not admitted. The redundant exact operation must retain its own active
+accepted obligation, which the rewrite consumes without mutating the historical
+accepted-fact catalog. Leader selection, dominance, substitution, and forward
+provenance/fuel settlement are otherwise identical to the corresponding local
+or dominator rule and are independently reconstructed.
 
 An expression key binds the exact operation family and policy, all literal
 payload, complete source/result/count integer domains, and operand identities.
@@ -1271,9 +1300,9 @@ complete incoming set, translations, dominators, leaders, parameter position,
 edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
-projection with both appended bindings. Candidate encoding v21,
-optimization-unit content identity v10, the named v5 pass, prephysical
-manifest v14, and optimized-plan projection validation v15 bind the current
+projection with both appended bindings. Candidate encoding v24,
+optimization-unit content identity v10, the named v6 pass, prephysical
+manifest v22, and optimized-plan projection validation v23 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
 vocabulary as proof-certified local and dominator GVN. Every translated arm
@@ -2092,24 +2121,42 @@ access paths. The strict `OMGOTA` and `OMGOTM` v1 codecs provide the canonical
 artifact and rebuild-metadata records. They still mark external entry bridging,
 native image construction, installation, and publication unavailable.
 
-The next engineering boundary is
-`ValidatedOptimizedTerminalOrdinaryCallableEntryV1`. It must consume that
-artifact by value and classify its private semantic-entry symbol as an ordinary
-target-ABI callable. Its identity binds the exact semantic parameter/result
-ValueIds to selected VRegs and fixed physical views/storage units, plus the
-retained whole-function exit contract, target-resolved policy and hardening,
-stack alignment, red-zone facts, and caller-created return-state assumption.
-Its explicit disposition is `ExternalProcessEntryBridgeRequiredV1`; strict
-`OMGOER`/`OMGOEM` v1 records and independent reconstruction grant no process
-symbol, wrapper bytes, relocations, image, installation, or publication. This
-classification is engineering-ready. A real process bridge is not: Omega still
-lacks authoritative sources and sinks for process arguments, result/termination
-handling, and establishment of the caller return state.
+The following boundary is
+`ValidatedOptimizedTerminalOrdinaryCallableEntryV1`. It consumes that artifact
+by value and classifies the current exact unattached, frameless scalar semantic
+entry as an ordinary target-ABI callable. For each semantic scalar parameter,
+its identity binds the ValueId and ABI shape to the selected VReg, fixed
+assigned physical view, canonical storage units, and target ABI register.
+Terminal scalar results are pseudo-result declarations, not one universal
+selected value: the record therefore binds the result declaration separately
+from ordered per-return-edge rows naming each actual returned ValueId, selected
+VReg, assigned view, and units. It also retains the selected plan, homes,
+physical model, private semantic-entry symbol and span, object/container roots,
+whole-function exit contract, target-native calling policy, hardening, stack
+alignment, red-zone facts, and caller-created return-state assumption.
+Production and an independently coded validator recompute the call plan and
+every Terminal/selection/home/symbol/exit join. Its explicit disposition is
+`ExternalProcessEntryBridgeRequiredV1`; strict `OMGOER`/`OMGOEM` v1 records
+grant no process symbol, wrapper bytes, relocations, image, installation, or
+publication. The cumulative report gains this record only from the opaque
+carrier that owns the source artifact.
+
+The real process bridge is an engineering join rather than an unresolved
+language-design decision. Target and program-storage vocabulary already make
+`ProgramEntry` target-owned, retain its selected source signature, have the
+generated ABI shell supply schema-visible root arguments, and currently require
+a Unit source result. The scalar-result conditional fixture above is therefore
+correctly classified as an ordinary callable and intentionally cannot serve as
+a positive ProgramEntry publication fixture. The next bridge must add optimized
+selected vocabulary for the actual Unit entry/source shape and join the
+existing ProgramEntry/root/source-signature/program-storage custody before it
+can construct wrapper bytes or establish native-image/publication authority.
 
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The next
-joins must classify the ordinary callable, give it an authoritative external
-process-entry bridge, and carry the resulting native image through publication;
+joins must connect the classified ordinary callable to the existing
+target-owned process-entry contract and carry the resulting native image
+through publication;
 the compiler gate can be removed only together with selected-build publication
 tests.
 
@@ -2373,8 +2420,13 @@ image, installation, and publication unavailable. The strict `OMGOTA` and
 clean object, every preceding manifest, and its rebuild roots. The pipeline-
 owned cumulative report can gain fragment, text-section, object-container, and
 artifact records only from the opaque artifact carrier that owns all of them by
-value; suppression still changes no decision or byte. `OPT-MANIFEST-SCHEMA`
-remains open until later ordinary-entry, process-bridge, native-image, and
+value. The strict `OMGOER` and `OMGOEM` v1 records then add the independently
+reconstructed native calling plan, parameter rows, scalar pseudo-result and
+per-return bindings, private semantic-entry symbol, homes/units, and exact exit
+contract while retaining the external-bridge-required disposition. The report
+gains that record only from the new opaque callable-entry carrier; suppression
+still changes no decision or byte. `OPT-MANIFEST-SCHEMA`
+remains open until later process-bridge, native-image, and
 publication manifests enter compiler custody. Successful native compiler
 publication must then materialize the already-retained report request.
 
