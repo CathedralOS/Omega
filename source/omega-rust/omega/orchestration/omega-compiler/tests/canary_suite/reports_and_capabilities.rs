@@ -87,31 +87,34 @@ fn output_only_checks_suppress_artifacts_without_suppressing_wire_validation() {
 #[test]
 fn output_only_backend_compile_keeps_primary_image_and_certification() {
     let build_dir = unique_no_output_build_dir();
-    let report = compile_harness(
-        CompileHarnessRequest::new(CompileOptions {
-            root_path: pass_canary("build/explicit_program_entry_binding").join("main.omg"),
+    let report = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
+            root_path: pass_canary("terminal_psi/selected_empty_component").join("main.omg"),
             build_dir: Some(build_dir.clone()),
-            target_name: Some("windows_x64".into()),
+            target_name: Some("linux_x64".into()),
             write_output: true,
         })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
         .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     )
-    .expect("output-only backend compile should still certify and install its image");
+    .expect("output-only backend compile should still certify its image")
+    .publish_retained_native_artifact(&build_dir)
+    .expect("output-only native artifact should publish");
     assert!(report.wrote_output());
     assert_eq!(
         report
             .checked_native_executable_path()
             .map(std::path::Path::to_path_buf),
-        Some(build_dir.join("omega-program.exe")),
+        Some(build_dir.join("omega-program")),
     );
-    assert!(build_dir.join("omega-program.exe").is_file());
+    assert!(build_dir.join("omega-program").is_file());
     let entries = fs::read_dir(&build_dir)
         .expect("read output-only build directory")
         .map(|entry| entry.expect("read output-only build entry").file_name())
         .collect::<Vec<_>>();
     assert_eq!(
         entries,
-        [std::ffi::OsString::from("omega-program.exe")],
+        [std::ffi::OsString::from("omega-program")],
         "output-only backend compilation must omit auxiliary reports"
     );
     let _ = fs::remove_dir_all(build_dir);
@@ -378,7 +381,7 @@ fn boundary_trait_canary_reports_capability_use() {
     let _ = fs::remove_dir_all(&scratch);
     let checked_dir = scratch.join("checked");
 
-    let checked_compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+    let checked_compilation = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path.clone(),
         build_dir: Some(checked_dir.clone()),
         target_name: None,
@@ -405,7 +408,7 @@ fn boundary_trait_canary_reports_capability_use() {
     )
     .expect("write exact macOS AArch64 ProgramEntry binding");
     let lowered_dir = scratch.join("lowered");
-    let lowered_compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+    let lowered_compilation = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(lowered_dir.clone()),
         target_name: Some("macos_arm64".into()),
@@ -529,7 +532,7 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -572,7 +575,7 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+    let compilation = compile_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1297,7 +1300,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+        let compilation = compile_with_auxiliary_artifacts(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
@@ -1376,7 +1379,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
+        let compilation = compile_with_auxiliary_artifacts(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,

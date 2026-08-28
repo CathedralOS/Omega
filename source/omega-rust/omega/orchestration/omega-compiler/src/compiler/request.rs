@@ -11,9 +11,9 @@ pub enum RequestedCompileProduct {
 
 /// One typed production compiler invocation.
 ///
-/// Test-only entry overrides and worker ceilings deliberately remain on the
-/// separate harness request. This request owns production policy and input;
-/// [`super::Compiler`] only coordinates the resulting phase transitions.
+/// This request owns production policy and input; [`super::Compiler`] only
+/// coordinates the resulting phase transitions. Publication is a subsequent
+/// operation on a retained native product, not a requested compiler mode.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CompileRequest {
     pub(crate) options: CompileOptions,

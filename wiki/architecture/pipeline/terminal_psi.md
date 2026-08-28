@@ -26,8 +26,23 @@ Psi
 Omega
     terminal Psi
     -> abstract operations -> target operations
-    -> assigned instructions -> bytes -> installed image
+    -> bounded physical assignment -> machine code -> object -> executable image
 ```
+
+Compilation stops at the requested in-memory product. Publishing an executable
+is a subsequent product operation that stages and replays the retained image
+bytes; installation is a separate authority-bearing operation again. Neither
+publication nor installation is a compiler fork.
+
+The bounded assignment stage is the one acknowledged transitional defect in
+this chain. It cycles scratch homes for the small supported roster. The durable
+replacement is one in-line continuation—target legalization, selected virtual
+instructions, liveness/allocation, physical assignment, then emission—not a
+second backend. The incomplete selected-instruction implementation is excluded
+from production until it can replace that stage while preserving ordinary
+frame/exit, object/image, and publication validation. A request that selects it
+today rejects before native lowering; compilation never falls back or runs an
+alternate route.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
 canonical semantic and proof sections plus an explicit admission profile,

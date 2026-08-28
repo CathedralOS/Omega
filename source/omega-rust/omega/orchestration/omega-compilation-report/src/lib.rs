@@ -118,6 +118,127 @@ fn fingerprint_into(hash: &mut u64, bytes: &[u8]) {
     }
 }
 
+fn byte_fingerprint(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    fingerprint_into(&mut hash, bytes);
+    hash
+}
+
+fn publication_boundary_contract_fingerprint(
+    validation: omega_image::CompilerFunctionValidationEvidence,
+) -> Result<Option<u64>, String> {
+    let body = (validation.body_specification_instruction_count > 0)
+        .then_some(validation.body_specification_boundary_contract_fingerprint);
+    let mechanics = (validation.fixed_mechanics_instruction_count > 0)
+        .then_some(validation.fixed_mechanics_boundary_contract_fingerprint);
+    match (body, mechanics) {
+        (Some(left), Some(right)) if left != right => {
+            Err("native artifact final validation names inconsistent boundary contracts".to_owned())
+        }
+        (Some(value), _) | (_, Some(value)) => Ok(Some(value)),
+        (None, None) => Ok(None),
+    }
+}
+
+fn native_publication_certificate_fingerprint(
+    artifact: &RetainedNativeArtifact,
+    boundary_contract_fingerprint: Option<u64>,
+    text_validation_fingerprint: u64,
+    function_validation_fingerprint: u64,
+    inventory_fingerprint: u64,
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    fingerprint_into(
+        &mut hash,
+        b"omega.terminal-native-publication-certificate.v1",
+    );
+    fingerprint_into(&mut hash, artifact.semantic_bytes());
+    fingerprint_into(&mut hash, artifact.proof_bytes());
+    fingerprint_into(&mut hash, format!("{:?}", artifact.target()).as_bytes());
+    fingerprint_into(
+        &mut hash,
+        &boundary_contract_fingerprint
+            .unwrap_or_default()
+            .to_le_bytes(),
+    );
+    fingerprint_into(&mut hash, &text_validation_fingerprint.to_le_bytes());
+    fingerprint_into(&mut hash, &function_validation_fingerprint.to_le_bytes());
+    fingerprint_into(&mut hash, &inventory_fingerprint.to_le_bytes());
+    hash
+}
+
+fn native_publication_evidence_fingerprint(
+    certificate_fingerprint: u64,
+    callback_placement_identity_fingerprint: u64,
+    inventory_fingerprint: u64,
+    text_validation_fingerprint: u64,
+    function_validation_fingerprint: u64,
+    container_byte_count: usize,
+    container_fingerprint: u64,
+) -> u64 {
+    let mut hash = 0xcbf2_9ce4_8422_2325;
+    fingerprint_into(&mut hash, b"omega.terminal-native-publication-evidence.v1");
+    for value in [
+        certificate_fingerprint,
+        callback_placement_identity_fingerprint,
+        inventory_fingerprint,
+        text_validation_fingerprint,
+        function_validation_fingerprint,
+        container_byte_count as u64,
+        container_fingerprint,
+    ] {
+        fingerprint_into(&mut hash, &value.to_le_bytes());
+    }
+    hash
+}
+
+fn publish_exact_executable_bytes(path: &std::path::Path, bytes: &[u8]) -> Result<(), String> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| "native publication path has no parent directory".to_owned())?;
+    let file_name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or("omega-output");
+    let staged = parent.join(format!(".{file_name}.{}.tmp", std::process::id()));
+    let _ = std::fs::remove_file(&staged);
+    std::fs::write(&staged, bytes)
+        .map_err(|error| format!("failed to stage {}: {error}", staged.display()))?;
+    let staged_bytes = std::fs::read(&staged)
+        .map_err(|error| format!("failed to replay {}: {error}", staged.display()))?;
+    if staged_bytes != bytes {
+        let _ = std::fs::remove_file(&staged);
+        return Err("staged native output bytes failed exact replay".to_owned());
+    }
+    if path.exists() {
+        std::fs::remove_file(path)
+            .map_err(|error| format!("failed to replace {}: {error}", path.display()))?;
+    }
+    std::fs::rename(&staged, path)
+        .map_err(|error| format!("failed to publish {}: {error}", path.display()))?;
+    make_executable(path)?;
+    let installed = std::fs::read(path)
+        .map_err(|error| format!("failed to replay {}: {error}", path.display()))?;
+    if installed != bytes {
+        let _ = std::fs::remove_file(path);
+        return Err("published native output bytes failed exact replay".to_owned());
+    }
+    Ok(())
+}
+
+#[cfg(unix)]
+fn make_executable(path: &std::path::Path) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))
+        .map_err(|error| format!("failed to make {} executable: {error}", path.display()))
+}
+
+#[cfg(not(unix))]
+fn make_executable(_path: &std::path::Path) -> Result<(), String> {
+    Ok(())
+}
+
 /// Immutable custody for one compiler-published executable container.
 ///
 /// This records the exact final-footprint certificate, publication seal, and
@@ -439,6 +560,134 @@ impl CompileReport {
         };
         if !report.has_consistent_executable_publication_custody() {
             return Err("compiler report retained inconsistent native-artifact custody");
+        }
+        Ok(report)
+    }
+
+    /// Publish the retained native product as one flat executable and replace
+    /// pre-publication custody with an exact publication receipt.
+    ///
+    /// Compilation ends before this operation. Path selection and filesystem
+    /// mutation are an explicit product operation, never another compiler
+    /// route selected by `CompileOptions`.
+    pub fn publish_retained_native_artifact(
+        self,
+        build_dir: &std::path::Path,
+    ) -> Result<Self, String> {
+        if self.output_kind != CompileOutputKind::RetainedNativeArtifact
+            || self.wrote_output
+            || self.terminal_artifact.is_some()
+            || self.executable_publication.is_some()
+            || self.app_bundle_publication.is_some()
+            || self.terminal_component_deployment.is_some()
+        {
+            return Err(
+                "native publication requires exactly one retained native artifact".to_owned(),
+            );
+        }
+        let artifact = self.retained_native_artifact.as_ref().ok_or_else(|| {
+            "native publication requires exactly one retained native artifact".to_owned()
+        })?;
+        artifact
+            .validate()
+            .map_err(|error| format!("refusing to publish an invalid native artifact: {error}"))?;
+
+        let output = artifact.image().output();
+        if std::path::Path::new(&output.file_name).components().count() != 1 {
+            return Err("native artifact supplied a non-local output filename".to_owned());
+        }
+        let text_validation_fingerprint = output
+            .compiler_text_validation
+            .map(|validation| validation.derivation_fingerprint)
+            .unwrap_or_else(|| byte_fingerprint(&output.final_text_bytes));
+        let function_validation_fingerprint = output
+            .compiler_function_validation
+            .map(|validation| validation.evidence_fingerprint())
+            .unwrap_or_else(|| {
+                let mut hash = byte_fingerprint(&output.final_text_bytes);
+                fingerprint_into(
+                    &mut hash,
+                    &(artifact.image().functions().len() as u64).to_le_bytes(),
+                );
+                hash
+            });
+        let boundary_contract_fingerprint = output
+            .compiler_function_validation
+            .map(publication_boundary_contract_fingerprint)
+            .transpose()?
+            .flatten();
+
+        std::fs::create_dir_all(build_dir).map_err(|error| {
+            format!(
+                "failed to create output directory {}: {error}",
+                build_dir.display()
+            )
+        })?;
+        let output_path = build_dir.join(&output.file_name);
+        publish_exact_executable_bytes(&output_path, &output.bytes)?;
+
+        let container_fingerprint = byte_fingerprint(&output.bytes);
+        let certificate_fingerprint = native_publication_certificate_fingerprint(
+            artifact,
+            boundary_contract_fingerprint,
+            text_validation_fingerprint,
+            function_validation_fingerprint,
+            output.executable_regions.inventory_fingerprint,
+        );
+        let publication_evidence_fingerprint = native_publication_evidence_fingerprint(
+            certificate_fingerprint,
+            output.callback_placement_identity_fingerprint,
+            output.executable_regions.inventory_fingerprint,
+            text_validation_fingerprint,
+            function_validation_fingerprint,
+            output.bytes.len(),
+            container_fingerprint,
+        );
+        let installation_evidence_fingerprint = executable_installation_evidence_fingerprint(
+            ExecutablePublicationDestination::FlatOutput,
+            publication_evidence_fingerprint,
+            output.callback_placement_identity_fingerprint,
+            &output_path,
+            output.bytes.len(),
+            container_fingerprint,
+        );
+        let receipt = ExecutablePublicationReceipt::new(
+            ExecutablePublicationDestination::FlatOutput,
+            output_path,
+            certificate_fingerprint,
+            output.callback_placement_identity_fingerprint,
+            boundary_contract_fingerprint,
+            output.executable_regions.inventory_fingerprint,
+            text_validation_fingerprint,
+            function_validation_fingerprint,
+            publication_evidence_fingerprint,
+            output.bytes.len(),
+            container_fingerprint,
+            installation_evidence_fingerprint,
+        );
+        if !receipt.has_consistent_installation_identity() {
+            return Err("native publication produced an inconsistent installation receipt".into());
+        }
+
+        let report = Self {
+            root_path: self.root_path,
+            source_file_count: self.source_file_count,
+            wrote_output: true,
+            output_kind: CompileOutputKind::NativeExecutable,
+            retained_native_artifact: None,
+            terminal_artifact: None,
+            executable_publication: Some(receipt),
+            app_bundle_publication: None,
+            terminal_component_deployment: None,
+            program_storage_entry: self.program_storage_entry,
+            program_storage_entry_bridge: self.program_storage_entry_bridge,
+            build_evaluation_usage: self.build_evaluation_usage,
+            build_observation_summary: self.build_observation_summary,
+        };
+        if !report.has_consistent_executable_publication_custody()
+            || !report.has_consistent_program_storage_entry_custody()
+        {
+            return Err("published native report failed custody replay".to_owned());
         }
         Ok(report)
     }

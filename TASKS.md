@@ -2064,14 +2064,14 @@ Owners:
 
 Remaining:
 
-- **PSI-OMEGA-CUTOVER — restore the single compiler seam before extending either
-  lowering lane.** The current Rust compiler has two executable lowering paths:
-  the ordinary build still crosses directly from Psi checked trees into the
-  bootstrap Omega `StateGraph`/`ControlFlowPlan` backend, while terminal-Psi
-  production and Omega terminal realization live beside it as a component-
-  candidate path. This is not an accepted long-term migration shape. It is a
-  failed cutover that duplicates semantic lowering and lets the production
-  compiler bypass the architecture's named Psi/Omega boundary.
+- **PSI-OMEGA-CUTOVER — finish deleting the superseded pre-Psi backend
+  vocabulary.** The executable cutover is complete: `compile` has one
+  checked-Psi frontend, one canonical Terminal-Psi handoff, and one
+  Terminal-native realization route. The former `StateGraphHarness`, its
+  `CheckedTrees -> StateGraph -> ControlFlow` orchestration, legacy output
+  writer, emitted-program carrier, report-only policies, and production
+  compiler dependencies are deleted. No requested product or unsupported
+  Terminal shape can fall back to that route.
 
   The first two seam milestones are live. Psi now owns one
   `CanonicalTerminalArtifact` containing canonical semantic, proof, optional
@@ -2087,11 +2087,19 @@ Remaining:
   text, and final-image evidence. Component staging is a thin wrapper adding
   richer source-selected plan facts and pending progress; direct native
   requests reject rather than discard pending component progress. Unsupported
-  Terminal vocabulary rejects without legacy fallback, and architecture tests
-  fence the route and dependency closure. The installed-output product still
-  uses the legacy checked-tree backend, so the remaining behavior port, final
-  production cutover, legacy deletion, and dependency-graph closure remain
-  open.
+  Terminal vocabulary rejects without fallback, and architecture tests fence
+  the route and dependency closure.
+
+  Old `StateGraph`, `ControlFlow`, abstract/target/assigned-operation, and
+  machine-program crates still survive below test fixtures and the historical
+  program-storage wrapper implementation. They are not an alternate compiler
+  route, but they remain duplicate vocabulary and must be removed or replaced
+  by views derived from Terminal Psi. Separately, the selected-instruction
+  optimizer is deliberately not a production fork: nonempty selections reject
+  before native lowering until that path covers baseline frame/exit, executable
+  image, and publication validation. When it is ready, it replaces the current
+  bounded direct assignment inside the one realization route; it does not
+  become a second route.
 
   Restore the original mechanical split before doing further redesign:
 
@@ -2137,19 +2145,16 @@ Remaining:
   as a permanent bootstrap path.
 
 - **COMPILER-DRIVER-CLEANUP — restore `compiler.rs` as a thin pipeline
-  coordinator.** The driver began as source acquisition followed by an ordered
-  sequence of closed compiler stages. It has become a second semantic owner:
-  ten public compile-function permutations, duplicated source-to-checked
-  orchestration beside `checked_entry.rs`, post-check program mutation,
-  provider/calling-plan/program-entry joins, trust and package policy,
-  artifact-report branching, publication custody, and hundreds of lines of
-  policy-specific unit fixtures now coexist in one file. Moving those blocks to
-  arbitrary child modules without changing their ownership does not complete
-  this task.
+  coordinator.** The large alternate driver is gone. `compiler.rs` now declares
+  only `Compiler`, delegates one typed request to `driver.rs`, and owns no
+  language or target data. The remaining work is to remove the hidden test
+  adapter, retire the stale `write_output` compatibility Boolean, and move the
+  remaining post-check settlement work into complete phase artifacts rather
+  than growing another coordinator.
 
   The first request-normalization rung is live. One typed `CompileRequest`
-  now owns the production compile options, executable-TCB policy, auxiliary
-  observation policy, and optional reconciled package graph. The canonical
+  now owns the production compile options, requested product, artifact policy,
+  admission profile, and optional reconciled package graph. The canonical
   production `compile` operation now accepts only that request. Integration
   fixtures construct the same typed request behind local test helpers; the
   options-based library compatibility seam is removed. The
@@ -2158,11 +2163,12 @@ Remaining:
   `compile_with_artifact_policy` permutation is removed; its differential and
   report canaries construct the typed request too. Package-aware integration
   now does the same, and the callsite-free package and executable-policy
-  permutations are removed. The five entry/worker permutations are replaced by
-  one explicitly test-only `CompileHarnessRequest` and `compile_harness`
-  operation; its entry override and worker ceiling cannot enter the production
-  request. `RequestedCompileProduct` now makes `Check`, terminal artifact,
-  retained native artifact, and installed output explicit. `TerminalArtifact`
+  permutations are removed. The former entry override and worker ceiling are
+  gone, including the hidden `CompileHarnessRequest`; integration tests now
+  construct the ordinary request and explicitly publish retained native
+  products when they need a file. `RequestedCompileProduct`
+  now makes `Check`, terminal artifact, and retained native artifact explicit.
+  `TerminalArtifact`
   now runs the Psi-owned checked frontend and exact canonical producer, returns
   the complete report-owned artifact, and never enters StateGraph, native
   emission, output, or installation; unsupported Terminal vocabulary rejects
@@ -2174,33 +2180,17 @@ Remaining:
   image while owning no output path, publication, installation, or runtime
   authority; the report records `wrote_output == false`. Unsupported Terminal
   vocabulary and pending component progress reject rather than selecting or
-  silently retaining the legacy backend. The legacy route now executes only
-  `Check` and `InstalledOutput` and honors the typed request over the
-  compatibility Boolean seed. Component-progress rejection and exact source/
-  harness root resolution now live with the manifest owner; selected-provider
+  silently retaining another backend. Component-progress rejection and exact
+  source root resolution now live with the manifest owner; selected-provider
   external-binding projection and its source-boundary plan replay live under
-  `provider_plans`; and the strict emitted program-storage bridge owner now
-  controls source/physical gates, target fallback, preview wrapper insertion,
-  and final replay against the mutated backend plan. That owner also performs
-  the exact optional selected-entry/source/backend-plan join and settles final
-  wrapper evidence at the unchanged pre-publication boundary. The legacy
-  output owner now retains unpublished-versus-written custody through final
-  report construction, deriving output kind, receipt cardinality, and the
-  exact program-storage binding instead of returning a loose tuple to the
-  driver. Both compiler routes call those owners at their original settlement
-  points. The typed-to-checked phase result now also retains the Accepted-only
+  `provider_plans`. Legacy wrapper insertion and output publication are no
+  longer compiler stages. The typed-to-checked phase result retains the Accepted-only
   pre-lowering generic-template classification and fingerprint rows in exact
   typed order; trust reporting consumes that carrier, so the driver no longer
-  captures typed facts before lowering as an out-of-band courier. Boundary
-  reporting likewise captures its source rows once in a consuming observation,
-  preserves the initial report write, and settles checked capability rows from
-  that same carrier without cloning or couriering the syntax tree. Capability
-  validation still runs when auxiliary output is suppressed. Backend reporting
-  now owns a consuming checked-surface observation as well: only full native
-  compilation captures it, suppression and non-native products retain canonical
-  absence, and the owner consumes it after backend planning at the unchanged
-  report boundary. The driver no longer builds, couriers, or conditionally
-  unwraps that raw report surface. Selected external-
+  captures typed facts before lowering as an out-of-band courier. The obsolete
+  boundary/backend report couriers and alternate output path are deleted;
+  capability and wire validation remain semantic checks when auxiliary output
+  is suppressed. Selected external-
   binding projection now also settles transactionally onto the checked phase
   result from its retained typed, selected-plan, and evaluated calling-plan
   evidence. Complete rows publish in original selected-plan order only after
@@ -2212,28 +2202,31 @@ Remaining:
   and optional physical/semantic/storage calling-plan settlement occur in their
   original diagnostic order, remain joined through component-progress and
   provider projection, and split only beside the backend/storage consumers.
-  The test-harness entry-name override remains a name-only fallback outside
-  that authority carrier. Target-scoped provider-default declarations now also
+  Target-scoped provider-default declarations
   cross source filtering and typed construction in one owner-controlled
   carrier; both frontend routes consume it for exact typed-machine rebinding
   instead of couriering a raw machine-name vector, while authored row order and
   `build override > target default > unique declaration default` precedence
-  remain unchanged. The checked/terminal cutover, remaining post-check
-  fact couriers/mutations, and request-level output-destination policy remain
-  open.
+  remain unchanged. Native publication is now one explicit product-owned
+  operation after compilation: it validates the retained Terminal-native
+  artifact, stages and replays exact bytes, atomically exposes the file, and
+  returns a publication receipt. It is not a compiler route or request product.
+  Remaining post-check fact couriers and the stale `CompileOptions.write_output`
+  compatibility field remain open.
 
   Restore the driver contract:
 
   1. Replace the public `compile_with_*` Cartesian product with one
      `CompileRequest` and one production `compile(request)` entry. Model the
-     requested product explicitly (`Check`, terminal artifact, native artifact,
-     or installed output); package inputs, deployment/admission policy, output
-     destination, observation/report policy, and resource budget are typed
-     request fields rather than distinct compile modes.
+     requested compiler product explicitly (`Check`, terminal artifact, or
+     retained native artifact). Installation/publication consumes a completed
+     product afterward; it is not a fourth compiler mode. Package inputs,
+     deployment/admission policy, observation/report policy, and resource
+     budget are typed request fields rather than distinct compile modes.
   2. Keep test-only controls out of the production API. Entry overrides,
-     bounded worker counts, differential-oracle controls, and fixture artifact
-     suppression belong to an internal harness request or ordinary request
-     fields constructed by the harness, not exported convenience functions.
+     bounded inner-worker counts, and the hidden harness request are deleted.
+     Differential-oracle controls and fixture artifact suppression remain local
+     test concerns, never exported compiler entry points.
   3. Unify `compiler.rs` and `checked_entry.rs` around one Psi-owned frontend
      operation. Source acquisition, build-time evaluation, target filtering,
      resolution, typing, checking, provider-selection inputs, adapter closure,

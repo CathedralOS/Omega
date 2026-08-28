@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-build-evaluation = { path = "../omega-build-evaluation" }
 omega-component-deployment = { path = "../omega-component-deployment" }
+omega-image = { path = "../../backend/images/omega-image" }
 omega-program-storage = { path = "../omega-program-storage" }
 omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
