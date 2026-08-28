@@ -184,7 +184,9 @@ overhead, but exclude loopback CONNECT framing and DNS. Endpoint events retain
 uploaded/downloaded counts and a closed `TransferCeilingReached` outcome. An
 over-ceiling read is neither charged nor forwarded. Successful issuance rejects
 that outcome and requires the checked sum of every retained endpoint event to
-equal the live shared counter.
+equal the live shared counter. The package layer reports a typed transfer-
+ceiling failure before an ordinary Git connection error can obscure it, while
+cleanup failure retains highest precedence.
 
 After the outer resolver has additionally reconciled cache namespace/custody
 and final executable content, it physically reopens and re-hashes the published
