@@ -1514,3 +1514,187 @@ fn build_runtime_float_semantics_twins_agree() {
         "{DIFFERENTIAL_SUITE_ID} result changed ({result_identity:#018x}); validate the exact plans, build/runtime edge corpus, interpreter/native results, and cross-target build before refreshing the retained identity"
     );
 }
+
+#[test]
+fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
+    const SUITE_ID: &str = "omega.float.hardware.linux_x64.baseline-semantic-edge-twin.v1";
+    const COVERAGE: &[&str] = &[
+        "one zero-argument baseline semantic machine at build time and runtime",
+        "binary32/binary64 nearest-even add/subtract/multiply/divide",
+        "subnormal underflow and finite overflow",
+        "signed zero, infinities, NaNs, and partial comparisons",
+        "minimum/maximum, classify/predicates, square root, and negate",
+        "separately rounded multiply-then-add",
+    ];
+    const EXPECTED_PLAN_COUNT: usize = 36;
+    const EXPECTED_BUILD_ARTIFACT_IDENTITY: u64 = 0xa237_8240_2355_e2c9;
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    const EXPECTED_HOSTED_EXECUTION_IDENTITY: u64 = 0x895e_d190_164e_b67e;
+
+    fn retain(hash: &mut u64, bytes: &[u8]) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            *hash ^= u64::from(byte);
+            *hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+
+    let canary = pass_canary("float/build_runtime_semantics_twins_x86_baseline");
+    let main_path = canary.join("main.omg");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-x86-baseline-float-semantic-edge-twin-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    let checked = omega_compiler::compile_to_checked(&main_path, Some("linux_x64"))
+        .expect("baseline x86 float twin should compile and evaluate its array length");
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
+    for provider_plan_identity in checked
+        .facts
+        .operators
+        .resolved_uses()
+        .map(|operator_use| operator_use.provider_plan_identity)
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_uses()
+                .map(|operator_use| operator_use.provider_plan_identity),
+        )
+    {
+        let Some(plan) = checked
+            .selected_provider_plans()
+            .plan_by_identity(provider_plan_identity)
+        else {
+            continue;
+        };
+        let [row] = plan.rows.as_slice() else {
+            continue;
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } =
+            &row.binding
+        else {
+            continue;
+        };
+        selected_intrinsics.insert(machine.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
+    }
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(selected_intrinsics.len(), EXPECTED_PLAN_COUNT);
+    assert_eq!(selected_plan_identities.len(), EXPECTED_PLAN_COUNT);
+    assert!(selected_intrinsics.iter().all(|intrinsic| {
+        !intrinsic.contains("toward_") && !intrinsic.contains("fused_multiply_add")
+    }));
+
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let first_build = compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(scratch.join("first-build")),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("baseline x86 float twin should produce an exact linux_x64 image");
+    let first_path = first_build
+        .checked_native_executable_path()
+        .expect("linux_x64 cross-build must retain its executable receipt");
+    let image_bytes = fs::read(first_path).expect("read retained linux_x64 image bytes");
+    assert!(!image_bytes.is_empty());
+    assert_eq!(image_bytes.get(..4), Some(b"\x7fELF".as_slice()));
+    assert_eq!(
+        image_bytes.get(18..20),
+        Some([0x3e, 0x00].as_slice()),
+        "retained ELF image must name the x86-64 machine"
+    );
+
+    let second_build = compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(scratch.join("second-build")),
+        target_name: Some("linux_x64".into()),
+        write_output: true,
+    })
+    .expect("baseline x86 float twin should reproduce its exact linux_x64 image");
+    let second_bytes = fs::read(
+        second_build
+            .checked_native_executable_path()
+            .expect("second linux_x64 cross-build must retain its executable receipt"),
+    )
+    .expect("read second linux_x64 image bytes");
+    assert_eq!(image_bytes, second_bytes);
+
+    let mut build_artifact_identity = 0xcbf29ce484222325_u64;
+    retain(&mut build_artifact_identity, SUITE_ID.as_bytes());
+    retain(
+        &mut build_artifact_identity,
+        b"evidence:cross-build-exact-image",
+    );
+    for category in COVERAGE {
+        retain(&mut build_artifact_identity, category.as_bytes());
+    }
+    for intrinsic in &selected_intrinsics {
+        retain(&mut build_artifact_identity, intrinsic.as_bytes());
+    }
+    for identity in &selected_plan_identities {
+        retain(&mut build_artifact_identity, &identity.to_le_bytes());
+    }
+    retain(
+        &mut build_artifact_identity,
+        &interpreted.exit_code.to_le_bytes(),
+    );
+    retain(&mut build_artifact_identity, &interpreted.stdout);
+    retain(&mut build_artifact_identity, &interpreted.stderr);
+    retain(&mut build_artifact_identity, b"target-profile:linux_x64");
+    retain(&mut build_artifact_identity, b"architecture:x86_64");
+    retain(&mut build_artifact_identity, b"object-format:elf");
+    retain(
+        &mut build_artifact_identity,
+        &(omega_target::NativeTarget::linux_x64().pointer_size as u64).to_le_bytes(),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &(omega_target::NativeTarget::linux_x64().pointer_alignment as u64).to_le_bytes(),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &fs::read(&main_path).expect("read retained x86 baseline source bytes"),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &fs::read(canary.join("build.omg")).expect("read retained linux_x64 build binding"),
+    );
+    retain(&mut build_artifact_identity, &image_bytes);
+    assert_eq!(
+        build_artifact_identity, EXPECTED_BUILD_ARTIFACT_IDENTITY,
+        "{SUITE_ID} build/artifact identity changed ({build_artifact_identity:#018x}); validate the exact baseline plans, interpreter result, target binding, and reproducible image before refreshing it",
+    );
+
+    #[cfg(all(target_os = "linux", target_arch = "x86_64"))]
+    {
+        let output = Command::new(first_path)
+            .output()
+            .expect("hosted linux_x64 baseline twin should execute its retained image");
+        assert_eq!(output.status.code(), Some(70));
+        let mut execution_identity = build_artifact_identity;
+        retain(&mut execution_identity, b"evidence:hosted-native-execution");
+        retain(
+            &mut execution_identity,
+            &output.status.code().unwrap_or_default().to_le_bytes(),
+        );
+        retain(&mut execution_identity, &output.stdout);
+        retain(&mut execution_identity, &output.stderr);
+        assert_eq!(
+            execution_identity, EXPECTED_HOSTED_EXECUTION_IDENTITY,
+            "{SUITE_ID} hosted execution identity changed ({execution_identity:#018x})",
+        );
+    }
+
+    let _ = fs::remove_dir_all(&scratch);
+}

@@ -1,0 +1,133 @@
+// F7 target-specific baseline validation for generic Linux x86-64. This twin
+// deliberately excludes directed operations and fused multiply-add, which
+// generic x86-64 does not yet admit. Its fixed-array length executes the same
+// baseline semantic machine at build time that Main executes at runtime.
+
+use omega::language::core::float_operations;
+use omega::language::std::console;
+
+machine baseline_classifies_subnormal32(value: f32) -> bool {
+    let class: FloatClass = F32::classify(value);
+    transition class {
+        FloatClass::Subnormal { negative } -> check_sign(negative)
+        _ -> false
+    }
+    state check_sign(negative: bool) -> bool {
+        transition negative { true -> false _ -> true }
+    }
+}
+
+machine baseline_classifies_subnormal64(value: f64) -> bool {
+    let class: FloatClass = F64::classify(value);
+    transition class {
+        FloatClass::Subnormal { negative } -> check_sign(negative)
+        _ -> false
+    }
+    state check_sign(negative: bool) -> bool {
+        transition negative { true -> false _ -> true }
+    }
+}
+
+machine x86_baseline_float_twin_code() -> u64 {
+    let one32: f32 = 1.0;
+    let half_ulp32: f32 = 0.000000059604644775390625;
+    let quarter_ulp32: f32 = 0.0000000298023223876953125;
+    let next32: f32 = 1.00000011920928955078125;
+    let product32: f32 = next32 * next32;
+    let unfused32: f32 = F32::multiply_then_add(
+        next32,
+        next32,
+        0.0f32 - 1.0000002384185791015625
+    );
+    let minimum_subnormal32: f32 = 1.401298464324817070923729583289916131280e-45;
+    let maximum32: f32 = 3.4028235e38;
+    let negative_zero32: f32 = F32::negate(0.0f32);
+    let infinity32: f32 = maximum32 + maximum32;
+    let nan32: f32 = 0.0f32 / 0.0f32;
+    let minimum_nan_first32: f32 = F32::minimum(nan32, one32);
+    let minimum_nan_second32: f32 = F32::minimum(one32, nan32);
+    let maximum_nan_first32: f32 = F32::maximum(nan32, one32);
+    let maximum_nan_second32: f32 = F32::maximum(one32, nan32);
+    let baseline32: bool = one32 + half_ulp32 == one32
+        && one32 - quarter_ulp32 == one32
+        && product32 == 1.0000002384185791015625
+        && one32 / 2.0f32 == 0.5f32
+        && F32::square_root(64.0f32) == 8.0f32
+        && unfused32 == 0.0f32
+        && minimum_subnormal32 / 2.0f32 == 0.0f32
+        && F32::is_subnormal(minimum_subnormal32)
+        && baseline_classifies_subnormal32(minimum_subnormal32)
+        && F32::is_infinite(infinity32)
+        && F32::is_nan(nan32)
+        && F32::is_finite(one32)
+        && F32::is_normal(one32)
+        && 1.0f32 / negative_zero32 < 0.0f32
+        && nan32 != nan32
+        && (nan32 == nan32) == false
+        && (nan32 < one32) == false
+        && minimum_nan_first32 == one32
+        && F32::is_nan(minimum_nan_second32)
+        && maximum_nan_first32 == one32
+        && F32::is_nan(maximum_nan_second32);
+
+    let one64: f64 = 1.0;
+    let half_ulp64: f64 =
+        0.00000000000000011102230246251565404236316680908203125;
+    let quarter_ulp64: f64 =
+        0.000000000000000055511151231257827021181583404541015625;
+    let next64: f64 = 1.0000000000000002220446049250313080847263336181640625;
+    let product64: f64 = next64 * next64;
+    let unfused64: f64 = F64::multiply_then_add(
+        next64,
+        next64,
+        0.0 - 1.000000000000000444089209850062616169452667236328125
+    );
+    let minimum_subnormal64: f64 = 5e-324;
+    let maximum64: f64 = 1.7976931348623157e308;
+    let negative_zero64: f64 = F64::negate(0.0);
+    let infinity64: f64 = maximum64 + maximum64;
+    let nan64: f64 = 0.0 / 0.0;
+    let minimum_nan_first64: f64 = F64::minimum(nan64, one64);
+    let minimum_nan_second64: f64 = F64::minimum(one64, nan64);
+    let maximum_nan_first64: f64 = F64::maximum(nan64, one64);
+    let maximum_nan_second64: f64 = F64::maximum(one64, nan64);
+    let baseline64: bool = one64 + half_ulp64 == one64
+        && one64 - quarter_ulp64 == one64
+        && product64 == 1.000000000000000444089209850062616169452667236328125
+        && one64 / 2.0 == 0.5
+        && F64::square_root(64.0) == 8.0
+        && unfused64 == 0.0
+        && minimum_subnormal64 / 2.0 == 0.0
+        && F64::is_subnormal(minimum_subnormal64)
+        && baseline_classifies_subnormal64(minimum_subnormal64)
+        && F64::is_infinite(infinity64)
+        && F64::is_nan(nan64)
+        && F64::is_finite(one64)
+        && F64::is_normal(one64)
+        && 1.0 / negative_zero64 < 0.0
+        && nan64 != nan64
+        && (nan64 == nan64) == false
+        && (nan64 < one64) == false
+        && minimum_nan_first64 == one64
+        && F64::is_nan(minimum_nan_second64)
+        && maximum_nan_first64 == one64
+        && F64::is_nan(maximum_nan_second64);
+
+    transition baseline32 && baseline64 { true -> 16 _ -> 17 }
+}
+
+data Main {
+    console: Console;
+    slots: [u8; x86_baseline_float_twin_code()];
+}
+
+machine Main::main(&mut self) {
+    let runtime_code: u64 = x86_baseline_float_twin_code();
+    self.slots[15] = 54;
+    transition runtime_code == 16 && self.slots[15] == 54 {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}
