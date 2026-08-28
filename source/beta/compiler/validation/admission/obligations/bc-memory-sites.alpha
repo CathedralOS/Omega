@@ -206,63 +206,11 @@ increment_memory_width:
         ret
 
 read_memory_site_pcs_init:
-        imm r10, 0
-read_memory_site_pc:
-        imm r1, 101
-        jlt r10, r1, read_memory_site_pc_one
+        imm r20, 101                  ; exact memory rows
+        imm r21, 7602176              ; source block table
+        imm r22, 7626752              ; selected PC table
+        call exact_ingest_bounded_site_pcs
         jmp read_expr_primitive_pcs_init
-read_memory_site_pc_one:
-        call read_u32
-        mov r14, r0
-        imm r1, 524296
-        load r2, r1
-        jlt r14, r2, memory_site_pc_covered
-        jmp reject
-memory_site_pc_covered:
-        imm r1, 4194304
-        add r1, r14
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, memory_site_pc_block
-        jmp reject
-memory_site_pc_block:
-        mov r12, r10
-        imm r1, 8
-        mul r12, r1
-        imm r1, 7602176
-        add r1, r12
-        load r4, r1
-        mov r5, r4
-        imm r1, 8
-        mul r5, r1
-        imm r1, 3235840
-        add r1, r5
-        load r6, r1
-        jlt r14, r6, reject
-        imm r1, 1
-        add r4, r1
-        imm r1, 359
-        jlt r4, r1, memory_site_pc_next_block
-        imm r1, 524296
-        load r7, r1
-        jmp memory_site_pc_end_ready
-memory_site_pc_next_block:
-        mov r5, r4
-        imm r1, 8
-        mul r5, r1
-        imm r1, 3235840
-        add r1, r5
-        load r7, r1
-memory_site_pc_end_ready:
-        jlt r14, r7, memory_site_pc_store
-        jmp reject
-memory_site_pc_store:
-        imm r1, 7626752
-        add r1, r12
-        store r1, r14
-        imm r1, 1
-        add r10, r1
-        jmp read_memory_site_pc
 
 validate_memory_sites_init:
         imm r10, 0

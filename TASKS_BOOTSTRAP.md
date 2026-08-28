@@ -90,14 +90,17 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 61,957 lines; Checker A is 1,024,369 source bytes and the checker ROOT is
-  81,772 bytes. Shape, control, data, and
+  and 61,764 lines; Checker A is 1,020,887 source bytes and the checker ROOT is
+  80,581 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations. The first
   procedure-custody tranche centralizes the canonical parameter/slot/frame
   identity join for 52 consumers, removing 359 duplicated lines and 9,100
   source bytes while retaining the existing nth/cardinality checks and all
-  eight binding teeth. Continue upward from that common owner into per-procedure
+  eight binding teeth. The next tranche replaces five family-private witness-PC
+  ingestion loops with one bounded exact-table owner, removing another 193
+  lines and 3,482 bytes while leaving each family parser and semantic validator
+  independent. Continue upward from those common owners into per-procedure
   inventories rather than adding another parallel shape vocabulary.
 - [x] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
@@ -184,7 +187,18 @@ Delta.
   before `next`, eliminating one native branch per immediate without changing
   the dispatch mechanism. An interleaved representative Gamma loop improved
   from 3.085 to 2.965 seconds (3.89%) and retired about 1.19% fewer native
-  instructions with byte-identical output.
+  instructions with byte-identical output. A virtual-PC profile of the exact
+  closed Delta input then localized the next avoidable cost: every internal
+  expression evaluation repeated a positive-fuel check even though only
+  function-call transfer decrements fuel. The canonical evaluator now checks
+  its outer entry and every decrement boundary once, then evaluates
+  subexpressions through a positive-fuel core while retaining the arena check
+  on every entry. A second interleaved representative run improved from 2.955
+  to 2.840 seconds (3.89%) and retired 3.52% fewer native instructions. On the
+  exact closed input, the diagnostic virtual interpreter advanced through
+  15,989,175 rather than 15,094,364 evaluator calls in the same 15 seconds
+  (5.93% more semantic progress). This does not substitute for the required
+  exact execution.
 - [x] Retain the canonical evaluator input and output explicitly at the Delta
   producer edge, and retain evaluator/type-checker source and build-artifact
   identities at the `bc` → Gamma edge. The Delta publication evaluates an

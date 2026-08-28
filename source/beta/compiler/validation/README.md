@@ -45,8 +45,13 @@ bounded emitters, parsing/resource outcomes, and the final greatest-fixed-point
 maximal observation. Responsibility-specific decoded-region descriptors share
 one parameterized effect census for exact call, return, write, store, and
 raw-byte-access policy. Selected local, memory, primitive, and push rows likewise
-share one canonical exact-table decoder instead of tranche-local copies. The
-same responsibility-neutral owner decodes compiler-generated push, pop,
+share one canonical exact-table decoder instead of tranche-local copies. Their
+five witness-PC families also share one bounded ingestion owner: each thin
+wrapper fixes its exact row count, source-block table, and destination table
+before any untrusted PC is read; the owner then requires an exact decoded
+instruction start inside the independently reconstructed block extent. Family
+parsers and semantic validators remain separate. The same
+responsibility-neutral owner decodes compiler-generated push, pop,
 saved-frame prologue, optional frame-allocation, parameter-store, and epilogue
 macros once and returns their checked instruction starts and exclusive
 successors. It also owns the generated root prelude, contiguous call-pop
@@ -102,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-81,747 bytes for the current exact subjects, SHA-256
-`43098b66b0f85416d67abc28f72cd68f557615a09e4934af201f9b5d3e045409`.
+80,581 bytes for the current exact subjects, SHA-256
+`47d87b15bac99eb7974df98483cf367004ab3bc06637916062e0da7bdc7ffbff`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter

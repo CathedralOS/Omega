@@ -56,6 +56,10 @@ representation-aware conservative collector: candidate roots must decode to
 exact live allocation starts, so conservative retention cannot change values,
 matching, evaluation order, or printed constructor trees. Exhausting the
 runtime heap after reclamation remains the same fail-closed host outcome.
+The evaluator checks fuel at its external entry and before each decremented
+function-body transfer. Internal subexpression evaluation preserves the
+positive-fuel invariant, so eliminating duplicate child-level checks does not
+change the fuel-bounded meaning.
 
 ## Statically checked surface
 

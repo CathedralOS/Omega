@@ -53,8 +53,8 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 81,747-byte ROOT Alpha tape; its exact digest is
-`43098b66b0f85416d67abc28f72cd68f557615a09e4934af201f9b5d3e045409`.
+reconstruction emits one 80,581-byte ROOT Alpha tape; its exact digest is
+`47d87b15bac99eb7974df98483cf367004ab3bc06637916062e0da7bdc7ffbff`.
 This is strong executable evidence, but it is not yet a derivation in the
 rooted checker calculus. Complete source/artifact admission is blocked on
 [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18's guarded-simulation
