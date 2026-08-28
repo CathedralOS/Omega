@@ -35,7 +35,7 @@ use crate::{
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
 };
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v2";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v3";
 
 /// Required-stage baseline layout for the currently admitted three-block
 /// conditional. This is a visible policy identity, not an optimization level.
@@ -991,6 +991,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         Family::ConditionalBranchNonZero => 6,
         Family::ReturnI64 => 7,
         Family::ExactSubtractI64Immediate => 8,
+        Family::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

@@ -22,7 +22,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGPMX\0\0";
-const VERSION: u32 = 1;
+const VERSION: u32 = 2;
 
 /// Failure while decoding a framed post-allocation machine-plan artifact.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -419,10 +419,10 @@ mod tests {
         );
 
         let mut unsupported_version = encoded.clone();
-        unsupported_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        unsupported_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalPostAllocationMachinePlan::decode(&unsupported_version),
-            Err(TerminalPostAllocationMachineDecodeError::UnsupportedVersion(2))
+            Err(TerminalPostAllocationMachineDecodeError::UnsupportedVersion(3))
         );
 
         for offset in [

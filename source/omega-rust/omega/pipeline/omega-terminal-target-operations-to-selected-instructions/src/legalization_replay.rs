@@ -5,7 +5,7 @@ use omega_terminal_abstract_operations::{
 use omega_terminal_legalized_operations::{
     TerminalLegalizationRecipe, TerminalLegalizationTheorem, TerminalLegalizedFunction,
     TerminalLegalizedImmediate, TerminalLegalizedLeaf, TerminalLegalizedLeafValue,
-    TerminalLegalizedOperationPlan, TerminalLegalizedTemporaryId,
+    TerminalLegalizedOperationPlan, TerminalLegalizedTemporaryId, TerminalLegalizedUnitFunction,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
@@ -15,7 +15,7 @@ use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
-/// Independently replay a proposed V4 legal projection against all three raw
+/// Independently replay a proposed V5 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -40,22 +40,42 @@ pub(crate) fn replay_terminal_legalized_plan(
         || proposed.fuel_schedule != unit.fuel_schedule
         || proposed.target != target.target
         || proposed.entry != target.entry
-        || proposed.functions.len() != target.functions.len()
+        || proposed.functions.len() + proposed.unit_functions.len() != target.functions.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
     let mut decomposition_count = 0usize;
-    for (index, (((target_function, abstracted), optimized), legalized)) in target
+    for (index, ((target_function, abstracted), optimized)) in target
         .functions
         .iter()
         .zip(&abstract_plan.functions)
         .zip(&unit.functions)
-        .zip(&proposed.functions)
         .enumerate()
     {
-        decomposition_count = decomposition_count
-            .checked_add(replay_function(
+        let count = if matches!(
+            target_function.operation,
+            TerminalTargetOperation::UnitBody(_)
+        ) {
+            let mut matches = proposed
+                .unit_functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine);
+            let legalized = matches.next().ok_or(Error::NonCanonicalLegalizedPlan)?;
+            if matches.next().is_some() {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
+            replay_unit_function(index, target_function, abstracted, optimized, legalized)?
+        } else {
+            let mut matches = proposed
+                .functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine);
+            let legalized = matches.next().ok_or(Error::NonCanonicalLegalizedPlan)?;
+            if matches.next().is_some() {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
+            replay_function(
                 index,
                 target.target.architecture,
                 target_function,
@@ -63,10 +83,78 @@ pub(crate) fn replay_terminal_legalized_plan(
                 optimized,
                 &unit.accepted_obligation_facts,
                 legalized,
-            )?)
+            )?
+        };
+        decomposition_count = decomposition_count
+            .checked_add(count)
             .ok_or(Error::NonCanonicalLegalizedPlan)?;
     }
     Ok(decomposition_count)
+}
+
+fn replay_unit_function(
+    function: usize,
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    proposed: &TerminalLegalizedUnitFunction,
+) -> Result<usize, TerminalLegalizationError> {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [target_return] = body.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = target_return
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_entry] = abstracted.block_entries.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_return] = abstracted.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_block] = optimized.blocks.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_return] = optimized_block.nodes.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if target.machine != abstracted.machine
+        || target.machine != optimized.machine
+        || target.attachment != abstracted.attachment
+        || !matches!(
+            abstracted.result,
+            omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        )
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+        || abstracted.entry != abstract_entry.block
+        || optimized.entry != abstract_entry.block
+        || optimized_block.id != abstract_entry.block
+        || abstract_entry.operation_offset != 0
+        || !abstract_entry.parameters.is_empty()
+        || !optimized_block.parameters.is_empty()
+        || !cleanup_actions.is_empty()
+        || abstract_return != &optimized_return.operation
+        || !matches!(abstract_return, TerminalAbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    if proposed.machine != target.machine
+        || proposed.attachment != target.attachment
+        || proposed.provenance != target.provenance
+        || proposed.entry_block != optimized_block.id
+        || proposed.return_edge != *psi_edge
+        || proposed.return_fuel != optimized_return.fuel
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    Ok(0)
 }
 
 #[allow(clippy::too_many_arguments)]

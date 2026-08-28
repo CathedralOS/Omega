@@ -306,6 +306,9 @@ fn family_and_operand_count(
         TerminalSelectedInstructionKind::ReturnI64 => {
             (TerminalMachineAlternativeFamily::ReturnI64, 1)
         }
+        TerminalSelectedInstructionKind::ReturnUnit => {
+            (TerminalMachineAlternativeFamily::ReturnUnit, 0)
+        }
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
@@ -415,7 +418,8 @@ fn encode_unchecked(
                     | u32::from(registers[1]),
             );
         }
-        TerminalSelectedInstructionKind::ReturnI64 => words.push(0xd65f_03c0),
+        TerminalSelectedInstructionKind::ReturnI64
+        | TerminalSelectedInstructionKind::ReturnUnit => words.push(0xd65f_03c0),
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
         }
@@ -609,7 +613,8 @@ fn validate_decoded(
                     destination: registers[1],
                 }]
         }
-        TerminalSelectedInstructionKind::ReturnI64 => decoded == [DecodedWord::Return],
+        TerminalSelectedInstructionKind::ReturnI64
+        | TerminalSelectedInstructionKind::ReturnUnit => decoded == [DecodedWord::Return],
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => false,
     };
     if valid {
@@ -666,12 +671,16 @@ fn footprint(
         | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
-        TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
+        TerminalSelectedInstructionKind::ReturnI64
+        | TerminalSelectedInstructionKind::ReturnUnit => (vec![], vec![], false),
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => (vec![], vec![], false),
     };
     let physical = aarch64_physical_register_model();
     let units = |name: &str| physical.view_named(name).unwrap().units.clone();
-    let encoded = if matches!(kind, TerminalSelectedInstructionKind::ReturnI64) {
+    let encoded = if matches!(
+        kind,
+        TerminalSelectedInstructionKind::ReturnI64 | TerminalSelectedInstructionKind::ReturnUnit
+    ) {
         TerminalMachineEncodedEffects {
             external_operand_reads: vec![],
             external_operand_writes: vec![],
@@ -912,6 +921,33 @@ mod tests {
                 alternative,
                 &[x0],
                 &[0xc0, 0x03, 0x5f, 0xd6, 0xc0, 0x03, 0x5f, 0xd6]
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn unit_return_is_a_distinct_zero_operand_ret_x30() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let kind = TerminalSelectedInstructionKind::ReturnUnit;
+        let return_alternative = alternative(TerminalMachineAlternativeFamily::ReturnUnit);
+        let encoded =
+            encode_aarch64_terminal_selected_form(&physical, kind, return_alternative, &[])
+                .unwrap();
+
+        assert_eq!(encoded.bytes(), [0xc0, 0x03, 0x5f, 0xd6]);
+        assert!(encoded.footprint().register_reads.is_empty());
+        assert!(encoded.footprint().register_writes.is_empty());
+        assert!(matches!(
+            encoded.footprint().encoded.control,
+            TerminalMachineEncodedControlEffect::ReturnIndirectRegisterV1 { .. }
+        ));
+        assert!(
+            encode_aarch64_terminal_selected_form(
+                &physical,
+                kind,
+                alternative(TerminalMachineAlternativeFamily::ReturnI64),
+                &[]
             )
             .is_err()
         );

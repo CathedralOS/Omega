@@ -16,7 +16,7 @@ pub fn terminal_pre_allocation_machine_effect_identity(
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-preallocation-machine-effects.v4\0");
     bytes.extend_from_slice(&encode_terminal_pre_allocation_machine_effect_content(plan));
     TerminalPreAllocationMachineEffectIdentity::from_bytes(Sha256::digest(bytes).into())
 }
@@ -76,6 +76,7 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: TerminalSelectedInstructionKind) {
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => 6,
         TerminalSelectedInstructionKind::ReturnI64 => 7,
         TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
+        TerminalSelectedInstructionKind::ReturnUnit => 9,
     });
     match kind {
         TerminalSelectedInstructionKind::MaterializeI64 { value } => encode_integer(bytes, value),
@@ -107,7 +108,8 @@ fn encode_kind(bytes: &mut Vec<u8>, kind: TerminalSelectedInstructionKind) {
         TerminalSelectedInstructionKind::CompareI64Zero
         | TerminalSelectedInstructionKind::CopyI64
         | TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {}
+        | TerminalSelectedInstructionKind::ReturnI64
+        | TerminalSelectedInstructionKind::ReturnUnit => {}
     }
 }
 
@@ -159,6 +161,7 @@ fn encode_alternative(bytes: &mut Vec<u8>, alternative: &TerminalMachineAlternat
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     });
     bytes.extend_from_slice(&alternative.key.variant.to_le_bytes());
     match alternative.applicability {

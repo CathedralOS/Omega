@@ -88,7 +88,7 @@ pub struct FunctionFragmentTextSectionManifest {
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v2\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v3\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -630,7 +630,8 @@ fn prove_function_needs_no_relocations(
                         );
                     }
                 }
-                TerminalMachineAlternativeFamily::ReturnI64 => {
+                TerminalMachineAlternativeFamily::ReturnI64
+                | TerminalMachineAlternativeFamily::ReturnUnit => {
                     if row.branch.is_some()
                         || !matches!(
                             row.control,

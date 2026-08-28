@@ -67,6 +67,7 @@ pub struct TerminalSelectedConstraintKeys {
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
+    pub return_unit: RegisterConstraintKey,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -207,6 +208,9 @@ pub enum TerminalSelectedInstructionKind {
     },
     ConditionalBranchNonZero,
     ReturnI64,
+    /// Value-less semantic return. This is deliberately distinct from
+    /// `ReturnI64` even on targets where both select the same opcode.
+    ReturnUnit,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]

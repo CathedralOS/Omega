@@ -112,6 +112,7 @@ fn terminal_selected_keys(
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
     }
 }
 
@@ -202,5 +203,6 @@ fn semantic(kind: TerminalSelectedInstructionKind) -> TerminalMachineSemanticKin
             TerminalMachineSemanticKind::ConditionalBranchNonZero
         }
         TerminalSelectedInstructionKind::ReturnI64 => TerminalMachineSemanticKind::ReturnI64,
+        TerminalSelectedInstructionKind::ReturnUnit => TerminalMachineSemanticKind::ReturnUnit,
     }
 }

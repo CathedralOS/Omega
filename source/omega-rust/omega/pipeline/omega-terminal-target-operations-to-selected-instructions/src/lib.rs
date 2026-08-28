@@ -23,6 +23,7 @@ use omega_terminal_legalized_operations::{
     TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
     TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
     TerminalLegalizedOperationPlan, TerminalLegalizedOperationPlanIdentity,
+    TerminalLegalizedUnitFunction as SourceUnitFunction,
     terminal_legalized_operation_plan_identity,
 };
 use omega_terminal_selected_instructions::{
@@ -40,15 +41,15 @@ use psi_core::{IntegerSign, ScalarType};
 mod legalization_replay;
 mod source;
 use legalization_replay::replay_terminal_legalized_plan;
-use source::derive_source_functions;
+use source::{derive_source_functions, derive_source_unit_functions};
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v4",
+        b"omega.terminal-target-legalization-independent-replay.v5",
     )
 }
 
-/// Opaque custody of the canonical V4 target-legal projection.
+/// Opaque custody of the canonical V5 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -289,7 +290,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V4
+/// Canonicalize the bounded target-operation input into the mandatory V5
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -303,11 +304,12 @@ pub fn legalize_terminal_target_operations(
         target: target.target,
         entry: target.entry,
         functions: derive_source_functions(target, abstract_plan, unit)?,
+        unit_functions: derive_source_unit_functions(target, abstract_plan, unit)?,
     };
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V4 projection from the raw target,
+/// Independently replay the exact admitted V5 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -323,7 +325,7 @@ pub fn validate_terminal_legalized_operations(
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
-        function_count: plan.functions.len(),
+        function_count: plan.functions.len() + plan.unit_functions.len(),
         decomposition_count,
     };
     Ok(ValidatedTerminalLegalizedOperations { plan, receipt })
@@ -357,11 +359,31 @@ pub fn validate_terminal_selected_instructions(
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    let source = &target.functions;
-    if source.len() != plan.functions.len() {
+    if target.functions.len() + target.unit_functions.len() != plan.functions.len() {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
-    let expected_fixed_inputs = source
+    let mut expected_machines = target
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .chain(
+            target
+                .unit_functions
+                .iter()
+                .map(|function| function.machine),
+        )
+        .collect::<Vec<_>>();
+    expected_machines.sort_unstable();
+    if plan
+        .functions
+        .iter()
+        .map(|function| function.machine)
+        .ne(expected_machines)
+    {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    let expected_fixed_inputs = target
+        .functions
         .iter()
         .map(|source| {
             1 + usize::from(matches!(
@@ -374,17 +396,31 @@ pub fn validate_terminal_selected_instructions(
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     require_key_rows(constraints.keys, catalog)?;
-    for (function_index, (source, selected)) in
-        target.functions.iter().zip(&plan.functions).enumerate()
-    {
-        validate_function(
-            function_index,
-            source,
-            selected,
-            constraints,
-            physical,
-            catalog,
-        )?;
+    for (function_index, selected) in plan.functions.iter().enumerate() {
+        let scalar = target
+            .functions
+            .iter()
+            .filter(|source| source.machine == selected.machine)
+            .collect::<Vec<_>>();
+        let unit = target
+            .unit_functions
+            .iter()
+            .filter(|source| source.machine == selected.machine)
+            .collect::<Vec<_>>();
+        match (scalar.as_slice(), unit.as_slice()) {
+            ([source], []) => validate_function(
+                function_index,
+                source,
+                selected,
+                constraints,
+                physical,
+                catalog,
+            )?,
+            ([], [source]) => {
+                validate_unit_function(function_index, source, selected, constraints.keys, catalog)?
+            }
+            _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
+        }
     }
     let receipt = receipt(&plan, legalized);
     Ok(ValidatedTerminalSelectedInstructions { plan, receipt })
@@ -398,17 +434,60 @@ fn build_plan(
 ) -> Result<TerminalSelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
     require_key_rows(constraints.keys, catalog)?;
+    let mut functions = target
+        .functions
+        .iter()
+        .enumerate()
+        .map(|(index, source)| build_function(index, source, constraints, physical, catalog))
+        .collect::<Result<Vec<_>, _>>()?;
+    functions.extend(
+        target
+            .unit_functions
+            .iter()
+            .map(|source| build_unit_function(source, constraints.keys, catalog))
+            .collect::<Result<Vec<_>, _>>()?,
+    );
+    functions.sort_by_key(|function| function.machine);
     Ok(TerminalSelectedInstructionPlan {
         terminal_psi: target.terminal_psi,
         fuel_schedule: target.fuel_schedule,
         target: target.target,
         entry: target.entry,
-        functions: target
-            .functions
-            .iter()
-            .enumerate()
-            .map(|(index, source)| build_function(index, source, constraints, physical, catalog))
-            .collect::<Result<Vec<_>, _>>()?,
+        functions,
+    })
+}
+
+fn build_unit_function(
+    source: &SourceUnitFunction,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedFunction, SelectedInstructionError> {
+    Ok(TerminalSelectedFunction {
+        machine: source.machine,
+        attachment: source.attachment,
+        provenance: source.provenance.clone(),
+        entry_block: TerminalSelectedBlockId(0),
+        virtual_registers: Vec::new(),
+        blocks: vec![TerminalSelectedBlock {
+            id: TerminalSelectedBlockId(0),
+            source_block: source.entry_block,
+            instructions: Vec::new(),
+            terminator: TerminalSelectedTerminator::Return {
+                instruction: instruction(
+                    TerminalSelectedInstructionId(0),
+                    TerminalSelectedInstructionKind::ReturnUnit,
+                    keys.return_unit,
+                    &[],
+                    TerminalSelectedInstructionProvenance {
+                        edges: vec![source.return_edge],
+                        fuel: source.return_fuel.clone(),
+                        ..Default::default()
+                    },
+                    catalog,
+                )?,
+                psi_return_edge: source.return_edge,
+            },
+        }],
     })
 }
 
@@ -1427,6 +1506,7 @@ fn require_key_rows(
         keys.compare_i64_zero,
         keys.conditional_branch,
         keys.return_i64,
+        keys.return_unit,
     ] {
         row(catalog, key)?;
     }
@@ -1495,6 +1575,59 @@ fn validate_function(
     validate_def_use(function_index, function, catalog)?;
     validate_provenance_partition(function_index, source, function)?;
     Ok(())
+}
+
+fn validate_unit_function(
+    function_index: usize,
+    source: &SourceUnitFunction,
+    function: &TerminalSelectedFunction,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
+    let expected_provenance = TerminalSelectedInstructionProvenance {
+        edges: vec![source.return_edge],
+        fuel: source.return_fuel.clone(),
+        ..Default::default()
+    };
+    let valid_shape = function.machine == source.machine
+        && function.attachment == source.attachment
+        && function.provenance == source.provenance
+        && function.entry_block == TerminalSelectedBlockId(0)
+        && function.virtual_registers.is_empty()
+        && function.blocks.len() == 1
+        && function.blocks[0].id == TerminalSelectedBlockId(0)
+        && function.blocks[0].source_block == source.entry_block
+        && function.blocks[0].instructions.is_empty();
+    if !valid_shape {
+        return Err(SelectedInstructionError::FunctionProjectionMismatch {
+            function: function_index,
+        });
+    }
+    let block = &function.blocks[0];
+    let TerminalSelectedTerminator::Return {
+        instruction,
+        psi_return_edge,
+    } = &block.terminator
+    else {
+        return Err(SelectedInstructionError::BlockProjectionMismatch {
+            function: function_index,
+            block: 0,
+        });
+    };
+    if instruction.id != TerminalSelectedInstructionId(0)
+        || instruction.kind != TerminalSelectedInstructionKind::ReturnUnit
+        || instruction.constraint != keys.return_unit
+        || !instruction.operands.is_empty()
+        || instruction.provenance != expected_provenance
+        || *psi_return_edge != source.return_edge
+    {
+        return Err(SelectedInstructionError::InstructionProjectionMismatch {
+            function: function_index,
+            instruction: instruction.id.0,
+        });
+    }
+    validate_block_constraints(function_index, block, function, catalog)?;
+    validate_def_use(function_index, function, catalog)
 }
 
 fn validate_virtual_registers(
@@ -3029,7 +3162,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v7\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v8\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -3155,6 +3288,7 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => 6,
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => 7,
         TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => 8,
+        TerminalSelectedInstructionKind::ReturnUnit => 9,
     });
     match instruction.kind {
         TerminalSelectedInstructionKind::MaterializeI64 { value } => match value {
@@ -3207,7 +3341,8 @@ fn encode_instruction(bytes: &mut Vec<u8>, instruction: &TerminalSelectedInstruc
         TerminalSelectedInstructionKind::CompareI64Zero
         | TerminalSelectedInstructionKind::CopyI64
         | TerminalSelectedInstructionKind::ConditionalBranchNonZero
-        | TerminalSelectedInstructionKind::ReturnI64 => {}
+        | TerminalSelectedInstructionKind::ReturnI64
+        | TerminalSelectedInstructionKind::ReturnUnit => {}
     }
     encode_constraint_key(bytes, instruction.constraint);
     encode_len(bytes, instruction.operands.len());

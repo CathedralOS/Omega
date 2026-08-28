@@ -10,6 +10,7 @@ use omega_terminal_legalized_operations::{
     TerminalLegalizedExactAdd as SourceExactAdd, TerminalLegalizedFunction as SourceFunction,
     TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
     TerminalLegalizedLeafValue as SourceLeafValue, TerminalLegalizedTemporaryId,
+    TerminalLegalizedUnitFunction as SourceUnitFunction,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
@@ -42,14 +43,16 @@ pub(crate) fn derive_source_functions(
         .zip(&abstract_plan.functions)
         .zip(&unit.functions)
         .enumerate()
-        .map(|(index, ((target, abstracted), optimized))| {
-            derive_source_function(
-                index,
-                target,
-                abstracted,
-                optimized,
-                &unit.accepted_obligation_facts,
-            )
+        .filter_map(|(index, ((target, abstracted), optimized))| {
+            (!matches!(target.operation, TerminalTargetOperation::UnitBody(_))).then(|| {
+                derive_source_function(
+                    index,
+                    target,
+                    abstracted,
+                    optimized,
+                    &unit.accepted_obligation_facts,
+                )
+            })
         })
         .collect::<Result<Vec<_>, _>>()?;
     if functions.iter().any(|function| {
@@ -70,6 +73,97 @@ pub(crate) fn derive_source_functions(
         return Err(Error::SourceCustodyMismatch);
     }
     Ok(functions)
+}
+
+pub(crate) fn derive_source_unit_functions(
+    target: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<Vec<SourceUnitFunction>, TerminalLegalizationError> {
+    if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
+        || target.terminal_psi != abstract_plan.terminal_psi
+        || target.terminal_psi != unit.terminal_psi
+        || target.entry != abstract_plan.entry
+        || target.entry != unit.entry
+        || target.functions.len() != abstract_plan.functions.len()
+        || target.functions.len() != unit.functions.len()
+        || omega_optimization_unit::recompute_psi_optimization_unit_identity(unit) != unit.identity
+    {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    target
+        .functions
+        .iter()
+        .zip(&abstract_plan.functions)
+        .zip(&unit.functions)
+        .enumerate()
+        .filter_map(|(index, ((target, abstracted), optimized))| {
+            matches!(target.operation, TerminalTargetOperation::UnitBody(_))
+                .then(|| derive_source_unit_function(index, target, abstracted, optimized))
+        })
+        .collect()
+}
+
+fn derive_source_unit_function(
+    function: usize,
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+) -> Result<SourceUnitFunction, TerminalLegalizationError> {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [target_return] = body.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let omega_terminal_target_operations::TerminalTargetUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = target_return
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_entry] = abstracted.block_entries.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_return] = abstracted.operations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_block] = optimized.blocks.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_return] = optimized_block.nodes.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if target.machine != abstracted.machine
+        || target.machine != optimized.machine
+        || target.attachment != abstracted.attachment
+        || !matches!(
+            abstracted.result,
+            omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        )
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+        || abstracted.entry != abstract_entry.block
+        || optimized.entry != abstract_entry.block
+        || optimized_block.id != abstract_entry.block
+        || abstract_entry.operation_offset != 0
+        || !abstract_entry.parameters.is_empty()
+        || !optimized_block.parameters.is_empty()
+        || !cleanup_actions.is_empty()
+        || abstract_return != &optimized_return.operation
+        || !matches!(abstract_return, TerminalAbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    Ok(SourceUnitFunction {
+        machine: target.machine,
+        attachment: target.attachment,
+        provenance: target.provenance.clone(),
+        entry_block: optimized_block.id,
+        return_edge: *psi_edge,
+        return_fuel: optimized_return.fuel.clone(),
+    })
 }
 
 fn derive_source_function(
