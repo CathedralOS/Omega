@@ -49,10 +49,7 @@ and auditable.
   functions, constructors, and matches;
 - `source/alpha/checker/implementations/gamma/` — independent
   proof-kernel implementations hosted by Gamma, owned by Alpha's checker rather than
-  the language rung;
-- `source/gamma/canonical-bytes/` and
-  `terminal-codec-primitives/` — reusable typed byte and terminal-grammar
-  fragments, without a fixed-version live terminal decoder.
+  the language rung.
 
 The exact spike sizes, supported operation cohorts, and gate counts belong in
 the spike's own README and live task status, not in this durable rung definition.
@@ -64,7 +61,5 @@ does not own a parallel compatibility compiler.
 
 ## Implementation frontiers
 
-- Keep the full canonical decoder auditable within Gamma's deliberately small
-  type system; shared decoding primitives should absorb repeated mechanics.
 - Improve reference-route performance without changing fuel visibility or
   semantic authority.

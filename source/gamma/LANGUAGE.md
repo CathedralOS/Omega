@@ -69,8 +69,8 @@ program := (data TYPE (CONSTRUCTOR TYPE...)...)*
 `Int` is built in. The type system is monomorphic and fully annotated. It checks
 function and constructor arity, operator operands, calls, return types, match
 scrutinees, pattern constructors, and agreement between match arms. It is
-deliberately small: enough to make interpreters, validators, canonical-byte
-decoders, and the independent Gamma proof-kernel implementation safe to write.
+deliberately small: enough to make interpreters, validators, decoders, and the
+independent Gamma proof-kernel implementation safe to write.
 
 ## Gates and examples
 
@@ -80,10 +80,8 @@ sh source/gamma/test-typeck.sh
 sh source/alpha/checker/gates/gamma-checker.sh
 ```
 
-Typed Gamma consumers live in `canonical-bytes/`, the reusable grammar fragments
-under `terminal-codec-primitives/`, and
-`source/alpha/checker/implementations/gamma/checker_typed.gamma`.
-They exercise the language but do not define it. The retired terminal-ledger
-prototype was artifact-assurance feasibility work, not Gamma meaning. Its
-documentation and Git history preserve that experiment; the live production
-semantic tables own its useful closed-row decomposition.
+The typed Gamma proof-kernel implementation lives under the checker that owns it
+at `source/alpha/checker/implementations/gamma/checker_typed.gamma`. The old
+generic canonical-byte and terminal-codec prototype was not consumed by a live
+artifact admission and is retired to Git history; future artifact-specific
+decoding belongs beside the artifact it admits.
