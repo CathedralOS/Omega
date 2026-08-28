@@ -122,6 +122,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::ControlFlowCleanup);
     builder.optimizations.enable(Optimization::CopyPropagation);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
+    builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
 }
 "#,
         ),
@@ -135,6 +136,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::CopyPropagation,
             Optimization::ProofCheckElision,
             Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
         ]
     );
     assert_eq!(
@@ -246,6 +248,57 @@ fn selected_native_build_fails_closed_without_installing_output() {
             .message
             .contains("complete verified optimizer pipeline")
     );
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
+fn x86_rel8_relaxation_selection_round_trips_but_remains_default_off() {
+    let absent = project("x86-rel8-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave branch relaxation disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::X86RelaxConditionalBranchesToRel8V1)
+    );
+
+    let selected = project(
+        "x86-rel8-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-x86-rel8-selected");
+    builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named function-relative-layout selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::X86RelaxConditionalBranchesToRel8V1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+
+    let build_dir = selected.join("build");
+    let diagnostics = compile(CompileOptions {
+        root_path: selected.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("the build-visible layout selection must remain execution-gated");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`X86RelaxConditionalBranchesToRel8V1`")
+    );
+    assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());
     assert!(!build_dir.join("omega-program.exe").exists());
 }

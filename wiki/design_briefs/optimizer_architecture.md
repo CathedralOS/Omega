@@ -1774,10 +1774,27 @@ placement, symbols, object relocations, executable image, installation, and
 publication remain explicitly unavailable. This is an honest realization
 checkpoint, not an object or native-final manifest.
 
-Choosing x86 `rel8` is a separate prospective named transformation,
-`X86RelaxConditionalBranchesToRel8V1`, with monotone fixed-point layout replay
-and explicit work accounting. It is not an implicit “higher optimization
-level” behavior of the baseline encoder.
+Choosing x86 `rel8` is the separate named transformation
+`X86RelaxConditionalBranchesToRel8V1`; it is not an implicit “higher
+optimization level” behavior of the baseline encoder. The target owner exposes
+a distinct canonical two-byte `JNE rel8` encoder and validator with exact signed
+byte bounds and the same declared control/effect footprint as the required
+near form. The optimizer's immutable result binds the required near-layout
+source, the rewritten layout, exact budget and usage, ordered scan attempts,
+each four-byte shrink, and domain-separated revision and artifact identities.
+Production deterministically commits at most one branch per iteration and
+stops only after a complete no-change sweep. Independent replay reconstructs
+the scan, dense offsets, both successor offsets, displacements, re-encodings,
+work accounting, and the terminal fixed point. The rule rejects non-x86 targets
+and never widens a branch.
+
+The exact rule name is present in the v3 build vocabulary under the separate
+function-relative-layout phase and remains default-off. That vocabulary does
+not yet grant execution authority: explicitly selecting it currently fails
+closed without installing output. Physical orchestration must next support a
+branch-only selected suite, retain both baseline and relaxed layout identities,
+and join the relaxation receipt into the realization manifest and independent
+whole-function exit replay before the compiler gate can be removed.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and

@@ -38,6 +38,7 @@ mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
 mod whole_function_exit_contract;
+mod x86_branch_relaxation;
 
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
@@ -173,6 +174,14 @@ pub use whole_function_exit_contract::{
     TerminalWholeFunctionHardeningPolicy, TerminalWholeFunctionReturnEvidence,
     TerminalWholeFunctionReturnMechanism, ValidatedTerminalWholeFunctionExitContract,
     stage_terminal_whole_function_exit_contract, validate_terminal_whole_function_exit_contract,
+};
+pub use x86_branch_relaxation::{
+    OptimizedX86BranchRelaxationError, StagedOptimizedX86BranchRelaxation,
+    TerminalX86BranchRelaxationAction, TerminalX86BranchRelaxationAttempt,
+    TerminalX86BranchRelaxationAttemptOutcome, TerminalX86BranchRelaxationIdentity,
+    TerminalX86BranchRelaxationPolicy, TerminalX86BranchRelaxationRevisionIdentity,
+    TerminalX86BranchRelaxationWorkAxis, stage_optimized_x86_branch_relaxation,
+    validate_optimized_x86_branch_relaxation,
 };
 
 /// Exact optimizer inputs chosen by compiler orchestration.
