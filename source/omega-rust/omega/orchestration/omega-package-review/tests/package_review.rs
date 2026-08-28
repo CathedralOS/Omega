@@ -11381,6 +11381,8 @@ where
 pub domain Ledger::Ready
 requires
     self.count <= self.len;
+pub machine identity(input: u64) -> u64 { input }
+pub operator Ledger::project(record: Ledger) -> u32;
 pub trait Bounds {
     machine clamp(value: u64) -> u64
     requires value >= 1
@@ -11404,15 +11406,10 @@ pub trait Bounds {
         .expect("proof-fact canonical rows");
 
     let role_slices = |kind, role| {
-        let row = rows
-            .iter()
-            .find(|row| row.kind() == kind)
-            .expect("review row with proof facts");
-        row.source()
-            .authored_locations()
-            .expect("authored row locations")
-            .iter()
-            .filter(|location| location.role() == role)
+        rows.iter()
+            .filter(|row| row.kind() == kind)
+            .flat_map(|row| row.source().authored_locations().unwrap_or_default())
+            .filter(|location| location.role() == role && location.relative_path() == "main.omg")
             .map(|location| {
                 &source[usize::try_from(location.start_byte()).unwrap()
                     ..usize::try_from(location.end_byte()).unwrap()]
@@ -11453,6 +11450,27 @@ pub trait Bounds {
             PackageReviewSourceLocationRole::TraitRequirement,
         ),
         ["clamp"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::Callable,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["input"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicOperator,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["record"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["value"]
     );
 }
 

@@ -2423,6 +2423,9 @@ pub enum PackageReviewSourceLocationRole {
     /// Exact declaration or derivation origin of one public data field, sum
     /// case, or sum payload field nested beneath its owning data row.
     DataMember,
+    /// Exact declaration or derivation origin of one value parameter on a
+    /// reviewed callable, public operator, or public trait requirement.
+    CallableParameter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2754,6 +2757,18 @@ pub fn project_checked_package_review(
         collect_type_parameter_source_locations(
             compilation,
             compilation.machine_type_parameters(machine),
+            &mut contract_locations,
+        )?;
+        let entry = compilation.machine_states(machine).first().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no canonical entry signature",
+                compilation.typed.symbols.display_path(machine.symbol, "::")
+            ))]
+        })?;
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.state_parameters(entry),
+            "reviewed callable parameter",
             &mut contract_locations,
         )?;
         contract_locations.extend(
@@ -3871,6 +3886,12 @@ fn project_public_traits(
                 PackageReviewSourceLocationRole::TraitRequirement,
                 "public trait requirement",
             )?);
+            collect_callable_parameter_source_locations(
+                compilation,
+                compilation.state_signature_parameters(requirement),
+                "public trait requirement parameter",
+                &mut nested_source_locations,
+            )?;
             nested_source_locations.extend(project_contract_source_locations(
                 compilation,
                 compilation.state_signature_contracts(requirement),
@@ -4600,6 +4621,12 @@ fn project_public_operators(
         let mut nested_source_locations = project_contract_source_locations(
             compilation,
             compilation.operator_contracts(declaration),
+        )?;
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.operator_parameters(declaration),
+            "public operator parameter",
+            &mut nested_source_locations,
         )?;
         collect_type_parameter_source_locations(
             compilation,
@@ -8243,6 +8270,12 @@ fn collect_type_parameter_source_locations(
         else {
             continue;
         };
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.state_signature_parameters(signature),
+            "structural machine parameter contract value parameter",
+            locations,
+        )?;
         locations.extend(project_contract_source_locations(
             compilation,
             compilation.state_signature_contracts(signature),
@@ -8266,6 +8299,23 @@ fn collect_type_parameter_source_locations(
             compilation.state_signature_type_parameters(signature),
             locations,
         )?;
+    }
+    Ok(())
+}
+
+fn collect_callable_parameter_source_locations(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+    subject: &str,
+    locations: &mut Vec<ProjectedNestedSourceLocation>,
+) -> Result<(), Vec<Diagnostic>> {
+    for parameter in parameters {
+        locations.push(project_nested_declaration_source_location(
+            compilation,
+            parameter.symbol,
+            PackageReviewSourceLocationRole::CallableParameter,
+            subject,
+        )?);
     }
     Ok(())
 }

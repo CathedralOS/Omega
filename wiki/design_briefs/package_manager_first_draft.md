@@ -488,7 +488,7 @@ requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
 otherwise contract-supplied machines, the checked operational fact is the
 published may-ceiling, not a claim that the current body exercised it. Review
-v75/row v33, recovery v12, conflict fingerprint v15, and renderer V14 bind the
+v75/row v33, recovery v13, conflict fingerprint v16, and renderer V15 bind the
 current source schema. External executable leaves retain the exact authored
 `via` keyword on the same conformance as the normalized binding identity.
 Projection requires binding/span parity and carries that occurrence under
@@ -515,6 +515,11 @@ declaration under `trait_requirement`; public data rows retain fields, sum
 cases, and payload fields under `data_member`. These roles consume the existing
 typed declaration symbols. Direct declarations use their authored spans;
 generated declarations expose only their real derivation origin.
+Reviewed package callables, public operators, and public trait requirements
+likewise retain every value-parameter declaration under `callable_parameter`.
+The same compiler-owned walk covers value parameters nested in structural
+static-machine contracts. These coordinates bind what review displays without
+changing semantic row identity.
 
 Proposition and named-evidence rows apply that rule as an explicit join. The
 typed application owns the structural proposition declaration, binder
