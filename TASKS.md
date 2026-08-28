@@ -7953,9 +7953,9 @@ compiler concept is introduced.
   including member projection and one or more independently bounded indexes;
   typed non-reference assignment-value call trees extend through depth four.
   A direct primitive scalar assignment value may wrap complete caller-isolated
-  call producers in up to four unary, binary, primitive-cast,
+  call producers in up to five unary, binary, primitive-cast,
   member-projection, or indexing shells without widening that call budget. A
-  fifth direct scalar shell remains fenced; aggregate fields and projected
+  sixth direct scalar shell remains fenced; aggregate fields and projected
   concrete record, selected-case, or fixed-array literals retain their
   separate two-shell computation budget.
   One top-level concrete primitive-only record or selected-case literal may
