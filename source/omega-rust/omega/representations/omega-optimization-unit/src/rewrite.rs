@@ -695,6 +695,36 @@ impl PsiRewriteCandidate {
         )
     }
 
+    /// Replace one proof-certified integer operation with an independently
+    /// equivalent typed constant when the symbolic law also depends on one
+    /// direct scalar-literal fact. The operation stays at its authored site,
+    /// so no scalar substitution is introduced.
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_literal_proof_certified_integer_constant_replacement(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        constant_fact: ScalarConstantFactIdentity,
+        obligation_fact: AcceptedObligationFactIdentity,
+        predicted_cost_delta: i64,
+        patch: IntegerConstantRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::ProofCertifiedScalarIdentity {
+                constant_fact,
+                obligation_fact,
+            },
+            predicted_cost_delta,
+            PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch),
+        )
+    }
+
     #[allow(clippy::too_many_arguments)]
     pub fn new_boolean_evaluation(
         input: OptimizationUnitIdentity,

@@ -50,6 +50,7 @@ pub use rules::{
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
     LiveProofCertifiedIntegerDivideByOneEliminationRule,
     LiveProofCertifiedIntegerIdentityEliminationRule,
+    LiveProofCertifiedIntegerRemainderByOneEliminationRule,
     LiveProofCertifiedIntegerSelfDivideEliminationRule,
     LiveProofCertifiedIntegerSelfRemainderEliminationRule,
     LiveProofCertifiedIntegerZeroDividendEliminationRule, NonAdjacentBlockMergeRule,

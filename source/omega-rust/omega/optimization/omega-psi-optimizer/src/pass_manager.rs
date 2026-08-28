@@ -1140,7 +1140,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     );
     let proof_elision_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.proof-check-elision.v9",
+            b"omega.psi-pass.proof-check-elision.v10",
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
@@ -1185,12 +1185,12 @@ mod tests {
             dead_exact_add_unit, dead_wrapping_add_unit, dependent_exact_chain_unit,
             diamond_dominator_gvn_unit, dominator_gvn_unit, exact_add_unit,
             linear_empty_block_unit, live_divide_by_one_unit, live_exact_multiply_by_zero_unit,
-            live_exact_self_subtract_unit, live_exact_zero_value_shift_unit, live_self_divide_unit,
-            live_self_remainder_unit, local_cse_unit, non_adjacent_merge_unit,
-            phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
-            proof_certified_local_cse_unit, proof_certified_phi_translated_gvn_unit,
-            propagated_block_parameter_unit, randomized_built_in_registries,
-            redundant_block_parameter_unit, wrapping_add_unit,
+            live_exact_self_subtract_unit, live_exact_zero_value_shift_unit,
+            live_remainder_by_one_unit, live_self_divide_unit, live_self_remainder_unit,
+            local_cse_unit, non_adjacent_merge_unit, phi_translated_gvn_unit,
+            proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+            proof_certified_phi_translated_gvn_unit, propagated_block_parameter_unit,
+            randomized_built_in_registries, redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -1930,6 +1930,118 @@ mod tests {
         .unwrap()
     }
 
+    fn verified_exact_remainder_by_one_unit() -> VerifiedPsiOptimizationUnit {
+        use psi_core::{
+            BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
+            ObligationId, OperationId, ScalarType, ValueId,
+        };
+        use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
+        use psi_terminal::{
+            Block, MachineContract, Operation, OperationKind, OperationResult, TerminalMachine,
+            TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration, VocabularyMarker,
+        };
+        use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
+
+        let machine = MachineId::new(451).unwrap();
+        let block = BlockId::new(452).unwrap();
+        let operand = ValueId::new(453).unwrap();
+        let one = ValueId::new(454).unwrap();
+        let remainder = ValueId::new(455).unwrap();
+        let result = ValueId::new(456).unwrap();
+        let obligation = ObligationId::new(457).unwrap();
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let scalar_type = ScalarType::Integer(integer);
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(operand)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(result)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry: block,
+                blocks: vec![Block {
+                    id: block,
+                    parameters: Vec::new(),
+                    operations: vec![
+                        Operation {
+                            id: OperationId::new(458).unwrap(),
+                            result: OperationResult::Scalar(declaration(one)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(1),
+                            },
+                        },
+                        Operation {
+                            id: OperationId::new(459).unwrap(),
+                            result: OperationResult::Scalar(declaration(remainder)),
+                            kind: OperationKind::ExactIntegerRemainder {
+                                left: operand,
+                                right: one,
+                                obligation,
+                            },
+                        },
+                    ],
+                    terminator: Terminator::Return {
+                        cleanup_actions: Vec::new(),
+                        edge: EdgeId::new(460).unwrap(),
+                        value: remainder,
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(461).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: vec![ObligationEvidence {
+                obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            }],
+        };
+        let semantic = psi_terminal_codec::encode_module(&module).unwrap();
+        let proof = psi_terminal_codec::encode_proof_bundle(&proof).unwrap();
+        let input =
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &psi_proof_admission::AdmissionProfile::default(),
+            )
+            .unwrap();
+        omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+            input,
+            psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+        )
+        .unwrap()
+    }
+
     fn verified_exact_self_remainder_unit() -> VerifiedPsiOptimizationUnit {
         verified_exact_self_division_or_remainder_unit(false)
     }
@@ -2248,7 +2360,7 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 9);
+        assert_eq!(manifest.ordered_rules().len(), 10);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
@@ -2276,7 +2388,7 @@ mod tests {
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.iterations, 2);
         assert_eq!(ledger.records().len(), 1);
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 10);
         assert_eq!(
             commits[0].declaration.consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact),]
@@ -2317,7 +2429,7 @@ mod tests {
         assert_eq!(usage.iterations, 2);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 9);
+        assert_eq!(manifest.ordered_rules().len(), 10);
         assert_eq!(
             manifest.decisions()[0].rule(),
             crate::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
@@ -2362,7 +2474,7 @@ mod tests {
         assert_eq!(usage.iterations, 2);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 9);
+        assert_eq!(manifest.ordered_rules().len(), 10);
         assert_eq!(
             manifest.decisions()[0].rule(),
             crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
@@ -2383,6 +2495,47 @@ mod tests {
             original_provenance
         );
         assert_eq!(output.functions[0].blocks[0].nodes[0].fuel, original_fuel);
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
+    fn named_proof_check_elision_materializes_remainder_by_one_zero_at_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let integer = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap();
+        let unit = live_remainder_by_one_unit(integer, SelfRemainderPolicy::Exact);
+        let original_provenance = unit.functions[0].blocks[0].nodes[1].provenance.clone();
+        let original_fuel = unit.functions[0].blocks[0].nodes[1].fuel.clone();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(ledger.records().len(), 1);
+        let manifest = manifest.unwrap();
+        assert_eq!(manifest.ordered_rules().len(), 10);
+        assert_eq!(
+            manifest.decisions()[0].rule(),
+            crate::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
+        );
+        assert_eq!(commits[0].declaration.consumed_facts().len(), 2);
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[1].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(0),
+                ..
+            }
+        ));
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[1].provenance,
+            original_provenance
+        );
+        assert_eq!(output.functions[0].blocks[0].nodes[1].fuel, original_fuel);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();
@@ -3092,6 +3245,47 @@ mod tests {
     }
 
     #[test]
+    fn external_decision_record_and_replay_preserve_remainder_by_one_validation() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let baseline = run_psi_pipeline(
+            verified_exact_remainder_by_one_unit(),
+            &selections,
+            budget(8),
+        )
+        .unwrap();
+        let [point] = baseline.external_decisions().points() else {
+            panic!("remainder-by-one fixture has one external decision point");
+        };
+        assert_eq!(
+            point.rule(),
+            crate::LiveProofCertifiedIntegerRemainderByOneEliminationRule::contract().identity()
+        );
+        assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
+        assert_eq!(point.legal_candidates().len(), 1);
+        assert_eq!(baseline.usage().validation_steps, 1);
+
+        let replayed = replay_psi_pipeline(
+            verified_exact_remainder_by_one_unit(),
+            &selections,
+            budget(8),
+            &baseline.external_decisions().encode(),
+        )
+        .unwrap();
+        assert_eq!(replayed.session().unit(), baseline.session().unit());
+        assert_eq!(replayed.commits(), baseline.commits());
+        assert_eq!(replayed.decisions(), baseline.decisions());
+        assert_eq!(replayed.external_decisions(), baseline.external_decisions());
+        assert_eq!(replayed.pass_manifests(), baseline.pass_manifests());
+        assert_eq!(
+            replayed.transformation_ledger(),
+            baseline.transformation_ledger()
+        );
+        assert_eq!(replayed.identity_bundle(), baseline.identity_bundle());
+        assert_eq!(replayed.usage().validation_steps, 1);
+        validate_external_decision_recording(&replayed).unwrap();
+    }
+
+    #[test]
     fn external_decision_record_and_replay_preserve_compatible_policy_gvn() {
         let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
         let baseline = run_psi_pipeline(
@@ -3589,7 +3783,7 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.pass_manifests.len(), 1);
-        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 9);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 10);
         assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
             run.pass_manifests[0].decisions()[0].consumed_facts().len(),
