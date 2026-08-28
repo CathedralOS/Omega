@@ -309,17 +309,17 @@ fn bind_git_package_source(
     source: ResolvedGitSource,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedPackageSource<ResolvedGitSource>, ResolvePackageSourceError> {
-    let (declaration, dependency_requests) = project_package_build(&source.snapshot_root, false)?;
+    let (declaration, dependency_requests) = project_package_build(source.snapshot_root(), false)?;
     let resolution = ImmutableSourceResolution::git(
-        GitCommitId::parse_hex(&source.commit)?,
-        GitTreeId::parse_hex(&source.tree)?,
-        SourceContentDigest::derive(source.local.content_identity.as_bytes()),
+        GitCommitId::parse_hex(source.commit())?,
+        GitTreeId::parse_hex(source.tree())?,
+        SourceContentDigest::derive(source.local().content_identity.as_bytes()),
     )?;
 
     Ok(ResolvedPackageSource {
         key: PackageKey::new(declaration.name, lineage),
         resolution,
-        snapshot_root: source.snapshot_root.clone(),
+        snapshot_root: source.snapshot_root().to_path_buf(),
         source_limits: limits,
         dependency_requests,
         source,
@@ -802,52 +802,43 @@ mod tests {
 
     #[test]
     fn git_binding_normalizes_known_transport_without_using_repository_name() {
-        let snapshot = temp_root("git-binding");
-        write_package(&snapshot, "declared-package");
-        let source = |locator_identity: &str| ResolvedGitSource {
-            requested_locator: locator_identity.to_owned(),
-            locator_identity: locator_identity.to_owned(),
-            transport_profile: crate::source::GitTransportProfile::Https,
-            requested_rev: "main".to_owned(),
-            commit: "11".repeat(20),
-            tree: "22".repeat(20),
-            snapshot_root: snapshot.clone(),
-            local: crate::source::resolve_local_source(&snapshot, LocalSourceLimits::default())
-                .expect("resolve test snapshot"),
-            git_executable: crate::source::GitExecutableIdentity::for_test(
-                PathBuf::from("/test/git"),
-                "11".repeat(32),
-            ),
-            transport_executable: None,
-            execution_helper_executables: Vec::new(),
-            execution_policy_observations: Vec::new(),
-            command_execution_observations: Vec::new(),
-        };
-
-        let https_lineage =
-            SourceLineage::git("https://github.com/CathedralOS/repository-name-does-not-match.git")
-                .expect("HTTPS lineage");
-        let ssh_lineage =
-            SourceLineage::git("git@github.com:cathedralos/repository-name-does-not-match.git")
-                .expect("SSH lineage");
-        let https = bind_git_package_source(
-            https_lineage,
-            source("https://github.com/CathedralOS/repository-name-does-not-match.git"),
-            LocalSourceLimits::default(),
+        let repository = temp_root("git-binding-repository");
+        let cache = temp_root("git-binding-cache");
+        write_package(&repository, "declared-package");
+        run_test_git(&repository, ["init", "--quiet"]);
+        run_test_git(
+            &repository,
+            ["config", "user.email", "omega@example.invalid"],
+        );
+        run_test_git(&repository, ["config", "user.name", "Omega Tests"]);
+        run_test_git(&repository, ["add", "."]);
+        run_test_git(&repository, ["commit", "--quiet", "-m", "package"]);
+        let revision = test_git_head(&repository);
+        let https_request = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            Some(revision.clone()),
+            "https://github.com/CathedralOS/repository-name-does-not-match.git",
         )
-        .expect("bind HTTPS source");
-        let ssh = bind_git_package_source(
-            ssh_lineage,
-            source("git@github.com:cathedralos/repository-name-does-not-match.git"),
-            LocalSourceLimits::default(),
+        .expect("HTTPS request");
+        let ssh_request = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            Some(revision),
+            "git@github.com:cathedralos/repository-name-does-not-match.git",
         )
-        .expect("bind SSH source");
+        .expect("SSH request");
+        let https =
+            resolve_git_package_source(&https_request, &cache, LocalSourceLimits::default())
+                .expect("resolve HTTPS-lineage source");
+        let ssh = resolve_git_package_source(&ssh_request, &cache, LocalSourceLimits::default())
+            .expect("resolve SSH-lineage source");
 
         assert_eq!(https.key(), ssh.key());
         assert_eq!(https.key().name().as_str(), "declared-package");
         assert_eq!(https.resolution(), ssh.resolution());
 
-        let _ = std::fs::remove_dir_all(&snapshot);
+        let _ = std::fs::remove_dir_all(&repository);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     fn run_test_git<I, S>(directory: &Path, args: I)

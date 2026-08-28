@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-27. This document refines
+Status: engineering contract, revised 2026-08-28. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -116,10 +116,13 @@ authentication, snapshot identity, and final publication verdict.
 The macOS profile imports Apple's mutable `system.sb`, which itself imports
 `dyld-support.sb` and currently grants special-file writes plus local syslog
 socket access. The backend now opens both exact root-owned regular files,
-checks mode/ancestry/ACL custody, hashes their bounded bytes, requires exactly
-the one audited import edge with no further imports, and revalidates all facts
-around command construction. A changed import topology rejects and both
-content identities enter canonical backend observation. The ordinary write,
+checks mode/ancestry/ACL custody, hashes their bounded bytes, requires the
+currently audited canonical import-line spellings, and revalidates all facts
+around command construction. Changed recognized topology rejects and both
+content identities enter canonical backend observation. The line recognizer is
+not a complete parser for the Seatbelt grammar, so this is exact byte custody
+for the known host profiles rather than proof that every syntactically possible
+import is absent. The ordinary write,
 remote-network, and descendant-exec canaries remain useful enforcement tests,
 but filesystem, network, and executable-path strict guarantees remain
 unavailable because exact profile identity is not semantic proof that those
@@ -143,9 +146,25 @@ bounded stdout/stderr lengths and digests, and joins positionally to the digest
 of its native policy observation. Successful resolution requires outcome,
 policy, and launch counts to agree. Output text and package-controlled arguments
 are not rendered into this fixed record. This establishes completed-command
-provenance for successful resolution, but still omits effective endpoint,
-transferred-byte accounting, aggregate resource use, and the final source-
-receipt verdict.
+provenance for successful resolution.
+
+After the outer resolver has additionally reconciled cache namespace/custody
+and final executable content, it physically reopens and re-hashes the published
+snapshot under the original exact-tree policy while the cache lock remains
+held. Only then is a private pending result converted into the sealed public
+`ResolvedGitSource` and one compact `GitSourceResolutionObservation` issued.
+The public result fields are not mutable. The observation's canonical identity
+binds the exact source policy ceilings, request and normalized locator,
+transport and object format, selected commit/tree, immutable snapshot
+path/content/counts, Git and helper content identities, every native policy row,
+and every completed-command row.
+The observation has no public constructor or decoder and is issued with the
+fixed outcome `resolved-non-admitting`; changing even a source ceiling changes
+its identity. This closes the successful-result join that the narrower rows
+could not express. It deliberately remains below `SourceResolutionReceiptV1`:
+unavailable containment rows remain unavailable, and effective endpoints,
+TLS/SSH trust, credential custody, transferred bytes, aggregate resources, and
+strict acceptance are still absent.
 
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
