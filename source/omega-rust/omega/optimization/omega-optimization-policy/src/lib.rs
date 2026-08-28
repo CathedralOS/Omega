@@ -31,6 +31,24 @@ pub enum BaselineDecisionOutcome {
     Skip(OptimizationReasonCode),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BaselineDecisionRecordError {
+    EmptyCandidateSet,
+    UnknownCandidate(OptimizationCandidateIdentity),
+    UnsupportedSkipReason(OptimizationReasonCode),
+}
+
+impl std::fmt::Display for BaselineDecisionRecordError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid recorded optimization decision: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for BaselineDecisionRecordError {}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BaselineDecisionRecord {
     pub identity: OptimizationDecisionIdentity,
@@ -209,9 +227,7 @@ impl BaselinePolicy {
         input: OptimizationUnitIdentity,
         candidates: impl IntoIterator<Item = ValidatedCandidateSummary>,
     ) -> BaselineDecisionOutcome {
-        let mut considered = candidates.into_iter().collect::<Vec<_>>();
-        considered.sort_by_key(|candidate| (candidate.predicted_cost_delta, candidate.candidate));
-        considered.dedup_by_key(|candidate| candidate.candidate);
+        let considered = canonicalize_candidates(candidates);
         let outcome = considered
             .first()
             .filter(|candidate| candidate.predicted_cost_delta < 0)
@@ -219,6 +235,49 @@ impl BaselinePolicy {
                 BaselineDecisionOutcome::Skip(OptimizationReasonCode::NotProfitable),
                 |candidate| BaselineDecisionOutcome::Choose(candidate.candidate),
             );
+        self.record_canonical(input, considered, outcome);
+        outcome
+    }
+
+    /// Retain a policy outcome supplied at the external replay boundary after
+    /// the ordinary candidate validators have accepted the complete roster.
+    /// This uses the baseline log's existing canonical representation so the
+    /// actual selected action remains the identity-bundle authority.
+    pub fn record_validated_outcome(
+        &mut self,
+        input: OptimizationUnitIdentity,
+        candidates: impl IntoIterator<Item = ValidatedCandidateSummary>,
+        outcome: BaselineDecisionOutcome,
+    ) -> Result<BaselineDecisionOutcome, BaselineDecisionRecordError> {
+        let considered = canonicalize_candidates(candidates);
+        if considered.is_empty() {
+            return Err(BaselineDecisionRecordError::EmptyCandidateSet);
+        }
+        match outcome {
+            BaselineDecisionOutcome::Choose(candidate)
+                if !considered
+                    .iter()
+                    .any(|considered| considered.candidate == candidate) =>
+            {
+                return Err(BaselineDecisionRecordError::UnknownCandidate(candidate));
+            }
+            BaselineDecisionOutcome::Skip(reason)
+                if reason != OptimizationReasonCode::NotProfitable =>
+            {
+                return Err(BaselineDecisionRecordError::UnsupportedSkipReason(reason));
+            }
+            BaselineDecisionOutcome::Choose(_) | BaselineDecisionOutcome::Skip(_) => {}
+        }
+        self.record_canonical(input, considered, outcome);
+        Ok(outcome)
+    }
+
+    fn record_canonical(
+        &mut self,
+        input: OptimizationUnitIdentity,
+        considered: Vec<ValidatedCandidateSummary>,
+        outcome: BaselineDecisionOutcome,
+    ) {
         let canonical = encode_decision(input, &considered, outcome);
         self.records.push(BaselineDecisionRecord {
             identity: OptimizationDecisionIdentity::from_canonical_bytes(&canonical),
@@ -226,12 +285,20 @@ impl BaselinePolicy {
             considered,
             outcome,
         });
-        outcome
     }
 
     pub fn finish(self) -> BaselineDecisionLog {
         finish_log(self.records)
     }
+}
+
+fn canonicalize_candidates(
+    candidates: impl IntoIterator<Item = ValidatedCandidateSummary>,
+) -> Vec<ValidatedCandidateSummary> {
+    let mut considered = candidates.into_iter().collect::<Vec<_>>();
+    considered.sort_by_key(|candidate| (candidate.predicted_cost_delta, candidate.candidate));
+    considered.dedup_by_key(|candidate| candidate.candidate);
+    considered
 }
 
 fn finish_log(records: Vec<BaselineDecisionRecord>) -> BaselineDecisionLog {
@@ -320,6 +387,42 @@ mod tests {
         assert_eq!(log.records.len(), 1);
         assert_ne!(log.identity.bytes(), [0; 32]);
         assert_eq!(BaselineDecisionLog::decode(&log.encode()), Ok(log));
+    }
+
+    #[test]
+    fn recorded_validated_outcome_can_choose_a_non_baseline_member() {
+        let input = OptimizationUnitIdentity::from_canonical_bytes(b"input");
+        let baseline_choice = candidate(b"baseline", -2);
+        let replay_choice = candidate(b"replay", -1);
+        let mut policy = BaselinePolicy::default();
+        assert_eq!(
+            policy.record_validated_outcome(
+                input,
+                [baseline_choice, replay_choice],
+                BaselineDecisionOutcome::Choose(replay_choice.candidate),
+            ),
+            Ok(BaselineDecisionOutcome::Choose(replay_choice.candidate))
+        );
+        let log = policy.finish();
+        assert_eq!(
+            log.records[0].considered,
+            vec![baseline_choice, replay_choice]
+        );
+        assert_eq!(BaselineDecisionLog::decode(&log.encode()), Ok(log));
+    }
+
+    #[test]
+    fn recorded_validated_outcome_rejects_foreign_choice() {
+        let mut policy = BaselinePolicy::default();
+        let foreign = OptimizationCandidateIdentity::from_canonical_bytes(b"foreign");
+        assert_eq!(
+            policy.record_validated_outcome(
+                OptimizationUnitIdentity::from_canonical_bytes(b"input"),
+                [candidate(b"legal", -1)],
+                BaselineDecisionOutcome::Choose(foreign),
+            ),
+            Err(BaselineDecisionRecordError::UnknownCandidate(foreign))
+        );
     }
 
     #[test]
