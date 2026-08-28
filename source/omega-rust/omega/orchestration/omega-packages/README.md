@@ -1340,6 +1340,13 @@ progress, checked operator facts, provider planning, and review cross-check the
 same symbol. Supply-mode policy is separate: external supply cannot substitute
 a boundary declaration for the ordinary operator the source actually named.
 
+Domain `established by Trait::requirement` paths use the same two exact row
+kinds at the earlier signature-free normalization point that already proves
+uniqueness and subject authorization. Their exposure comes from the domain,
+not the selected trait. Normalized establishment alternatives may deduplicate,
+but authored source occurrences do not disappear from direct-authority
+custody.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free

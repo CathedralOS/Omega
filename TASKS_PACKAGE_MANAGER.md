@@ -1578,6 +1578,20 @@ complete.
   `satisfies` trait/requirement/operator selections; establishment routes and
   nominal machine-parameter requirements remain separate exact-symbol audits.
 
+  Follow-up 2026-08-28: every source-backed `established by
+  Trait::requirement` occurrence now retains the exact uniquely resolved trait
+  as a `TypeReference` row and requirement as a `StaticPathSegment` row. The
+  existing signature-free resolver proves uniqueness and domain-subject
+  authorization after all symbols exist; that same normalization point records
+  selection custody before typed lowering. Semantic route alternatives may be
+  sorted or deduplicated downstream, but repeated authored occurrences remain
+  distinct source rows. Both rows inherit the domain declaration's
+  public/private exposure, so a public domain cannot hide a private route while
+  a private same-package route remains legal. Resolver and package-aware
+  canaries pin exact symbols, both exposure modes, and the early visibility
+  rejection. This closes establishment-route selections; nominal machine-
+  parameter requirements remain the final exact-symbol audit in this slice.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
@@ -1586,8 +1600,9 @@ complete.
   conformances, checked trait-operator conformances, declaration-owned
   expression positions whose visibility is settled, named conformance
   selectors in callable and trait bounds, and exact `satisfies` trait,
-  requirement, and operator coordinates. Visibility-dependent nested positions
-  are not yet total. The package manager stays disabled until those gaps close.
+  requirement, and operator coordinates, plus exact establishment-route trait
+  and requirement coordinates. Visibility-dependent nested positions are not
+  yet total. The package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
   artifact/lock admission are not complete. Visibility implementation for all

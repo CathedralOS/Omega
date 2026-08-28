@@ -1889,6 +1889,92 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
 }
 
 #[test]
+fn retains_exact_establishment_route_declarations_with_domain_exposure() {
+    let source = r#"
+        data Ticket { }
+        pub trait Issues {
+            machine issue() -> Ticket in Ticket::Issued;
+            machine hide() -> Ticket in Ticket::Internal;
+        }
+        pub domain Ticket::Issued
+        established by Issues::issue;
+        domain Ticket::Internal
+        established by Issues::hide;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize establishment selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse establishment selections");
+    let program = lower_syntax_trees(&syntax).expect("resolve establishment selections");
+    let issues = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Issues")
+        .expect("Issues trait");
+    let requirements = program.trait_machine_signatures(issues.machines);
+    let issue = requirements
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "issue")
+        .expect("issue requirement");
+    let hide = requirements
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "hide")
+        .expect("hide requirement");
+    let rows = program
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| match selection.target() {
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                if [issues.symbol, issue.symbol, hide.symbol]
+                    .contains(&target.selected_symbol()) =>
+            {
+                Some((
+                    selection.kind(),
+                    selection.exposure(),
+                    target.selected_symbol(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    assert_eq!(rows.len(), 4, "rows={rows:#?}");
+    assert_eq!(
+        rows.iter()
+            .filter(|(kind, exposure, symbol)| {
+                *kind
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+                    && *exposure
+                        == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                    && *symbol == issues.symbol
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|(kind, exposure, symbol)| {
+                *kind
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment
+                    && *exposure
+                        == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                    && *symbol == issue.symbol
+            })
+            .count(),
+        1
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|(_, exposure, _)| {
+                *exposure
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            })
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn distinguishes_boundary_contract_expressions_from_boundary_adapter_bodies() {
     let source = r#"
         machine helper() -> bool { true }

@@ -547,6 +547,107 @@ fn transparent_domain_alias_constituents_require_direct_package_admission() {
 }
 
 #[test]
+fn domain_establishment_routes_retain_exact_declarations_and_visibility() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub data Ticket { }
+trait HiddenIssues {
+    machine issue() -> Ticket in Ticket::Issued;
+}
+pub domain Ticket::Issued
+established by HiddenIssues::issue;
+"#,
+    );
+    let root_only = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only establishment graph should close")
+    };
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
+        .expect_err("a public domain may not authorize a private trait requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private trait")
+                && diagnostic.message.contains("HiddenIssues")
+        }),
+        "unexpected private establishment-route diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub data Ticket { }
+pub trait Issues {
+    machine issue() -> Ticket in Ticket::Issued;
+}
+pub domain Ticket::Issued
+established by Issues::issue;
+
+trait InternalIssues {
+    machine hide() -> Ticket in Ticket::Internal;
+}
+domain Ticket::Internal
+established by InternalIssues::hide;
+"#,
+    );
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
+        .expect("matching route visibility should admit exact establishment selections");
+    let rows = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+                && matches!(
+                    selection.target(),
+                    Target::Resolved(target)
+                        if ["Issues", "Issues::issue", "InternalIssues", "InternalIssues::hide"]
+                            .iter()
+                            .any(|path| checked.symbols.display_path(target.selected_symbol(), "::").ends_with(path))
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 4, "rows={rows:#?}");
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.kind() == Kind::TypeReference)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.kind() == Kind::StaticPathSegment)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+            .count(),
+        2
+    );
+}
+
+#[test]
 fn trait_composition_requires_direct_package_admission() {
     use psi_language_semantics::declaration_selection::{
         AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,

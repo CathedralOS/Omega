@@ -827,6 +827,11 @@ signature-selected overload. The realizing machine's interface exposure
 governs both rows. Identity settles before checked, boundary, accepted, or
 external supply policy, and downstream consumers cross-check the retained
 symbol instead of reselecting by spelling.
+Domain `established by Trait::requirement` paths retain the same exact trait
+and requirement coordinates at signature-free normalization, after uniqueness
+and subject authorization are proved. Each source occurrence inherits the
+domain's exposure even when the normalized semantic route set deduplicates an
+equivalent alternative.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
