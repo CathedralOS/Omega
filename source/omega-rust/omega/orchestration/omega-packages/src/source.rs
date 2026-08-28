@@ -47,6 +47,7 @@ const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
 const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
 const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
+const CACHE_CUSTODY_DEPTH_LIMIT: usize = SOURCE_DEPTH_ABSOLUTE_LIMIT + 4;
 const GIT_LOCATOR_BYTE_LIMIT: usize = 4 * 1024;
 const GIT_REVISION_BYTE_LIMIT: usize = 1024;
 const CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE: u64 = 64 * 1024 * 1024;
@@ -3263,10 +3264,13 @@ fn verify_cache_custody_from_open_root(
     kind: CacheCustodyKind,
     byte_limit: u64,
 ) -> Result<(), SourceResolveError> {
-    let mut pending = vec![(root.to_path_buf(), root_directory)];
+    let root_metadata = root_directory
+        .dir_metadata()
+        .map_err(|error| io_error(root, error))?;
+    let mut pending = vec![(PathBuf::new(), root.to_path_buf(), root_metadata, 0usize)];
     let mut observed = 0usize;
     let mut logical_bytes = 0u64;
-    while let Some((path, directory)) = pending.pop() {
+    while let Some((relative_path, path, classified, depth)) = pending.pop() {
         observed = observed.checked_add(1).ok_or_else(|| {
             cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
         })?;
@@ -3279,16 +3283,16 @@ fn verify_cache_custody_from_open_root(
                 ),
             ));
         }
+        let directory = open_cache_custody_directory(
+            &root_directory,
+            &relative_path,
+            &path,
+            &classified,
+            kind,
+        )?;
         let metadata = directory
             .dir_metadata()
             .map_err(|error| io_error(&path, error))?;
-        if !metadata.is_dir() {
-            return Err(cache_custody_invalid(
-                kind,
-                &path,
-                "opened cache custody node is not a directory",
-            ));
-        }
         verify_capability_cache_node_owner_and_mode(kind, &path, &metadata)?;
 
         let children = directory
@@ -3298,10 +3302,7 @@ fn verify_cache_custody_from_open_root(
             let child = child.map_err(|error| io_error(&path, error))?;
             let name = child.file_name();
             let child_path = path.join(&name);
-            if observed
-                .checked_add(pending.len())
-                .is_none_or(|retained| retained >= CACHE_CUSTODY_ENTRY_LIMIT)
-            {
+            if !cache_custody_has_capacity(observed, pending.len()) {
                 return Err(cache_custody_invalid(
                     kind,
                     root,
@@ -3332,9 +3333,19 @@ fn verify_cache_custody_from_open_root(
                     cache_custody_invalid(kind, &child_path, "cache custody entry count overflowed")
                 })?;
             } else if file_type.is_dir() {
-                let child_directory =
-                    open_cache_custody_directory(&directory, &name, &child_path, &metadata, kind)?;
-                pending.push((child_path, child_directory));
+                let child_depth = depth.checked_add(1).ok_or_else(|| {
+                    cache_custody_invalid(kind, &child_path, "cache custody depth overflowed")
+                })?;
+                if child_depth > CACHE_CUSTODY_DEPTH_LIMIT {
+                    return Err(cache_custody_invalid(
+                        kind,
+                        &child_path,
+                        format!(
+                            "cache custody tree exceeds its {CACHE_CUSTODY_DEPTH_LIMIT}-level depth ceiling"
+                        ),
+                    ));
+                }
+                pending.push((relative_path.join(&name), child_path, metadata, child_depth));
             } else {
                 return Err(cache_custody_invalid(
                     kind,
@@ -3358,17 +3369,37 @@ fn verify_cache_custody_from_open_root(
     Ok(())
 }
 
+fn cache_custody_has_capacity(observed: usize, pending: usize) -> bool {
+    observed
+        .checked_add(pending)
+        .is_some_and(|retained| retained < CACHE_CUSTODY_ENTRY_LIMIT)
+}
+
 fn open_cache_custody_directory(
-    parent: &CapabilityDirectory,
-    name: &OsStr,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
     display_path: &Path,
     classified: &CapabilityMetadata,
     kind: CacheCustodyKind,
 ) -> Result<CapabilityDirectory, SourceResolveError> {
-    let child = parent
-        .open_dir_nofollow(name)
-        .map_err(|error| cache_custody_invalid(kind, display_path, error.to_string()))?;
-    let opened = child
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(display_path, error))?;
+    for component in relative_path.components() {
+        use std::path::Component;
+
+        let Component::Normal(name) = component else {
+            return Err(cache_custody_invalid(
+                kind,
+                display_path,
+                "cache custody queued a noncanonical relative directory path",
+            ));
+        };
+        directory = directory
+            .open_dir_nofollow(name)
+            .map_err(|error| cache_custody_invalid(kind, display_path, error.to_string()))?;
+    }
+    let opened = directory
         .dir_metadata()
         .map_err(|error| io_error(display_path, error))?;
     if !opened.is_dir() || !same_capability_file_identity(classified, &opened) {
@@ -3378,7 +3409,7 @@ fn open_cache_custody_directory(
             "cache directory changed between classification and no-follow open",
         ));
     }
-    Ok(child)
+    Ok(directory)
 }
 
 fn same_capability_file_identity(left: &CapabilityMetadata, right: &CapabilityMetadata) -> bool {
@@ -8423,7 +8454,7 @@ mod tests {
             .expect("replace cache directory with symlink");
         let error = open_cache_custody_directory(
             &directory,
-            OsStr::new("classified"),
+            Path::new("classified"),
             &canonical_cache.join("classified"),
             &classified,
             kind,
@@ -8439,6 +8470,61 @@ mod tests {
                 SourceResolveError::LocalSnapshotInvalid { .. }
             )
         ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_custody_rejects_replaced_concrete_directory_identity() {
+        let cache = temp_root("cache-replaced-concrete-directory");
+        std::fs::create_dir_all(cache.join("classified")).expect("create classified directory");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+        let classified = directory
+            .symlink_metadata("classified")
+            .expect("classify cache directory");
+
+        std::fs::rename(cache.join("classified"), cache.join("retained"))
+            .expect("retain classified directory identity");
+        std::fs::create_dir(cache.join("classified")).expect("replace with concrete directory");
+        let error = open_cache_custody_directory(
+            &directory,
+            Path::new("classified"),
+            &canonical_cache.join("classified"),
+            &classified,
+            CacheCustodyKind::Git,
+        )
+        .expect_err("cache custody must reject a different concrete directory identity");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("changed between classification")
+        ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_custody_entry_capacity_accepts_the_exact_ceiling_only() {
+        assert!(cache_custody_has_capacity(CACHE_CUSTODY_ENTRY_LIMIT - 1, 0));
+        assert!(!cache_custody_has_capacity(CACHE_CUSTODY_ENTRY_LIMIT, 0));
+        assert!(!cache_custody_has_capacity(usize::MAX, 1));
+    }
+
+    #[test]
+    fn cache_custody_wide_tree_does_not_retain_one_handle_per_sibling() {
+        let cache = temp_root("cache-wide-directory");
+        std::fs::create_dir_all(&cache).expect("create cache root");
+        for index in 0..1_024 {
+            std::fs::create_dir(cache.join(format!("directory-{index:04}")))
+                .expect("create sibling cache directory");
+        }
+        let cache = cache.canonicalize().expect("canonicalize cache root");
+
+        verify_cache_custody(&cache, CacheCustodyKind::Git, 0)
+            .expect("wide custody walk must retain paths rather than sibling handles");
 
         let _ = std::fs::remove_dir_all(&cache);
     }
