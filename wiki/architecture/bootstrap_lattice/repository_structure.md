@@ -26,7 +26,7 @@ source/
 
 tests/lattice/            shared cross-rung inputs
 tests/omega/              Omega language acceptance/rejection cases
-  tools/lattice/            replaceable convenience orchestration
+tools/lattice/            replaceable convenience orchestration
 ```
 
 Names in this tree identify source owners, not build generations. In
@@ -34,6 +34,9 @@ particular, `omega₀` and `omega` are two outputs from `source/omega/`; neither
 gets a source directory. The unsuffixed `source/omega/` is the canonical
 Omega-written implementation. The `-rust` suffix exists precisely because
 `source/omega-rust/` is a parallel implementation written in another language.
+Likewise, `bootstrap`, `assurance`, `refinement`, and `canaries` are not semantic
+owners and do not get generic repository buckets. Evidence stays beside the
+artifact it admits; product-language cases stay under `tests/omega/`.
 
 ## Ownership rules
 
