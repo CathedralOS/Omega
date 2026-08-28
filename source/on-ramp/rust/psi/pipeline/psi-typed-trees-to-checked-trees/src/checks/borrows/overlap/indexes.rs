@@ -1,4 +1,8 @@
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode, TableRangeExpression};
+use psi_checked_trees::{
+    BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorPosition,
+    BorrowCompatibilitySelectorSnapshot, BorrowCompatibilitySelectorValue,
+};
 use psi_symbols::SymbolHandle;
 use psi_typed_trees::statement::StatementNode;
 
@@ -8,10 +12,142 @@ enum NormalizedBound {
     Symbol(SymbolHandle),
 }
 
+#[derive(Debug, Clone, Copy)]
+pub(super) struct SelectorLocation {
+    pub side: BorrowCompatibilityPlaceSide,
+    pub segment_index: usize,
+}
+
+pub(super) struct SelectorSnapshotEvaluation<'a> {
+    frozen: Option<&'a [BorrowCompatibilitySelectorSnapshot]>,
+    snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
+    next_frozen: usize,
+    invalid: bool,
+}
+
+impl SelectorSnapshotEvaluation<'_> {
+    pub(super) fn capture() -> Self {
+        Self {
+            frozen: None,
+            snapshot: Vec::new(),
+            next_frozen: 0,
+            invalid: false,
+        }
+    }
+
+    pub(super) fn replay(
+        snapshot: &[BorrowCompatibilitySelectorSnapshot],
+    ) -> SelectorSnapshotEvaluation<'_> {
+        SelectorSnapshotEvaluation {
+            frozen: Some(snapshot),
+            snapshot: Vec::new(),
+            next_frozen: 0,
+            invalid: false,
+        }
+    }
+
+    pub(super) fn finish(self) -> Option<Vec<BorrowCompatibilitySelectorSnapshot>> {
+        if self.invalid
+            || self
+                .frozen
+                .is_some_and(|frozen| self.next_frozen != frozen.len())
+        {
+            None
+        } else if let Some(frozen) = self.frozen {
+            Some(frozen.to_vec())
+        } else {
+            Some(self.snapshot)
+        }
+    }
+
+    fn bound(
+        &mut self,
+        location: SelectorLocation,
+        position: BorrowCompatibilitySelectorPosition,
+        current: impl FnOnce() -> Option<NormalizedBound>,
+    ) -> Option<NormalizedBound> {
+        if let Some(frozen) = self.frozen {
+            let current = current();
+            let Some(row) = frozen.get(self.next_frozen) else {
+                self.invalid = true;
+                return None;
+            };
+            if row.side != location.side
+                || row.segment_index != location.segment_index
+                || row.position != position
+            {
+                self.invalid = true;
+                return None;
+            }
+            let current_value = current.map(|value| match value {
+                NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
+                NormalizedBound::Symbol(symbol) => BorrowCompatibilitySelectorValue::Symbol(symbol),
+            });
+            if row.value != current_value {
+                self.invalid = true;
+                return None;
+            }
+            self.next_frozen += 1;
+            return match row.value {
+                None => None,
+                Some(BorrowCompatibilitySelectorValue::Integer(value)) => {
+                    Some(NormalizedBound::Integer(value))
+                }
+                Some(BorrowCompatibilitySelectorValue::Symbol(symbol)) if symbol.is_valid() => {
+                    Some(NormalizedBound::Symbol(symbol))
+                }
+                Some(BorrowCompatibilitySelectorValue::Symbol(_)) => {
+                    self.invalid = true;
+                    None
+                }
+            };
+        }
+
+        let value = current();
+        self.snapshot.push(BorrowCompatibilitySelectorSnapshot {
+            side: location.side,
+            segment_index: location.segment_index,
+            position,
+            value: value.map(|value| match value {
+                NormalizedBound::Integer(value) => BorrowCompatibilitySelectorValue::Integer(value),
+                NormalizedBound::Symbol(symbol) => BorrowCompatibilitySelectorValue::Symbol(symbol),
+            }),
+        });
+        value
+    }
+}
+
+#[cfg(test)]
 pub(super) fn index_expressions_may_overlap(
     program: &psi_typed_trees::TypedTrees,
     left: ExpressionHandle,
     right: ExpressionHandle,
+) -> bool {
+    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let may_overlap = index_expressions_may_overlap_with_selectors(
+        program,
+        left,
+        SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Forming,
+            segment_index: 0,
+        },
+        right,
+        SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Active,
+            segment_index: 0,
+        },
+        &mut selectors,
+    );
+    may_overlap
+}
+
+pub(super) fn index_expressions_may_overlap_with_selectors(
+    program: &psi_typed_trees::TypedTrees,
+    left: ExpressionHandle,
+    left_location: SelectorLocation,
+    right: ExpressionHandle,
+    right_location: SelectorLocation,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
     if left == right {
         return true;
@@ -25,51 +161,145 @@ pub(super) fn index_expressions_may_overlap(
             // Compare by VALUE through the i64 window; an oversize literal
             // conservatively MAY overlap (never claim disjointness on a
             // spelling difference -- 5 vs 0x5 must still alias).
-            match (left_value.value_i64(), right_value.value_i64()) {
-                (Some(left_value), Some(right_value)) => left_value == right_value,
+            match (
+                selectors.bound(
+                    left_location,
+                    BorrowCompatibilitySelectorPosition::Index,
+                    || left_value.value_i64().map(NormalizedBound::Integer),
+                ),
+                selectors.bound(
+                    right_location,
+                    BorrowCompatibilitySelectorPosition::Index,
+                    || right_value.value_i64().map(NormalizedBound::Integer),
+                ),
+            ) {
+                (
+                    Some(NormalizedBound::Integer(left_value)),
+                    Some(NormalizedBound::Integer(right_value)),
+                ) => left_value == right_value,
                 _ => true,
             }
         }
         (ExpressionNode::Range(left_range), ExpressionNode::Integer(right_value)) => {
-            match right_value.value_i64() {
-                Some(right_value) => range_may_contain_integer(program, left_range, right_value),
+            match selectors.bound(
+                right_location,
+                BorrowCompatibilitySelectorPosition::Index,
+                || right_value.value_i64().map(NormalizedBound::Integer),
+            ) {
+                Some(NormalizedBound::Integer(right_value)) => range_may_contain_integer(
+                    program,
+                    left_range,
+                    left_location,
+                    right_value,
+                    selectors,
+                ),
                 None => true,
+                Some(NormalizedBound::Symbol(_)) => true,
             }
         }
         (ExpressionNode::Integer(left_value), ExpressionNode::Range(right_range)) => {
-            match left_value.value_i64() {
-                Some(left_value) => range_may_contain_integer(program, right_range, left_value),
+            match selectors.bound(
+                left_location,
+                BorrowCompatibilitySelectorPosition::Index,
+                || left_value.value_i64().map(NormalizedBound::Integer),
+            ) {
+                Some(NormalizedBound::Integer(left_value)) => range_may_contain_integer(
+                    program,
+                    right_range,
+                    right_location,
+                    left_value,
+                    selectors,
+                ),
                 None => true,
+                Some(NormalizedBound::Symbol(_)) => true,
             }
         }
         (ExpressionNode::Range(left_range), ExpressionNode::Range(right_range)) => {
-            ranges_may_overlap(program, left_range, right_range)
+            ranges_may_overlap(
+                program,
+                left_range,
+                left_location,
+                right_range,
+                right_location,
+                selectors,
+            )
         }
         _ => true,
     }
 }
 
+#[cfg(test)]
 pub(super) fn index_expression_may_contain_fixed(
     program: &psi_typed_trees::TypedTrees,
     expression: ExpressionHandle,
     index: usize,
 ) -> bool {
+    let mut selectors = SelectorSnapshotEvaluation::capture();
+    index_expression_may_contain_fixed_with_selectors(
+        program,
+        expression,
+        SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Forming,
+            segment_index: 0,
+        },
+        index,
+        &mut selectors,
+    )
+}
+
+pub(super) fn index_expression_may_contain_fixed_with_selectors(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    location: SelectorLocation,
+    index: usize,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
     let Ok(index) = i64::try_from(index) else {
         return true;
     };
     match program.expression_table.expression(expression) {
-        ExpressionNode::Integer(value) => value.value_i64().is_none_or(|value| value == index),
-        ExpressionNode::Range(range) => range_may_contain_integer(program, range, index),
+        ExpressionNode::Integer(value) => selectors
+            .bound(location, BorrowCompatibilitySelectorPosition::Index, || {
+                value.value_i64().map(NormalizedBound::Integer)
+            })
+            .is_none_or(|value| matches!(value, NormalizedBound::Integer(value) if value == index)),
+        ExpressionNode::Range(range) => {
+            range_may_contain_integer(program, range, location, index, selectors)
+        }
         _ => true,
     }
+}
+
+pub(super) fn index_expression_may_overlap_fixed_range_with_selectors(
+    program: &psi_typed_trees::TypedTrees,
+    expression: ExpressionHandle,
+    location: SelectorLocation,
+    start: usize,
+    end: usize,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
+    selectors
+        .bound(location, BorrowCompatibilitySelectorPosition::Index, || {
+            program
+                .expression_table
+                .constant_integer_value(expression)
+                .map(NormalizedBound::Integer)
+        })
+        .and_then(|value| match value {
+            NormalizedBound::Integer(value) => usize::try_from(value).ok(),
+            NormalizedBound::Symbol(_) => None,
+        })
+        .is_none_or(|index| start < end && start <= index && index < end)
 }
 
 fn range_may_contain_integer(
     program: &psi_typed_trees::TypedTrees,
     range: &TableRangeExpression,
+    location: SelectorLocation,
     value: i64,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    let (start, end) = range_integer_bounds(program, range);
+    let (start, end) = range_integer_bounds(program, range, location, selectors);
     // An empty half-open window `[a, a)` contains nothing, so it is disjoint
     // from every index even when the index itself is unknown.
     if range_is_provably_empty(start, end) {
@@ -88,10 +318,13 @@ fn range_may_contain_integer(
 fn ranges_may_overlap(
     program: &psi_typed_trees::TypedTrees,
     left: &TableRangeExpression,
+    left_location: SelectorLocation,
     right: &TableRangeExpression,
+    right_location: SelectorLocation,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
-    let (left_start, left_end) = range_integer_bounds(program, left);
-    let (right_start, right_end) = range_integer_bounds(program, right);
+    let (left_start, left_end) = range_integer_bounds(program, left, left_location, selectors);
+    let (right_start, right_end) = range_integer_bounds(program, right, right_location, selectors);
 
     // Either window being provably empty makes the pair disjoint regardless of
     // the other window's bounds.
@@ -126,10 +359,16 @@ fn range_is_provably_empty(start: Option<NormalizedBound>, end: Option<Normalize
 fn range_integer_bounds(
     program: &psi_typed_trees::TypedTrees,
     range: &TableRangeExpression,
+    location: SelectorLocation,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> (Option<NormalizedBound>, Option<NormalizedBound>) {
     (
-        normalized_bound(program, range.start, &mut Vec::new()),
-        exclusive_end_bound(program, range),
+        selectors.bound(
+            location,
+            BorrowCompatibilitySelectorPosition::RangeStart,
+            || normalized_bound(program, range.start, &mut Vec::new()),
+        ),
+        exclusive_end_bound(program, range, location, selectors),
     )
 }
 
@@ -155,17 +394,29 @@ fn bound_is_at_or_before(left: NormalizedBound, right: NormalizedBound) -> bool 
 fn exclusive_end_bound(
     program: &psi_typed_trees::TypedTrees,
     range: &TableRangeExpression,
+    location: SelectorLocation,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> Option<NormalizedBound> {
-    let end = normalized_bound(program, range.end, &mut Vec::new())?;
-    if range.end_inclusive {
-        let NormalizedBound::Integer(end) = end else {
-            // A symbolic `end + 1` is a computed bound. Keep it unknown until
-            // the shared arithmetic/proof tactic can retain that exact value.
-            return None;
-        };
-        end.checked_add(1).map(NormalizedBound::Integer)
+    let end = selectors.bound(
+        location,
+        BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
+        || {
+            let end = normalized_bound(program, range.end, &mut Vec::new())?;
+            if range.end_inclusive {
+                let NormalizedBound::Integer(end) = end else {
+                    return None;
+                };
+                end.checked_add(1).map(NormalizedBound::Integer)
+            } else {
+                Some(end)
+            }
+        },
+    );
+    if range.end_inclusive && matches!(end, Some(NormalizedBound::Symbol(_))) {
+        selectors.invalid = true;
+        None
     } else {
-        Some(end)
+        end
     }
 }
 
@@ -458,6 +709,167 @@ mod tests {
         );
         assert!(!changed.disjoint);
         assert!(!changed.non_interfering);
+    }
+
+    #[test]
+    fn selector_snapshot_retains_exact_symbol_values_and_ordered_locations() {
+        let mut program = psi_typed_trees::TypedTrees::default();
+        let zero = integer(&mut program, 0);
+        let four = integer(&mut program, 4);
+        let left_mid = named_bound(&mut program, "mid", symbol(1));
+        let right_mid = named_bound(&mut program, "mid", symbol(1));
+        let left = range_bounds(&mut program, zero, left_mid, false);
+        let right = range_bounds(&mut program, right_mid, four, false);
+        let left_location = SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Forming,
+            segment_index: 3,
+        };
+        let right_location = SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Active,
+            segment_index: 5,
+        };
+        let mut capture = SelectorSnapshotEvaluation::capture();
+        assert!(!index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut capture,
+        ));
+        let snapshot = capture.finish().expect("closed captured snapshot");
+        assert_eq!(
+            snapshot
+                .iter()
+                .map(|row| (row.side, row.segment_index, row.position, row.value))
+                .collect::<Vec<_>>(),
+            vec![
+                (
+                    BorrowCompatibilityPlaceSide::Forming,
+                    3,
+                    BorrowCompatibilitySelectorPosition::RangeStart,
+                    Some(BorrowCompatibilitySelectorValue::Integer(0)),
+                ),
+                (
+                    BorrowCompatibilityPlaceSide::Forming,
+                    3,
+                    BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
+                    Some(BorrowCompatibilitySelectorValue::Symbol(symbol(1))),
+                ),
+                (
+                    BorrowCompatibilityPlaceSide::Active,
+                    5,
+                    BorrowCompatibilitySelectorPosition::RangeStart,
+                    Some(BorrowCompatibilitySelectorValue::Symbol(symbol(1))),
+                ),
+                (
+                    BorrowCompatibilityPlaceSide::Active,
+                    5,
+                    BorrowCompatibilitySelectorPosition::RangeExclusiveEnd,
+                    Some(BorrowCompatibilitySelectorValue::Integer(4)),
+                ),
+            ]
+        );
+
+        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot);
+        assert!(!index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut replay,
+        ));
+        assert_eq!(replay.finish(), Some(snapshot.clone()));
+
+        let mut reordered = snapshot;
+        reordered.swap(0, 1);
+        let mut replay = SelectorSnapshotEvaluation::replay(&reordered);
+        let _ = index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut replay,
+        );
+        assert!(
+            replay.finish().is_none(),
+            "selector rows cannot be transposed across ordered path positions",
+        );
+    }
+
+    #[test]
+    fn unknown_selector_positions_close_replay_shape_without_positive_evidence() {
+        let mut program = psi_typed_trees::TypedTrees::default();
+        let computed_left = named_bound(&mut program, "seed", symbol(8));
+        let computed_right = integer(&mut program, 0);
+        let computed_initial =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: computed_left,
+                    operator: BinaryOperator::Add,
+                    right: computed_right,
+                }));
+        install_locals(
+            &mut program,
+            [(symbol(9), "computed", computed_initial, false)],
+        );
+        let zero = integer(&mut program, 0);
+        let four = integer(&mut program, 4);
+        let left_end = named_bound(&mut program, "computed", symbol(9));
+        let right_start = named_bound(&mut program, "computed", symbol(9));
+        let left = range_bounds(&mut program, zero, left_end, false);
+        let right = range_bounds(&mut program, right_start, four, false);
+        let left_location = SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Forming,
+            segment_index: 0,
+        };
+        let right_location = SelectorLocation {
+            side: BorrowCompatibilityPlaceSide::Active,
+            segment_index: 0,
+        };
+        let mut capture = SelectorSnapshotEvaluation::capture();
+        assert!(index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut capture,
+        ));
+        let snapshot = capture.finish().expect("closed unknown snapshot");
+        assert_eq!(snapshot.len(), 4);
+        assert_eq!(snapshot[1].value, None);
+        assert_eq!(snapshot[2].value, None);
+
+        let mut replay = SelectorSnapshotEvaluation::replay(&snapshot);
+        assert!(index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut replay,
+        ));
+        assert!(replay.finish().is_some());
+
+        let mut incomplete = snapshot;
+        incomplete.remove(1);
+        let mut replay = SelectorSnapshotEvaluation::replay(&incomplete);
+        let _ = index_expressions_may_overlap_with_selectors(
+            &program,
+            left,
+            left_location,
+            right,
+            right_location,
+            &mut replay,
+        );
+        assert!(
+            replay.finish().is_none(),
+            "omitting an unknown row must not look like an unobserved selector position",
+        );
     }
 
     #[test]

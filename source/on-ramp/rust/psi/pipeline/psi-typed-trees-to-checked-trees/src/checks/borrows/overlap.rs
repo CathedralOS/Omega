@@ -1,7 +1,15 @@
 mod indexes;
 mod segments;
 
-use self::segments::{place_segments_containment, place_segments_may_overlap};
+use self::segments::{
+    place_segments_containment, place_segments_may_overlap_from_snapshot,
+    place_segments_may_overlap_with_snapshot,
+};
+
+pub(super) struct CapturedPlaceCompatibilityEvidence {
+    pub compatibility: psi_checked_trees::CapturedPlaceCompatibility,
+    pub selector_snapshot: Vec<psi_checked_trees::BorrowCompatibilitySelectorSnapshot>,
+}
 
 pub(super) fn captured_place_compatibility(
     program: &psi_typed_trees::TypedTrees,
@@ -10,10 +18,31 @@ pub(super) fn captured_place_compatibility(
     right: &psi_checked_trees::CapturedPlace,
     right_access: &psi_checked_trees::BorrowAccessKind,
 ) -> psi_checked_trees::CapturedPlaceCompatibility {
+    captured_place_compatibility_with_selector_snapshot(
+        program,
+        left,
+        left_access,
+        right,
+        right_access,
+    )
+    .compatibility
+}
+
+fn captured_place_compatibility_with_selector_snapshot(
+    program: &psi_typed_trees::TypedTrees,
+    left: &psi_checked_trees::CapturedPlace,
+    left_access: &psi_checked_trees::BorrowAccessKind,
+    right: &psi_checked_trees::CapturedPlace,
+    right_access: &psi_checked_trees::BorrowAccessKind,
+) -> CapturedPlaceCompatibilityEvidence {
     let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
     let same_root = roots_valid && left.root_symbol == right.root_symbol;
-    let disjoint = roots_valid
-        && (!same_root || !place_segments_may_overlap(program, &left.segments, &right.segments));
+    let (segments_may_overlap, selector_snapshot) = if same_root {
+        place_segments_may_overlap_with_snapshot(program, &left.segments, &right.segments)
+    } else {
+        (false, Vec::new())
+    };
+    let disjoint = roots_valid && (!same_root || !segments_may_overlap);
     let containment = if same_root {
         place_segments_containment(&left.segments, &right.segments)
     } else {
@@ -29,13 +58,63 @@ pub(super) fn captured_place_compatibility(
     let both_shared = matches!(left_access, psi_checked_trees::BorrowAccessKind::Read)
         && matches!(right_access, psi_checked_trees::BorrowAccessKind::Read);
 
-    psi_checked_trees::CapturedPlaceCompatibility {
+    CapturedPlaceCompatibilityEvidence {
+        compatibility: psi_checked_trees::CapturedPlaceCompatibility {
+            left: left.clone(),
+            right: right.clone(),
+            disjoint,
+            containment,
+            non_interfering: both_shared || (disjoint && !shares_dependent_fact),
+        },
+        selector_snapshot,
+    }
+}
+
+fn captured_place_compatibility_from_selector_snapshot(
+    program: &psi_typed_trees::TypedTrees,
+    left: &psi_checked_trees::CapturedPlace,
+    left_access: &psi_checked_trees::BorrowAccessKind,
+    right: &psi_checked_trees::CapturedPlace,
+    right_access: &psi_checked_trees::BorrowAccessKind,
+    selector_snapshot: &[psi_checked_trees::BorrowCompatibilitySelectorSnapshot],
+) -> Option<psi_checked_trees::CapturedPlaceCompatibility> {
+    let roots_valid = left.root_symbol.is_valid() && right.root_symbol.is_valid();
+    let same_root = roots_valid && left.root_symbol == right.root_symbol;
+    let segments_may_overlap = if same_root {
+        place_segments_may_overlap_from_snapshot(
+            program,
+            &left.segments,
+            &right.segments,
+            selector_snapshot,
+        )?
+    } else {
+        if !selector_snapshot.is_empty() {
+            return None;
+        }
+        false
+    };
+    let disjoint = roots_valid && (!same_root || !segments_may_overlap);
+    let containment = if same_root {
+        place_segments_containment(&left.segments, &right.segments)
+    } else {
+        psi_checked_trees::CapturedPlaceContainment::None
+    };
+    let shares_dependent_fact = same_root
+        && place_segments_share_dependent_fact(
+            program,
+            left.root_symbol,
+            &left.segments,
+            &right.segments,
+        );
+    let both_shared = matches!(left_access, psi_checked_trees::BorrowAccessKind::Read)
+        && matches!(right_access, psi_checked_trees::BorrowAccessKind::Read);
+    Some(psi_checked_trees::CapturedPlaceCompatibility {
         left: left.clone(),
         right: right.clone(),
         disjoint,
         containment,
         non_interfering: both_shared || (disjoint && !shares_dependent_fact),
-    }
+    })
 }
 
 pub(super) fn canonical_place_loan_compatibility(
@@ -259,18 +338,37 @@ pub(super) fn borrow_access_loan_compatibility(
     )
 }
 
-pub(super) fn borrow_loan_compatibility(
+pub(super) fn borrow_loan_compatibility_with_selector_snapshot(
     program: &psi_typed_trees::TypedTrees,
     facts: &psi_checked_trees::CheckFacts,
     left: &psi_checked_trees::BorrowLoanFact,
     right: &psi_checked_trees::BorrowLoanFact,
-) -> psi_checked_trees::CapturedPlaceCompatibility {
-    captured_place_compatibility(
+) -> CapturedPlaceCompatibilityEvidence {
+    captured_place_compatibility_with_selector_snapshot(
         program,
         &captured_loan_place(&facts.borrow, left),
         &left.kind,
         &captured_loan_place(&facts.borrow, right),
         &right.kind,
+    )
+}
+
+pub(super) fn borrow_loan_compatibility_from_selector_snapshot(
+    program: &psi_typed_trees::TypedTrees,
+    facts: &psi_checked_trees::CheckFacts,
+    left: &psi_checked_trees::BorrowLoanFact,
+    left_access: &psi_checked_trees::BorrowAccessKind,
+    right: &psi_checked_trees::BorrowLoanFact,
+    right_access: &psi_checked_trees::BorrowAccessKind,
+    selector_snapshot: &[psi_checked_trees::BorrowCompatibilitySelectorSnapshot],
+) -> Option<psi_checked_trees::CapturedPlaceCompatibility> {
+    captured_place_compatibility_from_selector_snapshot(
+        program,
+        &captured_loan_place(&facts.borrow, left),
+        left_access,
+        &captured_loan_place(&facts.borrow, right),
+        right_access,
+        selector_snapshot,
     )
 }
 

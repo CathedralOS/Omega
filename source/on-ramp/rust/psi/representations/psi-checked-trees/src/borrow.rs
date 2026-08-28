@@ -69,6 +69,46 @@ pub struct BorrowCompatibilityFormation {
     pub statement_index: usize,
 }
 
+/// Which formation-captured place contributed one normalized selector value.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowCompatibilityPlaceSide {
+    Forming,
+    Active,
+}
+
+/// Exact position within one dynamic selector that was normalized.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowCompatibilitySelectorPosition {
+    Index,
+    RangeStart,
+    RangeExclusiveEnd,
+}
+
+/// Value retained by the checked structural selector tactic.
+///
+/// An exact folded integer may enter this vocabulary. Mutable names and
+/// unresolved computed values never do.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BorrowCompatibilitySelectorValue {
+    Integer(i64),
+    Symbol(SymbolHandle),
+}
+
+/// One formation-frozen normalized selector value.
+///
+/// `segment_index` is the exact position in the corresponding captured-place
+/// path. Together with `position`, it prevents values from being transplanted
+/// between selectors or between the two sides of the judgment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct BorrowCompatibilitySelectorSnapshot {
+    pub side: BorrowCompatibilityPlaceSide,
+    pub segment_index: usize,
+    pub position: BorrowCompatibilitySelectorPosition,
+    /// `None` closes the shape for a selector position that remained
+    /// conservatively unknown; it is not positive compatibility evidence.
+    pub value: Option<BorrowCompatibilitySelectorValue>,
+}
+
 /// Checked-only certificate for one automatically admitted loan/loan pair.
 ///
 /// Both resource handles and frozen places are retained. Later checked-tree
@@ -81,6 +121,7 @@ pub struct CheckedBorrowCompatibilityCertificate {
     pub active_loan: Handle<BorrowLoanFact>,
     pub forming_place: CapturedPlace,
     pub active_place: CapturedPlace,
+    pub selector_snapshot: Vec<BorrowCompatibilitySelectorSnapshot>,
     pub conclusion: BorrowCompatibilityConclusion,
     pub derivation: BorrowCompatibilityDerivation,
 }

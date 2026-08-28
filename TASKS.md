@@ -5660,15 +5660,25 @@ Owners:
   zero-premise `Structural` row retains the exact machine/state/statement
   formation coordinate, both exact state-owned loan handles, both frozen
   captured places, and the normalized disjointness/containment/non-interference
-  conclusion. Recording deterministically rebuilds on repeated checked-fact
-  validation, and exact resource rejoin rejects changed handles, places, or
-  formation coordinates without changing which programs admit. Checked-fact
-  validation now also independently recomputes the complete structural
-  conclusion from the frozen places and the resource ledger's exact access
-  polarities. Disjointness, directed containment, non-interference, derivation,
-  and access drift reject independently; conclusion bits are no longer treated
-  as resource facts. Proposition-consuming tactics, captured value versions,
-  premise tokens, dominance, richer proof derivations, and Terminal
+  conclusion. Every dynamic selector position consulted by that judgment now
+  also has one ordered formation snapshot keyed by forming/active side, path
+  segment, and scalar/start/exclusive-end coordinate. A row retains the exact
+  normalized integer or immutable-symbol value, or closes the position as
+  conservatively unknown. Checked replay independently normalizes the exact
+  typed formation expression, requires equality with every frozen row, and
+  then consumes the snapshot; runtime changes cannot retarget the retained
+  immutable-symbol occurrence. A genuinely new pair still uses current
+  formation normalization. Recording deterministically rebuilds on repeated
+  checked-fact validation, and exact resource rejoin rejects changed handles,
+  places, or formation coordinates without changing which programs admit.
+  Checked-fact validation also independently recomputes the complete structural
+  conclusion from the frozen places, selector snapshot, and resource ledger's
+  exact access polarities. Missing, reordered, malformed, or conclusion-changing
+  selector rows and duplicate or stale certificate roster entries reject
+  alongside independent disjointness, containment, non-interference,
+  derivation, and access drift; conclusion bits are no longer treated as
+  resource facts. Proposition-consuming tactics, general captured value
+  versions, premise tokens, dominance, richer proof derivations, and Terminal
   certificates remain open.
 
   The first checked Type/resource prerequisite is also live for direct-root
