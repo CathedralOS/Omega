@@ -403,7 +403,6 @@ pub(super) fn validate_structural_foundation(module: &TerminalModule) -> Result<
             })
             .collect::<Vec<_>>();
         if attachment.identity.is_empty()
-            || !boundary_signature.is_empty()
             || !boundary.scalar_parameters.is_empty()
             || boundary.result.is_some()
             || !candidate.parameters.is_empty()

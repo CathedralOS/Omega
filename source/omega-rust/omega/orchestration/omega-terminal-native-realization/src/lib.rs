@@ -6,6 +6,7 @@
 //! compilation, component policy, executable installation, or publication.
 
 mod optimized_semantic_wrapper_encoding;
+mod optimized_semantic_wrapper_object;
 
 pub use optimized_semantic_wrapper_encoding::{
     OptimizedProgramStorageSemanticWrapperEncodingError,
@@ -13,6 +14,7 @@ pub use optimized_semantic_wrapper_encoding::{
     select_optimized_program_storage_semantic_wrapper_encoding,
     validate_optimized_program_storage_semantic_wrapper_encoding,
 };
+pub use optimized_semantic_wrapper_object::*;
 
 use std::collections::BTreeSet;
 

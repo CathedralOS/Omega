@@ -2483,20 +2483,23 @@ forbids relabelling one of them as a compiler wrapper. The checked settlement
 also binds the source entry to that same Terminal module entry, so the leaf in
 the structural fixture cannot be substituted as the settled continuation.
 
-The next owning join belongs in `omega-terminal-native-realization`, which
-already owns the settlement and depends on both `omega-program-storage` and the
-optimization pipeline. It must consume the canonical optimized object artifact
-for the actual settled Terminal entry, bind that exact object-local
-`MachineId` symbol as the private continuation, independently replay the
-semantic contract and wrapper plan, and then synthesize a distinct
-compiler-owned composite object. That new object places the wrapper before a
-byte-for-byte retained copy of the canonical child text, shifts the retained
-child symbol coordinates, and resolves the wrapper call to the shifted
-object-local semantic-entry symbol. It retains the complete child artifact by
-value and has zero relocations. This is intentionally not an unresolved
-cross-object call: an object-local continuation is not a legal linkage target
-from a sibling object. The compiler-owned wrapper symbol is distinct from every
-Terminal `MachineId`.
+The owning join has now landed in `omega-terminal-native-realization`, which
+owns the settlement and depends on both `omega-program-storage` and the
+optimization pipeline. Its opaque stage consumes the validated settlement, the
+canonical optimized object artifact for the actual settled Terminal entry, and
+the selected compact encoding by value. Independent replay reconstructs those
+three inputs, the semantic contract, and the wrapper plan before synthesizing a
+distinct compiler-owned composite object. The object places the wrapper before
+a byte-for-byte retained copy of the canonical child text, shifts every child
+symbol coordinate with checked arithmetic, classifies the child semantic-entry
+`MachineId` symbol as the private Terminal continuation, and resolves the
+wrapper call to that shifted object-local symbol. It retains the complete child
+artifact and has zero relocations. Dedicated plan, container, and manifest
+identities plus `OMGPSO`/`OMGPSM` v1 codecs make the join replayable. This is
+intentionally not an unresolved cross-object call: an object-local continuation
+is not a legal linkage target from a sibling object. The compiler-owned wrapper
+symbol is distinct from every Terminal `MachineId`, and the manifest explicitly
+withholds physical bridge, image, installation, and publication authority.
 
 The encoding split is now explicit. The semantic wrapper plan owns no byte
 coordinates and requires a later target encoding. Native realization consumes
@@ -2530,10 +2533,16 @@ ProgramStorage regression also establishes that the existing generic source
 lowering preserves two linear owned `Extent in Granted` roots, two entry claims,
 and completion receipts while expressing its handoff as `BoundaryCall`. It must
 not be misrepresented as the positive compiler-private `CallUnit` wrapper
-fixture, and the synthetic leaf must not be paired with that receipt. The first
-positive three-way settlement/object/wrapper test therefore waits for the same
-checked claim-consuming continuation to reach canonical object custody through
-an admitted concrete provider/native realization. That is an implementation
+fixture, and the synthetic leaf must not be paired with that receipt. Provider
+catalog construction and Terminal verification now admit and exactly replay a
+linear, owned, domain-qualified structural provider signature, its positional
+and domain refinement, and its checked claim-consuming provider body. This
+removes the stale zero-structural-argument catalog restriction only: it does not
+select or execute the provider, and the source operation remains a canonical
+`BoundaryCall`. The first positive three-way settlement/object/wrapper test
+therefore still waits for the same checked claim-consuming continuation to reach
+canonical object custody through an admitted structural installed-provider call
+and concrete provider/native realization. That is an implementation
 prerequisite, not a language-design question, and does not add an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
