@@ -1564,11 +1564,21 @@ Owners:
   full retained placement structure rather than treating its compact plan ID
   as authority, requires the exact key, width, claim, occurrence, operation,
   and closed result shape, and returns the unchanged non-Clone request on every
-  rejection. It performs no atomic attempt. Only the existing observing-
-  decisive call is currently derivable. Source calls for the other families,
-  runtime-result custody, an atomic attempt or retry, the non-observing
-  comparison key/selected-encoding law, Terminal rows, provider selection or
-  installation, backend operation identity, and lowering remain open.
+  rejection. It performs no atomic attempt. The shared compiler ordering
+  carrier now preserves observing decisive and single-attempt operations as
+  distinct variants with their exact success/failure orderings, and checked
+  placed-view validation authorizes only the matching permission row. The
+  checked interpreter and legacy native state-graph boundary scan the complete
+  checked expression arena and refuse single-attempt lowering: neither has the
+  three-arm runtime result carrier or a target operation identity. Only the
+  existing observing-decisive source call is currently derivable. A concrete
+  source-visible closed-result carrier and its parser/checker desugaring are
+  engineering prerequisites for `compare_exchange_once`; reusing the decisive
+  prior-value carrier would erase `Uncommitted`. Source calls for the other
+  families, runtime-result custody, an atomic attempt or retry, the non-
+  observing comparison key/selected-encoding law, Terminal rows, provider
+  selection or installation, backend target operation identity, and executable
+  lowering remain open.
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance

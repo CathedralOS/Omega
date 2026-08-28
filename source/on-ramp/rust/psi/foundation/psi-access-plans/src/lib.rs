@@ -1037,7 +1037,7 @@ impl AtomicAccessOperation {
                 AtomicOrderingPlan::CompareExchange { success, failure }
             }
             Self::CompareExchangeOnce { success, failure } => {
-                AtomicOrderingPlan::CompareExchange { success, failure }
+                AtomicOrderingPlan::CompareExchangeOnce { success, failure }
             }
         }
     }

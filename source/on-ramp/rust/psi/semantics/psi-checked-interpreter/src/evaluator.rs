@@ -494,6 +494,27 @@ fn run_on_current_thread(
     options: InterpretOptions,
 ) -> InterpretOutcome {
     let mut evaluator = Evaluator::new_checked(checked, stdin);
+    if checked
+        .expression_table
+        .iter_expressions()
+        .any(|(_, expression)| {
+            matches!(
+                expression,
+                psi_checked_trees::expression::ExpressionNode::Atomic(atomic)
+                    if matches!(
+                        atomic.ordering,
+                        psi_language_core::AtomicOrderingPlan::CompareExchangeOnce { .. }
+                    )
+            )
+        })
+    {
+        return InterpretOutcome::error(
+            "observing single-attempt compare-exchange has no runtime result carrier".to_owned(),
+            evaluator.stdout,
+            evaluator.stderr,
+            evaluator.usage,
+        );
+    }
     evaluator.filesystem_metadata_layout = options.filesystem_metadata_layout;
     match options.filesystem {
         FilesystemAccess::Virtual => {}
@@ -552,6 +573,44 @@ fn run_on_current_thread(
         | Err(Halt::Resource(message)) => {
             InterpretOutcome::error(message, evaluator.stdout, evaluator.stderr, usage)
         }
+    }
+}
+
+#[cfg(test)]
+mod atomic_fence_tests {
+    use super::run_on_current_thread;
+    use crate::InterpretOptions;
+    use psi_checked_trees::CheckedTrees;
+    use psi_checked_trees::expression::{ExpressionNode, TableAtomicExpression};
+    use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
+    use psi_numerics::literals::IntegerLiteral;
+
+    #[test]
+    fn checked_interpreter_rejects_single_attempt_compare_exchange_before_execution() {
+        let mut checked = CheckedTrees::default();
+        let value = checked
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Integer(IntegerLiteral::zero()));
+        checked
+            .typed
+            .expression_table
+            .insert(ExpressionNode::Atomic(TableAtomicExpression {
+                value,
+                result: value,
+                ordering: AtomicOrderingPlan::CompareExchangeOnce {
+                    success: MemoryOrdering::ReceivePublish,
+                    failure: MemoryOrdering::Receive,
+                },
+            }));
+
+        let outcome =
+            run_on_current_thread(&checked, "Main.main", &[], InterpretOptions::default());
+
+        assert_eq!(
+            outcome.error.as_deref(),
+            Some("observing single-attempt compare-exchange has no runtime result carrier")
+        );
     }
 }
 

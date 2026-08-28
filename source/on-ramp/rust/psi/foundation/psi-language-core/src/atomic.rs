@@ -27,6 +27,12 @@ pub enum AtomicOrderingPlan {
         success: MemoryOrdering,
         failure: MemoryOrdering,
     },
+    /// One observing compare-exchange attempt. Unlike decisive
+    /// compare-exchange, this operation may report an uncommitted attempt.
+    CompareExchangeOnce {
+        success: MemoryOrdering,
+        failure: MemoryOrdering,
+    },
 }
 
 /// The observing compare-exchange operation whose result shape is retained by
@@ -70,13 +76,17 @@ impl AtomicOrderingPlan {
             | Self::Store(ordering)
             | Self::ReadModifyWrite(ordering)
             | Self::Swap(ordering) => ordering,
-            Self::CompareExchange { success, .. } => success,
+            Self::CompareExchange { success, .. } | Self::CompareExchangeOnce { success, .. } => {
+                success
+            }
         }
     }
 
     pub const fn failure(self) -> Option<MemoryOrdering> {
         match self {
-            Self::CompareExchange { failure, .. } => Some(failure),
+            Self::CompareExchange { failure, .. } | Self::CompareExchangeOnce { failure, .. } => {
+                Some(failure)
+            }
             _ => None,
         }
     }
@@ -154,12 +164,19 @@ mod tests {
 
     #[test]
     fn operation_plan_keeps_compare_exchange_axes_separate() {
-        let plan = super::AtomicOrderingPlan::CompareExchange {
+        let decisive = super::AtomicOrderingPlan::CompareExchange {
             success: O::ReceivePublish,
             failure: O::Receive,
         };
-        assert_eq!(plan.success(), O::ReceivePublish);
-        assert_eq!(plan.failure(), Some(O::Receive));
+        let once = super::AtomicOrderingPlan::CompareExchangeOnce {
+            success: O::ReceivePublish,
+            failure: O::Receive,
+        };
+        assert_ne!(decisive, once);
+        assert_eq!(decisive.success(), O::ReceivePublish);
+        assert_eq!(decisive.failure(), Some(O::Receive));
+        assert_eq!(once.success(), O::ReceivePublish);
+        assert_eq!(once.failure(), Some(O::Receive));
         assert_eq!(
             super::AtomicOrderingPlan::Load(O::GlobalOrder).failure(),
             None

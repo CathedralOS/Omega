@@ -101,7 +101,8 @@ pub(super) fn validate_operation_ordering(
         AtomicOrderingPlan::Load(ordering) => ordering.valid_for_load(),
         AtomicOrderingPlan::Store(ordering) => ordering.valid_for_store(),
         AtomicOrderingPlan::ReadModifyWrite(_) | AtomicOrderingPlan::Swap(_) => true,
-        AtomicOrderingPlan::CompareExchange { success, failure } => {
+        AtomicOrderingPlan::CompareExchange { success, failure }
+        | AtomicOrderingPlan::CompareExchangeOnce { success, failure } => {
             failure.valid_compare_exchange_failure(success)
         }
     };

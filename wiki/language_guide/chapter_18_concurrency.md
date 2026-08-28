@@ -618,6 +618,12 @@ stored representation selected by the operation law, not user-defined
 equality. `Once` always denotes a weak single attempt; it never means
 non-observing.
 
+The current compiler preserves the observing single-attempt operation as a
+distinct checked ordering and permission identity, but does not yet admit its
+source call. Its closed three-arm result carrier is still an implementation
+prerequisite; checked interpretation and native lowering reject the operation
+rather than erase `Uncommitted` by using the decisive carrier.
+
 `Receive` uses the strong portable baseline. A target may select a weaker
 acquire instruction only when a protocol proof establishes that every
 additional execution preserves the protocol's published facts. Shared

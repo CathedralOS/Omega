@@ -262,6 +262,15 @@ compare-exchange operations and exact x86-64/AArch64 instruction selection.
 The source parser, access-plan records, diagnostics, canaries, and sample
 corpus use the settled vocabulary above; conventional literature spellings
 reject instead of becoming aliases.
+The shared compiler ordering carrier also keeps observing decisive
+compare-exchange distinct from observing single-attempt compare-exchange, with
+the exact success/failure orderings and permission axis preserved through
+access-plan authorization. Source admission for the single-attempt form is not
+implemented yet: the checked/source trees do not have its three-arm closed
+result carrier, so mapping it to the decisive prior-value carrier would lose
+`Uncommitted`. Until that engineering prerequisite exists, both the checked
+interpreter and the legacy native state-graph boundary reject any forged
+single-attempt operation before execution or lowering.
 It does not yet constitute the formal memory model: the language relations,
 their global-order axioms, and proofs that each target mapping refines them
 remain required.

@@ -106,8 +106,10 @@ fn validate_assignment(
             (operation.unwrap_or("unknown fetch operation"), admitted)
         }
         AtomicOrderingPlan::Swap(_) => ("swap", permissions(field).swap),
-        AtomicOrderingPlan::CompareExchange { .. } => {
-            ("compare_exchange", permissions(field).compare_exchange)
+        ordering @ (AtomicOrderingPlan::CompareExchange { .. }
+        | AtomicOrderingPlan::CompareExchangeOnce { .. }) => {
+            observing_compare_exchange_permission(permissions(field), ordering)
+                .expect("compare-exchange ordering has one observing permission row")
         }
         AtomicOrderingPlan::Load(_) => ("load", false),
     };
@@ -339,6 +341,21 @@ fn permissions(field: &psi_typed_trees::typed_trees::PlacedFieldPlan) -> AtomicP
     }
 }
 
+fn observing_compare_exchange_permission(
+    permissions: AtomicPermissions,
+    ordering: AtomicOrderingPlan,
+) -> Option<(&'static str, bool)> {
+    match ordering {
+        AtomicOrderingPlan::CompareExchange { .. } => {
+            Some(("compare_exchange", permissions.compare_exchange))
+        }
+        AtomicOrderingPlan::CompareExchangeOnce { .. } => {
+            Some(("compare_exchange_once", permissions.compare_exchange_once))
+        }
+        _ => None,
+    }
+}
+
 fn fetch_operation(program: &TypedTrees, expression: ExpressionHandle) -> Option<&'static str> {
     let ExpressionNode::Binary(binary) = program.expression_table.expression(expression) else {
         return None;
@@ -400,5 +417,65 @@ fn statement_expression_roots(
             }
             roots
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::observing_compare_exchange_permission;
+    use psi_access_plans::AtomicPermissions;
+    use psi_language_core::atomic::{AtomicOrderingPlan, MemoryOrdering};
+
+    #[test]
+    fn observing_compare_exchange_permissions_do_not_cross_decisive_axis() {
+        let decisive = AtomicOrderingPlan::CompareExchange {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        };
+        let once = AtomicOrderingPlan::CompareExchangeOnce {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        };
+
+        assert_eq!(
+            observing_compare_exchange_permission(
+                AtomicPermissions {
+                    compare_exchange: true,
+                    ..AtomicPermissions::default()
+                },
+                decisive,
+            ),
+            Some(("compare_exchange", true))
+        );
+        assert_eq!(
+            observing_compare_exchange_permission(
+                AtomicPermissions {
+                    compare_exchange_once: true,
+                    ..AtomicPermissions::default()
+                },
+                decisive,
+            ),
+            Some(("compare_exchange", false))
+        );
+        assert_eq!(
+            observing_compare_exchange_permission(
+                AtomicPermissions {
+                    compare_exchange: true,
+                    ..AtomicPermissions::default()
+                },
+                once,
+            ),
+            Some(("compare_exchange_once", false))
+        );
+        assert_eq!(
+            observing_compare_exchange_permission(
+                AtomicPermissions {
+                    compare_exchange_once: true,
+                    ..AtomicPermissions::default()
+                },
+                once,
+            ),
+            Some(("compare_exchange_once", true))
+        );
     }
 }
