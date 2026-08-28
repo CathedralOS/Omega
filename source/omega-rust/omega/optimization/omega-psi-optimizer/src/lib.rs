@@ -21,7 +21,8 @@ pub use analyses::{
     OwnershipFrontierAnalysisFact, ScalarConstant, ScalarConstantAnalysis, ScalarConstantFact,
     ScalarConstantSupport, StronglyConnectedComponentAnalysis, UseDefinitionAnalysis,
     ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
-    analysis_dependencies, compute_analysis,
+    ValueRangeRegion, ValueRangeScope, ValueRangeSupport, analysis_dependencies, compute_analysis,
+    value_range_fact_identity,
 };
 pub use pass_manager::{
     ExternalDecisionContextAxis, ExternalDecisionReplayError, OptimizationRun,
@@ -612,7 +613,10 @@ mod tests {
         let commit = manager
             .commit_revision(&changed, AnalysisInvalidationSet::default(), true)
             .unwrap();
-        assert_eq!(commit.invalidated, vec![AnalysisKind::OwnershipFrontiers]);
+        assert_eq!(
+            commit.invalidated,
+            vec![AnalysisKind::ValueRanges, AnalysisKind::OwnershipFrontiers]
+        );
         assert!(commit.retained.is_empty());
         let AnalysisProduct::OwnershipFrontiers(rebound) = manager
             .require(&changed, AnalysisKind::OwnershipFrontiers)
@@ -678,6 +682,19 @@ mod tests {
         let integer = id(99, ValueId::new);
         let boolean_support = id(600, OperationId::new);
         let integer_support = id(601, OperationId::new);
+        let integer_type = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap();
+        function.parameters = vec![
+            ValueDefinition {
+                value: condition,
+                scalar_type: ScalarType::Boolean,
+                site: ValueDefinitionSite::FunctionParameter(0),
+            },
+            ValueDefinition {
+                value: integer,
+                scalar_type: ScalarType::Integer(integer_type),
+                site: ValueDefinitionSite::FunctionParameter(1),
+            },
+        ];
         function.facts = vec![
             OptimizationFact::BooleanConstant {
                 value: condition,
@@ -740,10 +757,12 @@ mod tests {
         assert_eq!(ranges.facts.len(), 1);
         assert_eq!(ranges.facts[0].minimum, IntegerValue::Unsigned(7));
         assert_eq!(ranges.facts[0].maximum, IntegerValue::Unsigned(7));
-        assert_eq!(
-            ranges.facts[0].support.literal_operation(),
-            Some(integer_support)
-        );
+        assert_eq!(ranges.facts[0].scalar_type, integer_type);
+        assert!(matches!(
+            ranges.facts[0].support,
+            ValueRangeSupport::ScalarConstant(_)
+        ));
+        assert_eq!(ranges.facts[0].valid_in.scope, ValueRangeScope::EntireValue);
     }
 
     #[test]

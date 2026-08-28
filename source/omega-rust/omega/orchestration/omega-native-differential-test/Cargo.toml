@@ -61,6 +61,7 @@ omega-effects = { path = "../../representations/omega-effects" }
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
+omega-psi-optimizer = { path = "../../optimization/omega-psi-optimizer" }
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-optimization-validation = { path = "../../optimization/omega-optimization-validation" }
 omega-program-storage = { path = "../omega-program-storage" }

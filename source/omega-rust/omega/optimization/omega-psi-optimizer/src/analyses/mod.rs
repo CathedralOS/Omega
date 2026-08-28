@@ -8,12 +8,15 @@ pub use control_flow::{
     analysis_dependencies, compute_analysis,
 };
 pub use manager::{AnalysisManager, AnalysisManagerError, AnalysisRevisionCommit};
+pub use omega_optimization_unit::{
+    ValueRangeFact, ValueRangeRegion, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+};
 pub use semantic::{
     EffectClass, EffectKnowledge, EffectSummaryAnalysis, ExecutableEdgeAnalysis,
     ExecutableEdgeFact, ExecutableEdgeKnowledge, FunctionEffectSummary, NodeEffectSummary,
     NodeLiveness, OwnershipFrontierAnalysis, OwnershipFrontierAnalysisFact, ScalarConstant,
     ScalarConstantAnalysis, ScalarConstantFact, ScalarConstantSupport, UseDefinitionAnalysis,
-    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis, ValueRangeFact,
+    ValueFactRegion, ValueLivenessAnalysis, ValueLivenessBlock, ValueRangeAnalysis,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -1159,6 +1159,7 @@ dependencies = [
  "omega-optimization-validation",
  "omega-program-storage",
  "omega-provider-planning",
+ "omega-psi-optimizer",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
@@ -1309,6 +1310,7 @@ dependencies = [
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
+ "psi-terminal-semantics",
  "psi-terminal-verifier",
 ]
 
@@ -1486,6 +1488,7 @@ dependencies = [
  "psi-terminal",
  "psi-terminal-codec",
  "psi-terminal-fuel",
+ "psi-terminal-semantics",
  "psi-terminal-verifier",
 ]
 

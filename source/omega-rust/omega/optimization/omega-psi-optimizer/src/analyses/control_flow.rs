@@ -93,7 +93,12 @@ pub fn analysis_dependencies(kind: AnalysisKind) -> Option<AnalysisSet> {
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::ScalarConstants,
         ])),
-        AnalysisKind::ValueRanges => Some(AnalysisSet::new([AnalysisKind::ScalarConstants])),
+        AnalysisKind::ValueRanges => Some(AnalysisSet::new([
+            AnalysisKind::ControlFlowGraph,
+            AnalysisKind::Dominators,
+            AnalysisKind::UseDefinition,
+            AnalysisKind::ScalarConstants,
+        ])),
         AnalysisKind::ValueLiveness => Some(AnalysisSet::new([
             AnalysisKind::ControlFlowGraph,
             AnalysisKind::UseDefinition,
@@ -220,7 +225,7 @@ fn function_control_flow(function: &PsiOptimizationFunction) -> FunctionControlF
     }
 }
 
-fn dominators(unit: &PsiOptimizationUnit, reverse: bool) -> DominatorAnalysis {
+pub(super) fn dominators(unit: &PsiOptimizationUnit, reverse: bool) -> DominatorAnalysis {
     let cfg = control_flow(unit);
     DominatorAnalysis {
         functions: cfg

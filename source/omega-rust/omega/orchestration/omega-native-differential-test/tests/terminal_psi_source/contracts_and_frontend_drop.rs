@@ -211,6 +211,7 @@ fn checked_source_survives_frontend_drop_as_verified_terminal_psi() {
                             argument: ValueId::new(2).expect("jump constant"),
                             scalar_type: ScalarType::Integer(i32_type),
                         }],
+                        trivial_affine_discards: Vec::new(),
                     },
                     TerminalAbstractOperation::IntegerConstant {
                         psi_operation: OperationId::new(2).expect("operation"),

@@ -755,8 +755,8 @@ policy. The verified builder projects rows one-for-one in reconstruction order,
 and the independent validator reprojects the complete catalog for both initial
 and transformed revisions. Rewrites retain rows for removed and pruned source
 sites as historical proof custody. This does not make a premise a function-wide
-range fact: a future proof-derived range analysis must establish an exact
-current-revision site or region before consuming it. The existing narrower
+range fact. `ValueRanges` establishes an exact current-revision region for the
+first closed integer-proof vocabulary, while the existing narrower
 accepted-operation fact index remains the rule-facing capability for current
 proof-certified scalar rewrites.
 
@@ -1015,6 +1015,26 @@ where the current abstract-operation vocabulary erases those proof-site fields.
 Analyses may derive nonzero, interval, congruence, or case facts only by joining
 these rows to an independently proven current site or region; catalog presence
 alone never broadens their scope.
+
+`ValueRanges` is the first such join. Its shared fact carrier lives in
+`omega-optimization-unit` so the independent validator can consume it, but the
+rows are derived analysis output and are not stored in `PsiOptimizationUnit`.
+A row binds the unit revision, machine, value, fixed integer type, inclusive
+bounds, exact support identities, and either whole-value scalar-constant scope
+or an operation-entry anchor plus the canonical current-CFG dominated-block
+roster. The initial proof vocabulary admits canonical exact-right-shift count
+bounds and unsigned divide/remainder nonzero bounds. It deliberately declines
+signed nonzero disjunctions, exact-cast goals, and exact-left-shift overflow
+goals rather than convexifying or approximating them.
+
+The optimization analysis and validation crate use separate reconstruction
+paths. Validation checks the unit first, rejoins the exact operation obligation,
+accepted fact and canonical proof question, rebuilds the kernel proposition,
+intersects only supported direct value/literal conjuncts, recomputes reachability
+and dominance, and checks SSA availability at the requested operation entry.
+Every revision invalidates `ValueRanges`, even if a rewrite claims its proof
+catalog unchanged. A stale identity, altered bound/type/support/anchor/roster,
+pre-anchor query, or nondominating query therefore fails closed.
 
 Literal-derived constants and ranges name the exact supporting Psi operation
 and are valid only for their `(unit revision, machine, value)` region.

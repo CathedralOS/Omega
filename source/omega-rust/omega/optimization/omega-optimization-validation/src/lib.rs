@@ -42,8 +42,13 @@ use psi_core::{
 use psi_terminal_fuel::TerminalFuelSchedule;
 
 mod current_ownership;
+mod current_value_ranges;
 mod prephysical_manifest;
 mod projection;
+
+pub use current_value_ranges::{
+    validate_current_value_range_fact, validate_current_value_range_fact_at,
+};
 
 pub use prephysical_manifest::{
     OptimizationManifestStage, OptimizationStructuralStatistics, PhysicalOptimizationDataStatus,
@@ -379,6 +384,12 @@ pub enum OptimizationUnitValidationError {
     AcceptedObligationFactIndexMismatch,
     ProofQuestionIndexMismatch,
     OwnershipFrontierFactIndexMismatch,
+    CurrentValueRangeFactMismatch,
+    CurrentValueRangeFactNotApplicable {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     CandidateAcceptedObligationFactMismatch,
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralOperationFrontier {

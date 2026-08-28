@@ -130,6 +130,7 @@ impl AnalysisManager {
         // retain an old revision's rows across a successful commit.
         if unit.identity != self.revision {
             invalidated.insert(AnalysisKind::OwnershipFrontiers);
+            invalidated.insert(AnalysisKind::ValueRanges);
         }
         if validate_retained {
             for (kind, cached) in self
