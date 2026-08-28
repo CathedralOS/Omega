@@ -314,9 +314,7 @@ validate_arithmetic_primitive:
         jeq r0, r1, validate_arithmetic_opcode
         jmp reject
 validate_arithmetic_opcode:
-        mov r20, r14
-        imm r1, 19
-        add r20, r1
+        mov r20, r40                 ; owner-returned post-pop opcode
         mov r21, r9
         call require_tape_byte
         jmp validate_expr_primitive_next
@@ -383,67 +381,65 @@ comparison_shape_ge:
         imm r7, 1
         imm r8, 0
 validate_comparison_shape:
-        mov r20, r14
-        imm r1, 19
-        add r20, r1
+        mov r20, r40
         mov r21, r4
         call require_tape_byte
-        mov r20, r14
-        imm r1, 20
+        mov r20, r40
+        imm r1, 1
         add r20, r1
         mov r21, r5
         call require_tape_byte
-        mov r20, r14
-        imm r1, 21
+        mov r20, r40
+        imm r1, 2
         add r20, r1
         mov r21, r6
         call require_tape_byte
-        mov r20, r14
-        imm r1, 22
+        mov r20, r40
+        imm r1, 3
         add r20, r1
-        mov r21, r14
-        imm r1, 49
+        mov r21, r40
+        imm r1, 30
         add r21, r1
         call require_tape_word
-        mov r20, r14
+        mov r20, r40
+        imm r1, 11
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r40
+        imm r1, 12
+        add r20, r1
+        imm r21, 0
+        call require_tape_byte
+        mov r20, r40
+        imm r1, 13
+        add r20, r1
+        mov r21, r7
+        call require_tape_word
+        mov r20, r40
+        imm r1, 21
+        add r20, r1
+        imm r21, 12
+        call require_tape_byte
+        mov r20, r40
+        imm r1, 22
+        add r20, r1
+        mov r21, r40
+        imm r1, 40
+        add r21, r1
+        call require_tape_word
+        mov r20, r40
         imm r1, 30
         add r20, r1
         imm r21, 1
         call require_tape_byte
-        mov r20, r14
+        mov r20, r40
         imm r1, 31
         add r20, r1
         imm r21, 0
         call require_tape_byte
-        mov r20, r14
+        mov r20, r40
         imm r1, 32
-        add r20, r1
-        mov r21, r7
-        call require_tape_word
-        mov r20, r14
-        imm r1, 40
-        add r20, r1
-        imm r21, 12
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 41
-        add r20, r1
-        mov r21, r14
-        imm r1, 59
-        add r21, r1
-        call require_tape_word
-        mov r20, r14
-        imm r1, 49
-        add r20, r1
-        imm r21, 1
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 50
-        add r20, r1
-        imm r21, 0
-        call require_tape_byte
-        mov r20, r14
-        imm r1, 51
         add r20, r1
         mov r21, r8
         call require_tape_word
@@ -585,12 +581,6 @@ scan_expr_artifact_arithmetic_count:
 ; combine prefix, 2 for the exact comparison-materialization layout, or 0.
 classify_expr_binary_macro:
         mov r20, r14
-        imm r1, 22
-        add r20, r1
-        imm r1, 524296
-        load r2, r1
-        jlt r2, r20, classify_expr_binary_none
-        mov r20, r14
         imm r21, 2
         call exact_tape_byte_matches
         imm r1, 1
@@ -619,13 +609,15 @@ classify_expr_binary_pop:
         imm r1, 3
         add r20, r1
         imm r21, 0
-        call exact_match_pop
+        call exact_match_pop_successor
+        mov r40, r1                  ; preserve successor before bool compare
         imm r1, 1
-        jeq r0, r1, classify_expr_binary_opcode
+        jeq r0, r1, classify_expr_binary_opcode_found
         jmp classify_expr_binary_none
+classify_expr_binary_opcode_found:
 classify_expr_binary_opcode:
-        imm r1, 2097171
-        add r1, r14
+        imm r1, 2097152
+        add r1, r40
         loadb r8, r1
         imm r1, 3
         jeq r8, r1, classify_expr_binary_arithmetic_operands
@@ -643,16 +635,16 @@ classify_expr_binary_opcode:
         jeq r8, r1, classify_expr_binary_comparison
         jmp classify_expr_binary_none
 classify_expr_binary_arithmetic_operands:
-        imm r20, 20
+        imm r20, 1
         imm r21, 0
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_binary_arithmetic_rhs
         jmp classify_expr_binary_none
 classify_expr_binary_arithmetic_rhs:
-        imm r20, 21
+        imm r20, 2
         imm r21, 1
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_binary_arithmetic
         jmp classify_expr_binary_none
@@ -661,18 +653,18 @@ classify_expr_binary_arithmetic:
         ret
 
 classify_expr_binary_comparison:
-        mov r20, r14
-        imm r1, 59
+        mov r20, r40
+        imm r1, 40
         add r20, r1
         imm r1, 524296
         load r2, r1
         jlt r2, r20, classify_expr_binary_none
         ; The branch operands are either r0,r1 or r1,r0.
-        imm r1, 2097172
-        add r1, r14
+        imm r1, 2097153
+        add r1, r40
         loadb r8, r1
-        imm r1, 2097173
-        add r1, r14
+        imm r1, 2097154
+        add r1, r40
         loadb r9, r1
         imm r1, 0
         jeq r8, r1, classify_expr_comparison_lhs_zero
@@ -688,47 +680,47 @@ classify_expr_comparison_lhs_one:
         jeq r9, r1, classify_expr_comparison_results
         jmp classify_expr_binary_none
 classify_expr_comparison_results:
-        imm r20, 30
+        imm r20, 11
         imm r21, 1
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_comparison_result_reg1
         jmp classify_expr_binary_none
 classify_expr_comparison_result_reg1:
-        imm r20, 31
+        imm r20, 12
         imm r21, 0
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_comparison_jump
         jmp classify_expr_binary_none
 classify_expr_comparison_jump:
-        imm r20, 40
+        imm r20, 21
         imm r21, 12
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_comparison_result2
         jmp classify_expr_binary_none
 classify_expr_comparison_result2:
-        imm r20, 49
+        imm r20, 30
         imm r21, 1
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_comparison_result_reg2
         jmp classify_expr_binary_none
 classify_expr_comparison_result_reg2:
-        imm r20, 50
+        imm r20, 31
         imm r21, 0
-        call expr_tape_byte_matches
+        call expr_opcode_byte_matches
         imm r1, 1
         jeq r0, r1, classify_expr_comparison_values
         jmp classify_expr_binary_none
 classify_expr_comparison_values:
+        imm r1, 2097165
+        add r1, r40
+        load r8, r1                    ; first result at opcode + 13
         imm r1, 2097184
-        add r1, r14
-        load r8, r1                    ; first result at base + 32
-        imm r1, 2097203
-        add r1, r14
-        load r9, r1                    ; second result at base + 51
+        add r1, r40
+        load r9, r1                    ; second result at opcode + 32
         imm r1, 0
         jeq r8, r1, classify_expr_comparison_first_zero
         imm r1, 1
@@ -758,6 +750,16 @@ expr_tape_byte_matches:
         jeq r2, r21, expr_tape_matches
         imm r0, 0
         ret
+
+; r40 = owner-returned post-pop opcode, r20 = relative byte offset.
+expr_opcode_byte_matches:
+        imm r1, 2097152
+        add r1, r40
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r21, expr_tape_matches
+        imm r0, 0
+        ret
 expr_tape_word_matches:
         imm r1, 2097152
         add r1, r14
@@ -768,6 +770,58 @@ expr_tape_word_matches:
         ret
 expr_tape_matches:
         imm r0, 1
+        ret
+
+; Resolve one independently indexed primitive row to its checked artifact
+; extent.  Literal width is intrinsic to the Alpha immediate; binary widths
+; are derived from the shared pop owner and only their post-pop opcode tails
+; remain local to the primitive lowering owner. Input r20 is the primitive
+; row; output r0/r1 is [start,successor).
+exact_expr_primitive_extent:
+        imm r1, 524696
+        load r2, r1
+        jlt r20, r2, exact_expr_primitive_extent_row
+        jmp reject
+exact_expr_primitive_extent_row:
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 8413184
+        add r1, r2
+        load r41, r1
+        imm r1, 8396800
+        add r1, r2
+        load r40, r1
+        imm r1, 1
+        jeq r40, r1, exact_expr_primitive_literal_extent
+        imm r1, 2
+        jeq r40, r1, exact_expr_primitive_binary_extent
+        imm r1, 3
+        jeq r40, r1, exact_expr_primitive_binary_extent
+        jmp reject
+exact_expr_primitive_binary_extent:
+        mov r20, r41
+        imm r1, 3
+        add r20, r1
+        imm r21, 0
+        call exact_require_pop
+        mov r2, r3                    ; post-pop opcode
+        imm r1, 2
+        jeq r40, r1, exact_expr_primitive_arithmetic_extent
+        imm r1, 40                    ; comparison opcode tail
+        add r2, r1
+        jmp exact_expr_primitive_extent_return
+exact_expr_primitive_arithmetic_extent:
+        imm r1, 3                     ; arithmetic opcode and operands
+        add r2, r1
+        jmp exact_expr_primitive_extent_return
+exact_expr_primitive_literal_extent:
+        mov r2, r41
+        imm r1, 10                    ; Alpha immediate instruction
+        add r2, r1
+exact_expr_primitive_extent_return:
+        mov r0, r41
+        mov r1, r2
         ret
 
 ; r0 is an independently validated compiler-synthetic `imm r0` site.

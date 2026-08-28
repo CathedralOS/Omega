@@ -325,14 +325,10 @@ validate_memory_load_opcode:
         jmp validate_memory_site_next
 
 validate_memory_store:
-        imm r1, 16
-        jlt r14, r1, reject
-        mov r6, r14
-        sub r6, r1
         ; exact pop of the evaluated address into r1
-        mov r20, r6
+        mov r20, r14                 ; memory opcode is pop successor
         imm r21, 1
-        call exact_require_pop
+        call exact_require_pop_before
         imm r1, 1
         jeq r9, r1, validate_memory_store_byte
         imm r1, 8

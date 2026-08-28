@@ -48,9 +48,13 @@ raw-byte-access policy. Selected local, memory, primitive, and push rows likewis
 share one canonical exact-table decoder instead of tranche-local copies. The
 same responsibility-neutral owner decodes compiler-generated push, pop,
 saved-frame prologue, optional frame-allocation, parameter-store, and epilogue
-macros once. Frame, effect, memory, expression, and stack-table consumers pass
-their independently reconstructed PC/register/slot facts to those decoders
-instead of embedding another instruction-byte copy. A shared fail-closed
+macros once and returns their checked instruction starts and exclusive
+successors. It also owns the generated root prelude, contiguous call-pop
+sequences, pop-before-store shape, and return-relative epilogue lookup. Frame,
+effect, memory, expression composition/primitive, and stack-table consumers
+pass independently reconstructed semantic identities and PC/register/slot
+facts to those decoders instead of embedding another instruction-byte copy,
+macro length, or successor calculation. A shared fail-closed
 procedure resolver likewise maps independently scanned source procedure IDs to
 the unique checked entry-block PC. All semantic consumers now use that identity
 for the selected `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`,
@@ -71,12 +75,15 @@ consumer: its 16 blocks, 14 transitions, 27 calls, nine explicit returns, and
 synthetic return now remove another 126 artifact-coordinate occurrences in
 favor of source rows, procedure identities, canonical call fallthroughs, and
 return-relative epilogues. Its coupled data and meaning modules required no
-coordinate change. Other intra-procedure consumers remain to migrate. A fifth
+coordinate change. Primitive composition similarly obtains literal or binary
+extents from the primitive-row owner; binary extents compose the shared pop
+successor with the local opcode tail rather than repeating total macro widths.
+Other intra-procedure consumers remain to migrate. A fifth
 negative control mutates `emit_dec`'s witness event PC while retaining the exact
 source and artifact and proves that witness coordinates cannot select semantic
-identity. The final ROOT tape is 79,565 bytes for the current
+identity. The final ROOT tape is 79,894 bytes for the current
 exact subjects, SHA-256
-`066baedb5148a56c0bde2bd312f9364e6c051a2e14a5927ed6c92d497c5fad74`.
+`8c8756b0df7d8116e2943e11aa03e6be575b271bdb549a2c7c86304f04328f88`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

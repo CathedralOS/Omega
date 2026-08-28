@@ -341,8 +341,7 @@ validate_frame_pc:
 
         mov r20, r6
         call exact_require_prologue
-        imm r1, 19
-        add r6, r1
+        mov r6, r4                   ; checked prologue successor
         imm r1, 0
         jeq r9, r1, validate_param_stores_init
 
@@ -352,8 +351,7 @@ validate_frame_pc:
         imm r1, 8
         mul r21, r1
         call exact_require_frame_allocation
-        imm r1, 13
-        add r6, r1
+        mov r6, r2                   ; checked allocation successor
 
 validate_param_stores_init:
         imm r7, 0                       ; parameter index
@@ -366,8 +364,7 @@ validate_param_store:
         mov r20, r6
         mov r21, r7
         call exact_require_parameter_store
-        imm r1, 19
-        add r6, r1
+        mov r6, r4                   ; checked parameter-store successor
         imm r1, 1
         add r7, r1
         jmp validate_param_store_loop
@@ -403,27 +400,9 @@ check_call_unstage:
         jlt r8, r1, call_unstage_arity_ok
         jmp reject
 call_unstage_arity_ok:
-        imm r1, 0
-        jeq r8, r1, call_unstage_done
-        mov r6, r8
-        imm r1, 16
-        mul r6, r1
-        mov r7, r14
-        sub r7, r6                      ; first pop macro
-        mov r9, r8
-        imm r1, 1
-        sub r9, r1                      ; expected destination register
-call_unstage_loop:
-        mov r20, r7
-        mov r21, r9
-        call exact_require_pop
-        imm r1, 16
-        add r7, r1
-        imm r1, 0
-        jeq r9, r1, call_unstage_done
-        imm r1, 1
-        sub r9, r1
-        jmp call_unstage_loop
+        mov r20, r14                 ; checked call successor
+        mov r21, r8                  ; source arity
+        call exact_require_pop_sequence
 call_unstage_done:
         ret
 

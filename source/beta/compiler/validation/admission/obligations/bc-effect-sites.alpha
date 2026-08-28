@@ -370,82 +370,19 @@ require_effect_eof:
 
 ; The only non-source call/halt is the exact 31-byte root prelude.
 validate_prelude:
+        imm r20, 69                  ; independently scanned main identity
+        call exact_require_program_prelude
+        mov r6, r2                   ; checked call start
+        mov r7, r3                   ; checked halt start
+        mov r8, r4                   ; checked prelude successor
         imm r1, 524512
         load r2, r1
-        imm r3, 31
-        jeq r2, r3, prelude_imm_sp
-        jmp reject
-prelude_imm_sp:
-        imm r1, 2097152
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, prelude_imm_sp_reg
-        jmp reject
-prelude_imm_sp_reg:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 15
-        jeq r2, r3, prelude_imm_sp_value
-        jmp reject
-prelude_imm_sp_value:
-        imm r2, 1
-        add r1, r2
-        load r2, r1
-        imm r3, 1048576
-        jeq r2, r3, prelude_imm_fp
-        jmp reject
-prelude_imm_fp:
-        imm r1, 2097162
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, prelude_imm_fp_reg
-        jmp reject
-prelude_imm_fp_reg:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 14
-        jeq r2, r3, prelude_imm_fp_value
-        jmp reject
-prelude_imm_fp_value:
-        imm r2, 1
-        add r1, r2
-        load r2, r1
-        imm r3, 1048576
-        jeq r2, r3, prelude_main_target
-        jmp reject
-prelude_main_target:
-        call find_main_pc
-        mov r8, r0
-        imm r1, 2097172
-        loadb r2, r1
-        imm r3, 19
-        jeq r2, r3, prelude_main_operand
-        jmp reject
-prelude_main_operand:
-        imm r2, 1
-        add r1, r2
-        load r2, r1
-        jeq r2, r8, prelude_halt
-        jmp reject
-prelude_halt:
-        imm r1, 2097181
-        loadb r2, r1
-        imm r3, 0
-        jeq r2, r3, prelude_halt_reg
-        jmp reject
-prelude_halt_reg:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 0
-        jeq r2, r3, prelude_own_call
+        jeq r2, r8, prelude_own_call
         jmp reject
 prelude_own_call:
-        imm r0, 20
+        mov r0, r6
         call mark_effect_owner
-        imm r0, 29
+        mov r0, r7
         call mark_effect_owner
         jmp validate_emit_helper
 
@@ -795,12 +732,8 @@ validate_event_owned:
 
 ; r14 names a ret instruction ending an exact 20-byte bc epilogue.
 check_epilogue_at_ret:
-        imm r1, 19
-        jlt r14, r1, reject
         mov r20, r14
-        sub r20, r1
-        mov r21, r14
-        call exact_require_epilogue
+        call exact_require_epilogue_at_ret
         ret
 
 ; Validate exact `jmp literal; db ...; imm r0,addr; imm r1,len; call helper`
@@ -1115,45 +1048,6 @@ resolve_proc_found:
         load r2, r1
         imm r1, 524600
         store r1, r2                    ; resolved source callee procedure index
-        imm r1, 3235840
-        add r1, r12
-        load r0, r1
-        ret
-
-; Locate the source procedure literally named `main`.
-find_main_pc:
-        imm r10, 0
-find_main_loop:
-        imm r1, 359
-        jlt r10, r1, find_main_candidate
-        jmp reject
-find_main_candidate:
-        mov r12, r10
-        imm r1, 8
-        mul r12, r1
-        imm r1, 3178496
-        add r1, r12
-        load r2, r1
-        imm r3, 0
-        jeq r2, r3, find_main_name
-        jmp find_main_next
-find_main_name:
-        imm r1, 3149824
-        add r1, r12
-        load r20, r1
-        imm r1, 3153920
-        add r1, r12
-        load r21, r1
-        imm r22, 4
-        imm r23, literal_main
-        call source_name_equals_literal
-        imm r1, 1
-        jeq r0, r1, find_main_found
-find_main_next:
-        imm r1, 1
-        add r10, r1
-        jmp find_main_loop
-find_main_found:
         imm r1, 3235840
         add r1, r12
         load r0, r1
