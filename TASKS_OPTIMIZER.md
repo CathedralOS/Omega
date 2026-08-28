@@ -2078,6 +2078,24 @@ dependency.
   relaxation, exit contract, function-relative manifest, frame, emission,
   section, object, image, installation, or publication authority.
 
+  An explicit-staging-only function-relative carrier now owns that resolved
+  route together with a validated `BaselineNearLayoutV1` frameless exit and an
+  independently rebuilt v4 realization manifest. It does not reinterpret the
+  rematerializer as a build selection: the original source-visible selection
+  identity remains unchanged, selected-lowering completion is absent, and the
+  allocation-recovery, post-allocation-machine, and function-relative-layout
+  projections must all be empty because none ran as named build phases. The v5
+  post-allocation manifest instead supplies the sole typed
+  `PressureRematerialization` row and transformed selected root. The carrier
+  replays the complete resolved-layout custody before deriving any exit or
+  manifest field, binds the caller-saved physical path (`rax`/`rcx` or
+  `x0`/`x1`), and rejects detached roots, later-phase selections, exit/manifest/
+  receipt corruption, and cross-source substitution. Whole-function exit v3
+  and realization manifest v4 require no bump. This is not wired into the
+  compiler physical pipeline until rematerialization receives its own explicit
+  build selection, and it still grants no frame, emission, section, object,
+  image, installation, or publication authority.
+
   A sibling immutable v2 function-relative layout artifact now resolves that
   deferral under the exact named required-stage policy
   `EntryThenZeroFallthroughThenNonzeroV1`. It independently reorders the
