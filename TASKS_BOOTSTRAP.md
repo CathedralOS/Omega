@@ -139,8 +139,12 @@ and are not blocked on this ruling.
   refinement.
 - [ ] Replace provisional checked-in artifacts with publication receipts rooted
   in that execution.
-- [ ] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
-  a verifier for already observed data, not a hidden producer.
+- [x] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
+  a verifier for already observed data, not a hidden producer. Its only command
+  calls `verify` over sixteen caller-supplied evidence paths; it neither invokes
+  a lower-rung executable nor writes an observation or receipt. The focused
+  suite covers exact verification plus missing, malformed, oversized,
+  disagreeing, and mutated evidence.
 - [ ] Ensure the publication path is reproducible by running the constituent
   compiler commands directly without `tools/lattice/verify-lattice.sh`.
 - [x] Isolate the parked imperative Gamma compatibility compiler after
