@@ -11,9 +11,11 @@ use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity;
 
 use crate::{
-    OptimizedPostAllocationMachinePipelineError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedRegisterHomeCustodyError, OptimizedResolvedSelectedFormLayoutError,
-    OptimizedSelectedFormEncodingError, OptimizedX86BranchRelaxationError,
+    OptimizedPostAllocationMachineOptimizationError, OptimizedPostAllocationMachinePipelineError,
+    OptimizedPostSelectedLoweringHomeCustodyError, OptimizedRegisterHomeCustodyError,
+    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
+    OptimizedX86BranchRelaxationError, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64CbnzFusionCustodyReceipt,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
     StagedOptimizedRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomes,
@@ -24,22 +26,30 @@ use crate::{
     TerminalWholeFunctionExitContractIdentity, TerminalX86BranchRelaxationIdentity,
     ValidatedTerminalWholeFunctionExitContract,
     stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     stage_optimized_post_allocation_machine_plan,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
-    stage_optimized_resolved_selected_form_layout, stage_optimized_x86_branch_relaxation,
-    stage_terminal_whole_function_exit_contract,
+    stage_optimized_resolved_selected_form_layout,
+    stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
+    stage_optimized_x86_branch_relaxation, stage_terminal_whole_function_exit_contract,
+    stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
+    validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
+    validate_optimized_aarch64_cbnz_fusion_custody,
     validate_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
     validate_optimized_post_allocation_machine_plan_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
     validate_optimized_register_home_custody, validate_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation, validate_terminal_whole_function_exit_contract,
+    validate_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 3;
+const MANIFEST_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -76,6 +86,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub selections: OptimizationSelectionIdentity,
     pub selected_lowering_selections: OptimizationSelectionIdentity,
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pub post_allocation_machine_selections: OptimizationSelectionIdentity,
     pub function_relative_layout_selections: OptimizationSelectionIdentity,
     pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
@@ -83,10 +94,12 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub pre_allocation_machine_effects:
         omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity,
     pub post_allocation_machine: omega_machine_optimizer::TerminalPostAllocationMachineIdentity,
+    pub baseline_pre_layout: TerminalSelectedFormEncodingIdentity,
     pub pre_layout: TerminalSelectedFormEncodingIdentity,
     pub baseline_resolved_layout: TerminalResolvedSelectedFormLayoutIdentity,
     pub resolved_layout: TerminalResolvedSelectedFormLayoutIdentity,
     pub x86_branch_relaxation: Option<TerminalX86BranchRelaxationIdentity>,
+    pub aarch64_cbnz_fusion: Option<omega_machine_optimizer::TerminalAarch64CbnzFusionIdentity>,
     pub whole_function_exit_contract: TerminalWholeFunctionExitContractIdentity,
     pub target: NativeTarget,
     pub layout_policy: TerminalSelectedFunctionLayoutPolicy,
@@ -106,7 +119,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v3\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v4\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -158,6 +171,8 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownSelectedLoweringCompletionStatus(tag));
             }
         };
+        let post_allocation_machine_selections =
+            OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let function_relative_layout_selections =
             OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let pre_physical_manifest =
@@ -173,6 +188,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
             omega_machine_optimizer::TerminalPostAllocationMachineIdentity::from_bytes(
                 cursor.array()?,
             );
+        let baseline_pre_layout = TerminalSelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let pre_layout = TerminalSelectedFormEncodingIdentity::from_bytes(cursor.array()?);
         let baseline_resolved_layout =
             TerminalResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
@@ -185,6 +201,17 @@ impl FunctionRelativeOptimizationRealizationManifest {
             )),
             tag => {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(tag));
+            }
+        };
+        let aarch64_cbnz_fusion = match cursor.byte()? {
+            0 => None,
+            1 => Some(
+                omega_machine_optimizer::TerminalAarch64CbnzFusionIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            ),
+            tag => {
+                return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64CbnzFusionStatus(tag));
             }
         };
         let whole_function_exit_contract =
@@ -234,16 +261,19 @@ impl FunctionRelativeOptimizationRealizationManifest {
             selections,
             selected_lowering_selections,
             selected_lowering_completion,
+            post_allocation_machine_selections,
             function_relative_layout_selections,
             pre_physical_manifest,
             post_allocation_manifest,
             selected,
             pre_allocation_machine_effects,
             post_allocation_machine,
+            baseline_pre_layout,
             pre_layout,
             baseline_resolved_layout,
             resolved_layout,
             x86_branch_relaxation,
+            aarch64_cbnz_fusion,
             whole_function_exit_contract,
             target,
             layout_policy,
@@ -298,6 +328,12 @@ impl FunctionRelativeOptimizationRealizationManifest {
         }
         writeln!(
             output,
+            "post-allocation-machine suite: {}",
+            hex(&self.post_allocation_machine_selections.bytes())
+        )
+        .unwrap();
+        writeln!(
+            output,
             "function-relative-layout suite: {}",
             hex(&self.function_relative_layout_selections.bytes())
         )
@@ -329,6 +365,12 @@ impl FunctionRelativeOptimizationRealizationManifest {
         .unwrap();
         writeln!(
             output,
+            "baseline pre-layout encoding: {}",
+            hex(&self.baseline_pre_layout.bytes())
+        )
+        .unwrap();
+        writeln!(
+            output,
             "pre-layout encoding: {}",
             hex(&self.pre_layout.bytes())
         )
@@ -350,6 +392,12 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 writeln!(output, "x86 branch relaxation: {}", hex(&identity.bytes())).unwrap()
             }
             None => writeln!(output, "x86 branch relaxation: not run").unwrap(),
+        }
+        match self.aarch64_cbnz_fusion {
+            Some(identity) => {
+                writeln!(output, "AArch64 CBNZ fusion: {}", hex(&identity.bytes())).unwrap()
+            }
+            None => writeln!(output, "AArch64 CBNZ fusion: not run").unwrap(),
         }
         writeln!(
             output,
@@ -525,6 +573,173 @@ impl StagedFunctionRelativeLayoutOptimizationRealization {
     }
 }
 
+/// Completed direct-homes realization for the exact AArch64 CBNZ
+/// post-allocation transformation. Both baseline and transformed forms remain
+/// owned so later custody can prove the four-byte change without treating the
+/// transformed layout as baseline authority.
+#[derive(Debug)]
+pub struct StagedAarch64CbnzFunctionRelativeRealization {
+    homes: StagedOptimizedRegisterHomes,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    fusion: StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: StagedOptimizedSelectedFormEncoding,
+    encoding: StagedOptimizedSelectedFormEncoding,
+    baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    layout: StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: ValidatedTerminalWholeFunctionExitContract,
+    manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    custody: StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
+}
+
+impl StagedAarch64CbnzFunctionRelativeRealization {
+    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
+        &self.homes
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn fusion(&self) -> &StagedOptimizedAarch64CbnzFusion {
+        &self.fusion
+    }
+    pub const fn baseline_encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.baseline_encoding
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.baseline_layout
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.layout
+    }
+    pub const fn exit_contract(&self) -> &ValidatedTerminalWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(&self) -> &StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        &self.custody
+    }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_mut(
+        &mut self,
+    ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &mut self.manifest
+    }
+
+    #[cfg(test)]
+    pub(crate) fn exit_contract_mut(&mut self) -> &mut ValidatedTerminalWholeFunctionExitContract {
+        &mut self.exit_contract
+    }
+}
+
+/// Same completed CBNZ realization after a named selected-lowering run.
+#[derive(Debug)]
+pub struct StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization {
+    homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    fusion: StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: StagedOptimizedSelectedFormEncoding,
+    encoding: StagedOptimizedSelectedFormEncoding,
+    baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    layout: StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: ValidatedTerminalWholeFunctionExitContract,
+    manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    custody: StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
+}
+
+impl StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization {
+    pub const fn homes(&self) -> &StagedOptimizedRegisterHomesAfterSelectedLowering {
+        &self.homes
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn fusion(&self) -> &StagedOptimizedAarch64CbnzFusion {
+        &self.fusion
+    }
+    pub const fn baseline_encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.baseline_encoding
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.baseline_layout
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.layout
+    }
+    pub const fn exit_contract(&self) -> &ValidatedTerminalWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(
+        &self,
+    ) -> &StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        &self.custody
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    fusion: StagedOptimizedAarch64CbnzFusionCustodyReceipt,
+    exit_contract: TerminalWholeFunctionExitContractIdentity,
+    realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+    source: StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    fusion: StagedOptimizedAarch64CbnzFusionCustodyReceipt,
+    exit_contract: TerminalWholeFunctionExitContractIdentity,
+    realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+impl StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+    pub const fn source(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+        self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+        &self.machine
+    }
+    pub const fn fusion(&self) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
+        self.fusion
+    }
+    pub const fn exit_contract(&self) -> TerminalWholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
+    }
+}
+
+impl StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+    pub const fn source(&self) -> &StagedOptimizedPostSelectedLoweringHomeCustodyReceipt {
+        &self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+        &self.machine
+    }
+    pub const fn fusion(&self) -> StagedOptimizedAarch64CbnzFusionCustodyReceipt {
+        self.fusion
+    }
+    pub const fn exit_contract(&self) -> TerminalWholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
     source: StagedOptimizedRegisterHomeCustodyReceipt,
@@ -580,6 +795,7 @@ pub enum FunctionRelativeOptimizationRealizationError {
     Homes(OptimizedPostSelectedLoweringHomeCustodyError),
     DirectHomes(OptimizedRegisterHomeCustodyError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
+    PostAllocationMachineOptimization(OptimizedPostAllocationMachineOptimizationError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
     X86BranchRelaxation(OptimizedX86BranchRelaxationError),
@@ -609,6 +825,7 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     UnknownStage(u8),
     UnknownSelectedLoweringCompletionStatus(u8),
     UnknownX86BranchRelaxationStatus(u8),
+    UnknownAarch64CbnzFusionStatus(u8),
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,
@@ -918,6 +1135,379 @@ pub fn validate_function_relative_layout_optimization_realization_custody(
     Ok(custody)
 }
 
+pub fn stage_aarch64_cbnz_function_relative_realization(
+    homes: StagedOptimizedRegisterHomes,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    fusion: StagedOptimizedAarch64CbnzFusion,
+) -> Result<
+    StagedAarch64CbnzFunctionRelativeRealization,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    validate_optimized_register_home_custody(
+        homes.legality_stage(),
+        homes.homes(),
+        homes.post_allocation_manifest(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
+    validate_optimized_post_allocation_machine_plan_custody(&homes, &machine)
+        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    validate_optimized_aarch64_cbnz_fusion_custody(&homes, &machine, &fusion)
+        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selected = selected_stage.selected();
+    let physical = selected_stage.register_environment().physical();
+    let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) =
+        build_cbnz_artifacts(selected, &machine, physical, &fusion)?;
+    let manifest = expected_direct_cbnz_manifest(
+        &homes,
+        &machine,
+        &fusion,
+        &baseline_encoding,
+        &encoding,
+        &baseline_layout,
+        &layout,
+        &exit_contract,
+    )?;
+    let custody = StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        source: homes.custody(),
+        machine: machine.custody().clone(),
+        fusion: fusion.custody(),
+        exit_contract: exit_contract.identity(),
+        realization: manifest.record.identity,
+    };
+    Ok(StagedAarch64CbnzFunctionRelativeRealization {
+        homes,
+        machine,
+        fusion,
+        baseline_encoding,
+        encoding,
+        baseline_layout,
+        layout,
+        exit_contract,
+        manifest,
+        custody,
+    })
+}
+
+pub fn validate_aarch64_cbnz_function_relative_realization_custody(
+    staged: &StagedAarch64CbnzFunctionRelativeRealization,
+) -> Result<
+    StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let source = validate_optimized_register_home_custody(
+        staged.homes.legality_stage(),
+        staged.homes.homes(),
+        staged.homes.post_allocation_manifest(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
+    if source != staged.homes.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let machine =
+        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    if &machine != staged.machine.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let fusion = validate_optimized_aarch64_cbnz_fusion_custody(
+        &staged.homes,
+        &staged.machine,
+        &staged.fusion,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    if fusion != staged.fusion.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let selected_stage = staged
+        .homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    validate_cbnz_artifacts(
+        selected_stage.selected(),
+        &staged.machine,
+        selected_stage.register_environment().physical(),
+        &staged.fusion,
+        &staged.baseline_encoding,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.layout,
+        &staged.exit_contract,
+    )?;
+    let manifest = expected_direct_cbnz_manifest(
+        &staged.homes,
+        &staged.machine,
+        &staged.fusion,
+        &staged.baseline_encoding,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.layout,
+        &staged.exit_contract,
+    )?;
+    if manifest.record != staged.manifest.record {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let custody = StagedAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        source,
+        machine,
+        fusion,
+        exit_contract: staged.exit_contract.identity(),
+        realization: manifest.record.identity,
+    };
+    if custody != staged.custody {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    Ok(custody)
+}
+
+pub fn stage_selected_lowering_aarch64_cbnz_function_relative_realization(
+    homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    fusion: StagedOptimizedAarch64CbnzFusion,
+) -> Result<
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    validate_optimized_register_home_after_selected_lowering_custody(&homes)
+        .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
+    validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+        &homes, &machine,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(
+        &homes, &machine, &fusion,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    let run = homes.selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let physical = selected_stage.register_environment().physical();
+    let artifacts = match run.steps().last() {
+        Some(step) => build_cbnz_artifacts(step.fold(), &machine, physical, &fusion)?,
+        None => build_cbnz_artifacts(selected_stage.selected(), &machine, physical, &fusion)?,
+    };
+    let (baseline_encoding, encoding, baseline_layout, layout, exit_contract) = artifacts;
+    let manifest = expected_selected_lowering_cbnz_manifest(
+        &homes,
+        &machine,
+        &fusion,
+        &baseline_encoding,
+        &encoding,
+        &baseline_layout,
+        &layout,
+        &exit_contract,
+    )?;
+    let custody = StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        source: homes.custody().clone(),
+        machine: machine.custody().clone(),
+        fusion: fusion.custody(),
+        exit_contract: exit_contract.identity(),
+        realization: manifest.record.identity,
+    };
+    Ok(
+        StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization {
+            homes,
+            machine,
+            fusion,
+            baseline_encoding,
+            encoding,
+            baseline_layout,
+            layout,
+            exit_contract,
+            manifest,
+            custody,
+        },
+    )
+}
+
+pub fn validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody(
+    staged: &StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
+) -> Result<
+    StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let source = validate_optimized_register_home_after_selected_lowering_custody(&staged.homes)
+        .map_err(FunctionRelativeOptimizationRealizationError::Homes)?;
+    if &source != staged.homes.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let machine = validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody(
+        &staged.homes,
+        &staged.machine,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    if &machine != staged.machine.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let fusion = validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody(
+        &staged.homes,
+        &staged.machine,
+        &staged.fusion,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachineOptimization)?;
+    if fusion != staged.fusion.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let run = staged.homes.selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let physical = selected_stage.register_environment().physical();
+    match run.steps().last() {
+        Some(step) => validate_cbnz_artifacts(
+            step.fold(),
+            &staged.machine,
+            physical,
+            &staged.fusion,
+            &staged.baseline_encoding,
+            &staged.encoding,
+            &staged.baseline_layout,
+            &staged.layout,
+            &staged.exit_contract,
+        )?,
+        None => validate_cbnz_artifacts(
+            selected_stage.selected(),
+            &staged.machine,
+            physical,
+            &staged.fusion,
+            &staged.baseline_encoding,
+            &staged.encoding,
+            &staged.baseline_layout,
+            &staged.layout,
+            &staged.exit_contract,
+        )?,
+    }
+    let manifest = expected_selected_lowering_cbnz_manifest(
+        &staged.homes,
+        &staged.machine,
+        &staged.fusion,
+        &staged.baseline_encoding,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.layout,
+        &staged.exit_contract,
+    )?;
+    if manifest.record != staged.manifest.record {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let custody = StagedSelectedLoweringAarch64CbnzFunctionRelativeRealizationCustodyReceipt {
+        source,
+        machine,
+        fusion,
+        exit_contract: staged.exit_contract.identity(),
+        realization: manifest.record.identity,
+    };
+    if custody != staged.custody {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    Ok(custody)
+}
+
+fn build_cbnz_artifacts<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+) -> Result<
+    (
+        StagedOptimizedSelectedFormEncoding,
+        StagedOptimizedSelectedFormEncoding,
+        StagedOptimizedResolvedSelectedFormLayout,
+        StagedOptimizedResolvedSelectedFormLayout,
+        ValidatedTerminalWholeFunctionExitContract,
+    ),
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let baseline_encoding =
+        stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)
+            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let baseline_layout = stage_optimized_resolved_selected_form_layout(
+        selected,
+        machine,
+        physical,
+        &baseline_encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let encoding =
+        stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+            selected, machine, physical, fusion,
+        )
+        .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let layout = stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+        selected, machine, physical, &encoding, fusion,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let exit_contract = stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion(
+        selected, machine, physical, &encoding, fusion, &layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    Ok((
+        baseline_encoding,
+        encoding,
+        baseline_layout,
+        layout,
+        exit_contract,
+    ))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_cbnz_artifacts<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<(), FunctionRelativeOptimizationRealizationError> {
+    validate_optimized_layout_independent_selected_form_encoding(
+        selected,
+        machine,
+        physical,
+        baseline_encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    validate_optimized_resolved_selected_form_layout(
+        selected,
+        machine,
+        physical,
+        baseline_encoding,
+        baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+        selected, machine, physical, fusion, encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+        selected, machine, physical, encoding, fusion, layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion(
+        selected,
+        machine,
+        physical,
+        encoding,
+        fusion,
+        layout,
+        exit_contract,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)
+}
+
 fn build_realization<S: ValidatedTerminalSelectedAnalysis>(
     selected: &S,
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
@@ -1168,6 +1758,192 @@ fn validate_relaxation_manifest_roots(
     }
 }
 
+#[allow(clippy::too_many_arguments)]
+fn expected_direct_cbnz_manifest(
+    homes: &StagedOptimizedRegisterHomes,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selections = selected_stage.optimized_target().optimized().selections();
+    let post = homes.post_allocation_manifest().record();
+    expected_cbnz_manifest(
+        selections,
+        OptimizationSelections::default().identity(),
+        None,
+        homes.custody().manifest(),
+        post.identity,
+        post.selected,
+        post.target,
+        machine,
+        fusion,
+        baseline_encoding,
+        encoding,
+        baseline_layout,
+        layout,
+        exit_contract,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expected_selected_lowering_cbnz_manifest(
+    homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let run = homes.selected_lowering_run();
+    let completion = run.custody();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selections = selected_stage.optimized_target().optimized().selections();
+    let post = homes.post_allocation_manifest().record();
+    expected_cbnz_manifest(
+        selections,
+        selections
+            .for_phase(OptimizationExecutionPhase::SelectedLowering)
+            .identity(),
+        Some(completion.identity()),
+        completion.source().manifest(),
+        post.identity,
+        post.selected,
+        post.target,
+        machine,
+        fusion,
+        baseline_encoding,
+        encoding,
+        baseline_layout,
+        layout,
+        exit_contract,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn expected_cbnz_manifest(
+    selections: &OptimizationSelections,
+    selected_lowering_selections: OptimizationSelectionIdentity,
+    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
+    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+    selected: TerminalSelectedInstructionPlanIdentity,
+    target: NativeTarget,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let selected_lowering_phase =
+        selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
+    let post_phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
+    let layout_phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    if selected_lowering_selections != selected_lowering_phase.identity()
+        || selected_lowering_completion.is_some() == selected_lowering_phase.is_empty()
+        || post_phase.as_slice() != [Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
+        || !layout_phase.is_empty()
+        || fusion.custody().selections() != selections.identity()
+        || fusion.custody().post_allocation_machine_selections() != post_phase.identity()
+        || machine.machine().receipt().post_allocation_manifest() != post_allocation_manifest
+        || machine.machine().receipt().selected() != selected
+        || baseline_encoding.selected() != selected
+        || baseline_encoding.machine() != machine.machine().receipt().identity()
+        || baseline_encoding.machine_optimization().is_some()
+        || encoding.selected() != selected
+        || encoding.machine() != machine.machine().receipt().identity()
+        || encoding.machine_optimization().is_none_or(|custody| {
+            custody.selections() != selections.identity()
+                || custody.post_allocation_machine_selections() != post_phase.identity()
+                || custody.fusion() != fusion.fusion().receipt().identity()
+        })
+        || baseline_layout.pre_layout() != baseline_encoding.identity()
+        || baseline_layout.machine_optimization().is_some()
+        || layout.pre_layout() != encoding.identity()
+        || layout.machine_optimization() != encoding.machine_optimization()
+        || baseline_layout.target() != target
+        || layout.target() != target
+        || exit_contract.contract().selected != selected
+        || exit_contract.contract().post_allocation_manifest != post_allocation_manifest
+        || exit_contract.contract().post_allocation_machine
+            != machine.machine().receipt().identity()
+        || exit_contract.contract().pre_layout != encoding.identity()
+        || exit_contract.contract().resolved_layout != layout.identity()
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let baseline_bytes = statistics(baseline_layout)?.bytes;
+    let final_statistics = statistics(layout)?;
+    let expected_shrink = u64::try_from(fusion.custody().action_count())
+        .ok()
+        .and_then(|count| count.checked_mul(4))
+        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
+    if baseline_bytes.checked_sub(final_statistics.bytes) != Some(expected_shrink) {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
+    let mut record = FunctionRelativeOptimizationRealizationManifest {
+        identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(b"pending"),
+        stage: FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
+        selections: selections.identity(),
+        selected_lowering_selections,
+        selected_lowering_completion,
+        post_allocation_machine_selections: post_phase.identity(),
+        function_relative_layout_selections: layout_phase.identity(),
+        pre_physical_manifest,
+        post_allocation_manifest,
+        selected,
+        pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
+        post_allocation_machine: machine.machine().receipt().identity(),
+        baseline_pre_layout: baseline_encoding.identity(),
+        pre_layout: encoding.identity(),
+        baseline_resolved_layout: baseline_layout.identity(),
+        resolved_layout: layout.identity(),
+        x86_branch_relaxation: None,
+        aarch64_cbnz_fusion: Some(fusion.fusion().receipt().identity()),
+        whole_function_exit_contract: exit_contract.identity(),
+        target,
+        layout_policy: layout.policy(),
+        scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
+        statistics: final_statistics,
+        frame: unavailable,
+        machine_emission: unavailable,
+        section_placement: unavailable,
+        symbols: unavailable,
+        object_relocations: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    record.identity = record.recomputed_identity();
+    Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
+}
+
 fn expected_manifest(
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
@@ -1194,6 +1970,9 @@ fn expected_manifest(
         .identity();
     let function_relative_layout_selections = selections
         .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+        .identity();
+    let post_allocation_machine_selections = selections
+        .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
         .identity();
     let post = homes.post_allocation_manifest().record();
     if completion.selections() != selections.identity()
@@ -1231,16 +2010,19 @@ fn expected_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: Some(completion.identity()),
+        post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: completion.source().manifest(),
         post_allocation_manifest: post.identity,
         selected: completion.final_selected(),
         pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
         post_allocation_machine: machine.machine().receipt().identity(),
+        baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: final_layout.identity(),
         x86_branch_relaxation: relaxation.map(StagedOptimizedX86BranchRelaxation::identity),
+        aarch64_cbnz_fusion: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
@@ -1283,6 +2065,9 @@ fn expected_direct_manifest(
     let function_relative_layout_selections = selections
         .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
         .identity();
+    let post_allocation_machine_selections = selections
+        .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
+        .identity();
     if !selections
         .for_phase(OptimizationExecutionPhase::SelectedLowering)
         .is_empty()
@@ -1324,16 +2109,19 @@ fn expected_direct_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: None,
+        post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: source.manifest(),
         post_allocation_manifest: post.identity,
         selected,
         pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
         post_allocation_machine: machine.machine().receipt().identity(),
+        baseline_pre_layout: encoding.identity(),
         pre_layout: encoding.identity(),
         baseline_resolved_layout: baseline_layout.identity(),
         resolved_layout: relaxation.layout().identity(),
         x86_branch_relaxation: Some(relaxation.identity()),
+        aarch64_cbnz_fusion: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
@@ -1453,12 +2241,14 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         None => canonical.push(0),
     }
     for identity in [
+        manifest.post_allocation_machine_selections.bytes(),
         manifest.function_relative_layout_selections.bytes(),
         manifest.pre_physical_manifest.bytes(),
         manifest.post_allocation_manifest.bytes(),
         manifest.selected.bytes(),
         manifest.pre_allocation_machine_effects.bytes(),
         manifest.post_allocation_machine.bytes(),
+        manifest.baseline_pre_layout.bytes(),
         manifest.pre_layout.bytes(),
         manifest.baseline_resolved_layout.bytes(),
         manifest.resolved_layout.bytes(),
@@ -1466,6 +2256,13 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         canonical.extend_from_slice(&identity);
     }
     match manifest.x86_branch_relaxation {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
+    match manifest.aarch64_cbnz_fusion {
         Some(identity) => {
             canonical.push(1);
             canonical.extend_from_slice(&identity.bytes());
