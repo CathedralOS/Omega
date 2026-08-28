@@ -17,19 +17,23 @@ between Delta and `omega₀`.
 
 ## Contents
 
-- [`samples/`](samples/) contains the executable Delta corpus and current
-  canonical compiler source experiment.
+- [`compiler/`](compiler/) contains the canonical Delta-written compiler source.
+- [`samples/`](samples/) contains the executable Delta language corpus.
 - [`meaning/`](meaning/) contains the lower-rung Delta-to-Gamma elaboration and
   its byte transport helpers.
 - [`build/`](build/) contains provisional artifacts. They are inputs to
   reconstruction, never authorities.
 - [`source-closures/`](source-closures/) contains the exact canonical compiler
   source and tool manifests.
+- [`lower_rooted_assembly_publication_v1_driver.py`](lower_rooted_assembly_publication_v1_driver.py)
+  prepares a fresh exact evidence attempt, reports token/epoch-bound stage
+  status, and finalizes the existing V1 receipt without hiding a compiler run
+  inside the verifier.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
-[`samples/lowermachine.alp`](samples/lowermachine.alp) is the current canonical
-Delta compiler source experiment. Its fixed storage and host I/O choices are
+[`compiler/main.alp`](compiler/main.alp) is the current canonical Delta compiler
+source. Its fixed storage and host I/O choices are
 implementation/resource commitments only where the Delta contract explicitly
 retains them.
 

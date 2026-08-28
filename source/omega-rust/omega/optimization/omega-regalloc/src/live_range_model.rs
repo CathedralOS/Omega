@@ -49,9 +49,10 @@ pub struct TerminalFunctionLiveRanges {
 }
 
 /// One exact instruction phase where a definition writes at the before point
-/// while all listed virtual inputs must still be readable. This is allocation
-/// hazard evidence and does not make the definition semantically live before
-/// its ordinary after-point definition.
+/// while all listed unrelated virtual inputs must still be readable. A tied
+/// source is represented only by [`TerminalDistinctUseDefTie`] and is not
+/// duplicated in `uses`. This is allocation hazard evidence and does not make
+/// the definition semantically live before its ordinary after-point definition.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct TerminalEarlyClobberConstraint {
     pub block: TerminalSelectedBlockId,

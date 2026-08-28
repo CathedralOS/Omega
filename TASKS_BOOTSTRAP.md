@@ -105,10 +105,22 @@ the bounded target dialect. It remains fail-closed until those observations
 come from the exact full-source execution; it does not manufacture the missing
 compiler artifact.
 
+Design blocker: [`OWNER_QUESTIONS.md`](OWNER_QUESTIONS.md) Q16 must ratify the
+independent Delta v1 language, resource, and observation semantics before the
+canonical compiler can receive checked source-to-artifact authority. The
+current Beta-written Delta-to-Gamma translator is an implementation of the
+proposed meaning route, not the authority that selects its own semantic
+subject. Exact executions, assembly publication, strict target validation,
+executable reconstruction, and frontend implementation remain engineering work
+and are not blocked on this ruling.
+
 - [ ] Execute the exact canonical Delta compiler source through the accepted
   Gamma route for every required build host.
-- [ ] Bind source identity, Delta semantics/resources, target identity, emitted
-  artifact identity, and direct lower-rooted refinement.
+- [ ] Bind source identity, target identity, emitted artifact identity, and the
+  exact reconstruction custody needed by the eventual refinement edge.
+- [ ] **BLOCKED — OWNER Q16:** bind the independently ratified Delta
+  semantics/resources and complete direct lower-rooted source-to-artifact
+  refinement.
 - [ ] Replace provisional checked-in artifacts with publication receipts rooted
   in that execution.
 - [ ] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
