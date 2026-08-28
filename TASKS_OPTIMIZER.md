@@ -587,12 +587,27 @@ These facts constrain the work below.
   exact provider realized-ceiling refinement. Immutable verified-input custody
   rejects a self-consistent replacement catalog, and the source-derived Console
   canary checks that the frontend catalog, ceilings, calls, and provider rows
-  reach optimizer admission unchanged. The
+  reach optimizer admission unchanged. Structural root-role replay is now
+  closed for the admitted vocabulary. Function and boundary attachments must
+  name known structural types; a retained `self`, when present, is unique and
+  exactly typed by that attachment. Machine-local logical roots are unique by
+  Terminal's complete root key rather than only by `PlaceId`.
+  `BooleanStructuralField` independently requires the entry machine's exact
+  readable affine, unqualified, claim-free structural parameter, one relevant
+  Boolean Record field, a Boolean scalar parameter, no content-entry claims,
+  one observation pair, and nominal cleanup on every scalar return.
+  `ReturnStructural` accepts only a structural parameter or the exact current
+  `CallStructural` operation result and requires type, multiplicity, and
+  qualifications to equal the declared result. Focused corruption matrices
+  cover logical-root duplication and the observation/return signature axes,
+  and the source-derived nominal
+  Boolean convergence program now passes verified optimizer admission with
+  identical observation roots. The
   builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, remaining root-kind legality, full ownership/custody replay, exact
+  proof/range evidence, full ownership/custody replay, exact
   payloadless-callee classification, root-service reach, and the
   crash/requirement and remaining effect vocabulary also remain across the
   Terminal-Psi lowering boundary.
@@ -1278,8 +1293,13 @@ dependency.
   parameter/result shape, unique hidden operation identities, complete tuple,
   and reverse local-plus-affine-tail discard order while keeping no-ABI locals
   out of executable `declared_places`; real one-local, two-local, and
-  local-plus-tail source canaries pass admission. Remaining root-kind legality,
-  full ownership/custody replay—including hidden local-operation
+  local-plus-tail source canaries pass admission. Function/boundary
+  attachment and `self` legality, logical structural-root uniqueness,
+  `BooleanStructuralField` source/field/cleanup legality, and
+  `ReturnStructural` source-kind and signature equality now receive exact
+  independent replay; focused corruptions and the real nominal-Boolean source
+  canary cover that rung. Remaining full ownership/custody replay—including
+  hidden local-operation
   provenance—exact payloadless-callee classification, root-service reach, and
   the crash/requirement and remaining effect vocabulary remain open. The
   service-catalog rung is complete: unit identity v12 retains the exact

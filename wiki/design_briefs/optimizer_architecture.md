@@ -828,7 +828,21 @@ ceilings must exactly equal the candidate function ceiling and refine the
 declared boundary ceiling. Verified-input projection rejects replacement
 catalogs even when locally self-consistent, while the source-derived Console
 canary proves frontend catalog, ceiling, call, and provider custody.
-Remaining root-kind legality, ownership/custody replay, exact
+The admitted structural root vocabulary now has an independent role layer as
+well. Function and boundary attachments must be known; any `self` parameter is
+unique and exactly matches its attachment, while an attachment may legitimately
+have no runtime `self`. Logical root keys are unique per function across
+parameters, result, operation results, byte literals, provider attachments, and
+trivial affine locals. `BooleanStructuralField` is restricted to the entry
+machine's exact readable affine, unqualified and unclaimed structural parameter,
+one relevant Boolean Record field, one observation pair, no content-entry
+claims, a Boolean scalar parameter, and nominal cleanup at every scalar return.
+`ReturnStructural` may source only a structural parameter or the exact retained
+`CallStructural` operation result, with structural type, multiplicity, and
+qualifications equal to the declared result. Focused corruption matrices cover
+the root and signature axes, and the nominal Boolean convergence source canary
+crosses verified optimizer admission with its exact observation roots intact.
+Remaining ownership/custody replay, exact
 payloadless-callee classification, root-service reach, and the wider
 crash/requirement and remaining effect vocabulary remain explicit unfinished
 validator layers. It
