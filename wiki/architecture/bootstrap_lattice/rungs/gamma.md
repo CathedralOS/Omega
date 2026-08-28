@@ -54,10 +54,7 @@ and auditable.
 The exact spike sizes, supported operation cohorts, and gate counts belong in
 the spike's own README and live task status, not in this durable rung definition.
 
-The older compiler-first imperative prototype, its native artifact, scripts,
-and private example corpus were retired after confirming that no lattice gate
-or external consumer used them. Git history preserves that experiment; Gamma
-does not own a parallel compatibility compiler.
+Gamma owns no parallel compatibility compiler or native compiler artifact.
 
 ## Implementation frontiers
 

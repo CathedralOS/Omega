@@ -1,4 +1,4 @@
-# Beta compiler bootstrap observable
+# Beta compiler maximal observation
 
 This document fixes the whole-program relation that the `bc.beta` cold-start
 edge is intended to preserve. A fixed point, a matching second compiler, or a
@@ -35,9 +35,9 @@ language observables. After the final input byte, Alpha `read` and Beta
 
 The exact subjects are:
 
-- `compiler/bc.beta`: 32,605 bytes, SHA-256
+- `../bc.beta`: 32,605 bytes, SHA-256
   `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`;
-- `compiler/artifacts/bc.tape`: 40,693 bytes, SHA-256
+- `../artifacts/bc.tape`: 40,693 bytes, SHA-256
   `73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
 
 The resource profile fixes:
@@ -65,7 +65,7 @@ The checked resource identities and exact failed admissions are:
 
 Origin, kind, limit, and requested amount are sticky through safe cleanup and
 wrapper returns. Numeric status is only a one-way process projection; it cannot
-reconstruct a typed resource outcome. `source-exhaustion.sh` pins adjacent
+reconstruct a typed resource outcome. `resource-boundaries.sh` pins adjacent
 source/resource boundaries and retained output prefixes.
 
 ## Reconstruction boundary
@@ -86,12 +86,12 @@ select the subjects, omit terminal cases, or define the proposition.
 
 The retained evidence is intentionally responsibility-specific:
 
-- `cold-start/full-source.sh` reconstructs `bc.tape`, checks the fixed point,
+- `../cold-start/full-source.sh` reconstructs `bc.tape`, checks the fixed point,
   and runs the Beta corpus;
-- `compiler/validation/admission/bc-artifact-structure.sh` checks reachable Alpha
+- `admission/bc-artifact-structure.sh` checks reachable Alpha
   framing, direct targets, procedure regions, and call/return structure below
   `bc`;
-- `compiler/validation/admission/bc-block-control.sh` reconstructs the canonical
+- `admission/bc-block-control.sh` reconstructs the canonical
   whole-source/artifact conjunction and its 80,869-byte ROOT maximal-observation
   checker (SHA-256
   `5c9b3574ce6ef13209329bc039d74013e31d7a940840027499332110e5c4257a`),
@@ -99,7 +99,7 @@ The retained evidence is intentionally responsibility-specific:
   mutation control, two same-key occurrence-order controls for
   `emit_param_store` and `gen_emit`, and one same-block memory-identity swap
   control;
-- optional `compiler/validation/stress/refinement.sh` checks proof-carrying
+- optional `stress/refinement.sh` checks proof-carrying
   equivalence for its stated symbolic program families with the below-Beta
   checker artifact;
 - reference and differential gates exercise finite behavior but grant no

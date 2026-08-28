@@ -42,8 +42,8 @@ and certificate production, but not another compiler identity. The Rust
 implementation under `source/omega-rust/` may help compare behavior while the
 Omega-written path is completed; agreement with it grants no authority.
 
-`source/delta/meaning/` retains the useful Rust-free elaboration pieces from the
-removed experiment. They now serve Delta publication directly.
+`source/delta/meaning/` owns the Rust-free Delta-to-Gamma elaboration used by
+Delta publication.
 
 ## Required joins
 

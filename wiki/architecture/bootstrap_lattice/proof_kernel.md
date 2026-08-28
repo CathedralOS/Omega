@@ -123,8 +123,8 @@ artifact claim only through explicit checked bridges.
 The complete assurance graph distinguishes every node:
 
 ```text
-global theory consequence: Gamma entails P
-    + exact intended model M satisfies Gamma
+global theory consequence: T entails P
+    + exact intended model M satisfies T
         -> P holds in M
 
 intended mathematical model M

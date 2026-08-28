@@ -56,7 +56,7 @@ or unresolved local.
 
 `pending_exhaustion` is observer ghost state and is not addressable by the Beta
 program. It begins as `None`. `B_bc1` is fixed in
-[`BOOTSTRAP_OBSERVABLE.md`](BOOTSTRAP_OBSERVABLE.md). A
+[`compiler/validation/MAXIMAL_OBSERVATION.md`](compiler/validation/MAXIMAL_OBSERVATION.md). A
 resource admission that would exceed a declared checked ceiling records sticky
 `Exhaust(kind, limit, requested)` provenance before the overlapping write or
 recursive activation. The exact `bc.beta` control flow may then execute its
@@ -175,7 +175,7 @@ exhaustion retains every byte emitted before it, including any specified safe
 cleanup suffix after the refused admission. `Diverge` means an infinite small-
 step run; a fuel limit or wall-clock timeout cannot be relabelled as a trap.
 
-The `bc.beta` theorem required by `BOOTSTRAP_OBSERVABLE.md` compares this maximal
+The `bc.beta` theorem required by `compiler/validation/MAXIMAL_OBSERVATION.md` compares this maximal
 Beta observation with the exact Alpha tape observation for every finite input
 stream admitted by `B_bc1`.
 

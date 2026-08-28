@@ -22,8 +22,8 @@ omega-rust/     replaceable Rust development implementation and comparator
 `omega-rust` may build, compare, or accelerate the product compiler, but it
 does not own Psi/Omega meaning and is never trusted merely because it produced
 an artifact. Repository-wide lattice convenience orchestration lives under
-[`tools/lattice/`](../tools/lattice/); stable shared inputs live under
-[`tests/lattice/`](../tests/lattice/).
+[`tools/lattice/`](../tools/lattice/). Omega language cases live under
+[`tests/omega/`](../tests/omega/); the compiler chain owns no private copy.
 
 There is deliberately no `bootstrap/`, `omega-bootstrap/`, `assurance/`, or
 generic `canaries/` source owner. A compiler, checker, meaning route, artifact,

@@ -36,7 +36,6 @@ source/
   library/               core, allocation, and standard-library source
   omega-rust/            maintained Rust product implementation/comparator
 
-tests/lattice/            shared cross-rung inputs
 tests/omega/              Omega language acceptance/rejection cases
 tools/lattice/            replaceable convenience orchestration
 ```
@@ -74,7 +73,6 @@ artifact it admits; product-language cases stay under `tests/omega/`.
 - Gamma has no required compiler artifact. `bc` builds its Beta-written
   evaluator and type checker, and those programs give the canonical route used
   to realize and check Delta.
-- `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
 - `tests/omega/` owns product-language cases; it is not a bootstrap artifact.
 - `tools/lattice/` may invoke the chain. A script must not parse, resolve,
   lower, discover source, manufacture evidence, or otherwise become a hidden
@@ -111,7 +109,6 @@ a rebuild of one compiler, not an untracked generation change.
 | Beta compiler and its admission | `source/beta/compiler/` |
 | Delta compiler, artifacts, and admission | `source/delta/compiler/` |
 | language libraries | `source/library/` |
-| shared lattice inputs | `tests/lattice/` |
 | Omega language cases | `tests/omega/` |
 | non-authoritative runners | `tools/lattice/` |
 
