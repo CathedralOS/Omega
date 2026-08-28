@@ -31,7 +31,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 10;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 11;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -59,6 +59,8 @@ const MACOS_HOSTNAME_SYSCTL: &str = "kern.hostname";
 const MACOS_RUST_RUNTIME_PAGE_SIZE_SYSCTL: &str = "hw.pagesize_compat";
 #[cfg(target_os = "macos")]
 const MACOS_TLS_CONFIGURATION_ROOT: &str = "/private/etc/ssl";
+#[cfg(target_os = "macos")]
+const MACOS_TLS_CONFIGURATION_ALIAS_ROOT: &str = "/etc/ssl";
 #[cfg(target_os = "macos")]
 const MACOS_CONFINED_METADATA_PATH_LIMIT: usize = 1024;
 
@@ -539,6 +541,7 @@ impl ResolverExecutionBackend {
                 disposition: guarantee_disposition(
                     &self.identity,
                     inputs.phase,
+                    inputs.network_transport,
                     inputs.endpoint_route.is_some(),
                     guarantee,
                 ),
@@ -890,8 +893,8 @@ impl ResolverExecutionBackend {
             && network_transport == Some(ResolverExecutionNetworkTransport::Https))
             || (phase == ResolverExecutionPhase::TransportDiscovery
                 && network_transport == Some(ResolverExecutionNetworkTransport::Https));
-        let confined_metadata = match phase {
-            ResolverExecutionPhase::RepositoryInitialization => {
+        let confined_metadata = match (phase, network_transport) {
+            (ResolverExecutionPhase::RepositoryInitialization, _) => {
                 let mutable_root = roots.mutable_root.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -900,14 +903,16 @@ impl ResolverExecutionBackend {
                 })?;
                 Some((
                     "MUTABLE_ROOT",
+                    false,
+                    Vec::new(),
                     macos_confined_metadata_paths(
                         executable,
                         additional_executables,
-                        mutable_root,
+                        &[mutable_root],
                     )?,
                 ))
             }
-            ResolverExecutionPhase::RepositoryInspection => {
+            (ResolverExecutionPhase::RepositoryInspection, _) => {
                 let inspection_read_root = roots.inspection_read_root.ok_or_else(|| {
                     io::Error::new(
                         io::ErrorKind::InvalidInput,
@@ -916,14 +921,41 @@ impl ResolverExecutionBackend {
                 })?;
                 Some((
                     "INSPECTION_READ_ROOT",
+                    false,
+                    Vec::new(),
                     macos_confined_metadata_paths(
                         executable,
                         additional_executables,
-                        inspection_read_root,
+                        &[inspection_read_root],
                     )?,
                 ))
             }
-            ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch => None,
+            (
+                ResolverExecutionPhase::TransportDiscovery,
+                Some(ResolverExecutionNetworkTransport::Https),
+            ) => {
+                let discovery_read_root = roots.discovery_read_root.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "HTTPS transport discovery requires its compiler-owned read root",
+                    )
+                })?;
+                Some((
+                    "DISCOVERY_READ_ROOT",
+                    true,
+                    macos_helper_metadata_roots(additional_executables)?,
+                    macos_confined_metadata_paths(
+                        executable,
+                        additional_executables,
+                        &[
+                            discovery_read_root,
+                            Path::new(MACOS_TLS_CONFIGURATION_ROOT),
+                            Path::new(MACOS_TLS_CONFIGURATION_ALIAS_ROOT),
+                        ],
+                    )?,
+                ))
+            }
+            (ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch, _) => None,
         };
         if confines_content_reads {
             let read_root_parameter = match phase {
@@ -932,10 +964,26 @@ impl ResolverExecutionBackend {
                 ResolverExecutionPhase::RepositoryInitialization
                 | ResolverExecutionPhase::Fetch => "MUTABLE_ROOT",
             };
-            if let Some((metadata_root_parameter, metadata_paths)) = &confined_metadata {
-                profile.push_str("(allow file-read-metadata (subpath (param \"");
+            if let Some((
+                metadata_root_parameter,
+                includes_tls_root,
+                metadata_subpaths,
+                metadata_paths,
+            )) = &confined_metadata
+            {
+                profile
+                    .push_str("(allow file-read-metadata file-test-existence (subpath (param \"");
                 profile.push_str(metadata_root_parameter);
                 profile.push_str("\"))");
+                if *includes_tls_root {
+                    profile.push_str(&format!(
+                        " (subpath \"{MACOS_TLS_CONFIGURATION_ROOT}\") \
+                         (subpath \"{MACOS_TLS_CONFIGURATION_ALIAS_ROOT}\")"
+                    ));
+                }
+                for index in 0..metadata_subpaths.len() {
+                    profile.push_str(&format!(" (subpath (param \"METADATA_SUBPATH_{index}\"))"));
+                }
                 for index in 0..metadata_paths.len() {
                     profile.push_str(&format!(" (literal (param \"METADATA_PATH_{index}\"))"));
                 }
@@ -1010,7 +1058,13 @@ impl ResolverExecutionBackend {
                 .arg("-D")
                 .arg(definition_argument("DISCOVERY_READ_ROOT", root));
         }
-        if let Some((_, metadata_paths)) = &confined_metadata {
+        if let Some((_, _, metadata_subpaths, metadata_paths)) = &confined_metadata {
+            for (index, path) in metadata_subpaths.iter().enumerate() {
+                command.arg("-D").arg(definition_argument(
+                    &format!("METADATA_SUBPATH_{index}"),
+                    path,
+                ));
+            }
             for (index, path) in metadata_paths.iter().enumerate() {
                 command
                     .arg("-D")
@@ -1030,13 +1084,36 @@ impl ResolverExecutionBackend {
 }
 
 #[cfg(target_os = "macos")]
+fn macos_helper_metadata_roots(additional_executables: &[PathBuf]) -> io::Result<Vec<PathBuf>> {
+    let mut roots = BTreeSet::new();
+    for executable in additional_executables {
+        let parent = executable.parent().ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "resolver helper executable has no metadata root",
+            )
+        })?;
+        if parent == Path::new(std::path::MAIN_SEPARATOR_STR) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "resolver helper metadata root cannot be the filesystem root",
+            ));
+        }
+        roots.insert(parent.to_path_buf());
+    }
+    bounded_macos_metadata_paths(roots, "resolver helper metadata roots")
+}
+
+#[cfg(target_os = "macos")]
 fn macos_confined_metadata_paths(
     executable: &Path,
     additional_executables: &[PathBuf],
-    confined_read_root: &Path,
+    confined_read_roots: &[&Path],
 ) -> io::Result<Vec<PathBuf>> {
     let mut paths = BTreeSet::new();
-    for path in std::iter::once(confined_read_root)
+    for path in confined_read_roots
+        .iter()
+        .copied()
         .chain(std::iter::once(executable))
         .chain(additional_executables.iter().map(PathBuf::as_path))
         .chain(std::iter::once(Path::new(MACOS_NULL_DEVICE)))
@@ -1045,10 +1122,15 @@ fn macos_confined_metadata_paths(
             paths.insert(ancestor.to_path_buf());
         }
     }
+    bounded_macos_metadata_paths(paths, "resolver confined metadata paths")
+}
+
+#[cfg(target_os = "macos")]
+fn bounded_macos_metadata_paths(paths: BTreeSet<PathBuf>, name: &str) -> io::Result<Vec<PathBuf>> {
     if paths.len() > MACOS_CONFINED_METADATA_PATH_LIMIT {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "resolver confined metadata path set exceeds compiler limit",
+            format!("{name} exceed compiler count limit"),
         ));
     }
     let encoded_bytes = paths.iter().try_fold(0_usize, |total, path| {
@@ -1057,7 +1139,7 @@ fn macos_confined_metadata_paths(
     if !matches!(encoded_bytes, Some(total) if total <= RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidInput,
-            "resolver confined metadata paths exceed compiler byte limit",
+            format!("{name} exceed compiler byte limit"),
         ));
     }
     Ok(paths.into_iter().collect())
@@ -1066,6 +1148,7 @@ fn macos_confined_metadata_paths(
 fn guarantee_disposition(
     backend: &ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
+    network_transport: Option<ResolverExecutionNetworkTransport>,
     has_endpoint_route: bool,
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
@@ -1089,11 +1172,12 @@ fn guarantee_disposition(
         FilesystemWritesConfined | ExecutablePathsConfined => Unavailable,
         FilesystemReadsConfined
             if matches!(backend, MacosSeatbelt { .. })
-                && matches!(
+                && (matches!(
                     phase,
                     ResolverExecutionPhase::RepositoryInitialization
                         | ResolverExecutionPhase::RepositoryInspection
-                ) =>
+                ) || (phase == ResolverExecutionPhase::TransportDiscovery
+                    && network_transport == Some(ResolverExecutionNetworkTransport::Https))) =>
         {
             Enforced
         }
@@ -1430,7 +1514,10 @@ mod tests {
     #[cfg(unix)]
     use super::CHILD_OPEN_FILE_LIMIT;
     #[cfg(target_os = "macos")]
-    use super::{MACOS_CONFINED_METADATA_PATH_LIMIT, macos_confined_metadata_paths};
+    use super::{
+        MACOS_CONFINED_METADATA_PATH_LIMIT, MACOS_TLS_CONFIGURATION_ALIAS_ROOT,
+        MACOS_TLS_CONFIGURATION_ROOT, macos_confined_metadata_paths, macos_helper_metadata_roots,
+    };
     use super::{
         RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionAuthorityRoots,
         ResolverExecutionBackend, ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
@@ -1665,7 +1752,11 @@ mod tests {
         let paths = macos_confined_metadata_paths(
             Path::new("/usr/bin/git"),
             &additional,
-            Path::new("/private/tmp/repository"),
+            &[
+                Path::new("/private/tmp/repository"),
+                Path::new(MACOS_TLS_CONFIGURATION_ROOT),
+                Path::new(MACOS_TLS_CONFIGURATION_ALIAS_ROOT),
+            ],
         )
         .expect("derive metadata paths");
         assert!(paths.windows(2).all(|pair| pair[0] < pair[1]));
@@ -1678,6 +1769,10 @@ mod tests {
             "/private",
             "/private/tmp",
             "/private/tmp/repository",
+            "/private/etc",
+            "/private/etc/ssl",
+            "/etc",
+            "/etc/ssl",
             "/usr",
             "/usr/bin",
             "/usr/bin/git",
@@ -1694,7 +1789,19 @@ mod tests {
         for _ in 0..MACOS_CONFINED_METADATA_PATH_LIMIT {
             excessive.push("a");
         }
-        assert!(macos_confined_metadata_paths(Path::new("/bin/sh"), &[], &excessive).is_err());
+        assert!(macos_confined_metadata_paths(Path::new("/bin/sh"), &[], &[&excessive]).is_err());
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn helper_metadata_roots_are_derived_deduplicated_and_never_global() {
+        let roots = macos_helper_metadata_roots(&[
+            PathBuf::from("/opt/omega/libexec/git-remote-https"),
+            PathBuf::from("/opt/omega/libexec/git-remote-http"),
+        ])
+        .expect("derive helper metadata roots");
+        assert_eq!(roots, [PathBuf::from("/opt/omega/libexec")]);
+        assert!(macos_helper_metadata_roots(&[PathBuf::from("/helper")]).is_err());
     }
 
     #[test]
@@ -1933,7 +2040,7 @@ mod tests {
         let (https_discovery_command, https_discovery) = backend
             .command_with_discovery_route_observation(
                 executable,
-                &[],
+                &[PathBuf::from("/usr/bin/stat")],
                 ResolverExecutionNetworkTransport::Https,
                 &https_discovery_route,
                 &mutable_root,
@@ -2003,10 +2110,9 @@ mod tests {
         assert!(!inspection_profile.contains("process-fork"));
         assert!(!inspection_profile.contains("(allow file-read*)"));
         assert!(!inspection_profile.contains("(allow file-read-metadata)"));
-        assert!(
-            inspection_profile
-                .contains("(allow file-read-metadata (subpath (param \"INSPECTION_READ_ROOT\"))")
-        );
+        assert!(inspection_profile.contains(
+            "file-read-metadata file-test-existence (subpath (param \"INSPECTION_READ_ROOT\"))"
+        ));
         assert!(inspection_profile.contains("(literal (param \"METADATA_PATH_0\"))"));
         assert!(
             inspection_profile
@@ -2023,8 +2129,9 @@ mod tests {
         assert!(!initialization_profile.contains("(allow file-read*)"));
         assert!(!initialization_profile.contains("(allow file-read-metadata)"));
         assert!(
-            initialization_profile
-                .contains("(allow file-read-metadata (subpath (param \"MUTABLE_ROOT\"))")
+            initialization_profile.contains(
+                "file-read-metadata file-test-existence (subpath (param \"MUTABLE_ROOT\"))"
+            )
         );
         assert!(initialization_profile.contains("(literal (param \"METADATA_PATH_0\"))"));
         assert!(
@@ -2064,7 +2171,13 @@ mod tests {
         assert!(!https_discovery_profile.contains("mach-lookup"));
         assert!(!https_discovery_profile.contains("sysctl-read"));
         assert!(!https_discovery_profile.contains("(allow file-read*)"));
-        assert!(https_discovery_profile.contains("(allow file-read-metadata)"));
+        assert!(!https_discovery_profile.contains("(allow file-read-metadata)"));
+        assert!(https_discovery_profile.contains(
+            "file-read-metadata file-test-existence (subpath (param \"DISCOVERY_READ_ROOT\"))"
+        ));
+        assert!(https_discovery_profile.contains("(literal (param \"METADATA_PATH_0\"))"));
+        assert!(https_discovery_profile.contains("(subpath (param \"METADATA_SUBPATH_0\"))"));
+        assert!(https_discovery_profile.contains("(subpath \"/etc/ssl\")"));
         assert!(
             https_discovery_profile
                 .contains("(allow file-read-data (subpath (param \"DISCOVERY_READ_ROOT\"))")
@@ -2150,6 +2263,20 @@ mod tests {
             disposition(
                 &discovery,
                 ResolverExecutionGuarantee::NetworkEndpointsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(
+                &discovery,
+                ResolverExecutionGuarantee::FilesystemReadsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Unavailable
+        );
+        assert_eq!(
+            disposition(
+                &https_discovery,
+                ResolverExecutionGuarantee::FilesystemReadsConfined
             ),
             ResolverExecutionGuaranteeDisposition::Enforced
         );
@@ -2638,6 +2765,99 @@ mod tests {
         std::fs::remove_file(sibling).expect("remove sibling canary");
         std::fs::remove_dir(discovery_root).expect("remove HTTPS discovery root");
         std::fs::remove_dir(parent).expect("remove HTTPS discovery parent");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_https_discovery_confines_metadata_to_working_and_tls_roots() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-https-discovery-metadata-{}-{sequence}",
+            std::process::id()
+        ));
+        let raw_discovery_root = parent.join("working");
+        let raw_inside = raw_discovery_root.join("inside");
+        let raw_sibling = parent.join("sibling");
+        let raw_escaped_link = raw_discovery_root.join("escaped-link");
+        std::fs::create_dir_all(&raw_inside).expect("create HTTPS discovery metadata root");
+        std::fs::create_dir(&raw_sibling).expect("create HTTPS discovery metadata sibling");
+        symlink(&raw_sibling, &raw_escaped_link)
+            .expect("create HTTPS discovery escaping metadata symlink");
+        let discovery_root = raw_discovery_root
+            .canonicalize()
+            .expect("canonicalize HTTPS discovery metadata root");
+        let inside = discovery_root.join("inside");
+        let sibling = raw_sibling
+            .canonicalize()
+            .expect("canonicalize HTTPS discovery metadata sibling");
+        let escaped_link = discovery_root.join("escaped-link");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let route = loopback_route(&backend);
+        let run_stat = |arguments: &[&std::ffi::OsStr]| {
+            let (mut command, _observation) = backend
+                .command_with_discovery_route_observation(
+                    Path::new("/usr/bin/stat"),
+                    &[],
+                    ResolverExecutionNetworkTransport::Https,
+                    &route,
+                    &discovery_root,
+                )
+                .expect("build HTTPS discovery-metadata sandbox");
+            command.current_dir(&discovery_root);
+            command
+                .args(arguments)
+                .output()
+                .expect("run HTTPS discovery metadata canary")
+        };
+
+        for allowed_path in [
+            inside.as_path(),
+            Path::new("/private/etc/ssl/openssl.cnf"),
+            Path::new("/etc/ssl/cert.pem"),
+        ] {
+            let output = run_stat(&[
+                std::ffi::OsStr::new("-f"),
+                std::ffi::OsStr::new("%N"),
+                allowed_path.as_os_str(),
+            ]);
+            assert!(
+                output.status.success(),
+                "allowed metadata failed for {}: {}",
+                allowed_path.display(),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let link_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            escaped_link.as_os_str(),
+        ]);
+        assert!(
+            link_output.status.success(),
+            "reading the in-root symlink entry must remain allowed"
+        );
+        let sibling_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            sibling.as_os_str(),
+        ]);
+        assert!(!sibling_output.status.success());
+        let escaped_output = run_stat(&[std::ffi::OsStr::new("-L"), escaped_link.as_os_str()]);
+        assert!(!escaped_output.status.success());
+        route
+            .finish()
+            .expect("finish HTTPS discovery metadata route");
+
+        std::fs::remove_file(escaped_link).expect("remove HTTPS discovery metadata symlink");
+        std::fs::remove_dir(inside).expect("remove HTTPS discovery inside metadata canary");
+        std::fs::remove_dir(sibling).expect("remove HTTPS discovery sibling metadata canary");
+        std::fs::remove_dir(discovery_root).expect("remove HTTPS discovery metadata root");
+        std::fs::remove_dir(parent).expect("remove HTTPS discovery metadata parent");
     }
 
     #[cfg(target_os = "macos")]

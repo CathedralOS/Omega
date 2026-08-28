@@ -963,6 +963,23 @@ complete.
   SSH retains broad content and metadata, and resolver-wide read confinement
   remains open.
 
+  Follow-up 2026-08-28: macOS HTTPS transport discovery now confines metadata
+  as well as content. Its admitted metadata is bounded to the exact discovery
+  root, exact executable/runtime paths and literal ancestors, the fixed
+  canonical and `/etc/ssl` alias TLS roots, and metadata-only lookup within the
+  compiler-selected Git helper directory. The latter two were found fail-closed:
+  Git otherwise could not select its already-custodied `git-remote-https`
+  helper, and LibreSSL could not locate `/etc/ssl/cert.pem`; no ambient metadata
+  grant was restored. File existence probes share those same selectors. Native
+  canaries deny adjacent metadata and following an escaping symlink, while the
+  real HTTPS helper-chain canary reaches only its selected loopback endpoint.
+  All 158 source-resolver tests and a fresh symbolic-`HEAD` public GitHub audit
+  pass. Guarantee classification now consumes transport authority:
+  `FilesystemReadsConfined` is `Enforced` for HTTPS discovery but remains
+  `Unavailable` for SSH discovery. Native policy schema 11 and Git cache policy
+  v24 prevent reuse of state discovered under broad metadata authority. HTTPS
+  fetch metadata and all SSH reads remain broad.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
