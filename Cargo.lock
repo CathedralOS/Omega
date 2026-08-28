@@ -1941,6 +1941,7 @@ dependencies = [
 name = "omega-terminal-legalized-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-target",
