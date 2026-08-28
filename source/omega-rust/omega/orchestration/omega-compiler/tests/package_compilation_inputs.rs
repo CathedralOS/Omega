@@ -487,6 +487,66 @@ fn boundary_machine_signatures_are_public_package_selection_positions() {
 }
 
 #[test]
+fn transparent_domain_alias_constituents_require_direct_package_admission() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\npub domain u64::RootAllowed = u64::LeafAllowed;\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub domain u64::LeafAllowed;\n");
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive alias graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("a domain alias may not select a transitive-only constituent");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected domain-alias diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct alias graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit the alias constituent");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.exposure()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment
+            && checked.symbols.source_file(selection.source_span()).is_some_and(|source| source.package_identity == Some(identity(1)))
+            && matches!(selection.target(), psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafAllowed"))
+    }));
+}
+
+#[test]
 fn package_compilation_rejects_authored_reserved_cleanup_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");
