@@ -1,8 +1,8 @@
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
-    CompileReport, CompileRequest, PROGRAM_STORAGE_INSTALLATION_ARTIFACT, compile_harness,
-    compile_to_checked,
+    CompileReport, CompileRequest, compile_harness, compile_to_checked,
 };
+use omega_program_storage::PROGRAM_STORAGE_INSTALLATION_ARTIFACT;
 
 fn production_compile(
     options: CompileOptions,

@@ -1,0 +1,28 @@
+[package]
+name = "omega-terminal-native-realization"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_native_realization"
+path = "src/lib.rs"
+
+[dependencies]
+omega-effects = { path = "../../representations/omega-effects" }
+omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
+omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
+omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
+omega-target = { path = "../../foundation/omega-target" }
+omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
+omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
+omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
+omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
+omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
+omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
+omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }

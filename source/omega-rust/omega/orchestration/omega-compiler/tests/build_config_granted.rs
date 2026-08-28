@@ -6,21 +6,24 @@
 //! without incidentally supplying filesystem authority. Fail canaries cover
 //! undeclared services and package-authored boundary lookalikes.
 
-use omega_compiler::{
+use omega_build_evaluation::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
     BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
     BuildFilesystemReplayRecordLimits, BuildFilesystemReturnedPathCompleteness,
     BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
-    capture_verified_build_filesystem_replay_record, compile_to_checked,
+    BuildObservationClass, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+};
+use omega_compiler::{
+    CheckedCompilation, CompileOptions, compile_to_checked,
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
-    recover_review_only_build_filesystem_replay_record,
 };
 use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use psi_checked_interpreter::FilesystemSponsor;
 
 fn compile(
     options: CompileOptions,

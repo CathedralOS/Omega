@@ -3424,8 +3424,8 @@ fn selected_provider_row_source(
         }
 
         match &retained.selected_by {
-            omega_compiler::ProviderSelectionProvenance::BuildOverride(declarations)
-            | omega_compiler::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            omega_provider_planning::plans::ProviderSelectionProvenance::BuildOverride(declarations)
+            | omega_provider_planning::plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
                 for declaration in declarations {
                     locations.push(canonical_source_span_location(
                         compilation,
@@ -3434,7 +3434,7 @@ fn selected_provider_row_source(
                     )?);
                 }
             }
-            omega_compiler::ProviderSelectionProvenance::UniqueCoveringCandidate => {
+            omega_provider_planning::plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
                 compiler_derivations
                     .push(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection);
             }
@@ -11169,7 +11169,9 @@ fn validate_selected_boundary_operator_checked_adapter(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
+                    == omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                        operator.symbol,
+                    )
         })
         .collect::<Vec<_>>();
     let [(plan, retained)] = matches.as_slice() else {
@@ -11257,7 +11259,9 @@ fn validate_selected_boundary_operator_external_supply(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
+                    == omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(
+                        operator.symbol,
+                    )
                 && retained.provider.row_realizations.contains(&machine.symbol)
         })
         .collect::<Vec<_>>();
@@ -12028,11 +12032,11 @@ fn trait_requirement_identity_from_symbols(
 
 fn provider_requirement_identity(
     compilation: &CheckedCompilation,
-    schema: omega_compiler::ProviderSchemaDeclaration,
+    schema: omega_provider_planning::plans::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     match schema {
-        omega_compiler::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             trait_requirement_identity_from_symbols(
                 compilation,
                 trait_symbol,
@@ -12040,7 +12044,7 @@ fn provider_requirement_identity(
                 "selected provider row",
             )
         }
-        omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(_) => {
+        omega_provider_planning::plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation
                     .domain_definitions()

@@ -19,7 +19,7 @@ use crate::{
     ReviewOnlyCapabilityConflictSet, SourceContentDigest, SourceLineage, WorkspaceLineageIdentity,
     WorkspaceMemberLineage, WorkspaceMemberPath,
 };
-use omega_compiler::{
+use omega_build_evaluation::{
     BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
     recover_review_only_build_filesystem_replay_record,

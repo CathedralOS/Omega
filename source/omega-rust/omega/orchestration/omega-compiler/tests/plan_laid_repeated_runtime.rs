@@ -1,9 +1,10 @@
 //! End-to-end oracles for plan-laid outer fixed arrays whose validated
 //! destinations retain a constant physical stride larger than element width.
 
-use omega_compiler::{
-    BuildTimeValue, CompileOptions, compile_to_checked, compute_layout_plan,
-    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
+use omega_compiler::{CompileOptions, compile_to_checked};
+use psi_build_time_evaluation::{
+    BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
+    materialize_typed_owned_layout_into,
 };
 
 fn compile(
