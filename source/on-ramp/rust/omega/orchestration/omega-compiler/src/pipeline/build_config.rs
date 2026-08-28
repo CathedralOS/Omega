@@ -50,7 +50,7 @@ use std::path::{Path, PathBuf};
 use omega_optimization_core::{Optimization, OptimizationSelections};
 
 use super::build_staged_output::{
-    BuildStagedOutputTree, BuildStagedSource, capture, empty, replayed_single_ordinary_file,
+    BuildStagedOutputTree, PackageGeneratedSource, capture, empty, replayed_single_ordinary_file,
     select_included_sources,
 };
 
@@ -1022,7 +1022,7 @@ pub(crate) struct ComputedBuildConfig {
     pub evaluation_usage: Option<BuildEvaluationUsage>,
     pub observation_summary: Option<BuildObservationSummary>,
     pub selected_build_machine_symbol: Option<psi_symbols::SymbolHandle>,
-    pub generated_sources: Vec<BuildStagedSource>,
+    pub generated_sources: Vec<PackageGeneratedSource>,
 }
 
 pub(crate) fn reject_uncompiled_generated_sources(
