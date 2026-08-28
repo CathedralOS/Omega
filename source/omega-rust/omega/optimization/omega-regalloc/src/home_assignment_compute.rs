@@ -14,11 +14,19 @@ use crate::{
     ValidatedTerminalAllocationLegality, ValidatedTerminalLiveRanges,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ActiveHome {
-    register: TerminalVirtualRegisterId,
+    registers: Vec<TerminalVirtualRegisterId>,
     end: TerminalLiveRangePoint,
     view: RegisterViewId,
+}
+
+#[derive(Debug)]
+struct AllocationGroup<'a> {
+    registers: Vec<&'a crate::TerminalVirtualRegisterAllocationLegality>,
+    start: TerminalLiveRangePoint,
+    end: TerminalLiveRangePoint,
+    candidates: BTreeSet<RegisterViewId>,
 }
 
 pub(crate) fn compute_terminal_register_homes(
@@ -102,41 +110,106 @@ pub(crate) fn compute_function(
             function: function_index,
         });
     }
-    let mut order = legality
-        .virtual_registers
-        .iter()
-        .map(|register| {
-            interval_bounds(function_index, register).map(|(start, end)| (start, end, register))
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-    order.sort_by_key(|(start, _, register)| (start.0, register.virtual_register.0));
-    let mut homes = BTreeMap::<TerminalVirtualRegisterId, RegisterViewId>::new();
-    let mut active = Vec::<ActiveHome>::new();
-    for (start, end, register) in order {
-        if !register.entry_transitions.is_empty() {
-            return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
+    let mut tie_participants = BTreeSet::new();
+    for tie in &ranges.tied_pairs {
+        if tie.use_virtual_register == tie.def_virtual_register
+            || !tie_participants.insert(tie.use_virtual_register)
+            || !tie_participants.insert(tie.def_virtual_register)
+        {
+            return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
                 function: function_index,
-                register: register.virtual_register.0,
-                count: register.entry_transitions.len(),
+                instruction: tie.instruction.0,
             });
         }
-        active.retain(|entry| entry.end > start);
-        let candidates = common_candidates(function_index, register)?;
+        if interferes(
+            tie.use_virtual_register,
+            tie.def_virtual_register,
+            &ranges.interference,
+        ) {
+            let (lower, higher) = ordered_pair(tie.use_virtual_register, tie.def_virtual_register);
+            return Err(TerminalRegisterHomeError::TiedRegistersInterfere {
+                function: function_index,
+                lower: lower.0,
+                higher: higher.0,
+            });
+        }
+    }
+    let mut grouped = BTreeSet::new();
+    let mut groups = Vec::new();
+    for register in &legality.virtual_registers {
+        if grouped.contains(&register.virtual_register) {
+            continue;
+        }
+        let tie = ranges.tied_pairs.iter().find(|tie| {
+            tie.use_virtual_register == register.virtual_register
+                || tie.def_virtual_register == register.virtual_register
+        });
+        let members = if let Some(tie) = tie {
+            if !grouped.insert(tie.use_virtual_register)
+                || !grouped.insert(tie.def_virtual_register)
+            {
+                return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
+                    function: function_index,
+                    instruction: tie.instruction.0,
+                });
+            }
+            let use_register = legality
+                .virtual_registers
+                .iter()
+                .find(|row| row.virtual_register == tie.use_virtual_register);
+            let def_register = legality
+                .virtual_registers
+                .iter()
+                .find(|row| row.virtual_register == tie.def_virtual_register);
+            let (Some(use_register), Some(def_register)) = (use_register, def_register) else {
+                return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
+                    function: function_index,
+                    instruction: tie.instruction.0,
+                });
+            };
+            if use_register.class != tie.class || def_register.class != tie.class {
+                return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
+                    function: function_index,
+                    instruction: tie.instruction.0,
+                });
+            }
+            vec![use_register, def_register]
+        } else {
+            grouped.insert(register.virtual_register);
+            vec![register]
+        };
+        groups.push(build_group(function_index, members)?);
+    }
+    if grouped.len() != legality.virtual_registers.len() {
+        return Err(TerminalRegisterHomeError::FunctionMismatch {
+            function: function_index,
+        });
+    }
+    groups.sort_by_key(|group| (group.start, group.registers[0].virtual_register));
+    let mut homes = BTreeMap::<TerminalVirtualRegisterId, RegisterViewId>::new();
+    let mut active = Vec::<ActiveHome>::new();
+    for group in groups {
+        active.retain(|entry| entry.end > group.start);
         let mut selected = None;
-        for candidate in candidates {
+        for candidate in group.candidates {
+            let representative = group.registers[0];
             let view = checked_view(
                 function_index,
-                register.virtual_register,
-                register.class,
+                representative.virtual_register,
+                representative.class,
                 candidate,
                 physical,
             )?;
             let conflicts = active.iter().any(|entry| {
-                interferes(
-                    register.virtual_register,
-                    entry.register,
-                    &ranges.interference,
-                ) && footprints_overlap(view, &physical.model().views[usize::from(entry.view.0)])
+                group.registers.iter().any(|register| {
+                    entry.registers.iter().any(|active_register| {
+                        interferes(
+                            register.virtual_register,
+                            *active_register,
+                            &ranges.interference,
+                        )
+                    })
+                }) && footprints_overlap(view, &physical.model().views[usize::from(entry.view.0)])
             });
             if !conflicts {
                 selected = Some(candidate);
@@ -145,15 +218,21 @@ pub(crate) fn compute_function(
         }
         let selected = selected.ok_or(TerminalRegisterHomeError::NoCompatibleHome {
             function: function_index,
-            register: register.virtual_register.0,
+            register: group.registers[0].virtual_register.0,
         })?;
-        homes.insert(register.virtual_register, selected);
+        for register in &group.registers {
+            homes.insert(register.virtual_register, selected);
+        }
         active.push(ActiveHome {
-            register: register.virtual_register,
-            end,
+            registers: group
+                .registers
+                .iter()
+                .map(|register| register.virtual_register)
+                .collect(),
+            end: group.end,
             view: selected,
         });
-        active.sort_by_key(|entry| (entry.end, entry.register));
+        active.sort_by_key(|entry| (entry.end, entry.registers[0]));
     }
     let assignments = legality
         .virtual_registers
@@ -168,6 +247,69 @@ pub(crate) fn compute_function(
         machine: legality.machine,
         assignments,
     })
+}
+
+fn build_group<'a>(
+    function_index: usize,
+    mut registers: Vec<&'a crate::TerminalVirtualRegisterAllocationLegality>,
+) -> Result<AllocationGroup<'a>, TerminalRegisterHomeError> {
+    registers.sort_by_key(|register| register.virtual_register);
+    let mut start = None;
+    let mut end = None;
+    let mut candidates = None::<BTreeSet<RegisterViewId>>;
+    for register in &registers {
+        if !register.entry_transitions.is_empty() {
+            return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
+                function: function_index,
+                register: register.virtual_register.0,
+                count: register.entry_transitions.len(),
+            });
+        }
+        let (member_start, member_end) = interval_bounds(function_index, register)?;
+        start = Some(start.map_or(member_start, |point: TerminalLiveRangePoint| {
+            point.min(member_start)
+        }));
+        end = Some(end.map_or(member_end, |point: TerminalLiveRangePoint| {
+            point.max(member_end)
+        }));
+        let member_candidates = common_candidates(function_index, register)?;
+        if let Some(shared) = &mut candidates {
+            shared.retain(|candidate| member_candidates.contains(candidate));
+        } else {
+            candidates = Some(member_candidates);
+        }
+    }
+    let candidates = candidates.expect("allocation group is nonempty");
+    if candidates.is_empty() {
+        if registers.len() == 2 {
+            return Err(TerminalRegisterHomeError::NoCommonTiedCandidate {
+                function: function_index,
+                lower: registers[0].virtual_register.0,
+                higher: registers[1].virtual_register.0,
+            });
+        }
+        return Err(TerminalRegisterHomeError::NoCommonCandidate {
+            function: function_index,
+            register: registers[0].virtual_register.0,
+        });
+    }
+    Ok(AllocationGroup {
+        registers,
+        start: start.expect("allocation group is nonempty"),
+        end: end.expect("allocation group is nonempty"),
+        candidates,
+    })
+}
+
+fn ordered_pair(
+    left: TerminalVirtualRegisterId,
+    right: TerminalVirtualRegisterId,
+) -> (TerminalVirtualRegisterId, TerminalVirtualRegisterId) {
+    if left < right {
+        (left, right)
+    } else {
+        (right, left)
+    }
 }
 
 fn interval_bounds(
@@ -278,8 +420,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges, TerminalVirtualLiveRange,
-        TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
+        TerminalDistinctUseDefTie, TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges,
+        TerminalLivenessPosition, TerminalVirtualLiveRange, TerminalVirtualPointLegality,
+        TerminalVirtualRegisterAllocationLegality,
     };
 
     fn physical() -> ValidatedPhysicalRegisterModel {
@@ -354,6 +497,7 @@ mod tests {
                     edge_connectors: Vec::new(),
                 })
                 .collect(),
+            tied_pairs: Vec::new(),
             architectural_units: Vec::new(),
             interference: interference
                 .iter()
@@ -413,5 +557,62 @@ mod tests {
             ),
             expected_pressure
         );
+    }
+
+    fn tied_ranges(interference: &[(u32, u32)]) -> TerminalFunctionLiveRanges {
+        let mut ranges = ranges(interference);
+        ranges.tied_pairs.push(TerminalDistinctUseDefTie {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(1),
+            instruction: omega_terminal_selected_instructions::TerminalSelectedInstructionId(1),
+            use_operand: 0,
+            use_virtual_register: TerminalVirtualRegisterId(0),
+            use_point: TerminalLiveRangePoint(2),
+            def_operand: 1,
+            def_virtual_register: TerminalVirtualRegisterId(1),
+            def_point: TerminalLiveRangePoint(3),
+            class: RegisterClassId(0),
+        });
+        ranges
+    }
+
+    #[test]
+    fn distinct_use_def_ties_allocate_as_one_bundle_and_replay_independently() {
+        let physical = physical();
+        let legality = legality(&[(1, 2), (3, 4), (0, 4)]);
+        let ranges = tied_ranges(&[(0, 2), (1, 2)]);
+        let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+        assert_eq!(homes.assignments[0].view, RegisterViewId(1));
+        assert_eq!(homes.assignments[1].view, RegisterViewId(1));
+        assert_eq!(homes.assignments[2].view, RegisterViewId(0));
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
+                .unwrap(),
+            homes
+        );
+
+        let mut fixed = legality.clone();
+        for point in &mut fixed.virtual_registers[1].points {
+            point.candidates = vec![RegisterViewId(1)];
+        }
+        let fixed_homes = compute_function(0, &fixed, &tied_ranges(&[]), &physical).unwrap();
+        assert_eq!(fixed_homes.assignments[0].view, RegisterViewId(1));
+        assert_eq!(fixed_homes.assignments[1].view, RegisterViewId(1));
+
+        let mut disjoint = legality.clone();
+        for point in &mut disjoint.virtual_registers[0].points {
+            point.candidates = vec![RegisterViewId(0)];
+        }
+        for point in &mut disjoint.virtual_registers[1].points {
+            point.candidates = vec![RegisterViewId(1)];
+        }
+        assert!(matches!(
+            compute_function(0, &disjoint, &tied_ranges(&[]), &physical),
+            Err(TerminalRegisterHomeError::NoCommonTiedCandidate { .. })
+        ));
+        assert!(matches!(
+            compute_function(0, &legality, &tied_ranges(&[(0, 1)]), &physical),
+            Err(TerminalRegisterHomeError::TiedRegistersInterfere { .. })
+        ));
     }
 }

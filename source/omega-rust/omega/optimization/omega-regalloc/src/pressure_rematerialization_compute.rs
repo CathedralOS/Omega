@@ -777,6 +777,7 @@ pub(crate) mod tests {
                     }],
                     edge_connectors: Vec::new(),
                 }],
+                tied_pairs: Vec::new(),
                 architectural_units: Vec::new(),
                 interference: Vec::new(),
             }],

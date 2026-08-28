@@ -9,7 +9,7 @@ pub fn terminal_allocation_legality_identity(
     plan: &TerminalAllocationLegalityPlan,
 ) -> TerminalAllocationLegalityIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v3\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
