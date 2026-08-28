@@ -381,10 +381,19 @@ These facts constrain the work below.
   the canonical optimized object artifact for the actual settled Terminal
   entry, bind its exact object-local semantic-entry symbol as the private
   continuation, independently replay the settlement, semantic contract, and
-  wrapper plan, then synthesize a separate compiler-owned wrapper object. The
-  wrapper encoding mismatch is now resolved explicitly rather than by changing
-  either layout's meaning. The semantic wrapper plan is coordinate-free and
-  requires later target encoding. The target-owned compact Microsoft-x64
+  wrapper plan, then synthesize a distinct compiler-owned composite object. The
+  wrapper is placed before a byte-for-byte retained copy of the canonical
+  Terminal text, the child symbols are projected at shifted section offsets,
+  and the wrapper's `rel32` is resolved to the shifted semantic-entry symbol.
+  The resulting object has zero relocations and retains the complete child
+  artifact by value. It is not a cross-object relocation: the continuation is
+  deliberately object-local, so a second object cannot legally name it without
+  first broadening its linkage. The wrapper symbol has compiler-owned identity
+  and no fabricated Terminal `MachineId`.
+
+  The wrapper encoding mismatch is now resolved explicitly rather than by
+  changing either layout's meaning. The semantic wrapper plan is coordinate-free
+  and requires later target encoding. The target-owned compact Microsoft-x64
   policy independently decodes its exact 90-byte function, retains the complete
   physical footprint, owns opcode/field/next-IP offsets `80/81/85`, and checks
   forward, backward, overflow, and corruption cases when resolving the private
@@ -392,16 +401,22 @@ These facts constrain the work below.
   independently projects every step into that named policy. The older
   full-frame wrapper remains a distinct 143-byte compatibility encoding with
   offsets `113/114/118`. This engineering boundary does not require Q17. The
-  immediate prerequisite for the object join has now landed: an honest
-  one-function structural two-Extent `ReturnUnit` continuation carries its
+  one-function structural two-Extent `ReturnUnit` fixture carries its
   separately named frameless structural Unit leaf policy through replayed
   function-relative custody, generalized structural fragments, one-byte text,
   a single semantic-entry private symbol, a zero-relocation object, and the
-  canonical semantic/proof-bound terminal object artifact. The
-  compiler-private wrapper itself receives no fabricated Terminal `MachineId`.
-  The checked-source ProgramStorage fixture currently lowers its generic two-root
-  handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
-  is receipt evidence rather than a positive wrapper fixture.
+  canonical semantic/proof-bound terminal object artifact. It is an encoding
+  and code-generation proof fixture, not an honest settled ProgramStorage
+  continuation: it uses unrestricted parameters and owns no entry claims. The
+  checked-source ProgramStorage fixture instead retains two linear owned
+  `Extent in Granted` roots, two entry claims, and completion receipts while
+  lowering its generic handoff as `BoundaryCall`. It is receipt evidence, not a
+  positive wrapper fixture. Pairing either fixture with the other's custody
+  must reject. A positive three-way settlement/object/wrapper regression
+  remains an engineering prerequisite: the checked claim-consuming
+  continuation must reach the object lane through an admitted concrete
+  provider/native realization without erasing its claims. This does not require
+  a new owner question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2548,12 +2563,14 @@ dependency.
   encoding contract is now explicit: the coordinate-free semantic plan selects
   a target-owned compact 90-byte policy with exact `80/81/85` rel32 coordinates
   and retained physical footprint, while the legacy 143-byte full-frame route
-  remains `113/114/118`. The one-function structural two-Extent Unit
-  continuation now has a separately named frameless exit policy and complete
-  fragment/text/object/artifact custody. The next backend boundary is the
-  distinct compiler-owned semantic `ProgramStorageEntry` wrapper object in
-  `omega-terminal-native-realization`. The scalar-
-  result conditional fixture used by the callable classifier remains
+  remains `113/114/118`. The synthetic one-function structural two-Extent Unit
+  leaf now has a separately named frameless exit policy and complete
+  fragment/text/object/artifact custody, but it is not settlement-compatible:
+  its unrestricted parameters and empty claim roster do not match the checked
+  ProgramStorage entry's linear qualified roots. The next backend boundary is
+  the distinct compiler-owned semantic `ProgramStorageEntry` composite object
+  in `omega-terminal-native-realization`. The scalar-result conditional fixture
+  used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
   physical shell planned and non-invoked: no authoritative contract maps
   `(EfiImageHandle, &EfiSystemTable)` to the semantic Image and InitialStorage
@@ -2576,6 +2593,29 @@ dependency.
   evidence, authoritative entry-bridge and enabled-hardening identities,
   whole-program span/relocation validation, and publication-side enforcement of
   the independent encoding receipt.
+
+- **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT.** Add the owning semantic-entry join in
+  `omega-terminal-native-realization`. It consumes by value one replayed native
+  ProgramEntry settlement, the exact canonical optimized Terminal object for
+  that settlement, and the selected compact semantic-wrapper encoding. It
+  independently rebuilds the semantic ProgramStorage contract and wrapper plan,
+  verifies the checked entry's ordered linear owned `Extent in Granted` roots
+  and exact claim custody, locates the unique object-local semantic-entry
+  symbol, and emits a new composite text/object carrier with the 90-byte wrapper
+  first and the canonical child text second. Child symbol offsets are shifted
+  with checked arithmetic, the wrapper call resolves to the shifted private
+  semantic entry, and the final object contains no relocation records.
+
+  Acceptance: settlement, target, Terminal-Psi, entry, type/domain, claim,
+  encoding, child-object, symbol, interval, displacement, and identity
+  substitution tests fail closed; independent replay reconstructs the entire
+  composite object and its custody manifest; the wrapper symbol is
+  compiler-owned rather than `MachineId`-rooted; and a positive checked-source
+  test is added only when the same claim-consuming continuation has genuinely
+  reached canonical object custody. Until then, tests must explicitly preserve
+  the distinction between the synthetic encoding fixture and the real checked
+  `BoundaryCall` receipt instead of fabricating a successful join. This task
+  grants no Q17 physical bridge, image, installation, or publication authority.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.
