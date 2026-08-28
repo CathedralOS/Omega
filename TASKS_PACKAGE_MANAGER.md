@@ -1500,10 +1500,11 @@ complete.
   derivation and introduces neither a public IR contract nor nominal Chi.
 
   Follow-up 2026-08-28: non-`pub` boundary machines now retain their actual
-  exported-interface exposure through both typed type-reference lowering and
-  named-conformance-bound selection collection. Syntax lowering already
-  classified boundary signature/contract expressions as public, but these two
-  nested paths had regressed to the ordinary `machine.is_public` bit. A
+  exported-interface exposure through typed type-reference lowering, entry-
+  state parameter/result lowering, named-conformance-bound selection
+  collection, and carried-semantic-dependency classification. Syntax lowering
+  already classified boundary signature/contract expressions as public, but
+  these nested paths had regressed to the ordinary `machine.is_public` bit. A
   root-middle-leaf canary now rejects a boundary parameter type owned only by a
   transitive dependency, accepts it after direct admission, and observes the
   exact public-interface row. A same-package canary likewise rejects a boundary
