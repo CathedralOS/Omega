@@ -40,11 +40,12 @@ The focused split is:
   selected-feature, meaning, and mutation checks;
 - `../gates/delta-checked-ir-v11-backend-fixture.py` recognizes the complete
   Add/carry/range/store sequence rather than merely searching for an `add`
-  instruction; and
-- `../gates/delta-checked-ir-v11-backend.sh` checks native/self artifact
-  identity, 0+70, 69+1, near-limit success, instruction mutation rejection,
-  the retained runtime-overflow trap path, resource statuses, and empty rejected
-  publication.
+  instruction.
+
+The former producer-backed wrapper joined them to native/self artifact
+identity, arithmetic boundary observations, instruction mutation rejection,
+the runtime-overflow trap path, resource statuses, and empty rejected
+publication. Replay is suspended until canonical Delta publication.
 
 Because CKIR11 introduces a required profile relation rather than a new opcode,
 the same table body can be valid CKIR8 under major 8. The shared historical

@@ -123,22 +123,11 @@ ELF bytes.
 
 ## 5. Focused and lower-rooted evidence
 
-The focused evidence is:
-
-- `../gates/delta-resolved-to-ckir7.sh`: Delta-native and Delta-self-built
-  OMGLOW8 production over least OMGRSW1/2/3, exact precedence and token
-  correspondence, purity negatives, inherited composition, and depth 8/9;
-- `../gates/delta-resolved-to-ckir7-meaning.sh`: persisted-Beta translation of
-  the actual Delta lowerer plus canonical Gamma observations of result,
-  semantic rejection, resource exhaustion, and exact publication;
-- `../gates/delta-checked-ir-v7-reference.sh`: independent decoding,
-  validation, all truth rows, interpretation, result reconstruction, and
-  isolated mutations;
-- `../gates/delta-checked-ir-v7-backend.sh`: Delta-native/self artifact
-  identity, pinned instruction templates, and artifact mutations; and
-- `../../../refinement/delta-omega-bootstrap/omgrfn9-same-frame-composite.sh`:
-  persisted-Beta R1–R5 reconstruction over one immutable carrier with compact
-  least-OMGRSW1/2 controls and exact result/ELF identity.
+The retained independent CKIR7 reference owns decoding, validation, all truth
+rows, interpretation, result reconstruction, and isolated mutations. Frozen
+responsibility-local refinement owners retain the R1–R5 definitions. Producer,
+Gamma-meaning, backend, and same-frame replay are suspended until canonical
+Delta publication.
 
 Together these gates close the selected pure/nontrapping Boolean relation. They
 do not admit effectful short-circuit operands, primitive equality or remaining

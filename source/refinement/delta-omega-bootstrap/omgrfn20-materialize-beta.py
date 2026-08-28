@@ -15,7 +15,7 @@ from omgrfn20_frame import HEADER
 from omgrfn20_source import decode_sources
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[2]
 GATES = ROOT / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 

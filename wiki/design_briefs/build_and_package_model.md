@@ -1076,6 +1076,18 @@ observations, artifacts, certificates, admissions, and open obligations remain
 separate subjects. No accepted-lock or `PackageInstance` constructor consumes
 this record.
 
+`CanonicalPackageReconstructionQuestion` now associates that complete source
+subject with one complete ordinary obligation-ledger frame for every package in
+strict full-`PackageKey` source order. Each ledger must name the corresponding
+package identity, one common target, and exactly the transitive package and
+requester-local alias closure independently derived for that package. Missing,
+foreign, swapped, identity-colliding, mixed-target, and graph-drifted
+associations reject. Fresh matching reconstructs the aggregate from current
+resolver custody and a newly compiler-issued review set. Canonical recovery and
+the domain-separated aggregate fingerprint grant no authority and expose no
+route to an accepted lock or `PackageInstance`; artifacts, certificates,
+results, open obligations, build observations, and admissions remain separate.
+
 The first bounded replay component exists at Terminal Psi. The verifier exposes
 one complete ordered obligation set for executable operations, call and nominal
 cleanup requirements, and contract guarantees; each row retains exact owner,

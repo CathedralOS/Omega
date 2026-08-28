@@ -1138,6 +1138,39 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         );
     }
 
+    let legalization_replay = root.join(
+        "source/on-ramp/rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/src/legalization_replay.rs",
+    );
+    let legalization_replay_source =
+        std::fs::read_to_string(&legalization_replay).unwrap_or_else(|error| {
+            panic!("failed to read {}: {error}", legalization_replay.display())
+        });
+    for forbidden in [
+        "derive_source_functions",
+        "crate::source",
+        "source::",
+        "omega_register_model",
+        "omega_terminal_selected_instructions",
+    ] {
+        assert!(
+            !legalization_replay_source.contains(forbidden),
+            "independent legalization replay must not consume producer or selection helpers; found {forbidden}"
+        );
+    }
+    assert!(
+        selection_manifest_source.contains("omega-terminal-legalized-operations"),
+        "the checked legalization/selection pipeline must retain its legalized representation dependency"
+    );
+    let selection_source = std::fs::read_to_string(root.join(
+        "source/on-ramp/rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/src/lib.rs",
+    ))
+    .expect("read target legalization and selection pipeline");
+    assert!(
+        selection_source
+            .contains("replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?"),
+        "public legalized-plan validation must call the independent replay"
+    );
+
     let selected_representation = root.join(
         "source/on-ramp/rust/omega/representations/omega-terminal-selected-instructions/src/lib.rs",
     );

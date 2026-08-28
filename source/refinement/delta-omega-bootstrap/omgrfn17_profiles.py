@@ -5,7 +5,6 @@ from __future__ import annotations
 
 import importlib.util
 import struct
-import subprocess
 import sys
 from pathlib import Path
 
@@ -14,7 +13,7 @@ from omgrfn17_elf import reconstruct
 from omgrfn17_source import COUNT_NAMES, WIDTHS
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]
+REPO = HERE.parents[2]
 GATES = REPO / "source/on-ramp/omega-bootstrap/gates"
 sys.path[:0] = [str(GATES), str(REPO / "source/on-ramp/omega-bootstrap/compiler")]
 import shared_byte_view_resolution_fixture as shared  # noqa: E402
@@ -73,7 +72,7 @@ def witness(source_bytes: bytes) -> bytes:
                        *(counts.get(name, 0) for name in COUNT_NAMES)) + payload
 
 
-def profiles(resolver: Path | None = None) -> dict[str, bytes]:
+def profiles() -> dict[str, bytes]:
     fixture = load_fixture()
     definitions = {
         "recurrent": ("FG", (70, 71), 71),
@@ -84,9 +83,7 @@ def profiles(resolver: Path | None = None) -> dict[str, bytes]:
     for name, (literal, values, expected) in definitions.items():
         authored = source(literal)
         omgcomp = shared.encode(authored)
-        normalized = witness(authored) if resolver is None else subprocess.run(
-            [str(resolver)], input=omgcomp, stdout=subprocess.PIPE, check=True,
-        ).stdout
+        normalized = witness(authored)
         if normalized[:12] != b"OMGRSW4\0\x04\0\0\0":
             raise ValueError(f"{name} resolver did not publish exact OMGRSW4")
         tables = fixture.tables(values)

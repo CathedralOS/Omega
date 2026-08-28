@@ -58,7 +58,7 @@ The Delta checker emits no bytes.
 
 [`omega_bootstrap_compilation_v3.py`](omega_bootstrap_compilation_v3.py) is the
 deterministic pack/verify/inspect tool.
-[`../gates/delta-compilation-envelope-v3.sh`](../gates/delta-compilation-envelope-v3.sh)
-compares it with an independent encoder, exercises role and resource controls,
-runs the Delta checker built through both native and self-hosted routes, and
-retains the complete OMGCOMP2/V1 regressions.
+The former producer wrapper compared it with an independent encoder, exercised
+role and resource controls, ran native/self Delta checkers, and retained the
+OMGCOMP2/V1 regressions. That replay is suspended until canonical Delta
+publication.

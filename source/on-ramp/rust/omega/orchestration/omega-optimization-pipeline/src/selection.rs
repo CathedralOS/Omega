@@ -1,6 +1,6 @@
 use omega_lowering_optimizer::ValidatedOptimizedTargetOperations;
 use omega_optimization_core::{
-    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
+    OptimizationIdentityBundleIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
 use omega_terminal_legalized_operations::TerminalLegalizedLeafValue;
@@ -69,6 +69,7 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
     legalized: omega_terminal_legalized_operations::TerminalLegalizedOperationPlanIdentity,
+    legalization_validator: OptimizationValidatorIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     function_count: usize,
 }
@@ -114,6 +115,10 @@ impl StagedOptimizedSelectionCustodyReceipt {
         self,
     ) -> omega_terminal_legalized_operations::TerminalLegalizedOperationPlanIdentity {
         self.legalized
+    }
+
+    pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
+        self.legalization_validator
     }
 
     pub const fn register_environment(
@@ -241,6 +246,9 @@ pub fn validate_optimized_selection_custody(
     if selected.receipt().legalized() != legalized.receipt().identity() {
         return Err(OptimizedSelectionCustodyError::LegalizedReceiptMismatch);
     }
+    if selected.receipt().legalization_validator() != legalized.receipt().validator() {
+        return Err(OptimizedSelectionCustodyError::LegalizedReceiptMismatch);
+    }
     if selected.receipt().fuel_schedule() != unit.fuel_schedule
         || plan.fuel_schedule != unit.fuel_schedule
     {
@@ -274,6 +282,7 @@ pub fn validate_optimized_selection_custody(
         fuel_schedule: unit.fuel_schedule,
         register_environment: register_environment.identity(),
         legalized: legalized.receipt().identity(),
+        legalization_validator: legalized.receipt().validator(),
         selected: selected.receipt().identity(),
         function_count: plan.functions.len(),
     })

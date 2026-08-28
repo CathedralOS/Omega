@@ -38,7 +38,8 @@ Persisted-Beta elaboration of the current shared lowerer produces a measured
 2,800,000-byte version-local ceiling (with 2,800,001 as the adjacent rejected
 tooth); historical meaning modes retain their 2,300,000-byte ceiling.
 
-Producer evidence is `../gates/delta-resolved-to-ckir15-fixture.py`, its three
-product-shaped execution fixtures, and its no-`StaticByteView` runtime-parameter
-carrier. CKIR12 and CKIR14 remain frozen on their prior outer identities and
-producer branches.
+The product-shaped execution fixtures and no-`StaticByteView`
+runtime-parameter carrier remain as frozen inputs. Their producer-dependent
+driver was removed with the external Delta producer; replay resumes only after
+canonical Delta publication. CKIR12 and CKIR14 remain frozen on their prior
+outer identities.

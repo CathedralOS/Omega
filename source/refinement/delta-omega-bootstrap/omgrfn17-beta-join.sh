@@ -14,15 +14,12 @@ case "$(uname -sm)" in
   "Darwin arm64") ;;
   *) echo "OMGRFN17 Beta join: skipped (requires Darwin arm64)"; exit 0 ;;
 esac
-for TOOL in python3 codesign cargo; do command -v "$TOOL" >/dev/null 2>&1 || { echo "OMGRFN17 Beta join: skipped ($TOOL absent)"; exit 0; }; done
+for TOOL in python3 codesign; do command -v "$TOOL" >/dev/null 2>&1 || { echo "OMGRFN17 Beta join: skipped ($TOOL absent)"; exit 0; }; done
 
 T=$(mktemp -d)
 trap 'rm -rf "$T"' EXIT
 R=$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT
-cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
-DELTA=$OMEGA_PATH_DELTA_RUST/target/debug/delta
-DELTA_ARCH=aarch64 "$DELTA" "$OMEGA_PATH_OMEGA_BOOTSTRAP_COMPILER/omega-bootstrap-resolve.alp" "$T/resolver" >/dev/null
-PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" python3 -B "$R/omgrfn17-materialize-beta.py" "$T/materialized" --resolver "$T/resolver"
+PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" python3 -B "$R/omgrfn17-materialize-beta.py" "$T/materialized"
 for PROFILE in recurrent one-byte empty; do
   for OWNER in r1 r2 r3 r4-lowering r4-source-result r5-structure r5-result r5-elf; do
     PYTHONPATH="$R:$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES" \

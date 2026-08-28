@@ -12,7 +12,7 @@ from omgrfn18_frame import RefinementError, RefinementResourceError, require
 from omgrfn18_u64 import bounds
 
 HERE = Path(__file__).resolve().parent
-GATES = HERE.parents[3] / "source/on-ramp/omega-bootstrap/gates"
+GATES = HERE.parents[2] / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 import checked_elf_v2_reference as elf2  # noqa: E402
 

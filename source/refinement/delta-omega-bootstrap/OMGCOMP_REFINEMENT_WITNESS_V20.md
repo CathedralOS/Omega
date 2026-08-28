@@ -78,8 +78,7 @@ service/ranking/boundary, and structurally valid trace mutations.
 The exact components are the 3,335-byte OMGCOMP3 envelope, 2,304-byte OMGRSW9
 witness, and independently checked 2,432-byte CKIR17 library whose SHA-256 is
 `d1cfe747b0bae989f60da3ffa9c5f149579677523498d96f93e1deafdc3f75b7`.
-`omgrfn20-same-frame-composite.sh` separately compiles the focused OMGRSW9 and
-OMGLOWI18 producers both natively and through the Delta lowermachine, requires
-both paths to reproduce those exact reference bytes, packs each actual output
-into one OMGRFN20 frame, and runs all R1--R5 owners. Fixture construction alone
-is not producer evidence; the separate composite supplies that obligation.
+The former producer-dependent same-frame wrapper is retired until the
+canonical Delta compiler is published. Fixture construction remains reference
+evidence only and makes no producer-publication claim; the R1--R5 owners remain
+responsibility-local.

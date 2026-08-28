@@ -1,6 +1,6 @@
 # Precise cache profile for the provisional OMGRFN17 platform-neutral owners
-# and representative persisted-Beta seed-lineage joins. Producer/backend and
-# Rust-free meaning are intentionally separate lattice obligations.
+# and representative persisted-Beta seed-lineage joins. Producer/backend replay
+# is suspended; Rust-free meaning remains a separate lattice obligation.
 script source/refinement/delta-omega-bootstrap/omgrfn17-reference.sh
 
 input source/delta
