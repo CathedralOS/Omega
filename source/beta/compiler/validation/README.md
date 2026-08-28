@@ -56,10 +56,19 @@ the unique checked entry-block PC. All semantic consumers now use that identity
 for the selected `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`,
 `gen_expr`, `gen_stmts`, and `parse_proc` entries and adjacent procedure
 boundaries instead of pinning those 79 entry PCs. Intra-procedure block, event,
-and call-site coordinates remain to be decoded by stable identities. The final
-ROOT tape is 78,247 bytes for the current
+and call-site identity decoding now has one reusable fail-closed owner: a
+consumer fixes the source row plus its procedure/block/kind payload, and the
+checked table supplies the artifact PC. `emit_dec` is the first complete
+consumer; its block, transition, call, local, primitive, push, explicit-return,
+synthetic-return, and region-boundary checks no longer repeat 32 artifact-PC
+literals. Its call continuation comes from the identified transition, and its
+epilogues are reconstructed relative to the identified return event or next
+procedure entry. Other intra-procedure consumers remain to migrate. A fifth
+negative control mutates `emit_dec`'s witness event PC while retaining the exact
+source and artifact and proves that witness coordinates cannot select semantic
+identity. The final ROOT tape is 79,460 bytes for the current
 exact subjects, SHA-256
-`a397ec2503dc70077f7f617f9013ba5ea8395fac0512be15d23722f2aec25489`.
+`ce5199b2b48cb3a9f04ec4ba366f5c6f1efcffcc7c65f4591246d7b5b94c3fbf`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

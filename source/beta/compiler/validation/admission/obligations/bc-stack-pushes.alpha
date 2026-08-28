@@ -319,3 +319,18 @@ exact_require_store_push:
         imm r22, 3
         call transfer_require_push
         ret
+
+; Stable-identity adapters omit the artifact PC. The independently rebuilt
+; push row supplies it only after its source block and semantic kind match.
+exact_require_binary_push_identity:
+        imm r22, 1
+        call exact_push_identity_pc
+        ret
+exact_require_argument_push_identity:
+        imm r22, 2
+        call exact_push_identity_pc
+        ret
+exact_require_store_push_identity:
+        imm r22, 3
+        call exact_push_identity_pc
+        ret

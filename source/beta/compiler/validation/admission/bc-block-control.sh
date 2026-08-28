@@ -1125,8 +1125,10 @@ establish_parse_proc_canonical
 establish_root_observation_canonical
 bc_timing_finish
 
-# Four format-level teeth retain fail-closed input binding without generating
-# checker-source permutations. The canonical ROOT executable decides each one.
+# Five format/identity-level teeth retain fail-closed input binding without
+# generating checker-source permutations. The canonical ROOT executable
+# decides each one. The selected event-PC mutation specifically proves that a
+# witness coordinate cannot redefine emit_dec's source-owned call identity.
 cp "$T/control.bundle" "$T/wrong-source.bundle"
 printf '\161' | dd of="$T/wrong-source.bundle" bs=1 seek=4 conv=notrunc status=none
 
@@ -1139,6 +1141,12 @@ dd if="$T/control.bundle" of="$T/truncated.bundle" bs=1 count=$((bundle_size - 1
 cp "$T/control.bundle" "$T/wrong-length.bundle"
 u32_file $((SOURCE_LEN - 1)) "$T/wrong-source.len"
 dd if="$T/wrong-source.len" of="$T/wrong-length.bundle" bs=1 seek=0 conv=notrunc status=none
+
+control_witness_offset=$((4 + SOURCE_LEN + 4 + TAPE_LEN))
+# BC11 header (28 u32s), 359 block PCs, 293 transition PCs, then event row 308.
+emit_dec_call_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 308)))
+cp "$T/control.bundle" "$T/wrong-event-pc.bundle"
+printf '\377' | dd of="$T/wrong-event-pc.bundle" bs=1 seek="$emit_dec_call_pc_offset" conv=notrunc status=none
 
 root_case_run() {
   set +e
@@ -1154,7 +1162,8 @@ root_case_run wrong-source "$T/wrong-source.bundle"
 root_case_run wrong-tape "$T/wrong-tape.bundle"
 root_case_run truncated-witness "$T/truncated.bundle"
 root_case_run wrong-length "$T/wrong-length.bundle"
+root_case_run wrong-event-pc "$T/wrong-event-pc.bundle"
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 4 format-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 5 format/identity-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

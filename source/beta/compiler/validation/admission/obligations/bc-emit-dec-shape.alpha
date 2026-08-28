@@ -23,18 +23,21 @@ emit_dec_require_shape:
 
 emit_dec_shape_blocks:
         imm r20, 204
-        imm r21, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r21, 40                  ; emit_dec procedure identity
+        imm r22, 0                   ; procedure entry
+        call exact_block_identity_pc
         imm r20, 205
-        imm r21, 29203
-        call exact_require_block_pc
+        imm r21, 40
+        imm r22, 1                   ; state big
+        call exact_block_identity_pc
         imm r20, 206
-        imm r21, 29335
-        call exact_require_block_pc
+        imm r21, 40
+        imm r22, 1                   ; state rec
+        call exact_block_identity_pc
         imm r20, 207
-        imm r21, 29452
-        call exact_require_block_pc
+        imm r21, 40
+        imm r22, 1                   ; state digit
+        call exact_block_identity_pc
         imm r20, 204
         imm r21, 207
         imm r22, 40
@@ -52,48 +55,40 @@ emit_dec_require_transitions:
         imm r21, 205
         imm r22, 1
         imm r23, 206
-        imm r24, 29307              ; checked n>=10 recursive guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked n>=10 recursive guard
         imm r20, 164
         imm r21, 205
         imm r22, 0
         imm r23, 207
-        imm r24, 29326              ; checked direct digit edge
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked direct digit edge
         imm r20, 165
         imm r21, 206
         imm r22, 0
         imm r23, 207
-        imm r24, 29443              ; checked post-recursion digit edge
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked post-recursion digit edge
         ret
 
 emit_dec_require_events:
         imm r20, 308
         imm r21, 206
-        imm r22, 29434
-        imm r23, 1                   ; q argument
-        imm r24, 0                   ; no ambient temporary
-        imm r25, 40                    ; recursive emit_dec identity
-        call exact_proc_entry_r25
-        imm r26, 29443               ; checked child continuation
-        call summary_require_call_site
+        imm r22, 1                   ; q argument
+        imm r23, 0                   ; no ambient temporary
+        imm r24, 40                  ; recursive emit_dec identity
+        imm r25, 165                 ; continuation transition identity
+        imm r26, 206
+        imm r27, 0
+        imm r28, 207
+        call summary_require_call_identity
         imm r20, 309
         imm r21, 207
         imm r22, 3
-        imm r23, 29567              ; checked direct digit write
-        call exact_require_event
+        call exact_event_identity_pc ; checked direct digit write
         imm r20, 310
         imm r21, 207
         imm r22, 5
-        imm r23, 29598              ; checked source return zero
-        call exact_require_event
-        imm r20, 29579
-        imm r21, 29598
-        call exact_require_epilogue
-        imm r20, 29599
-        imm r21, 29618
-        call exact_require_epilogue
+        call exact_require_event_epilogue ; explicit return zero
+        imm r20, 41                  ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 emit_dec_require_locals:
@@ -101,20 +96,17 @@ emit_dec_require_locals:
         imm r21, 205
         imm r22, 1
         imm r23, 0
-        imm r24, 29203              ; guard n
-        call transfer_require_local
+        call exact_local_identity_pc ; guard n
         imm r20, 119
         imm r21, 206
         imm r22, 1
         imm r23, 0
-        imm r24, 29335              ; quotient n
-        call transfer_require_local
+        call exact_local_identity_pc ; quotient n
         imm r20, 120
         imm r21, 207
         imm r22, 1
         imm r23, 0
-        imm r24, 29452              ; remainder n
-        call transfer_require_local
+        call exact_local_identity_pc ; remainder n
         ret
 
 emit_dec_require_primitives:
@@ -122,79 +114,65 @@ emit_dec_require_primitives:
         imm r21, 205
         imm r22, 3
         imm r23, 13                  ; n>=10
-        imm r24, 29248
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 524
         imm r21, 205
         imm r22, 1
         imm r23, 10
-        imm r24, 29238
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 525
         imm r21, 206
         imm r22, 2
         imm r23, 6                   ; n/10
-        imm r24, 29380
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 526
         imm r21, 206
         imm r22, 1
         imm r23, 10
-        imm r24, 29370
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 527
         imm r21, 207
         imm r22, 2
         imm r23, 7                   ; n%10
-        imm r24, 29497
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 528
         imm r21, 207
         imm r22, 1
         imm r23, 10
-        imm r24, 29487
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 529
         imm r21, 207
         imm r22, 2
         imm r23, 3                   ; remainder+'0'
-        imm r24, 29545
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 530
         imm r21, 207
         imm r22, 1
         imm r23, 48                  ; decimal digit zero
-        imm r24, 29535
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 531
         imm r21, 207
         imm r22, 1
         imm r23, 0
-        imm r24, 29569
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 emit_dec_require_pushes:
         imm r20, 148
         imm r21, 205
-        imm r23, 29222              ; comparison-left n
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; comparison-left n
         imm r20, 149
         imm r21, 206
-        imm r23, 29354              ; division-left n
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; division-left n
         imm r20, 150
         imm r21, 207
-        imm r23, 29471              ; remainder-left n
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; remainder-left n
         imm r20, 151
         imm r21, 207
-        imm r23, 29519              ; addition-left remainder
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; addition-left remainder
         imm r20, 317
         imm r21, 206
-        imm r23, 29402              ; recursive q argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity ; recursive q argument
         ret
 
 emit_dec_require_censuses:
@@ -224,7 +202,8 @@ emit_dec_require_censuses:
 
         imm r20, 40                    ; emit_dec procedure identity
         call exact_proc_entry_r20
-        imm r21, 29619
+        imm r21, 41                    ; next procedure identity
+        call exact_proc_entry_r21
         imm r22, 1                   ; recursive call count
         imm r23, 2                   ; explicit and synthetic returns
         imm r24, 1                   ; direct write count
