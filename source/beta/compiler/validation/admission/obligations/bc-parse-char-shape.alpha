@@ -1,6 +1,7 @@
 ; Exact source/artifact shape for parse_char() procedure56.
 ;
-; Owns the eleven blocks, complete finite escape partition, six cursor calls,
+; The canonical procedure inventory owns its total block span and partition.
+; This module owns the complete finite escape edge partition, six cursor calls,
 ; explicit/synthetic returns, one local slot, exact comparisons/constants,
 ; binary pushes, and exhaustive decoded/table censuses. The adjacent meaning
 ; module owns ordinary/escape values and deliberately malformed tail behavior.
@@ -12,55 +13,6 @@ parse_char_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
-parse_char_shape_blocks:
-        imm r20, 256
-        imm r21, 56
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 257
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 258
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 259
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 260
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 261
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 262
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 263
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 264
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 265
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 266
-        imm r21, 56
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 256
-        imm r21, 266
-        imm r22, 56
-        call exact_require_proc_blocks
         call parse_char_require_transitions
         call parse_char_require_events
         call parse_char_require_locals

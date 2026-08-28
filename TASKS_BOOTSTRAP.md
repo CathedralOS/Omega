@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 190 Alpha modules
-  and 60,937 lines; Checker A is 1,011,122 source bytes and the checker ROOT is
+  and 60,563 lines; Checker A is 1,002,576 source bytes and the checker ROOT is
   80,986 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations. The first
@@ -109,11 +109,17 @@ admission, and optional stress evidence stay under the same compiler owner.
   Procedure-entry and inclusive block-range queries consume it in constant time
   without adding a witness or semantic token. Next remove census-only block
   listings family by family while retaining every PC-producing identity call.
-  The first twenty low-risk consumers now rely on that owner, deleting 83
-  unused block lookups, 23 redundant span scans, thirteen dead helper routines,
-  and 458 source lines without changing the exact artifact subject. Four effect
-  censuses and two fixed-emitter summaries also consume their validated live
-  table counts instead of stale 242/95/291/355/613-row ceilings.
+  The first twenty-eight low-risk consumers now rely on that owner, deleting
+  162 unused block lookups, 36 redundant span scans, nineteen dead listing
+  helpers/labels, and 832 source lines without changing the exact artifact
+  subject. Four effect censuses and two fixed-emitter summaries also consume
+  their validated live table counts instead of stale
+  242/95/291/355/613-row ceilings.
+  Once the source census migration closes, evaluate a separate four-family
+  block-prefix effect index: the present compatibility API performs 64 semantic
+  censuses and revisits 1,255 rows each time. It may replace only ownership
+  scans; event kinds, byte totals, stack custody, and other row-content theorems
+  must continue to inspect their own facts.
   Keep frame, effect, memory, stack, ranged-store, and meaning theorems separate
   rather than turning the inventory into another mega-checker.
 - [x] Finish identity localization before changing the shared compiler frame

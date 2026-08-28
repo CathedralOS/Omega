@@ -1,9 +1,10 @@
 ; Exact source/artifact shape for skip_char_lit() and skip_str_lit().
 ;
-; This module owns procedures 37..38: their ten blocks, nine transitions,
-; thirteen ordinary calls, three source returns, all concrete and synthetic
-; epilogues, comparison/literal rows, binary pushes, frames, and exhaustive
-; effect/expression/decoded-region censuses.  Cursor and literal meaning is
+; The canonical procedure inventory owns procedures 37..38's total block spans
+; and partitions. This module owns their nine transitions, thirteen ordinary
+; calls, three source returns, all concrete and synthetic epilogues,
+; comparison/literal rows, binary pushes, frames, and exhaustive
+; effect/expression/decoded-region censuses. Cursor and literal meaning is
 ; deliberately separated into the adjacent summary module.
 
 literal_skip_require_shape:
@@ -19,56 +20,6 @@ literal_skip_shape_string_frame:
         imm r23, 8
         call exact_require_proc_frame_identity
 
-literal_skip_shape_blocks:
-        imm r20, 183
-        imm r21, 37
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 184
-        imm r21, 37
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 185
-        imm r21, 37
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 186
-        imm r21, 37
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 183
-        imm r21, 186
-        imm r22, 37
-        call exact_require_proc_blocks
-
-        imm r20, 187
-        imm r21, 38
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 188
-        imm r21, 38
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 189
-        imm r21, 38
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 190
-        imm r21, 38
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 191
-        imm r21, 38
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 192
-        imm r21, 38
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 187
-        imm r21, 192
-        imm r22, 38
-        call exact_require_proc_blocks
         call literal_skip_require_transitions
         call literal_skip_require_events
         call literal_skip_require_data
