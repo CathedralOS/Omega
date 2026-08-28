@@ -75,247 +75,197 @@ declare_require_locals:
         imm r21, 170
         imm r22, 2
         imm r23, 0
-        imm r24, 24190               ; checked NLOC snapshot into s
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 71
         imm r21, 171
         imm r22, 1
         imm r23, 0
-        imm r24, 24209
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 72
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24443
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 73
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24606
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 74
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24769
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 75
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24855
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 declare_require_memory:
         imm r20, 37
         imm r21, 170
-        imm r22, 1
-        imm r23, 8
-        imm r24, 24187
-        call transfer_require_memory
+        imm r25, 432
+        imm r26, 2097128            ; NLOC load
+        call exact_memory_load_pc
         imm r20, 38
         imm r21, 171
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24384
-        call transfer_require_memory
+        call exact_memory_store_pc  ; RESOURCE_FAIL store
         imm r20, 39
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24577
-        call transfer_require_memory
+        call exact_memory_store_pc  ; NAMEOFF[s] store
         imm r20, 40
         imm r21, 172
-        imm r22, 1
-        imm r23, 8
-        imm r24, 24558
-        call transfer_require_memory
+        imm r25, 442
+        imm r26, 2097120            ; IDOFF load
+        call exact_memory_load_pc
         imm r20, 41
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24740
-        call transfer_require_memory
+        call exact_memory_store_pc  ; NAMELEN[s] store
         imm r20, 42
         imm r21, 172
-        imm r22, 1
-        imm r23, 8
-        imm r24, 24721
-        call transfer_require_memory
+        imm r25, 447
+        imm r26, 2097112            ; IDLEN load
+        call exact_memory_load_pc
         imm r20, 43
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24852
-        call transfer_require_memory
+        call exact_memory_store_pc  ; NLOC store
         ret
 
 declare_require_primitives:
-        ; row/block/kind/value-or-opcode/PC.
+        ; Stable row/block/kind/value-or-opcode identities.
         imm r20, 432
         imm r21, 170
         imm r22, 1
         imm r23, 2097128             ; NLOC
-        imm r24, 24177
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 433
         imm r21, 171
         imm r22, 3
         imm r23, 8                   ; signed s<1024
-        imm r24, 24254
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 434
         imm r21, 171
         imm r22, 1
         imm r23, 1024                ; checked declare capacity
-        imm r24, 24244
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 435
         imm r21, 171
         imm r22, 1
         imm r23, 2097072             ; RESOURCE_FAIL
-        imm r24, 24332
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 436
         imm r21, 171
         imm r22, 1
         imm r23, 252                 ; checked declare exhaustion status
-        imm r24, 24358
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 437
         imm r21, 171
         imm r22, 1
         imm r23, 0
-        imm r24, 24387
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 438
         imm r21, 172
         imm r22, 1
         imm r23, 3145728             ; NAMEOFF base
-        imm r24, 24417
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 439
         imm r21, 172
         imm r22, 2
         imm r23, 3                   ; base + scaled index
-        imm r24, 24510
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 440
         imm r21, 172
         imm r22, 2
         imm r23, 5                   ; s * 8
-        imm r24, 24488
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 441
         imm r21, 172
         imm r22, 1
         imm r23, 8
-        imm r24, 24478
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 442
         imm r21, 172
         imm r22, 1
         imm r23, 2097120             ; IDOFF payload
-        imm r24, 24548
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 443
         imm r21, 172
         imm r22, 1
         imm r23, 3153920             ; NAMELEN base
-        imm r24, 24580
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 444
         imm r21, 172
         imm r22, 2
         imm r23, 3
-        imm r24, 24673
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 445
         imm r21, 172
         imm r22, 2
         imm r23, 5
-        imm r24, 24651
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 446
         imm r21, 172
         imm r22, 1
         imm r23, 8
-        imm r24, 24641
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 447
         imm r21, 172
         imm r22, 1
         imm r23, 2097112             ; IDLEN payload
-        imm r24, 24711
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 448
         imm r21, 172
         imm r22, 1
         imm r23, 2097128
-        imm r24, 24743
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 449
         imm r21, 172
         imm r22, 2
         imm r23, 3                   ; s+1
-        imm r24, 24814
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 450
         imm r21, 172
         imm r22, 1
         imm r23, 1
-        imm r24, 24804
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 declare_require_pushes:
         imm r20, 112
         imm r21, 171
-        imm r23, 24228
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 113
         imm r21, 172
-        imm r23, 24427
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 114
         imm r21, 172
-        imm r23, 24462
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 115
         imm r21, 172
-        imm r23, 24590
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 116
         imm r21, 172
-        imm r23, 24625
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 117
         imm r21, 172
-        imm r23, 24788
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 384
         imm r21, 171
-        imm r23, 24342
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 385
         imm r21, 172
-        imm r23, 24532
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 386
         imm r21, 172
-        imm r23, 24695
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 387
         imm r21, 172
-        imm r23, 24753
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 declare_require_censuses:

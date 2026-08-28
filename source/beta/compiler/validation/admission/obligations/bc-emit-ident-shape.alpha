@@ -78,49 +78,42 @@ emit_ident_require_events:
         ret
 
 emit_ident_require_locals:
-        ; Row order is lexical source order; PCs expose lowering order.
+        ; Stable rows retain lexical source order while the owner supplies PCs.
         imm r20, 126
         imm r21, 214
         imm r22, 2
         imm r23, 2
-        imm r24, 31545              ; k=0
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 127
         imm r21, 215
         imm r22, 1
         imm r23, 2
-        imm r24, 31564              ; guard k
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 128
         imm r21, 215
         imm r22, 1
         imm r23, 1
-        imm r24, 31599              ; guard len
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 129
         imm r21, 216
         imm r22, 1
         imm r23, 0
-        imm r24, 31752              ; source off
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 130
         imm r21, 216
         imm r22, 1
         imm r23, 2
-        imm r24, 31809              ; source index k
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 131
         imm r21, 216
         imm r22, 2
         imm r23, 2
-        imm r24, 31922              ; k successor store
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 132
         imm r21, 216
         imm r22, 1
         imm r23, 2
-        imm r24, 31855              ; increment k load
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 emit_ident_require_memory:
@@ -128,8 +121,22 @@ emit_ident_require_memory:
         imm r21, 216
         imm r22, 1
         imm r23, 1
-        imm r24, 31850              ; byte[SRC+off+k]
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r39, r0                 ; byte[SRC+off+k]
+        imm r20, 547                ; final address addition
+        imm r21, 216
+        imm r22, 2
+        imm r23, 3
+        call exact_primitive_identity_pc
+        mov r38, r0
+        imm r20, 547
+        call exact_expr_primitive_extent
+        jeq r0, r38, emit_ident_memory_start_rejoined
+        jmp reject
+emit_ident_memory_start_rejoined:
+        jeq r1, r39, emit_ident_memory_rejoined
+        jmp reject
+emit_ident_memory_rejoined:
         ret
 
 emit_ident_require_primitives:
@@ -137,69 +144,57 @@ emit_ident_require_primitives:
         imm r21, 214
         imm r22, 1
         imm r23, 0
-        imm r24, 31535
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 543
         imm r21, 215
         imm r22, 3
         imm r23, 8                   ; k<len
-        imm r24, 31618
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 544
         imm r21, 215
         imm r22, 1
         imm r23, 0                   ; return zero
-        imm r24, 31696
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 545
         imm r21, 216
         imm r22, 1
         imm r23, 2097152             ; source arena base
-        imm r24, 31726
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 546
         imm r21, 216
         imm r22, 2
         imm r23, 3                   ; base+off
-        imm r24, 31771
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 547
         imm r21, 216
         imm r22, 2
         imm r23, 3                   ; base+off+k
-        imm r24, 31828
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 548
         imm r21, 216
         imm r22, 2
         imm r23, 3                   ; k+1
-        imm r24, 31900
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 549
         imm r21, 216
         imm r22, 1
         imm r23, 1
-        imm r24, 31890
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 emit_ident_require_pushes:
         imm r20, 156
         imm r21, 215
-        imm r23, 31583              ; guard-left k
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 157
         imm r21, 216
-        imm r23, 31736              ; source-base left
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 158
         imm r21, 216
-        imm r23, 31793              ; base+off left
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 159
         imm r21, 216
-        imm r23, 31874              ; increment-left k
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 emit_ident_require_censuses:
