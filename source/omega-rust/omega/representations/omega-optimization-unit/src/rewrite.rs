@@ -1804,7 +1804,10 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v25\0");
+    // The version identifies this extensible tagged schema, not the current
+    // largest tag. Rehashing established candidates when a new tag is added
+    // would also change deterministic cost-tie decisions for unrelated rules.
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v24\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
