@@ -1271,40 +1271,40 @@ slurp_summary_done_result:
 slurp_summary_publish_oversize:
         imm r20, 525464
         imm r21, 1                    ; N tag
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525472
         imm r21, 1048576              ; N lower endpoint
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525480
         imm r21, 1048576              ; N upper endpoint
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525488
         imm r21, 1                    ; segment length=N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525496
         imm r21, 1                    ; pending Input(N)
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525504
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525512
         imm r21, 2                    ; cursor=N+1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525568
         imm r21, 1                    ; finite len>N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525576
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525584
         imm r21, 5                    ; selected zero
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525592
         imm r21, 0
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525640
         imm r21, 0                    ; done resets did not execute
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         call slurp_summary_require_empty_output
         imm r1, 525752
         imm r2, 2
@@ -1318,60 +1318,54 @@ slurp_summary_publish_oversize:
 slurp_summary_publish_success:
         imm r20, 525464
         imm r21, 1                    ; N tag
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525472
         imm r21, 0                    ; quantified lower endpoint
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525480
         imm r21, 1048576              ; quantified upper endpoint
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525488
         imm r21, 1                    ; segment length=N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525496
         imm r21, 2                    ; EOF at N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525504
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525512
         imm r21, 1                    ; cursor=N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525568
         imm r21, 2                    ; finite len=N
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525576
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525584
         imm r21, 6                    ; selected one
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525592
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525640
         imm r21, 7                    ; LEN plus six resets
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         call slurp_summary_require_empty_output
         imm r1, 525744
         imm r2, 1
         store r1, r2                  ; publish success clause
         ret
 
-; Require one internal symbolic-state cell at address r20 to equal r21.
-slurp_summary_require_state_cell:
-        load r2, r20
-        jeq r2, r21, exact_shape_ok
-        jmp reject
-
 ; Reaching the caller-facing bridge requires both independently keyed clauses.
 slurp_summary_require_published:
         imm r20, 525744
         imm r21, 1
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         imm r20, 525752
         imm r21, 2
-        call slurp_summary_require_state_cell
+        call exact_require_cell
         ret
 
 ; Require current selected kind/payload r20/r21.

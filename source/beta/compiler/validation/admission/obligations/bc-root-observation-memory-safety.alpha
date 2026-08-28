@@ -550,7 +550,7 @@ root_memory_safety_select_expected:
         imm r28, 616072
         imm r29, 1
         imm r1, 1
-        jeq r10, r1, rms_es
+        jeq r10, r1, rms_bs
         imm r1, 2
         jeq r10, r1, root_memory_safety_expected_id_char
         imm r1, 3
@@ -573,7 +573,7 @@ root_memory_safety_expected_id_char:
         imm r25, 1212367945
         imm r26, 526792
         imm r27, 1396984146
-        jmp rms_es
+        jmp rms_bs
 root_memory_safety_expected_namelen:
         imm r11, 44
         imm r12, 35
@@ -589,14 +589,14 @@ root_memory_safety_expected_namelen:
         imm r25, 1397839182
         imm r26, 531848
         imm r27, 1296323662
-        jmp rms_es
+        jmp rms_bs
 root_memory_safety_expected_nameoff:
         call root_memory_safety_expected_namelen
         imm r11, 46
         imm r13, 175
         imm r17, 3145728
         imm r23, 3153920
-        jmp rms_es
+        jmp rms_bs
 root_memory_safety_expected_name_a:
         call root_memory_safety_expected_namelen
         imm r11, 49
@@ -608,11 +608,11 @@ root_memory_safety_expected_name_a:
         imm r19, 4
         imm r22, 1048575
         imm r23, 3145728
-        jmp rms_es
+        jmp rms_bs
 root_memory_safety_expected_name_b:
         call root_memory_safety_expected_name_a
         imm r11, 50
-        jmp rms_es
+        jmp rms_bs
 root_memory_safety_expected_emit_ident:
         call root_memory_safety_expected_id_char
         imm r11, 54
@@ -623,18 +623,7 @@ root_memory_safety_expected_emit_ident:
         imm r25, 1396984133
         imm r26, 526792
         imm r27, 1396984146
-rms_es:
-        mov r30, r23
-        mov r31, r22
-        mov r20, r11
-        mov r21, r13
-        imm r22, 1
-        mov r23, r16
-        call exact_memory_identity_pc
-        mov r14, r0
-        mov r22, r31
-        mov r23, r30
-        ret
+        jmp rms_bs
 
 root_memory_safety_publish:
         imm r1, 631176
