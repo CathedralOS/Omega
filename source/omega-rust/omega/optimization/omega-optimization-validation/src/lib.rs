@@ -33,9 +33,9 @@ use omega_optimization_unit::{
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
-    BlockId, BoundaryMachineId, ClaimId, EdgeId, IntegerCarrier, IntegerSign, IntegerType,
-    IntegerValue, MachineId, OperationId, PlaceId, ScalarType, StructuralDomainId,
-    StructuralPlaceKind, StructuralTypeId, ValueId,
+    BlockId, BoundaryMachineId, ClaimId, ContentProjectionExpression, ContentProjectionScalar,
+    EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId, OperationId,
+    PlaceId, ScalarType, StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal_fuel::TerminalFuelSchedule;
 
@@ -97,6 +97,8 @@ pub enum OptimizationUnitValidationError {
     DuplicateStructuralDomain(StructuralDomainId),
     NonCanonicalStructuralDomainOrder,
     InvalidStructuralDomainIdentity(StructuralDomainId),
+    InvalidStructuralDomainContentProjection(StructuralDomainId),
+    ContentProjectionOwnerMismatch(psi_core::ContentProjectionIdentity),
     NonCanonicalTrivialAffineLocals(MachineId),
     TrivialAffineLocalDeclarationRequiresEmptyRecord {
         machine: MachineId,
@@ -9879,7 +9881,125 @@ fn index_structural_catalogs(
             carrier,
         ));
     }
+    for declaration in unit.structural_domains.iter() {
+        if declaration
+            .content_projection
+            .as_ref()
+            .is_some_and(|projection| {
+                !validate_structural_content_projection(
+                    declaration.semantic_domain,
+                    declaration.carrier,
+                    projection,
+                    &types,
+                )
+            })
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralDomainContentProjection(
+                    declaration.id,
+                ),
+            );
+        }
+    }
     Ok((types, domains))
+}
+
+fn validate_content_projection_scalar(
+    value: &ContentProjectionScalar,
+    carrier: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+    depth: usize,
+) -> bool {
+    if depth > 256 {
+        return false;
+    }
+    match value {
+        ContentProjectionScalar::SubjectField(path)
+        | ContentProjectionScalar::RuntimeScalarEmbedding(path) => {
+            if path.is_empty() || path.iter().any(String::is_empty) {
+                return false;
+            }
+            let mut current = carrier;
+            for (index, segment) in path.iter().enumerate() {
+                let Some(declaration) = types.get(&current) else {
+                    return false;
+                };
+                let psi_terminal::StructuralTypeShape::Record { fields } = &declaration.shape
+                else {
+                    return false;
+                };
+                let Some(field) = fields.iter().find(|field| field.identity == *segment) else {
+                    return false;
+                };
+                let last = index + 1 == path.len();
+                match (&field.field_type, last) {
+                    (psi_terminal::StructuralFieldType::Structural(next), false) => {
+                        current = *next;
+                    }
+                    (psi_terminal::StructuralFieldType::Scalar(_), true) => {}
+                    _ => return false,
+                }
+            }
+            true
+        }
+        ContentProjectionScalar::Natural(value) => {
+            !value.is_empty()
+                && value.bytes().all(|byte| byte.is_ascii_digit())
+                && (value == "0" || !value.starts_with('0'))
+        }
+        ContentProjectionScalar::Successor(inner) => {
+            validate_content_projection_scalar(inner, carrier, types, depth + 1)
+        }
+        ContentProjectionScalar::Add(left, right)
+        | ContentProjectionScalar::Subtract(left, right)
+        | ContentProjectionScalar::Multiply(left, right) => {
+            validate_content_projection_scalar(left, carrier, types, depth + 1)
+                && validate_content_projection_scalar(right, carrier, types, depth + 1)
+        }
+    }
+}
+
+fn validate_content_projection_expression(
+    expression: &ContentProjectionExpression,
+    carrier: StructuralTypeId,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    match expression {
+        ContentProjectionExpression::IntervalSet(members) => members.iter().all(|(start, end)| {
+            validate_content_projection_scalar(start, carrier, types, 0)
+                && validate_content_projection_scalar(end, carrier, types, 0)
+        }),
+        ContentProjectionExpression::CountedQuantity(magnitude) => {
+            validate_content_projection_scalar(magnitude, carrier, types, 0)
+        }
+    }
+}
+
+fn validate_structural_content_projection(
+    semantic_domain: psi_core::DomainSemanticId,
+    carrier: StructuralTypeId,
+    projection: &psi_terminal::StructuralContentProjection,
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> bool {
+    let shape_matches_algebra = matches!(
+        (&projection.expression, projection.algebra.kind),
+        (
+            ContentProjectionExpression::IntervalSet(_),
+            psi_core::ContentAlgebraKind::IntervalSet
+        ) | (
+            ContentProjectionExpression::CountedQuantity(_),
+            psi_core::ContentAlgebraKind::CountedQuantity
+        )
+    );
+    projection.identity.domain.get() == semantic_domain.get()
+        && projection.identity.projection_fingerprint != 0
+        && !projection.algebra.parameter.is_empty()
+        && shape_matches_algebra
+        && validate_content_projection_expression(&projection.expression, carrier, types)
+        && psi_language_semantics::content::terminal_projection_fingerprint(
+            &projection.algebra,
+            &projection.expression,
+        ) == projection.identity.projection_fingerprint
 }
 
 fn validate_structural_fields(
@@ -10271,6 +10391,27 @@ fn validate_function_structural_catalog(
         })
     {
         return Err(mismatch());
+    }
+    for projection in function
+        .content_entry_claims
+        .iter()
+        .flat_map(|claim| &claim.projections)
+    {
+        let owner = domains.values().find_map(|domain| {
+            domain
+                .content_projection
+                .as_ref()
+                .filter(|owner| owner.identity.domain == projection.projection.domain)
+        });
+        if !owner.is_some_and(|owner| {
+            owner.identity == projection.projection && owner.algebra == projection.algebra
+        }) {
+            return Err(
+                OptimizationUnitValidationError::ContentProjectionOwnerMismatch(
+                    projection.projection,
+                ),
+            );
+        }
     }
     let mut byte_sequence_literals = function
         .structural_places
@@ -13637,6 +13778,13 @@ mod tests {
     }
 
     fn content_entry_claim(claim: ClaimId, root: PlaceId) -> psi_terminal::ContentEntryClaim {
+        let algebra = psi_core::ContentAlgebra {
+            kind: psi_core::ContentAlgebraKind::CountedQuantity,
+            parameter: "validation::content-only-claim".into(),
+        };
+        let expression = psi_core::ContentProjectionExpression::CountedQuantity(
+            psi_core::ContentProjectionScalar::Natural("1".into()),
+        );
         psi_terminal::ContentEntryClaim {
             claim,
             input: psi_core::ContentStructuralPlace {
@@ -13647,14 +13795,46 @@ mod tests {
             projections: vec![psi_terminal::ClaimContentProjection {
                 projection: psi_core::ContentProjectionIdentity {
                     domain: id(1, psi_core::ContentDomainId::new),
-                    projection_fingerprint: 1,
+                    projection_fingerprint:
+                        psi_language_semantics::content::terminal_projection_fingerprint(
+                            &algebra,
+                            &expression,
+                        ),
                 },
-                algebra: psi_core::ContentAlgebra {
-                    kind: psi_core::ContentAlgebraKind::CountedQuantity,
-                    parameter: "validation::content-only-claim".into(),
-                },
+                algebra,
             }],
         }
+    }
+
+    fn install_content_owner(unit: &mut PsiOptimizationUnit) {
+        let carrier = unit.structural_types[0].id;
+        let semantic_domain = id(1, psi_core::DomainSemanticId::new);
+        let algebra = psi_core::ContentAlgebra {
+            kind: psi_core::ContentAlgebraKind::CountedQuantity,
+            parameter: "validation::content-only-claim".into(),
+        };
+        let expression = psi_core::ContentProjectionExpression::CountedQuantity(
+            psi_core::ContentProjectionScalar::Natural("1".into()),
+        );
+        unit.structural_domains = vec![psi_terminal::StructuralDomainDeclaration {
+            id: id(1, StructuralDomainId::new),
+            semantic_domain,
+            identity: "validation::content-only-domain".into(),
+            carrier,
+            content_projection: Some(psi_terminal::StructuralContentProjection {
+                identity: psi_core::ContentProjectionIdentity {
+                    domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
+                    projection_fingerprint:
+                        psi_language_semantics::content::terminal_projection_fingerprint(
+                            &algebra,
+                            &expression,
+                        ),
+                },
+                algebra,
+                expression,
+            }),
+        }]
+        .into();
     }
 
     fn structural_field(
@@ -15885,6 +16065,227 @@ mod tests {
     }
 
     #[test]
+    fn structural_domain_content_projection_replays_terminal_contract() {
+        let carrier = id(480, StructuralTypeId::new);
+        let nested = id(481, StructuralTypeId::new);
+        let non_record = id(482, StructuralTypeId::new);
+        let types = vec![
+            structural_type(
+                480,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![
+                        structural_leaf_field(
+                            1,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::Structural(nested),
+                        ),
+                        structural_leaf_field(
+                            2,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+                        ),
+                        structural_leaf_field(
+                            3,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::Structural(non_record),
+                        ),
+                        structural_leaf_field(
+                            4,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::IeeeFloat(
+                                psi_core::IeeeFloatFormat::Binary32,
+                            ),
+                        ),
+                        structural_leaf_field(
+                            5,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::ByteSequence(
+                                psi_terminal::ByteSequenceCarrier::BorrowedView,
+                            ),
+                        ),
+                        structural_leaf_field(
+                            6,
+                            psi_terminal::BindingRelevance::Erased,
+                            psi_terminal::StructuralFieldType::Erased {
+                                type_identity: "validation::erased".into(),
+                            },
+                        ),
+                    ],
+                },
+            ),
+            structural_type(
+                481,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![structural_leaf_field(
+                        1,
+                        psi_terminal::BindingRelevance::Relevant,
+                        psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+                    )],
+                },
+            ),
+            structural_type(
+                482,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+        ];
+        let domain_id = id(1, StructuralDomainId::new);
+        let semantic_domain = id(31, psi_core::DomainSemanticId::new);
+        let projection = |kind, parameter: &str, expression| {
+            let algebra = psi_core::ContentAlgebra {
+                kind,
+                parameter: parameter.into(),
+            };
+            psi_terminal::StructuralContentProjection {
+                identity: psi_core::ContentProjectionIdentity {
+                    domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
+                    projection_fingerprint:
+                        psi_language_semantics::content::terminal_projection_fingerprint(
+                            &algebra,
+                            &expression,
+                        ),
+                },
+                algebra,
+                expression,
+            }
+        };
+        let candidate_with = |projection| {
+            let mut candidate = structural_catalog_unit(types.clone());
+            let mut domain = structural_domain(1, semantic_domain.get(), carrier);
+            domain.content_projection = Some(projection);
+            candidate.structural_domains = vec![domain].into();
+            refresh_identity(&mut candidate);
+            candidate
+        };
+        let rejects = |projection| {
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate_with(projection)),
+                Err(
+                    OptimizationUnitValidationError::InvalidStructuralDomainContentProjection(
+                        domain_id,
+                    ),
+                )
+            );
+        };
+
+        let nested_path = vec!["validation::field-1".into(), "validation::field-1".into()];
+        let expression =
+            ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Add(
+                Box::new(ContentProjectionScalar::SubjectField(nested_path.clone())),
+                Box::new(ContentProjectionScalar::Multiply(
+                    Box::new(ContentProjectionScalar::RuntimeScalarEmbedding(vec![
+                        "validation::field-2".into(),
+                    ])),
+                    Box::new(ContentProjectionScalar::Subtract(
+                        Box::new(ContentProjectionScalar::Successor(Box::new(
+                            ContentProjectionScalar::Natural("0".into()),
+                        ))),
+                        Box::new(ContentProjectionScalar::Natural("1".into())),
+                    )),
+                )),
+            ));
+        validate_psi_optimization_unit(&candidate_with(projection(
+            psi_core::ContentAlgebraKind::CountedQuantity,
+            "validation::unit",
+            expression.clone(),
+        )))
+        .expect("the complete closed scalar grammar and nested Record paths are valid");
+
+        for members in [
+            Vec::new(),
+            vec![(
+                ContentProjectionScalar::SubjectField(nested_path),
+                ContentProjectionScalar::Natural("9".into()),
+            )],
+        ] {
+            validate_psi_optimization_unit(&candidate_with(projection(
+                psi_core::ContentAlgebraKind::IntervalSet,
+                "validation::coordinate-space",
+                ContentProjectionExpression::IntervalSet(members),
+            )))
+            .expect("Terminal permits empty and symbolic interval sets");
+        }
+
+        let valid = projection(
+            psi_core::ContentAlgebraKind::CountedQuantity,
+            "validation::unit",
+            expression,
+        );
+        let mut invalid = valid.clone();
+        invalid.identity.domain = id(32, psi_core::ContentDomainId::new);
+        rejects(invalid);
+        let mut invalid = valid.clone();
+        invalid.identity.projection_fingerprint = 0;
+        rejects(invalid);
+        let mut invalid = valid.clone();
+        invalid.algebra.parameter.clear();
+        rejects(invalid);
+        let mut invalid = valid.clone();
+        invalid.algebra.kind = psi_core::ContentAlgebraKind::IntervalSet;
+        rejects(invalid);
+        let invalid = projection(
+            psi_core::ContentAlgebraKind::CountedQuantity,
+            "validation::unit",
+            ContentProjectionExpression::IntervalSet(Vec::new()),
+        );
+        rejects(invalid);
+        let mut invalid = valid.clone();
+        invalid.expression = ContentProjectionExpression::CountedQuantity(
+            ContentProjectionScalar::Natural("2".into()),
+        );
+        rejects(invalid);
+
+        for value in ["", "00", "01", "1x", "١"] {
+            rejects(projection(
+                psi_core::ContentAlgebraKind::CountedQuantity,
+                "validation::unit",
+                ContentProjectionExpression::CountedQuantity(ContentProjectionScalar::Natural(
+                    value.into(),
+                )),
+            ));
+        }
+        for path in [
+            Vec::new(),
+            vec![String::new()],
+            vec!["validation::missing".into()],
+            vec!["validation::field-2".into(), "validation::field-1".into()],
+            vec!["validation::field-1".into()],
+            vec!["validation::field-3".into(), "validation::field-1".into()],
+            vec!["validation::field-4".into()],
+            vec!["validation::field-5".into()],
+            vec!["validation::field-6".into()],
+        ] {
+            rejects(projection(
+                psi_core::ContentAlgebraKind::CountedQuantity,
+                "validation::unit",
+                ContentProjectionExpression::CountedQuantity(
+                    ContentProjectionScalar::SubjectField(path),
+                ),
+            ));
+        }
+
+        let nested_successors = |depth| {
+            let mut scalar = ContentProjectionScalar::Natural("0".into());
+            for _ in 0..depth {
+                scalar = ContentProjectionScalar::Successor(Box::new(scalar));
+            }
+            scalar
+        };
+        validate_psi_optimization_unit(&candidate_with(projection(
+            psi_core::ContentAlgebraKind::CountedQuantity,
+            "validation::unit",
+            ContentProjectionExpression::CountedQuantity(nested_successors(256)),
+        )))
+        .expect("Terminal's inclusive depth-256 boundary remains valid");
+        rejects(projection(
+            psi_core::ContentAlgebraKind::CountedQuantity,
+            "validation::unit",
+            ContentProjectionExpression::CountedQuantity(nested_successors(257)),
+        ));
+    }
+
+    #[test]
     fn structural_field_namespaces_require_canonical_ids_and_unique_nonempty_identities() {
         let owner = id(440, StructuralTypeId::new);
         let scalar_field = |raw| {
@@ -16836,6 +17237,7 @@ mod tests {
     #[test]
     fn accepts_content_only_internal_claim_transfer_and_rejects_interface_corruption() {
         let mut baseline = structural_call_unit();
+        install_content_owner(&mut baseline);
         let claim = id(1, ClaimId::new);
         for function in &mut baseline.functions {
             let root = function.structural_parameters[0].place;
@@ -16871,13 +17273,74 @@ mod tests {
             Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
         ));
 
-        let mut substituted_projection = baseline;
-        substituted_projection.functions[1].content_entry_claims[0].projections[0]
+        let mut substituted_projection = baseline.clone();
+        substituted_projection.functions[0].content_entry_claims[0].projections[0]
             .algebra
             .parameter = "validation::substituted-content".into();
         refresh_identity(&mut substituted_projection);
         assert!(matches!(
             validate_psi_optimization_unit(&substituted_projection),
+            Err(OptimizationUnitValidationError::ContentProjectionOwnerMismatch(_))
+        ));
+
+        let mutate_projection = [
+            |projection: &mut psi_terminal::ClaimContentProjection| {
+                projection.projection.domain = id(99, psi_core::ContentDomainId::new);
+            },
+            |projection: &mut psi_terminal::ClaimContentProjection| {
+                projection.projection.projection_fingerprint ^= 1;
+            },
+            |projection: &mut psi_terminal::ClaimContentProjection| {
+                projection.algebra.kind = psi_core::ContentAlgebraKind::IntervalSet;
+            },
+        ];
+        for mutate in mutate_projection {
+            let mut candidate = baseline.clone();
+            mutate(&mut candidate.functions[0].content_entry_claims[0].projections[0]);
+            refresh_identity(&mut candidate);
+            assert!(matches!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::ContentProjectionOwnerMismatch(_))
+            ));
+        }
+
+        let mut mismatched_interface = baseline.clone();
+        let semantic_domain = id(2, psi_core::DomainSemanticId::new);
+        let algebra = psi_core::ContentAlgebra {
+            kind: psi_core::ContentAlgebraKind::CountedQuantity,
+            parameter: "validation::alternate-content".into(),
+        };
+        let expression = psi_core::ContentProjectionExpression::CountedQuantity(
+            psi_core::ContentProjectionScalar::Natural("2".into()),
+        );
+        let identity = psi_core::ContentProjectionIdentity {
+            domain: id(semantic_domain.get(), psi_core::ContentDomainId::new),
+            projection_fingerprint:
+                psi_language_semantics::content::terminal_projection_fingerprint(
+                    &algebra,
+                    &expression,
+                ),
+        };
+        let mut domains = mismatched_interface.structural_domains.to_vec();
+        domains.push(psi_terminal::StructuralDomainDeclaration {
+            id: id(2, StructuralDomainId::new),
+            semantic_domain,
+            identity: "validation::alternate-content-domain".into(),
+            carrier: mismatched_interface.structural_types[0].id,
+            content_projection: Some(psi_terminal::StructuralContentProjection {
+                identity,
+                algebra: algebra.clone(),
+                expression,
+            }),
+        });
+        mismatched_interface.structural_domains = domains.into();
+        let callee_projection =
+            &mut mismatched_interface.functions[1].content_entry_claims[0].projections[0];
+        callee_projection.projection = identity;
+        callee_projection.algebra = algebra;
+        refresh_identity(&mut mismatched_interface);
+        assert!(matches!(
+            validate_psi_optimization_unit(&mismatched_interface),
             Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
         ));
     }
@@ -16885,6 +17348,7 @@ mod tests {
     #[test]
     fn accepts_content_only_boundary_completion_and_rejects_correspondence_corruption() {
         let mut baseline = structural_call_unit();
+        install_content_owner(&mut baseline);
         let claim = id(1, ClaimId::new);
         let caller_root = baseline.functions[0].structural_parameters[0].place;
         let content = content_entry_claim(claim, caller_root);

@@ -65,6 +65,19 @@ fn source_whole_content_custody_exit_reaches_canonical_installation() {
     validate_verified_psi_optimization_unit(&verified_unit)
         .expect("content-bearing source custody validates at optimizer admission");
     assert_eq!(
+        verified_unit.unit().structural_domains.as_ref(),
+        lowered.semantic_module.structural_domains.as_slice(),
+        "optimizer admission retains the exact source-derived projection owners"
+    );
+    assert!(
+        verified_unit
+            .unit()
+            .structural_domains
+            .iter()
+            .any(|domain| domain.content_projection.is_some()),
+        "the source canary must exercise structural-domain projection replay"
+    );
+    assert_eq!(
         verified_unit.unit().functions[0].content_entry_claims,
         lowered.semantic_module.machines[0].content_entry_claims
     );
