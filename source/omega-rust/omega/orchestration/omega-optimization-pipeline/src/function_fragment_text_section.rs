@@ -31,7 +31,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 1;
+const MANIFEST_VERSION: u32 = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionStage {
@@ -88,7 +88,7 @@ pub struct FunctionFragmentTextSectionManifest {
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v1\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v2\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -122,6 +122,7 @@ impl FunctionFragmentTextSectionManifest {
         let source_kind = match cursor.byte()? {
             1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
+            3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             tag => {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
@@ -737,6 +738,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.push(match record.source_kind {
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => 1,
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
+        FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
     });
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());
