@@ -1738,13 +1738,31 @@ dependency.
   publication remain explicitly unavailable.
 
   x86 short-branch selection is deliberately not hidden inside the baseline.
-  A future `X86RelaxConditionalBranchesToRel8V1` suite may monotonically shrink
-  validated near branches to `rel8` under its own fixed-point work accounting
-  and replay receipt.
+  The x86 ISA owner now separately encodes and validates canonical two-byte
+  `JNE rel8`, including the exact signed-byte boundary and unchanged decoded
+  effect footprint. `X86RelaxConditionalBranchesToRel8V1` is an explicit
+  function-relative-layout selection in the v3 build vocabulary. Its
+  immutable optimization artifact retains the baseline and rewritten layout
+  identities, ordered inspection and four-byte-shrink evidence, exact work
+  budget and usage, and the final function-relative layout. The producer uses
+  a deterministic one-shrink-per-iteration monotone fixed point; an independent
+  replay driver reconstructs every offset, branch displacement, byte string,
+  attempt, action, revision, and final receipt. Non-x86 targets and exhausted
+  work budgets fail closed. An absent selection remains on the required near-
+  branch baseline without constructing this optimization.
+
+  Remaining for the named rel8 rule: route its function-relative selection
+  through physical orchestration, admit branch-only suites without requiring a
+  selected-lowering completion, bind both baseline and relaxed layout roots in
+  the realization manifest and whole-function exit validation, and replace the
+  current compiler execution gate with end-to-end selected-build tests. Until
+  that custody join exists, a build that explicitly selects the rule is parsed
+  and identified but fails without installing output.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
   selected IR admits them, general CFG layout and non-fallthrough terminator
-  bundles, general framed/calling exit policies with save/restore and unwind
+  bundles, the rel8 realization custody join above, general framed/calling exit
+  policies with save/restore and unwind
   evidence, authoritative entry-bridge and enabled-hardening identities,
   whole-program span/relocation validation, and publication-side enforcement of
   the independent encoding receipt.

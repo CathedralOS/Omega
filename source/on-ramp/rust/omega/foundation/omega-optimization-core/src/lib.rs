@@ -37,8 +37,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 2;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v2\0";
+const SELECTION_ENCODING_VERSION: u32 = 3;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v3\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -47,6 +47,7 @@ const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v2\0";
 pub enum OptimizationExecutionPhase {
     Psi,
     SelectedLowering,
+    FunctionRelativeLayout,
 }
 
 /// One source-visible, semantics-preserving optimization family.
@@ -64,10 +65,11 @@ pub enum Optimization {
     DeadPureScalarElimination = 5,
     ProofCheckElision = 6,
     SelectedIncomingU12ExactAddImmediate = 7,
+    X86RelaxConditionalBranchesToRel8V1 = 8,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -75,6 +77,7 @@ impl Optimization {
         Self::DeadPureScalarElimination,
         Self::ProofCheckElision,
         Self::SelectedIncomingU12ExactAddImmediate,
+        Self::X86RelaxConditionalBranchesToRel8V1,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -86,6 +89,7 @@ impl Optimization {
             Self::DeadPureScalarElimination => "DeadPureScalarElimination",
             Self::ProofCheckElision => "ProofCheckElision",
             Self::SelectedIncomingU12ExactAddImmediate => "SelectedIncomingU12ExactAddImmediate",
+            Self::X86RelaxConditionalBranchesToRel8V1 => "X86RelaxConditionalBranchesToRel8V1",
         }
     }
 
@@ -100,6 +104,9 @@ impl Optimization {
             Self::SelectedIncomingU12ExactAddImmediate => {
                 "selected_incoming_u12_exact_add_immediate"
             }
+            Self::X86RelaxConditionalBranchesToRel8V1 => {
+                "x86_relax_conditional_branches_to_rel8_v1"
+            }
         }
     }
 
@@ -113,6 +120,9 @@ impl Optimization {
             | Self::ProofCheckElision => OptimizationExecutionPhase::Psi,
             Self::SelectedIncomingU12ExactAddImmediate => {
                 OptimizationExecutionPhase::SelectedLowering
+            }
+            Self::X86RelaxConditionalBranchesToRel8V1 => {
+                OptimizationExecutionPhase::FunctionRelativeLayout
             }
         }
     }
@@ -316,6 +326,7 @@ mod tests {
     #[test]
     fn selections_are_sorted_and_round_trip_canonically() {
         let selections = OptimizationSelections::new([
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::ProofCheckElision,
             Optimization::ControlFlowCleanup,
             Optimization::CopyPropagation,
@@ -327,6 +338,7 @@ mod tests {
                 Optimization::ControlFlowCleanup,
                 Optimization::CopyPropagation,
                 Optimization::ProofCheckElision,
+                Optimization::X86RelaxConditionalBranchesToRel8V1,
             ]
         );
         let encoded = selections.encode();
@@ -374,10 +386,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(1))
+            Err(SelectionDecodeError::UnsupportedVersion(2))
         );
     }
 
@@ -394,6 +406,7 @@ mod tests {
     #[test]
     fn phase_projection_is_canonical_without_replacing_the_full_identity() {
         let selections = OptimizationSelections::new([
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::CopyPropagation,
             Optimization::SparseConditionalConstantPropagation,
@@ -414,6 +427,12 @@ mod tests {
                 .for_phase(OptimizationExecutionPhase::SelectedLowering)
                 .as_slice(),
             &[Optimization::SelectedIncomingU12ExactAddImmediate]
+        );
+        assert_eq!(
+            selections
+                .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+                .as_slice(),
+            &[Optimization::X86RelaxConditionalBranchesToRel8V1]
         );
         assert_eq!(full_identity, selections.identity());
         assert_ne!(
