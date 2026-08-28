@@ -1520,10 +1520,20 @@ complete.
   span; compiler `Carry::*` atoms remain outside nominal package selection.
   A root-middle-leaf canary rejects a public alias of a transitive-only public
   domain and accepts it after direct admission while retaining the exact public
-  row. This closes the domain-alias constituent slice; trait parents/requirements,
-  attached carriers, `satisfies` traits, quotient paths, establishment routes,
-  and nominal machine-parameter requirements remain separate exact-symbol
-  audits.
+  row. This closes the domain-alias constituent slice.
+
+  Follow-up 2026-08-28: every source-backed trait-composition edge now retains
+  the exact resolved trait as a `TypeReference` authored-selection row. Header
+  composition (`trait Child: Parent`) and body composition
+  (`requires Parent;`) already normalize to one resolved edge, so both use the
+  enclosing trait's public/private exposure and the same direct-dependency
+  rule. A root-middle-leaf canary covers both spellings, rejects transitive-only
+  selection, accepts direct admission, and observes two public rows plus one
+  private row bound to the exact leaf trait. Existing `trait_parent` review
+  locations remain provenance for the same edges; they do not substitute for
+  admission. This closes trait parents/requirements. Attached carriers,
+  `satisfies` traits, quotient paths, establishment routes, and nominal
+  machine-parameter requirements remain separate exact-symbol audits.
 
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression

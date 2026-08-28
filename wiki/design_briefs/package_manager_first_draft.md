@@ -177,6 +177,13 @@ qualified `Carrier::Evidence` bound selects both exact declarations. Bounds on
 machines and traits take the enclosing declaration's public/private
 disposition; declaration publication remains a separate visibility rule.
 
+Trait composition follows the same rule. Header parents and body `requires`
+clauses normalize to one semantic edge, and each source-backed edge retains the
+exact resolved trait as a type-reference selection with the enclosing trait's
+disposition. A transitive-only parent therefore rejects at the ordinary direct-
+dependency gate. Its separate `trait_parent` source coordinate is review
+provenance, not admission.
+
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.
 They enter private artifact identity or public compatibility identity according

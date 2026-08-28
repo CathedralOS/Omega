@@ -1309,6 +1309,13 @@ carrier and the named conformance. Machine and trait bounds inherit their
 enclosing declaration's exposure. This direct-authority custody is independent
 of the still-open rule for publishing declaration families.
 
+Trait composition follows that same authority rule. Header parents and body
+`requires` clauses normalize to one edge, but each authored edge retains its
+exact resolved trait as a type-reference selection with the enclosing trait's
+public/private exposure. A parent available only through a transitive package
+therefore rejects; the existing `trait_parent` source location is explanatory
+review provenance, not package admission.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free
