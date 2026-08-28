@@ -1014,6 +1014,27 @@ impl PackageReviewOperatorCoordinate {
     }
 }
 
+/// One exact operator requirement realized by a reviewed callable.
+///
+/// The coordinate identifies the selected overload. The alias preserves the
+/// authored local conformance name used by the checked body; it is not part of
+/// the operator declaration coordinate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewOperatorRealization {
+    coordinate: PackageReviewOperatorCoordinate,
+    alias: Option<String>,
+}
+
+impl PackageReviewOperatorRealization {
+    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
+        &self.coordinate
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractOperatorMeaning {
     Builtin,
@@ -2012,7 +2033,7 @@ pub struct CheckedPackageCallableReview {
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     conformances: Vec<PackageReviewCallableConformance>,
-    operator_realizations: Vec<PackageReviewOperatorCoordinate>,
+    operator_realizations: Vec<PackageReviewOperatorRealization>,
     contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -2192,7 +2213,7 @@ impl CheckedPackageCallableReview {
         &self.conformances
     }
 
-    pub fn operator_realizations(&self) -> &[PackageReviewOperatorCoordinate] {
+    pub fn operator_realizations(&self) -> &[PackageReviewOperatorRealization] {
         &self.operator_realizations
     }
 
@@ -11047,7 +11068,7 @@ fn project_callable_conformances(
 ) -> Result<
     (
         Vec<PackageReviewCallableConformance>,
-        Vec<PackageReviewOperatorCoordinate>,
+        Vec<PackageReviewOperatorRealization>,
         Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
@@ -11226,7 +11247,10 @@ fn project_callable_conformances(
                 )?;
                 let coordinate = project_operator_coordinate(compilation, operator)?;
                 if require_public_trait {
-                    operator_realizations.push(coordinate.clone());
+                    operator_realizations.push(PackageReviewOperatorRealization {
+                        coordinate: coordinate.clone(),
+                        alias: None,
+                    });
                 }
                 external_executable_supply.push(project_external_executable_supply_with_source(
                     machine,
@@ -11268,12 +11292,6 @@ fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if conformance.alias.is_some() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes operator `{}::{}` through an alias not yet represented by package review",
-                    machine.name, conformance.name, requirement_name
-                ))]);
-            }
             if compilation.operator_contracts(operator).iter().any(|contract| {
                 matches!(
                     contract.kind,
@@ -11311,7 +11329,13 @@ fn project_callable_conformances(
                 machine,
                 operator,
             )?;
-            operator_realizations.push(project_operator_coordinate(compilation, operator)?);
+            operator_realizations.push(PackageReviewOperatorRealization {
+                coordinate: project_operator_coordinate(compilation, operator)?,
+                alias: conformance
+                    .alias
+                    .as_ref()
+                    .map(|alias| alias.as_str().to_owned()),
+            });
             continue;
         };
         if require_public_trait && !trait_definition.is_public {
