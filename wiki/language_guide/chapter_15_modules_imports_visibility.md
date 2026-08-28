@@ -310,6 +310,14 @@ dynamic conformance selected by its producer without granting the receiver
 authority to name or select that conformance elsewhere. Carrying compiler-
 selected semantics is not authored declaration selection.
 
+A domain's `established by Trait::requirement` entry applies the same rule
+directly at the domain declaration. It selects the exact trait and the one
+signature-free requirement, and both selections inherit the domain's
+visibility. Each comma-separated or repeated authored route remains a source
+occurrence even when equivalent semantic alternatives normalize to one route.
+A public domain therefore cannot authorize a private trait or requirement;
+private same-package domains may use private routes normally.
+
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the
 callee declaration, each explicit static conformance argument selects its own
