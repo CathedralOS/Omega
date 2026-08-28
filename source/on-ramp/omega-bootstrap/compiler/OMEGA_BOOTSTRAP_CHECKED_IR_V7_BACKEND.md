@@ -45,10 +45,11 @@ Focused evidence is split by responsibility:
   canonical AND/OR meaning for all four Boolean input rows, schema and opcode
   isolation, malformed-row rejection, and inherited resource ceilings;
 - `../gates/delta-checked-ir-v7-backend-fixture.py` recognizes the exact
-  load/AND-or-OR-memory/store instruction templates; and
-- `../gates/delta-checked-ir-v7-backend.sh` checks Delta-native/self artifact
-  identity, result 70, opcode-byte mutation rejection, and no partial artifact
-  publication for rejected inputs.
+  load/AND-or-OR-memory/store instruction templates.
+
+The former producer-backed wrapper joined them to native/self artifact
+identity, result 70, opcode-byte mutation rejection, and empty rejected
+publication. Replay is suspended until canonical Delta publication.
 
 This is backend evidence only. It does not define a public Omega ABI, source
 syntax or evaluation order, or a source-to-CKIR7 lowering relation.

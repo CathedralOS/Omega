@@ -12,7 +12,7 @@ from omgrfn22_elf import reconstruct
 from omgrfn22_source import HEADER, ORDER, ROWS
 
 HERE = Path(__file__).resolve().parent
-GATES = HERE.parents[3] / "source/on-ramp/omega-bootstrap/gates"
+GATES = HERE.parents[2] / "source/on-ramp/omega-bootstrap/gates"
 
 
 def load(name: str, path: Path):

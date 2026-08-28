@@ -1,1 +1,0 @@
-../../../refinement/delta-omega-bootstrap/translation-validation.sh

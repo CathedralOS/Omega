@@ -15,7 +15,7 @@ from pathlib import Path
 
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]
+REPO = HERE.parents[2]
 GATES = REPO / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 

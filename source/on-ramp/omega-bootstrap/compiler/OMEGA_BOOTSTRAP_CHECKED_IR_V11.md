@@ -111,15 +111,15 @@ nonzero immediates or reserved fields, missing selected addition, and version
 cross-pairs select 251. Resource exhaustion selects 252. Neither status
 publishes CKIR bytes.
 
-## 5. Focused producer evidence
+## 5. Focused evidence
 
-- `../gates/delta-resolved-to-ckir11.sh` checks Delta-native/self OMGLOWC
-  production over least OMGRSW1/2/3, exact token/operation correspondence,
-  assignment, guard, multi-argument call, and multi-argument transition
-  contexts, a source whose addition can overflow at runtime, and strong
-  carrier/shape/order/version negatives.
 - `../gates/checked_ir_v11_reference.py` independently decodes, validates, and
   interprets the published CKIR11 relation.
+
+The former producer wrapper joined this independent reference to exact
+token/operation correspondence, multi-argument call and transition contexts,
+runtime-overflow coverage, and carrier/shape/order/version negatives. Replay is
+suspended until canonical Delta publication.
 
 Backend execution, persisted-Beta/Gamma meaning, and same-frame refinement are
 separate admission obligations.

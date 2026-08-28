@@ -117,9 +117,9 @@ proc main() {{
 '''
 
 
-def materialize(output: Path, resolver: Path | None = None) -> None:
+def materialize(output: Path) -> None:
     output.mkdir(parents=True, exist_ok=True)
-    carriers = profiles(resolver)
+    carriers = profiles()
     manifest = []
     for name, frame in carriers.items():
         (output / f"{name}.rfn").write_bytes(frame)
@@ -136,6 +136,5 @@ def materialize(output: Path, resolver: Path | None = None) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(); parser.add_argument("output", type=Path)
-    parser.add_argument("--resolver", type=Path)
     args = parser.parse_args()
-    materialize(args.output, args.resolver)
+    materialize(args.output)

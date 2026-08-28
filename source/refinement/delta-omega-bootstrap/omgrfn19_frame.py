@@ -19,7 +19,7 @@ MAX_WITNESS = 524_288
 MAX_FRAME = HEADER_SIZE + MAX_OMGCOMP + MAX_WITNESS
 
 HERE = Path(__file__).resolve().parent
-COMPILER = HERE.parents[3] / "source/on-ramp/omega-bootstrap/compiler"
+COMPILER = HERE.parents[2] / "source/on-ramp/omega-bootstrap/compiler"
 sys.path.insert(0, str(COMPILER))
 import omega_bootstrap_compilation_v3 as compilation_v3  # noqa: E402
 

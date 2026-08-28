@@ -14,7 +14,7 @@ from omgrfn20_bundle import pack
 from omgrfn20_frame import HEADER, MAX_CKIR, MAX_FRAME, MAX_OMGCOMP, MAX_WITNESS
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[2]
 GATES = ROOT / "source/on-ramp/omega-bootstrap/gates"
 OWNERS = {name: HERE / f"omgrfn20-{name}.py" for name in ("r1", "r2", "r3", "r4", "r5")}
 sys.path.insert(0, str(GATES))

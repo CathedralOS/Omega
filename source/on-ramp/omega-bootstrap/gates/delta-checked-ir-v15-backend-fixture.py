@@ -70,21 +70,6 @@ def emit(directory: Path) -> None:
     fixture.emit(directory)
 
 
-def emit_produced(directory: Path) -> None:
-    """Run the real resolver/lowerer cross-pair for one backend carrier."""
-    producer = load("delta_resolved_to_ckir15_for_backend",
-                    "delta-resolved-to-ckir15-fixture.py")
-    directory.mkdir(parents=True, exist_ok=True)
-    source = producer.source_text(
-        HERE / "fixtures/ckir15-recurrent-view/two-byte.omg"
-    )
-    tool_directory = directory / "tools"
-    tool_directory.mkdir()
-    tools = producer.compile_tools(tool_directory)
-    _, _, contents = producer.pipeline(tools, source, "backend-produced-two-byte")
-    (directory / "produced-two-byte.ckir15").write_bytes(contents)
-
-
 def literal_bytes(module: ir15.Module) -> bytes:
     roots = [row[10] for row in module.tables["operations"] if row[3] == 22]
     ir15.v5.require(len(roots) == 1, "focused StaticByteView root")
@@ -198,7 +183,7 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command",
-        choices=("emit", "emit-produced", "check-ir", "check-produced-ir",
+        choices=("emit", "check-ir", "check-produced-ir",
                  "check-artifact", "mutate-second-head", "run-filter"),
     )
     parser.add_argument("path", type=Path)
@@ -209,8 +194,6 @@ def main() -> None:
     args = parser.parse_args()
     if args.command == "emit":
         emit(args.path)
-    elif args.command == "emit-produced":
-        emit_produced(args.path)
     elif args.command == "check-ir":
         if args.arg1 is None:
             parser.error("check-ir requires expected result")

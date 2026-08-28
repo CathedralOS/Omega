@@ -188,15 +188,12 @@ exit projection, target/header/machine mutations, and appended producer
 artifact reconstruction. Frozen OMGRFN5 through OMGRFN7 positives and
 separation controls remain live.
 
-The executable evidence is deliberately materialized without invoking sibling
-gates. `omgrfn8-materialize-r1-r2.py` and
+The executable lower-rooted evidence is deliberately materialized without
+invoking sibling gates. `omgrfn8-materialize-r1-r2.py` and
 `omgrfn8-materialize-r3-r5.py` produce the eight bounded Beta responsibility
-programs as pure source transformations. `omgrfn8-same-frame-composite.sh`
-compiles each program once under each Beta compiler generation, reuses those
-executables across the positive and mutation matrix, and builds the resolver,
-lowerer, and backend once. This preserves process-local responsibility
-separation while avoiding the historical pattern of running full gates merely
-to recover checker source.
+programs as pure source transformations. The former producer-dependent
+same-frame wrapper is retired until the canonical Delta compiler is published;
+the responsibility-local owners remain independent of that producer.
 
 Logical negation consumes the inherited expression-depth, operation, operand,
 value, and four-byte scalar-slot resources and introduces no new ceiling. The

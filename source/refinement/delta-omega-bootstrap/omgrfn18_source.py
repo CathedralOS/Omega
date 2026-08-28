@@ -13,7 +13,7 @@ from omgrfn18_frame import RefinementError, RefinementResourceError, require
 from omgrfn18_u64 import FULL_HIGH, FULL_LOW, U64
 
 HERE = Path(__file__).resolve().parent
-COMPILER = HERE.parents[3] / "source/on-ramp/omega-bootstrap/compiler"
+COMPILER = HERE.parents[2] / "source/on-ramp/omega-bootstrap/compiler"
 sys.path.insert(0, str(COMPILER))
 import omega_bootstrap_compilation as compilation  # noqa: E402
 

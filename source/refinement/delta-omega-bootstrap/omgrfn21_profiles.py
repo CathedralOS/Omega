@@ -11,7 +11,7 @@ from omgrfn21_bundle import pack
 from omgrfn21_elf import reconstruct
 
 HERE = Path(__file__).resolve().parent
-GATES = HERE.parents[3] / "source/on-ramp/omega-bootstrap/gates"
+GATES = HERE.parents[2] / "source/on-ramp/omega-bootstrap/gates"
 
 
 def load(name: str, path: Path):
