@@ -25,9 +25,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler",
-        )
+        .expect("omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler")
         .to_path_buf()
 }
 
