@@ -327,7 +327,8 @@ resolver request directly, and the parent overwrites local repository config
 with one byte-exact SHA-1 or SHA-256 bare-repository file. Replacement uses a
 synchronized stage held open across a handle-relative atomic rename, then
 checks the published pathname, file identity, exact bytes, and parent-directory
-synchronization; there is no delete/recreate gap. Before every use the parent
+synchronization; the repository record root itself is acquired
+component-by-component no-follow, and there is no delete/recreate gap. Before every use the parent
 reads and compares those bytes itself; added settings, includes, remotes, or
 spelling drift reject without asking Git to report its own configuration.
 Git and local cache custody also receive a separately bounded 65,536-node

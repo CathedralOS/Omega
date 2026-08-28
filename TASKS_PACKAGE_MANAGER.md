@@ -407,7 +407,10 @@ complete.
   removes `repository/config` and recreates it through an exposed pathname
   gap. A synchronized same-directory stage remains open across a
   handle-relative atomic rename; the parent then confirms exact bytes, file
-  identity, and directory synchronization. Local/workspace snapshot
+  identity, and directory synchronization. Milestone 2026-08-27 additionally
+  acquires that repository parent component-by-component no-follow before
+  constructing the record root, rather than opening the full repository path
+  ambiently. Local/workspace snapshot
   publication lock acquisition now also polls under a compiler-owned two-minute
   deadline and returns a typed timeout instead of blocking indefinitely. Git
   lock waits continue to consume the whole-resolution budget. These close an
