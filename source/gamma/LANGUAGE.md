@@ -5,9 +5,9 @@ canonical meaning is the pure, fuel-bounded reference interpreter in
 `interp.beta`; its static checker is `typeck.beta`. Both are Beta programs built
 by the self-hosting Beta compiler.
 
-The old imperative language compiled by `gamma.alpha` is a parked compatibility
-artifact. It is not the canonical Gamma surface. Its historical programs remain
-under `examples/` and are built only by the legacy `build.sh` path.
+The old imperative language under `compatibility/imperative/` is a parked
+compatibility artifact. It is not the canonical Gamma surface. Its historical
+programs are built only by that directory's legacy `build.sh` path.
 
 ## Evaluated surface
 
@@ -86,5 +86,5 @@ under `terminal-codec-primitives/`, and
 `source/alpha/checker/implementations/gamma/checker_typed.gamma`.
 They exercise the language but do not define it. The retired terminal-ledger
 prototype was artifact-assurance feasibility work, not Gamma meaning. The root
-`examples/*.gamma` corpus belongs to the parked imperative compiler and must not
-be used as the canonical language definition.
+`compatibility/imperative/examples/*.gamma` corpus belongs to the parked
+imperative compiler and must not be used as the canonical language definition.
