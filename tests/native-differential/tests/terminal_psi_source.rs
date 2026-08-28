@@ -1035,9 +1035,9 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         stage_terminal_component(&checked, target, 3, &AdmissionProfile::default(), &[])
             .expect_err("staging must reject an unresolved selected boundary");
     assert!(
-        missing_provider.iter().any(|diagnostic| diagnostic
-            .message
-            .contains("target operation lowering failed")),
+        missing_provider
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("MissingBoundarySettlement")),
         "{missing_provider:#?}"
     );
 

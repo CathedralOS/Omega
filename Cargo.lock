@@ -1315,6 +1315,7 @@ dependencies = [
  "omega-selected-instructions",
  "omega-target",
  "omega-target-operations",
+ "omega-target-operations-to-assigned-target-operations",
  "psi-checked-trees",
  "psi-checked-trees-to-terminal",
  "psi-core",
