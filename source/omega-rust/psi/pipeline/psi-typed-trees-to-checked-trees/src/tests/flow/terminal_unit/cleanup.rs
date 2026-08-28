@@ -400,7 +400,72 @@ fn two_element_affine_array_moves_one_literal_index_and_discards_its_sibling() {
 }
 
 #[test]
-fn affine_array_partial_cleanup_fences_other_lengths_and_multiple_moves() {
+fn two_element_affine_array_may_move_both_elements_without_residual_cleanup() {
+    let checked = checked(
+        r#"
+        data Token { value: u64; }
+        data Sink {}
+        machine Sink::take(token: Token) {}
+        data Root {}
+        machine Root::forward(values: [Token; 2]) {
+            Sink::take(values[0]);
+            Sink::take(values[1]);
+        }
+        machine Root::reverse(values: [Token; 2]) {
+            Sink::take(values[1]);
+            Sink::take(values[0]);
+        }
+        "#,
+    );
+    for (machine, expected_paths) in [("forward", [0, 1]), ("reverse", [1, 0])] {
+        let plan = checked
+            .facts
+            .flow
+            .terminal_partial_affine_unit_cleanups
+            .for_machine(machine_named(&checked, machine))
+            .expect("both exact array elements should transfer in authored order");
+        assert!(plan.residual_affine_discards.is_empty());
+        assert_eq!(plan.machine.operations.len(), 3);
+        assert_eq!(
+            plan.machine.operations[..2]
+                .iter()
+                .map(|operation| {
+                    let CheckedUnitEffectOperationPlan::CallUnit {
+                        structural_arguments,
+                        claim_transfers,
+                        ..
+                    } = operation
+                    else {
+                        panic!("full array consumption contains only Unit calls before return")
+                    };
+                    assert!(claim_transfers.is_empty());
+                    let [argument] = structural_arguments.as_slice() else {
+                        panic!("each array move supplies one argument")
+                    };
+                    let [CheckedUnitStructuralPathSegment::FixedIndex(index)] =
+                        argument.path.as_slice()
+                    else {
+                        panic!("each move retains one literal array index")
+                    };
+                    *index
+                })
+                .collect::<Vec<_>>(),
+            expected_paths
+        );
+        assert!(matches!(
+            plan.machine.operations[2],
+            CheckedUnitEffectOperationPlan::ReturnUnit {
+                ref trivial_affine_local_discard_ordinals,
+                ref trivial_affine_discards,
+                ..
+            } if trivial_affine_local_discard_ordinals.is_empty()
+                && trivial_affine_discards.is_empty()
+        ));
+    }
+}
+
+#[test]
+fn affine_array_partial_cleanup_fences_other_lengths() {
     let checked = checked(
         r#"
         data Token { value: u64; }
@@ -413,13 +478,9 @@ fn affine_array_partial_cleanup_fences_other_lengths_and_multiple_moves() {
         machine Root::three(values: [Token; 3]) {
             Sink::take(values[1]);
         }
-        machine Root::both(values: [Token; 2]) {
-            Sink::take(values[0]);
-            Sink::take(values[1]);
-        }
         "#,
     );
-    for machine in ["one", "three", "both"] {
+    for machine in ["one", "three"] {
         assert!(
             checked
                 .facts
@@ -427,7 +488,7 @@ fn affine_array_partial_cleanup_fences_other_lengths_and_multiple_moves() {
                 .terminal_partial_affine_unit_cleanups
                 .for_machine(machine_named(&checked, machine))
                 .is_none(),
-            "`{machine}` remains outside the one-move/one-residual array slice"
+            "`{machine}` remains outside the exact two-element array slice"
         );
     }
 }

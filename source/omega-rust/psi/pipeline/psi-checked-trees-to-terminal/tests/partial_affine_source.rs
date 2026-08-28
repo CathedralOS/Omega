@@ -72,6 +72,14 @@ const AFFINE_PAIR_SOURCE: &str = r#"
     machine Root::second(values: [Token; 2]) {
         Sink::take(values[1]);
     }
+    machine Root::forward(values: [Token; 2]) {
+        Sink::take(values[0]);
+        Sink::take(values[1]);
+    }
+    machine Root::reverse(values: [Token; 2]) {
+        Sink::take(values[1]);
+        Sink::take(values[0]);
+    }
 "#;
 
 #[test]
@@ -233,6 +241,172 @@ fn two_element_affine_array_cleanup_crosses_source_codec_verifier_and_interprete
                 &AdmissionProfile::default(),
             )
             .is_err()
+        );
+    }
+}
+
+#[test]
+fn fully_consumed_affine_array_uses_two_calls_and_an_ordinary_return() {
+    let tokens = Lexer::new(AFFINE_PAIR_SOURCE).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let checked = lower_typed_trees(typed).expect("check");
+
+    for (machine, expected_paths) in [("Root::forward", [0, 1]), ("Root::reverse", [1, 0])] {
+        let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, machine)
+            .expect("both affine array elements lower in authored order");
+        let entry = lowered
+            .semantic_module
+            .machines
+            .iter()
+            .find(|candidate| candidate.id == lowered.semantic_module.entry)
+            .expect("entry machine");
+        let [root] = entry.structural_parameters.as_slice() else {
+            panic!("fully consumed affine pair has one structural root")
+        };
+        let [block] = entry.blocks.as_slice() else {
+            panic!("fully consumed affine pair has one block")
+        };
+        let [first_call, second_call] = block.operations.as_slice() else {
+            panic!("fully consumed affine pair has two calls")
+        };
+        let moved_paths = [first_call, second_call]
+            .into_iter()
+            .map(|call| {
+                let OperationKind::CallUnit {
+                    structural_arguments,
+                    claim_transfers,
+                    ..
+                } = &call.kind
+                else {
+                    panic!("fully consumed affine pair performs Unit calls")
+                };
+                assert!(claim_transfers.is_empty());
+                let [argument] = structural_arguments.as_slice() else {
+                    panic!("each array call has one projected argument")
+                };
+                assert_eq!(argument.place, root.place);
+                argument.path.clone()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(
+            moved_paths,
+            expected_paths
+                .into_iter()
+                .map(|index| vec![StructuralPathSegment::FixedIndex(index)])
+                .collect::<Vec<_>>()
+        );
+        let Terminator::ReturnUnit {
+            edge,
+            trivial_affine_discards,
+        } = &block.terminator
+        else {
+            panic!("full array consumption needs no partial-cleanup terminator")
+        };
+        assert!(trivial_affine_discards.is_empty());
+
+        psi_terminal_verifier::verify_module(
+            &lowered.semantic_module,
+            &lowered.proof_bundle,
+            &AdmissionProfile::default(),
+        )
+        .expect("verifier reconstructs exact complete array consumption");
+        let semantic = encode_module(&lowered.semantic_module).expect("module encodes");
+        assert_eq!(decode_module(&semantic).unwrap(), lowered.semantic_module);
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof encodes");
+        let argument_value = TerminalStructuralValue {
+            opaque_identity: 0x4655_4c4c,
+            structural_type: root.structural_type,
+            qualifications: root.qualifications.clone(),
+            path: Vec::new(),
+        };
+        let mut execution = TerminalExecution::start_artifact_with_structural_arguments(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            &[],
+            &[argument_value],
+        )
+        .expect("verified fully consumed affine pair starts");
+        let mut meter = TerminalFuelMeter::with_allowance(4);
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution suspends"),
+            TerminalExecutionStatus::SponsorExhausted(FuelExhaustion {
+                schedule: TerminalFuelSchedule::CURRENT.identity(),
+                site: FuelChargeSite::Edge(*edge),
+                required_units: 1,
+                remaining_units: 0,
+            })
+        );
+        assert!(execution.live_affine_frontier().next().is_none());
+        meter.replenish(1).expect("replenish caller return");
+        assert_eq!(
+            execution.resume(&mut meter).expect("execution completes"),
+            TerminalExecutionStatus::Complete(TerminalExecutionResult::Unit)
+        );
+        assert_eq!(meter.usage().total_units(), 5);
+
+        let mut duplicate = lowered.semantic_module.clone();
+        let duplicate_entry = duplicate
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == duplicate.entry)
+            .unwrap();
+        let second_path = match &mut duplicate_entry.blocks[0].operations[1].kind {
+            OperationKind::CallUnit {
+                structural_arguments,
+                ..
+            } => &mut structural_arguments[0].path,
+            _ => unreachable!(),
+        };
+        *second_path = moved_paths[0].clone();
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &duplicate,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err(),
+            "a duplicated array move cannot complete the root"
+        );
+
+        let mut missing = lowered.semantic_module.clone();
+        let missing_entry = missing
+            .machines
+            .iter_mut()
+            .find(|candidate| candidate.id == missing.entry)
+            .unwrap();
+        missing_entry.blocks[0].operations.remove(1);
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &missing,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err(),
+            "one array move cannot justify an ordinary affine return"
+        );
+
+        let mut wrong_length = lowered.semantic_module.clone();
+        let declaration = wrong_length
+            .structural_types
+            .iter_mut()
+            .find(|shape| shape.id == root.structural_type)
+            .unwrap();
+        let psi_terminal::StructuralTypeShape::FixedArray { length, .. } = &mut declaration.shape
+        else {
+            unreachable!()
+        };
+        *length = 3;
+        assert!(
+            psi_terminal_verifier::verify_module(
+                &wrong_length,
+                &lowered.proof_bundle,
+                &AdmissionProfile::default(),
+            )
+            .is_err(),
+            "two moves cannot complete a wider array"
         );
     }
 }

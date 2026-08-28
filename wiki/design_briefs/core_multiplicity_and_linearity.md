@@ -256,6 +256,17 @@ prefix-disjoint, nonempty all-field moves from one claim-free affine record and
 preserves every maximal live residual subtree in recursive reverse declaration
 order through terminal Psi and Omega artifacts.
 
+The literal-array affine slice is separate from that record cleanup rule. For
+an owned, unqualified, claim-free `[T; 2]` whose element is an affine structural
+record without nominal cleanup, one projected ordinary Unit call may leave the
+opposite element as its exact no-code residual. A checked/Terminal successor may
+instead move indices `0` and `1` exactly once each, in either authored order,
+and then return with no cleanup action. Its custody frontier closes only after
+the complete set `{0, 1}` has moved, and interpreter fuel charges both calls,
+both callee returns, and the caller return. Because no live residual exists,
+this successor establishes no array cleanup ordering rule. Native artifact
+custody for the no-residual successor remains a separate exact replay step.
+
 An internal call may now continue that same whole-root result through one
 explicit terminal operation-result place. The checked slice is intentionally
 narrow: one final direct call, one whole linear qualified argument, one exact

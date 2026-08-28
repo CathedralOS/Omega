@@ -119,8 +119,10 @@ struct StructuralOwnershipFrontier {
     /// Exact projected paths already transferred from an otherwise-live owned
     /// root. This is independent of the root's multiplicity: no whole-root use
     /// is legal while a hole remains. Affine roots close through explicit
-    /// residual cleanup; the bounded linear-array slice closes only after its
-    /// complete dense sibling set has moved.
+    /// residual cleanup; a fixed-array root closes only after its complete
+    /// dense sibling set has moved. Linear arrays retain their existing general
+    /// rule, while affine arrays admit only the exact two-element/no-residual
+    /// carrier so no cleanup order is inferred.
     partial_custody_paths: BTreeMap<PlaceId, BTreeSet<Vec<StructuralPathSegment>>>,
 }
 
@@ -452,7 +454,7 @@ pub(super) fn validate_structural_frontier(
                         place: argument.place,
                     });
                 }
-                if projected_linear_root_is_fully_consumed(
+                if projected_fixed_array_root_is_fully_consumed(
                     module,
                     machine,
                     &frontier,
@@ -847,7 +849,7 @@ pub(super) fn validate_structural_frontier(
     Ok(snapshots)
 }
 
-fn projected_linear_root_is_fully_consumed(
+fn projected_fixed_array_root_is_fully_consumed(
     module: &TerminalModule,
     machine: &TerminalMachine,
     frontier: &StructuralOwnershipFrontier,
@@ -860,15 +862,14 @@ fn projected_linear_root_is_fully_consumed(
     else {
         return false;
     };
-    if parameter.multiplicity != StructuralMultiplicity::Linear
-        || frontier
-            .claims
-            .values()
-            .any(|claim| claim.input == Some(place))
+    if frontier
+        .claims
+        .values()
+        .any(|claim| claim.input == Some(place))
     {
         return false;
     }
-    let Some(StructuralTypeShape::FixedArray { length, .. }) = module
+    let Some(StructuralTypeShape::FixedArray { element, length }) = module
         .structural_types
         .iter()
         .find(|declaration| declaration.id == parameter.structural_type)
@@ -879,6 +880,24 @@ fn projected_linear_root_is_fully_consumed(
     let Some(length) = usize::try_from(*length).ok() else {
         return false;
     };
+    if parameter.multiplicity != StructuralMultiplicity::Linear {
+        if parameter.multiplicity != StructuralMultiplicity::Affine
+            || parameter.is_self
+            || parameter.access != StructuralAccess::Owned
+            || !parameter.qualifications.is_empty()
+            || length != 2
+            || !matches!(
+                module
+                    .structural_types
+                    .iter()
+                    .find(|declaration| declaration.id == *element)
+                    .map(|declaration| &declaration.shape),
+                Some(StructuralTypeShape::Record { .. })
+            )
+        {
+            return false;
+        }
+    }
     let Some(moved) = frontier.partial_custody_paths.get(&place) else {
         return false;
     };

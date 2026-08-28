@@ -706,6 +706,21 @@ pipelines, object/image validation, and canonical installation records while
 emitting no cleanup instruction or runtime bitmap. Claims, content, contracts,
 nominal `drop`, and arrays/cases remain fenced.
 
+A separate exact fixed-array carrier accepts an owned, non-self, unqualified,
+claim-free affine `[T; 2]` with structural record element `T`. One projected
+Unit call may retain the opposite element as a typed no-code residual, or two
+calls may move the exact path set `{[0], [1]}` once each in authored order. The
+two-call form has one block and an ordinary `ReturnUnit` with no affine discard;
+the ownership frontier removes the array root only after the second dense path
+moves. Shape validation independently rejects duplicate or missing paths,
+other lengths and element shapes, claims/content, and cleanup added to the
+ordinary return; checked production separately excludes contracts. Interpreter
+replay charges five closure units: two caller operations, two callee returns,
+and the caller return. The empty
+residual set makes no cleanup-order choice. Target/native artifact replay for
+this exact two-call form remains fenced until it can prove the complete pair at
+function scope rather than demanding a sibling residual for each call.
+
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives
 the list from state-exit permission events in reverse parameter declaration

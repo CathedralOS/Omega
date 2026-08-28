@@ -1054,13 +1054,14 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length: 2,
-        } if matches!(moved_paths.as_slice(), [(path, moved_type)]
-        if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)])
-            && moved_type == element_type_identity
+        } if exact_affine_pair_move_paths(&moved_paths, element_type_identity)
             && matches!(
-                shapes.types.get(element_type_identity).map(|shape| &shape.shape),
+                shapes
+                    .types
+                    .get(element_type_identity)
+                    .map(|shape| &shape.shape),
                 Some(CheckedUnitStructuralTypeShape::Record { .. })
-            ))
+            )
             && program.machine_contracts(machine).is_empty()
             && program.state_contracts(state).is_empty()
             && operations.iter().all(|operation| {
@@ -1087,7 +1088,15 @@ pub(super) fn build_partial_affine_unit_cleanup_machine(
         &checked_parameter.type_identity,
         &moved_paths,
     )?;
-    if residual_affine_discards.is_empty() {
+    if residual_affine_discards.is_empty()
+        && !matches!(
+            &source_shape.shape,
+            CheckedUnitStructuralTypeShape::FixedArray {
+                element_type_identity,
+                length: 2,
+            } if exact_fully_moved_affine_pair(&moved_paths, element_type_identity)
+        )
+    {
         return None;
     }
     if !has_exact_root_affine_discard(facts, machine, state, source_parameter) {
@@ -1128,30 +1137,41 @@ pub(super) fn partial_affine_residuals(
     root_type: &str,
     moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
 ) -> Option<Vec<CheckedUnitPartialAffineDiscardPlan>> {
-    if let [(path, moved_type)] = moved_paths
-        && let [CheckedUnitStructuralPathSegment::FixedIndex(index @ (0 | 1))] = path.as_slice()
-    {
+    if matches!(moved_paths.len(), 1 | 2) {
         let declaration = types.get(root_type)?;
-        let CheckedUnitStructuralTypeShape::FixedArray {
+        if let CheckedUnitStructuralTypeShape::FixedArray {
             element_type_identity,
             length: 2,
         } = &declaration.shape
-        else {
-            return None;
-        };
-        if moved_type != element_type_identity
-            || !matches!(
+        {
+            if !matches!(
                 types.get(element_type_identity).map(|shape| &shape.shape),
                 Some(CheckedUnitStructuralTypeShape::Record { .. })
-            )
-        {
-            return None;
+            ) {
+                return None;
+            }
+            match moved_paths {
+                [(path, moved_type)] => {
+                    let [CheckedUnitStructuralPathSegment::FixedIndex(index @ (0 | 1))] =
+                        path.as_slice()
+                    else {
+                        return None;
+                    };
+                    if moved_type != element_type_identity {
+                        return None;
+                    }
+                    return Some(vec![CheckedUnitPartialAffineDiscardPlan {
+                        source_parameter_index: 0,
+                        path: vec![CheckedUnitStructuralPathSegment::FixedIndex(1 - index)],
+                        type_identity: element_type_identity.clone(),
+                    }]);
+                }
+                moved if exact_fully_moved_affine_pair(moved, element_type_identity) => {
+                    return Some(Vec::new());
+                }
+                _ => return None,
+            }
         }
-        return Some(vec![CheckedUnitPartialAffineDiscardPlan {
-            source_parameter_index: 0,
-            path: vec![CheckedUnitStructuralPathSegment::FixedIndex(1 - index)],
-            type_identity: element_type_identity.clone(),
-        }]);
     }
 
     fn visit(
@@ -1248,6 +1268,37 @@ pub(super) fn partial_affine_residuals(
     let mut residuals = Vec::new();
     visit(types, root_type, &borrowed, &mut Vec::new(), &mut residuals)?;
     Some(residuals)
+}
+
+fn exact_affine_pair_move_paths(
+    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
+    element_type_identity: &str,
+) -> bool {
+    matches!(moved_paths, [(path, moved_type)]
+        if matches!(path.as_slice(), [CheckedUnitStructuralPathSegment::FixedIndex(0 | 1)])
+            && moved_type == element_type_identity)
+        || exact_fully_moved_affine_pair(moved_paths, element_type_identity)
+}
+
+fn exact_fully_moved_affine_pair(
+    moved_paths: &[(Vec<CheckedUnitStructuralPathSegment>, String)],
+    element_type_identity: &str,
+) -> bool {
+    let [(first_path, first_type), (second_path, second_type)] = moved_paths else {
+        return false;
+    };
+    first_type == element_type_identity
+        && second_type == element_type_identity
+        && matches!(
+            (first_path.as_slice(), second_path.as_slice()),
+            (
+                [CheckedUnitStructuralPathSegment::FixedIndex(0)],
+                [CheckedUnitStructuralPathSegment::FixedIndex(1)]
+            ) | (
+                [CheckedUnitStructuralPathSegment::FixedIndex(1)],
+                [CheckedUnitStructuralPathSegment::FixedIndex(0)]
+            )
+        )
 }
 
 fn is_partial_affine_path(path: &[CheckedUnitStructuralPathSegment]) -> bool {
