@@ -31,12 +31,12 @@ expect_role omega-psi "$OMEGA_REPO_ROOT/source/omega/psi"
 expect_role lattice-tools "$OMEGA_REPO_ROOT/tools/lattice"
 
 for required in \
-  "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
+  "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
+  "$OMEGA_PATH_ALPHA_CHECKER" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_DELTA_VALIDATION" "$OMEGA_PATH_DELTA_MEANING" \
   "$OMEGA_PATH_OMEGA" "$OMEGA_PATH_OMEGA_PSI" \
-  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION" \
-  "$OMEGA_PATH_ALPHA_CHECKER"
+  "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
@@ -49,6 +49,10 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/bootstrap" ] || fail "generic source bootstrap owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/canaries" ] || fail "generic source canaries owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/omega-bootstrap" ] || fail "standalone omega-bootstrap owner remains"
+[ ! -e "$OMEGA_REPO_ROOT/source/omega0" ] || fail "omega0 output incorrectly owns source"
+[ ! -e "$OMEGA_REPO_ROOT/source/omega1" ] || fail "omega1 output incorrectly owns source"
+[ ! -e "$OMEGA_REPO_ROOT/source/omega-boot" ] || fail "standalone omega-boot owner remains"
+[ ! -e "$OMEGA_PATH_OMEGA/bootstrap" ] || fail "Omega product source contains a bootstrap owner"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/build" ] || fail "unowned Delta build bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/compatibility" ] || fail "retired Gamma compatibility bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/canonical-bytes" ] || fail "unowned Gamma canonical-byte bucket remains"

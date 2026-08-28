@@ -765,8 +765,8 @@ deliberately does not claim that the translator implements all Delta semantics.
 No authoritative Delta language document currently fixes the compositional
 grammar, static and dynamic judgments, allocation/exhaustion behavior, sealed
 byte I/O, process termination, or observation profile. Historical comments in
-the translator instead describe an “Omega kernel subset” and “on-ramp,” which
-conflicts with the ratified decision that Delta is not an Omega subset. An
+the translator instead describe the retired Omega-subset bridge model, which
+conflicts with the ratified decision that Delta is an independent language. An
 implementation and its current accepted corpus cannot select their own semantic
 subject for checked refinement.
 
