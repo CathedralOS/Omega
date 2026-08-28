@@ -4678,7 +4678,8 @@ pub fn validate_dominating_scalar_common_subexpression_candidate(
     validate_scalar_common_subexpression_candidate(input, candidate, ScalarCseScope::Dominating)
 }
 
-/// Independently validate one obligation-free or proof-certified scalar
+/// Independently validate one obligation-free, proof-certified, or
+/// proof-certified compatible-policy scalar
 /// expression translated through every incoming binding of an acyclic join.
 /// The redundant result identity becomes a new join parameter; every incoming
 /// edge supplies the canonical available leader for its translated expression.
@@ -4701,6 +4702,12 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
         )
     {
         ScalarCseProofClass::ProofCertified
+    } else if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1",
+        )
+    {
+        ScalarCseProofClass::CompatiblePolicy
     } else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
@@ -4785,8 +4792,13 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
         }))
         .collect::<BTreeMap<_, _>>();
     let (_, redundant_operation, redundant_result, redundant_type, redundant_obligation) =
-        independent_cse_expression(&redundant.operation, &value_types, proof_class)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+        match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_redundant(&redundant.operation)
+            }
+            _ => independent_cse_expression(&redundant.operation, &value_types, proof_class),
+        }
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if redundant_operation != patch.redundant_operation
         || redundant_result != patch.redundant_result
         || redundant_type != patch.scalar_type
@@ -4824,7 +4836,10 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             }
             None
         }
-        (ScalarCseProofClass::ProofCertified, Some(obligation)) => {
+        (
+            ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy,
+            Some(obligation),
+        ) => {
             let fact = independently_accepted_operation_fact(
                 input,
                 function,
@@ -4860,14 +4875,19 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             for (parameter, binding) in join.parameters.iter().zip(&edge.bindings) {
                 if binding.parameter != parameter.value
                     || binding.scalar_type != parameter.scalar_type
+                    || value_types.get(&binding.argument) != Some(&binding.scalar_type)
                 {
                     return Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch);
                 }
                 rewrite_scalar_value_uses(&mut translated, parameter.value, binding.argument);
             }
-            let (translated_key, _, _, translated_type, _) =
-                independent_cse_expression(&translated, &value_types, proof_class)
-                    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+            let (translated_key, _, _, translated_type, _) = match proof_class {
+                ScalarCseProofClass::CompatiblePolicy => {
+                    independent_compatible_policy_scalar_redundant(&translated)
+                }
+                _ => independent_cse_expression(&translated, &value_types, proof_class),
+            }
+            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
             let mut available_leaders = Vec::new();
             let mut missing_leader_evidence = false;
             for leader_block in &function.blocks {
@@ -4882,9 +4902,13 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                     if !available {
                         continue;
                     }
-                    let Some((key, operation, result, scalar_type, obligation)) =
-                        independent_cse_expression(&node.operation, &value_types, proof_class)
-                    else {
+                    let Some((key, operation, result, scalar_type, obligation)) = (match proof_class
+                    {
+                        ScalarCseProofClass::CompatiblePolicy => {
+                            independent_compatible_policy_scalar_leader(&node.operation)
+                        }
+                        _ => independent_cse_expression(&node.operation, &value_types, proof_class),
+                    }) else {
                         continue;
                     };
                     let admitted = match (proof_class, obligation) {
@@ -4901,11 +4925,16 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                             )
                             .is_some()
                         }
+                        (ScalarCseProofClass::CompatiblePolicy, None) => !function
+                            .facts
+                            .iter()
+                            .any(|fact| matches!(fact, OptimizationFact::OperationObligationReference { support, .. } if *support == operation)),
                         _ => false,
                     };
                     if !admitted
-                        && proof_class == ScalarCseProofClass::ProofCertified
-                        && obligation.is_some()
+                        && ((proof_class == ScalarCseProofClass::ProofCertified
+                            && obligation.is_some())
+                            || proof_class == ScalarCseProofClass::CompatiblePolicy)
                         && key == translated_key
                         && scalar_type == translated_type
                     {
@@ -5076,7 +5105,7 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
                 b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1"
             }
             ScalarCseProofClass::CompatiblePolicy => {
-                b"omega.validator.phi-translated-proof-certified-compatible-policy-unreachable.v1"
+                b"omega.validator.phi-translated-proof-certified-compatible-policy-scalar-gvn.v1"
             }
         }),
         provenance: accepted_provenance,
