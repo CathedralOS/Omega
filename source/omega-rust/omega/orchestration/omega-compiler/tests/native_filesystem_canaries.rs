@@ -114,9 +114,7 @@ fn repo_root() -> PathBuf {
 }
 
 fn compile_run(canary: &str) -> (Option<i32>, String) {
-    let source_dir = repo_root()
-        .join("tests/omega/pass/filesystem")
-        .join(canary);
+    let source_dir = repo_root().join("tests/omega/pass/filesystem").join(canary);
     let build_dir =
         std::env::temp_dir().join(format!("omega-fscanary-{}-{}", canary, std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
@@ -1324,8 +1322,7 @@ fn sample_window_demo_runs_natively_exits_0() {
 // lowering runs end-to-end.
 #[test]
 fn input_provider_substitution_exits_4() {
-    let main_path =
-        repo_root().join("tests/omega/pass/objc/input_provider_substitution/main.omg");
+    let main_path = repo_root().join("tests/omega/pass/objc/input_provider_substitution/main.omg");
     let build_dir = std::env::temp_dir().join(format!("omega-inputsubst-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
     compile_exact_macos_entry(CompileOptions { root_path: main_path, build_dir: Some(build_dir.clone()), target_name: None, write_output: true })

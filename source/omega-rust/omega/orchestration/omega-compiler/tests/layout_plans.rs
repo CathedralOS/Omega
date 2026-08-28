@@ -398,8 +398,8 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         1,
         "core layout must publish exactly one normative PrivateCallbackSlot trait"
     );
-    let canary = repository
-        .join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
+    let canary =
+        repository.join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
     let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x51))
             .expect("private callback-slot layout canary should compile");

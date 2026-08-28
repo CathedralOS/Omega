@@ -28,8 +28,14 @@ fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
         .expect("runtime-indexed copy-aggregate handoff should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
-    assert_eq!(interpreted.error, None, "reference execution should succeed");
-    assert_eq!(interpreted.exit_code, 70, "reference execution should retain every field");
+    assert_eq!(
+        interpreted.error, None,
+        "reference execution should succeed"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "reference execution should retain every field"
+    );
 
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-indexed-copy-aggregate-handoff-{}",
@@ -45,9 +51,15 @@ fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
         .stdin(Stdio::piped())
         .spawn()
         .expect("runtime-indexed copy-aggregate handoff should run");
-    child.stdin.as_mut().expect("stdin pipe should exist").write_all(&stdin)
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin pipe should exist")
+        .write_all(&stdin)
         .expect("runtime input should be written");
-    let output = child.wait_with_output().expect("native execution should finish");
+    let output = child
+        .wait_with_output()
+        .expect("native execution should finish");
     assert_eq!(
         output.status.code(),
         Some(70),
@@ -64,8 +76,14 @@ fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
         .expect("mutable-call statement-order canary should reach checked trees");
     let stdin = [5, 27, 33, 44, b'\n'];
     let interpreted = interpret(&checked, &stdin);
-    assert_eq!(interpreted.error, None, "reference execution should succeed");
-    assert_eq!(interpreted.exit_code, 70, "reference execution should observe the call writes");
+    assert_eq!(
+        interpreted.error, None,
+        "reference execution should succeed"
+    );
+    assert_eq!(
+        interpreted.exit_code, 70,
+        "reference execution should observe the call writes"
+    );
 
     let build_dir = std::env::temp_dir().join(format!(
         "omega-runtime-mutable-call-before-transition-args-{}",
@@ -81,9 +99,15 @@ fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
         .stdin(Stdio::piped())
         .spawn()
         .expect("mutable-call statement-order canary should run");
-    child.stdin.as_mut().expect("stdin pipe should exist").write_all(&stdin)
+    child
+        .stdin
+        .as_mut()
+        .expect("stdin pipe should exist")
+        .write_all(&stdin)
         .expect("runtime input should be written");
-    let output = child.wait_with_output().expect("native execution should finish");
+    let output = child
+        .wait_with_output()
+        .expect("native execution should finish");
     assert_eq!(
         output.status.code(),
         Some(70),

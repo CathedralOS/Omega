@@ -15,13 +15,11 @@ omega-build-output = { path = "../omega-build-output" }
 omega-compilation-report = { path = "../omega-compilation-report" }
 omega-package-compilation = { path = "../omega-package-compilation" }
 omega-provider-planning = { path = "../omega-provider-planning" }
-omega-program-storage = { path = "../omega-program-storage" }
 omega-source-profile = { path = "../omega-source-profile" }
 omega-trust-ledger = { path = "../omega-trust-ledger" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
-omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }
 psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
@@ -37,26 +35,13 @@ psi-extents = { path = "../../../psi/foundation/psi-extents" }
 psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 omega-task-plans = { path = "../../foundation/omega-task-plans" }
-omega-control-flow = { path = "../../representations/omega-control-flow" }
-omega-emission-planning = { path = "../../backend/omega-emission-planning" }
-omega-external-roots = { path = "../omega-external-roots" }
-omega-image = { path = "../../backend/images/omega-image" }
-omega-image-emission = { path = "../../backend/images/omega-image-emission" }
-omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
-omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
 psi-source = { path = "../../../psi/foundation/psi-source" }
 sha2 = "0.10.9"
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-tokens = { path = "../../../psi/representations/psi-tokens" }
-omega-layout = { path = "../../backend/omega-layout" }
-omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
-omega-backend-pipeline = { path = "../omega-backend-pipeline" }
 omega-backend-plan = { path = "../../representations/omega-backend-plan" }
-omega-backend-report = { path = "../../backend/omega-backend-report" }
 omega-artifacts = { path = "../omega-artifacts" }
-omega-object-file = { path = "../../backend/object/omega-object-file" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
-omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
 psi-validation = { path = "../../../psi/semantics/psi-validation" }
@@ -64,45 +49,34 @@ omega-effects = { path = "../../representations/omega-effects" }
 psi-effects = { path = "../../../psi/representations/psi-effects" }
 psi-symbol-resolved-trees = { path = "../../../psi/representations/psi-symbol-resolved-trees" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
-omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
 psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
 psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
-omega-platform-interface = { path = "../../backend/omega-platform-interface" }
-omega-runtime-bodies = { path = "../../backend/omega-runtime-bodies" }
-omega-runtime-branching = { path = "../../backend/omega-runtime-branching" }
-omega-runtime-dispatch-loop = { path = "../../backend/omega-runtime-dispatch-loop" }
-omega-runtime-storage = { path = "../../backend/omega-runtime-storage" }
-omega-runtime-text = { path = "../../backend/omega-runtime-text" }
-omega-state-calls = { path = "../../backend/omega-state-calls" }
-omega-state-graph = { path = "../../representations/omega-state-graph" }
-omega-state-guards = { path = "../../backend/omega-state-guards" }
-omega-state-schedule = { path = "../../backend/omega-state-schedule" }
-omega-state-storage = { path = "../../backend/omega-state-storage" }
-omega-state-values = { path = "../../backend/omega-state-values" }
 omega-target = { path = "../../foundation/omega-target" }
-omega-target-operations = { path = "../../representations/omega-target-operations" }
 psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
 omega-visualizations = { path = "../omega-visualizations" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
-omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 omega-terminal-native-realization = { path = "../omega-terminal-native-realization" }
 omega-selected-dispatch = { path = "../omega-selected-dispatch" }
-omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
-omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
-omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
-omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
-omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
-omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
-omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
+omega-checked-trees-to-state-graph = { path = "../../pipeline/omega-checked-trees-to-state-graph" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
+omega-external-roots = { path = "../omega-external-roots" }
+omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
+omega-layout = { path = "../../backend/omega-layout" }
+omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-package-compilation = { path = "../omega-package-compilation", features = ["test-support"] }
+omega-program-storage = { path = "../omega-program-storage" }
+omega-state-graph = { path = "../../representations/omega-state-graph" }
+omega-state-graph-to-control-flow = { path = "../../pipeline/omega-state-graph-to-control-flow" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
