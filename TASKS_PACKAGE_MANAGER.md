@@ -516,6 +516,18 @@ complete.
   through retained child handles). Cleanup is therefore best-effort and
   makes no hostile-same-user no-replacement guarantee; a raced stage may leak.
 
+  Milestone 2026-08-27: published Git and local snapshot structural verification
+  now opens the publication root and Source child no-follow, recursively checks
+  directory/file identities and canonical modes through retained handles, and
+  captures content from that same open Source root. Git verification compares
+  the captured directory/leaf set, entry kinds, and executable bits directly
+  with the authenticated tree; its content identity continues to bind file
+  bytes and symlink spelling. Package-compilation snapshot revalidation uses the
+  same handle-rooted mode walk and capture instead of separate pathname passes.
+  A canary replaces the publication pathname after opening and proves mode
+  verification remains on the retained root. Native Git object-cache structure
+  and path-based macOS ACL observations remain separate.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
