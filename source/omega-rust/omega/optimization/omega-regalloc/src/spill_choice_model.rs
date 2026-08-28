@@ -282,6 +282,9 @@ impl ValidatedTerminalSpillChoices {
 pub enum TerminalSpillChoiceError {
     RootMismatch,
     UnsupportedPolicy,
+    UnsupportedTiedOperands {
+        function: usize,
+    },
     WorkOverflow,
     BudgetExceeded {
         required: OptimizationWorkUsage,

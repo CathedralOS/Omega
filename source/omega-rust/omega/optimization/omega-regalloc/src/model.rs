@@ -111,6 +111,7 @@ pub struct TerminalLivenessValidationReceipt {
     pub(crate) virtual_register_count: usize,
     pub(crate) instruction_count: usize,
     pub(crate) successor_count: usize,
+    pub(crate) tied_pair_count: usize,
 }
 
 impl TerminalLivenessValidationReceipt {
@@ -148,6 +149,10 @@ impl TerminalLivenessValidationReceipt {
 
     pub const fn successor_count(self) -> usize {
         self.successor_count
+    }
+
+    pub const fn tied_pair_count(self) -> usize {
+        self.tied_pair_count
     }
 }
 

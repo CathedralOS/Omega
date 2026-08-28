@@ -3,11 +3,11 @@ use std::collections::BTreeSet;
 use crate::{
     TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
     TerminalArchitecturalUnitLiveRange, TerminalBlockLiveness, TerminalBlockPointDomain,
-    TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector, TerminalLiveRangeError,
-    TerminalLiveRangeFragment, TerminalLiveRangePlan, TerminalLiveRangePoint,
-    TerminalLivenessPosition, TerminalVirtualFixedConstraint, TerminalVirtualFixedConstraintSite,
-    TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
-    ValidatedTerminalLiveness,
+    TerminalDistinctUseDefTie, TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector,
+    TerminalLiveRangeError, TerminalLiveRangeFragment, TerminalLiveRangePlan,
+    TerminalLiveRangePoint, TerminalLivenessPosition, TerminalVirtualFixedConstraint,
+    TerminalVirtualFixedConstraintSite, TerminalVirtualInterference, TerminalVirtualLiveRange,
+    TerminalVirtualOccurrence, ValidatedTerminalLiveness,
 };
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
 use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirtualRegisterId};
@@ -45,6 +45,7 @@ fn compute_function(
         .iter()
         .map(|block| block_domain(function_index, block))
         .collect::<Result<Vec<_>, _>>()?;
+    let tied_pairs = derive_tied_pairs(function_index, liveness)?;
 
     let mut virtual_rows = Vec::with_capacity(selected.virtual_registers.len());
     for register in &selected.virtual_registers {
@@ -151,9 +152,85 @@ fn compute_function(
         machine: selected.machine,
         block_domains,
         virtual_registers: virtual_rows,
+        tied_pairs,
         architectural_units,
         interference: interference.into_iter().collect(),
     })
+}
+
+pub(crate) fn derive_tied_pairs(
+    function: usize,
+    liveness: &crate::TerminalFunctionLiveness,
+) -> Result<Vec<TerminalDistinctUseDefTie>, TerminalLiveRangeError> {
+    let mut participants = BTreeSet::new();
+    let mut pairs = Vec::new();
+    for definition in liveness
+        .operand_positions
+        .iter()
+        .filter(|operand| operand.tied_to.is_some())
+    {
+        let Some(use_operand) = liveness.operand_positions.iter().find(|candidate| {
+            candidate.instruction == definition.instruction
+                && Some(candidate.operand) == definition.tied_to
+        }) else {
+            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        };
+        let tie_count = liveness
+            .operand_positions
+            .iter()
+            .filter(|candidate| {
+                candidate.instruction == definition.instruction && candidate.tied_to.is_some()
+            })
+            .count();
+        if tie_count != 1
+            || definition.access != RegisterOperandAccess::Def
+            || use_operand.access != RegisterOperandAccess::Use
+            || definition.operand <= use_operand.operand
+            || definition.virtual_register == use_operand.virtual_register
+            || definition.class != use_operand.class
+            || use_operand.tied_to.is_some()
+            || !participants.insert(use_operand.virtual_register)
+            || !participants.insert(definition.virtual_register)
+        {
+            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        }
+        let block = liveness
+            .blocks
+            .iter()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|instruction| instruction.instruction == definition.instruction)
+            })
+            .ok_or(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            })?;
+        pairs.push(TerminalDistinctUseDefTie {
+            block: block.block,
+            position: definition.position,
+            instruction: definition.instruction,
+            use_operand: use_operand.operand,
+            use_virtual_register: use_operand.virtual_register,
+            use_point: before_point(function, definition.position)?,
+            def_operand: definition.operand,
+            def_virtual_register: definition.virtual_register,
+            def_point: after_point(function, definition.position)?,
+            class: definition.class,
+        });
+    }
+    pairs.sort_unstable();
+    Ok(pairs)
 }
 
 fn block_domain(
@@ -374,12 +451,6 @@ fn reject_unsupported(
                 instruction: operand.instruction.0,
                 operand: operand.operand,
             })
-        } else if operand.tied_to.is_some() {
-            Some(TerminalLiveRangeError::UnsupportedTiedOperand {
-                function,
-                instruction: operand.instruction.0,
-                operand: operand.operand,
-            })
         } else if operand.early_clobber {
             Some(TerminalLiveRangeError::UnsupportedEarlyClobber {
                 function,
@@ -398,16 +469,19 @@ fn reject_unsupported(
 
 #[cfg(test)]
 mod tests {
-    use omega_register_model::RegisterUnitId;
+    use omega_register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
     use omega_terminal_selected_instructions::{
         TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalVirtualRegisterId,
     };
     use psi_core::{BlockId, MachineId};
 
-    use super::{block_domain, build_unit, fragments_overlap, virtual_fragments};
+    use super::{
+        block_domain, build_unit, derive_tied_pairs, fragments_overlap, virtual_fragments,
+    };
     use crate::{
         TerminalBlockLiveness, TerminalFunctionLiveness, TerminalInstructionLiveness,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessPosition,
+        TerminalOperandPosition,
     };
 
     fn instruction(
@@ -459,6 +533,45 @@ mod tests {
             instructions,
             successors: Vec::new(),
         }
+    }
+
+    #[test]
+    fn distinct_use_def_tie_has_exact_before_and_after_points() {
+        let live = TerminalFunctionLiveness {
+            machine: MachineId::new(1).unwrap(),
+            entry_definitions: Vec::new(),
+            operand_positions: vec![
+                TerminalOperandPosition {
+                    position: TerminalLivenessPosition(1),
+                    instruction: TerminalSelectedInstructionId(1),
+                    operand: 0,
+                    virtual_register: TerminalVirtualRegisterId(0),
+                    access: RegisterOperandAccess::Use,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                },
+                TerminalOperandPosition {
+                    position: TerminalLivenessPosition(1),
+                    instruction: TerminalSelectedInstructionId(1),
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    access: RegisterOperandAccess::Def,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: Some(0),
+                    early_clobber: false,
+                },
+            ],
+            blocks: vec![block(0, vec![instruction(1, &[0], &[1], &[0], &[1])])],
+        };
+        let ties = derive_tied_pairs(0, &live).unwrap();
+        assert_eq!(ties.len(), 1);
+        assert_eq!(ties[0].use_point, TerminalLiveRangePoint(2));
+        assert_eq!(ties[0].def_point, TerminalLiveRangePoint(3));
+        assert_eq!(ties[0].use_virtual_register, TerminalVirtualRegisterId(0));
+        assert_eq!(ties[0].def_virtual_register, TerminalVirtualRegisterId(1));
     }
 
     #[test]

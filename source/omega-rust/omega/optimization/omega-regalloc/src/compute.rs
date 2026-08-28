@@ -30,7 +30,7 @@ pub(crate) fn compute_terminal_liveness(
     })
 }
 
-fn compute_function(
+pub(crate) fn compute_function(
     function_index: usize,
     function: &TerminalSelectedFunction,
 ) -> Result<TerminalFunctionLiveness, TerminalLivenessError> {
@@ -163,17 +163,11 @@ fn reject_unsupported_constraints(
     function_index: usize,
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
+    let mut tied_registers = BTreeSet::new();
     for instruction in function.blocks.iter().flat_map(block_instructions) {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
                 return Err(TerminalLivenessError::UnsupportedUseDef {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: operand.operand,
-                });
-            }
-            if operand.tied_to.is_some() {
-                return Err(TerminalLivenessError::UnsupportedTiedOperand {
                     function: function_index,
                     instruction: instruction.id.0,
                     operand: operand.operand,
@@ -184,6 +178,47 @@ fn reject_unsupported_constraints(
                     function: function_index,
                     instruction: instruction.id.0,
                     operand: operand.operand,
+                });
+            }
+        }
+        let tied = instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.tied_to.is_some())
+            .collect::<Vec<_>>();
+        let ([] | [_]) = tied.as_slice() else {
+            let operand = tied[1].operand;
+            return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                function: function_index,
+                instruction: instruction.id.0,
+                operand,
+            });
+        };
+        if let [definition] = tied.as_slice() {
+            let Some(use_operand) = instruction
+                .operands
+                .iter()
+                .find(|operand| Some(operand.operand) == definition.tied_to)
+            else {
+                return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: definition.operand,
+                });
+            };
+            if definition.access != RegisterOperandAccess::Def
+                || use_operand.access != RegisterOperandAccess::Use
+                || definition.operand <= use_operand.operand
+                || definition.virtual_register == use_operand.virtual_register
+                || definition.class != use_operand.class
+                || use_operand.tied_to.is_some()
+                || !tied_registers.insert(use_operand.virtual_register)
+                || !tied_registers.insert(definition.virtual_register)
+            {
+                return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: definition.operand,
                 });
             }
         }
@@ -359,7 +394,7 @@ fn sorted<T: Copy + Ord>(values: &BTreeSet<T>) -> Vec<T> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use omega_register_model::{
         RegisterClassId, RegisterConstraintFamily, RegisterConstraintKey, RegisterOperandAccess,
     };
@@ -424,13 +459,32 @@ mod tests {
         }
     }
 
+    pub(crate) fn supported_tied_function() -> TerminalSelectedFunction {
+        let mut function = function_with_operand(RegisterOperandAccess::Use);
+        function.blocks[0].instructions[0]
+            .operands
+            .push(TerminalSelectedOperand {
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(1),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: Some(0),
+                early_clobber: false,
+            });
+        function
+    }
+
     #[test]
-    fn v1_rejects_use_def_ties_and_early_clobber_at_the_analysis_boundary() {
+    fn admits_only_distinct_use_to_def_ties_and_rejects_other_phase_frontiers() {
         let use_def = function_with_operand(RegisterOperandAccess::UseDef);
         assert!(matches!(
             reject_unsupported_constraints(0, &use_def),
             Err(TerminalLivenessError::UnsupportedUseDef { .. })
         ));
+
+        let supported = supported_tied_function();
+        assert_eq!(reject_unsupported_constraints(0, &supported), Ok(()));
 
         let mut tied = function_with_operand(RegisterOperandAccess::Use);
         tied.blocks[0].instructions[0].operands[0].tied_to = Some(0);
