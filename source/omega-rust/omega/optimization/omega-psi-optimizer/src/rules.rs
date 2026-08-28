@@ -13,7 +13,8 @@ use omega_optimization_unit::{
     ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
     IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
     LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
-    OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite, ProvenanceDisposition,
+    OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite,
+    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProvenanceDisposition,
     ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
     RedundantBlockParameterWitness, ScalarSubstitution, SharedTerminalJumpFusionRewrite,
@@ -32,7 +33,7 @@ const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-clea
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v1";
-const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v3";
+const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v4";
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct ConstantConditionalFoldRule;
@@ -61,6 +62,9 @@ pub struct SameBlockProofCertifiedScalarCseRule;
 #[derive(Debug, Clone, Copy, Default)]
 pub struct DominatorProofCertifiedScalarGvnRule;
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct PhiTranslatedObligationFreeScalarGvnRule;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum TotalScalarExpressionKey {
     BooleanConstant(bool),
@@ -83,6 +87,112 @@ enum TotalScalarExpressionKey {
     SaturatingAdd(IntegerType, ValueId, ValueId),
     SaturatingSubtract(IntegerType, ValueId, ValueId),
     SaturatingMultiply(IntegerType, ValueId, ValueId),
+}
+
+impl TotalScalarExpressionKey {
+    fn references_any(self, values: &BTreeSet<ValueId>) -> bool {
+        match self {
+            Self::BooleanConstant(_) | Self::IntegerConstant(_, _) => false,
+            Self::BooleanNot(value)
+            | Self::IntegerBitwiseNot(_, value)
+            | Self::IntegerWiden(_, _, value) => values.contains(&value),
+            Self::BooleanEqual(left, right)
+            | Self::IntegerEqual(_, left, right)
+            | Self::IntegerLessThan(_, left, right)
+            | Self::IntegerLessOrEqual(_, left, right)
+            | Self::IntegerBitwiseAnd(_, left, right)
+            | Self::IntegerBitwiseOr(_, left, right)
+            | Self::IntegerBitwiseXor(_, left, right)
+            | Self::WrappingAdd(_, left, right)
+            | Self::WrappingSubtract(_, left, right)
+            | Self::WrappingMultiply(_, left, right)
+            | Self::SaturatingAdd(_, left, right)
+            | Self::SaturatingSubtract(_, left, right)
+            | Self::SaturatingMultiply(_, left, right) => {
+                values.contains(&left) || values.contains(&right)
+            }
+            Self::WrappingShiftLeft(_, _, value, count)
+            | Self::WrappingShiftRight(_, _, value, count) => {
+                values.contains(&value) || values.contains(&count)
+            }
+        }
+    }
+
+    fn translate(self, values: &BTreeMap<ValueId, ValueId>) -> Option<Self> {
+        let value = |operand: ValueId| Some(values.get(&operand).copied().unwrap_or(operand));
+        let commutative = |left: ValueId, right: ValueId| {
+            let left = value(left)?;
+            let right = value(right)?;
+            Some(canonical_pair(left, right))
+        };
+        Some(match self {
+            Self::BooleanConstant(constant) => Self::BooleanConstant(constant),
+            Self::IntegerConstant(scalar_type, constant) => {
+                Self::IntegerConstant(scalar_type, constant)
+            }
+            Self::BooleanNot(operand) => Self::BooleanNot(value(operand)?),
+            Self::BooleanEqual(left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::BooleanEqual(left, right)
+            }
+            Self::IntegerEqual(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::IntegerEqual(scalar_type, left, right)
+            }
+            Self::IntegerLessThan(scalar_type, left, right) => {
+                Self::IntegerLessThan(scalar_type, value(left)?, value(right)?)
+            }
+            Self::IntegerLessOrEqual(scalar_type, left, right) => {
+                Self::IntegerLessOrEqual(scalar_type, value(left)?, value(right)?)
+            }
+            Self::IntegerBitwiseNot(scalar_type, operand) => {
+                Self::IntegerBitwiseNot(scalar_type, value(operand)?)
+            }
+            Self::IntegerWiden(source_type, target_type, operand) => {
+                Self::IntegerWiden(source_type, target_type, value(operand)?)
+            }
+            Self::IntegerBitwiseAnd(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::IntegerBitwiseAnd(scalar_type, left, right)
+            }
+            Self::IntegerBitwiseOr(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::IntegerBitwiseOr(scalar_type, left, right)
+            }
+            Self::IntegerBitwiseXor(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::IntegerBitwiseXor(scalar_type, left, right)
+            }
+            Self::WrappingShiftLeft(value_type, count_type, operand, count) => {
+                Self::WrappingShiftLeft(value_type, count_type, value(operand)?, value(count)?)
+            }
+            Self::WrappingShiftRight(value_type, count_type, operand, count) => {
+                Self::WrappingShiftRight(value_type, count_type, value(operand)?, value(count)?)
+            }
+            Self::WrappingAdd(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::WrappingAdd(scalar_type, left, right)
+            }
+            Self::WrappingSubtract(scalar_type, left, right) => {
+                Self::WrappingSubtract(scalar_type, value(left)?, value(right)?)
+            }
+            Self::WrappingMultiply(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::WrappingMultiply(scalar_type, left, right)
+            }
+            Self::SaturatingAdd(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::SaturatingAdd(scalar_type, left, right)
+            }
+            Self::SaturatingSubtract(scalar_type, left, right) => {
+                Self::SaturatingSubtract(scalar_type, value(left)?, value(right)?)
+            }
+            Self::SaturatingMultiply(scalar_type, left, right) => {
+                let (left, right) = commutative(left, right)?;
+                Self::SaturatingMultiply(scalar_type, left, right)
+            }
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
@@ -1298,6 +1408,265 @@ impl PsiOptimizationRule for DominatorProofCertifiedScalarGvnRule {
                             leader_result: *leader_result,
                             redundant_result: *redundant_result,
                             scalar_type: *scalar_type,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+impl PhiTranslatedObligationFreeScalarGvnRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.phi-translated-obligation-free-total-scalar-gvn.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(GLOBAL_VALUE_NUMBERING_PASS_NAME),
+            1,
+            AnalysisSet::new([
+                AnalysisKind::ControlFlowGraph,
+                AnalysisKind::Dominators,
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ExactOperationSemantics,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for PhiTranslatedObligationFreeScalarGvnRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        if analyses.get(AnalysisKind::ControlFlowGraph).is_none() {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ControlFlowGraph,
+            ));
+        }
+        let Some(AnalysisProduct::Dominators(dominators)) = analyses.get(AnalysisKind::Dominators)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(AnalysisKind::Dominators));
+        };
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            let machine_dominators = dominators
+                .functions
+                .iter()
+                .find(|(machine, _)| *machine == function.machine)
+                .map(|(_, rows)| rows.as_slice())
+                .unwrap_or_default();
+            let value_types = function
+                .parameters
+                .iter()
+                .map(|row| (row.value, row.scalar_type))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block
+                        .parameters
+                        .iter()
+                        .map(|row| (row.value, row.scalar_type))
+                }))
+                .chain(function.blocks.iter().flat_map(|block| {
+                    block.nodes.iter().flat_map(|node| {
+                        node.definitions
+                            .iter()
+                            .map(|row| (row.value, row.scalar_type))
+                    })
+                }))
+                .collect::<BTreeMap<_, _>>();
+            let mut expressions = Vec::new();
+            for block in &function.blocks {
+                for (index, node) in block.nodes.iter().enumerate() {
+                    let node_index =
+                        u32::try_from(index).expect("optimization node index fits u32");
+                    let Some((key, operation, result, scalar_type)) =
+                        total_scalar_expression(&node.operation, &value_types)
+                    else {
+                        continue;
+                    };
+                    if exact_pure_scalar_effect(
+                        unit,
+                        effects,
+                        function.machine,
+                        block.id,
+                        node_index,
+                    ) {
+                        expressions.push((
+                            key,
+                            NodeLocation {
+                                machine: function.machine,
+                                block: block.id,
+                                node: node_index,
+                            },
+                            operation,
+                            result,
+                            scalar_type,
+                        ));
+                    }
+                }
+            }
+
+            for (key, redundant, redundant_operation, redundant_result, scalar_type) in &expressions
+            {
+                let Some(block) = function
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == redundant.block)
+                else {
+                    continue;
+                };
+                let parameter_values = block
+                    .parameters
+                    .iter()
+                    .map(|parameter| parameter.value)
+                    .collect::<BTreeSet<_>>();
+                if parameter_values.is_empty()
+                    || !key.references_any(&parameter_values)
+                    || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                        *machine == function.machine && use_site.value == *redundant_result
+                    })
+                {
+                    continue;
+                }
+                let redundant_index = usize::try_from(redundant.node).expect("u32 fits usize");
+                let Some(redundant_node) = block.nodes.get(redundant_index) else {
+                    continue;
+                };
+                let Some(receiver) = block.nodes.get(redundant_index + 1) else {
+                    continue;
+                };
+                if receiver
+                    .provenance
+                    .iter()
+                    .any(|source| redundant_node.provenance.contains(source))
+                {
+                    continue;
+                }
+
+                let mut incoming = Vec::new();
+                let mut complete = true;
+                for source in &function.blocks {
+                    for (owner_index, owner) in source.nodes.iter().enumerate() {
+                        let owner_index =
+                            u32::try_from(owner_index).expect("optimization node index fits u32");
+                        for edge in owner
+                            .successors
+                            .iter()
+                            .filter(|edge| edge.target == block.id)
+                        {
+                            if edge.bindings.len() != block.parameters.len() {
+                                complete = false;
+                                continue;
+                            }
+                            let mut translation = BTreeMap::new();
+                            for (parameter, binding) in block.parameters.iter().zip(&edge.bindings)
+                            {
+                                if binding.parameter != parameter.value
+                                    || binding.scalar_type != parameter.scalar_type
+                                    || value_types.get(&binding.argument)
+                                        != Some(&binding.scalar_type)
+                                {
+                                    complete = false;
+                                    break;
+                                }
+                                translation.insert(parameter.value, binding.argument);
+                            }
+                            if !complete {
+                                continue;
+                            }
+                            let Some(translated_key) = key.translate(&translation) else {
+                                complete = false;
+                                continue;
+                            };
+                            let leader = expressions
+                                .iter()
+                                .filter(|(candidate_key, location, _, _, candidate_type)| {
+                                    candidate_key == &translated_key
+                                        && candidate_type == scalar_type
+                                        && ((location.block == source.id
+                                            && location.node < owner_index)
+                                            || (location.block != source.id
+                                                && block_dominates(
+                                                    machine_dominators,
+                                                    location.block,
+                                                    source.id,
+                                                )))
+                                })
+                                .min_by_key(|(_, location, _, _, _)| {
+                                    let depth = machine_dominators
+                                        .iter()
+                                        .find(|(candidate, _)| *candidate == location.block)
+                                        .map_or(usize::MAX, |(_, rows)| rows.len());
+                                    (depth, *location)
+                                });
+                            let Some((_, leader, leader_operation, leader_result, _)) = leader
+                            else {
+                                complete = false;
+                                continue;
+                            };
+                            incoming.push(PhiTranslatedScalarIncoming {
+                                source: source.id,
+                                edge: edge.psi_edge,
+                                leader: *leader,
+                                leader_operation: *leader_operation,
+                                leader_result: *leader_result,
+                            });
+                        }
+                    }
+                }
+                if !complete || incoming.len() < 2 {
+                    continue;
+                }
+                incoming.sort_by_key(|row| (row.edge, row.source));
+                let Some((affected_blocks, provenance)) =
+                    phi_translated_cse_accounting(function, *redundant, &incoming)
+                else {
+                    continue;
+                };
+                let parameter_position = u32::try_from(block.parameters.len())
+                    .expect("optimization block parameter count fits u32");
+                candidates.push(
+                    PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+                        unit.identity,
+                        Self::contract(),
+                        affected_blocks,
+                        provenance,
+                        -1,
+                        PhiTranslatedScalarGvnRewrite {
+                            redundant: *redundant,
+                            redundant_operation: *redundant_operation,
+                            redundant_result: *redundant_result,
+                            scalar_type: *scalar_type,
+                            parameter_position,
+                            incoming,
                         },
                     )
                     .map_err(RuleProposalError::InvalidCandidate)?,
@@ -3892,6 +4261,102 @@ fn local_cse_accounting(
     Some((affected, provenance))
 }
 
+fn phi_translated_cse_accounting(
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    redundant: NodeLocation,
+    incoming: &[PhiTranslatedScalarIncoming],
+) -> Option<(Vec<BlockId>, Vec<ProvenanceRewrite>)> {
+    let block_position = function
+        .blocks
+        .iter()
+        .position(|block| block.id == redundant.block)?;
+    let node_position = usize::try_from(redundant.node).ok()?;
+    let block = &function.blocks[block_position];
+    let removed = block.nodes.get(node_position)?;
+    block.nodes.get(node_position.checked_add(1)?)?;
+    let mut affected = incoming
+        .iter()
+        .map(|row| row.source)
+        .chain([block.id])
+        .collect::<BTreeSet<_>>();
+    let mut provenance = vec![ProvenanceRewrite {
+        input: PsiRealizationSite::Node(redundant),
+        disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(redundant)),
+        sources: removed.provenance.clone(),
+        fuel: removed.fuel.clone(),
+    }];
+    for row in incoming {
+        let source = function
+            .blocks
+            .iter()
+            .find(|block| block.id == row.source)?;
+        let edge = source
+            .nodes
+            .iter()
+            .flat_map(|node| &node.successors)
+            .find(|edge| edge.psi_edge == row.edge && edge.target == redundant.block)?;
+        if !edge.provenance.is_empty() {
+            let site = PsiRealizationSite::Edge {
+                machine: function.machine,
+                edge: edge.psi_edge,
+            };
+            provenance.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: edge.provenance.clone(),
+                fuel: edge.fuel.clone(),
+            });
+        }
+    }
+    for (index, node) in block.nodes.iter().enumerate().skip(node_position + 1) {
+        if node.provenance.is_empty() {
+            continue;
+        }
+        let old = NodeLocation {
+            machine: function.machine,
+            block: block.id,
+            node: u32::try_from(index).ok()?,
+        };
+        let new = NodeLocation {
+            node: old.node.checked_sub(1)?,
+            ..old
+        };
+        provenance.push(ProvenanceRewrite {
+            input: PsiRealizationSite::Node(old),
+            disposition: ProvenanceDisposition::RealizedAt(PsiRealizationSite::Node(new)),
+            sources: node.provenance.clone(),
+            fuel: node.fuel.clone(),
+        });
+    }
+    for later in function.blocks.iter().skip(block_position + 1) {
+        affected.insert(later.id);
+        for (index, node) in later.nodes.iter().enumerate() {
+            if node.provenance.is_empty() {
+                continue;
+            }
+            let site = PsiRealizationSite::Node(NodeLocation {
+                machine: function.machine,
+                block: later.id,
+                node: u32::try_from(index).ok()?,
+            });
+            provenance.push(ProvenanceRewrite {
+                input: site,
+                disposition: ProvenanceDisposition::RealizedAt(site),
+                sources: node.provenance.clone(),
+                fuel: node.fuel.clone(),
+            });
+        }
+    }
+    provenance.sort_by_key(|row| {
+        (
+            row.input,
+            row.disposition.canonical_tag(),
+            row.disposition.site(),
+        )
+    });
+    Some((affected.into_iter().collect(), provenance))
+}
+
 #[derive(Debug, Clone, Copy, Default)]
 pub struct RedundantBlockParameterRule;
 
@@ -5569,6 +6034,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(1, SameBlockProofCertifiedScalarCseRule);
         register!(2, DominatorTotalScalarGvnRule);
         register!(3, DominatorProofCertifiedScalarGvnRule);
+        register!(4, PhiTranslatedObligationFreeScalarGvnRule);
     }
     if optimization == Optimization::DeadPureScalarElimination {
         register!(0, DeadScalarLiteralEliminationRule);
@@ -5614,6 +6080,7 @@ pub(crate) mod tests {
         validate_integer_evaluation_candidate, validate_linear_empty_block_candidate,
         validate_local_scalar_common_subexpression_candidate,
         validate_non_adjacent_block_merge_candidate, validate_path_qualified_empty_block_candidate,
+        validate_phi_translated_scalar_common_subexpression_candidate,
         validate_psi_optimization_unit, validate_redundant_block_parameter_candidate,
         validate_shared_terminal_jump_fusion_candidate,
         validate_unreachable_private_machines_candidate,
@@ -6714,6 +7181,174 @@ pub(crate) mod tests {
                             psi_edge: id(1_456, EdgeId::new),
                             target: join,
                             bindings: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[derive(Clone, Copy)]
+    enum PhiTranslatedRightArm {
+        Matching,
+        Missing,
+        MismatchedType,
+    }
+
+    pub(crate) fn phi_translated_gvn_unit() -> PsiOptimizationUnit {
+        phi_translated_gvn_fixture(PhiTranslatedRightArm::Matching)
+    }
+
+    fn phi_translated_gvn_fixture(right_arm: PhiTranslatedRightArm) -> PsiOptimizationUnit {
+        let machine = id(1_701, MachineId::new);
+        let join = id(1_702, BlockId::new);
+        let left_block = id(1_703, BlockId::new);
+        let entry = id(1_704, BlockId::new);
+        let right_block = id(1_705, BlockId::new);
+        let condition = id(1_706, ValueId::new);
+        let left_input = id(1_707, ValueId::new);
+        let right_input = id(1_708, ValueId::new);
+        let join_input = id(1_709, ValueId::new);
+        let redundant = id(1_710, ValueId::new);
+        let left_leader = id(1_711, ValueId::new);
+        let right_leader = id(1_712, ValueId::new);
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let wide = IntegerType::new(IntegerSign::Unsigned, 16).unwrap();
+        let right_expression = match right_arm {
+            PhiTranslatedRightArm::Matching => TerminalAbstractOperation::IntegerBitwiseNot {
+                psi_operation: id(1_716, OperationId::new),
+                result: right_leader,
+                scalar_type: integer,
+                operand: right_input,
+            },
+            PhiTranslatedRightArm::Missing => TerminalAbstractOperation::WrappingIntegerAdd {
+                psi_operation: id(1_716, OperationId::new),
+                result: right_leader,
+                scalar_type: integer,
+                left: right_input,
+                right: right_input,
+            },
+            PhiTranslatedRightArm::MismatchedType => TerminalAbstractOperation::IntegerWiden {
+                psi_operation: id(1_716, OperationId::new),
+                result: right_leader,
+                source_type: integer,
+                target_type: wide,
+                operand: right_input,
+            },
+        };
+        reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([47; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry,
+                    parameters: vec![
+                        TerminalAbstractParameter {
+                            value: condition,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        TerminalAbstractParameter {
+                            value: left_input,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                        TerminalAbstractParameter {
+                            value: right_input,
+                            scalar_type: ScalarType::Integer(integer),
+                        },
+                    ],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: redundant,
+                        scalar_type: ScalarType::Integer(integer),
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![
+                        TerminalAbstractBlockEntry {
+                            block: join,
+                            parameters: vec![TerminalAbstractParameter {
+                                value: join_input,
+                                scalar_type: ScalarType::Integer(integer),
+                            }],
+                            operation_offset: 0,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: left_block,
+                            parameters: Vec::new(),
+                            operation_offset: 2,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: entry,
+                            parameters: Vec::new(),
+                            operation_offset: 4,
+                        },
+                        TerminalAbstractBlockEntry {
+                            block: right_block,
+                            parameters: Vec::new(),
+                            operation_offset: 5,
+                        },
+                    ],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_713, OperationId::new),
+                            result: redundant,
+                            scalar_type: integer,
+                            operand: join_input,
+                        },
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(1_714, EdgeId::new),
+                            result: redundant,
+                            value: redundant,
+                            scalar_type: ScalarType::Integer(integer),
+                            cleanup_actions: Vec::new(),
+                        },
+                        TerminalAbstractOperation::IntegerBitwiseNot {
+                            psi_operation: id(1_715, OperationId::new),
+                            result: left_leader,
+                            scalar_type: integer,
+                            operand: left_input,
+                        },
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_720, EdgeId::new),
+                            target: join,
+                            bindings: vec![TerminalValueBinding {
+                                parameter: join_input,
+                                argument: left_input,
+                                scalar_type: ScalarType::Integer(integer),
+                            }],
+                        },
+                        TerminalAbstractOperation::Conditional {
+                            condition,
+                            when_true: TerminalAbstractSuccessor {
+                                psi_edge: id(1_718, EdgeId::new),
+                                target: left_block,
+                                bindings: Vec::new(),
+                            },
+                            when_false: TerminalAbstractSuccessor {
+                                psi_edge: id(1_719, EdgeId::new),
+                                target: right_block,
+                                bindings: Vec::new(),
+                            },
+                        },
+                        right_expression,
+                        TerminalAbstractOperation::Jump {
+                            psi_edge: id(1_717, EdgeId::new),
+                            target: join,
+                            bindings: vec![TerminalValueBinding {
+                                parameter: join_input,
+                                argument: right_input,
+                                scalar_type: ScalarType::Integer(integer),
+                            }],
                         },
                     ],
                 }],
@@ -8204,7 +8839,7 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&copy).unwrap().len(), 1);
         let gvn = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
         let gvn = built_in_psi_registry(&gvn).unwrap();
-        assert_eq!(gvn.len(), 4);
+        assert_eq!(gvn.len(), 5);
         assert_eq!(
             gvn.contracts()
                 .map(|contract| contract.identity())
@@ -8214,6 +8849,7 @@ pub(crate) mod tests {
                 SameBlockProofCertifiedScalarCseRule::contract().identity(),
                 DominatorTotalScalarGvnRule::contract().identity(),
                 DominatorProofCertifiedScalarGvnRule::contract().identity(),
+                PhiTranslatedObligationFreeScalarGvnRule::contract().identity(),
             ]
         );
         assert!(gvn.contracts().all(|contract| {
@@ -9755,6 +10391,138 @@ pub(crate) mod tests {
         assert_eq!(
             validate_dominating_scalar_common_subexpression_candidate(&unit, &forged),
             Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+    }
+
+    fn phi_translated_candidates(unit: &PsiOptimizationUnit) -> Vec<PsiRewriteCandidate> {
+        let contract = PhiTranslatedObligationFreeScalarGvnRule::contract();
+        let mut manager = crate::AnalysisManager::new(unit);
+        let products = manager
+            .require_all(unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        PhiTranslatedObligationFreeScalarGvnRule
+            .propose(unit, RuleAnalysisView::new(&products))
+            .unwrap()
+    }
+
+    #[test]
+    fn phi_translated_gvn_preserves_result_identity_and_reaches_fixed_point() {
+        let unit = phi_translated_gvn_unit();
+        let [candidate] = phi_translated_candidates(&unit)
+            .try_into()
+            .expect("both predecessor translations have available leaders");
+        let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        assert_eq!(patch.parameter_position, 1);
+        assert_eq!(patch.redundant_result, id(1_710, ValueId::new));
+        assert_eq!(
+            patch
+                .incoming
+                .iter()
+                .map(|row| (row.edge, row.source, row.leader_result))
+                .collect::<Vec<_>>(),
+            [
+                (
+                    id(1_717, EdgeId::new),
+                    id(1_705, BlockId::new),
+                    id(1_712, ValueId::new),
+                ),
+                (
+                    id(1_720, EdgeId::new),
+                    id(1_703, BlockId::new),
+                    id(1_711, ValueId::new),
+                ),
+            ]
+        );
+        assert!(candidate.substitutions().is_empty());
+        assert!(candidate.consumed_facts().is_empty());
+
+        let accepted =
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &candidate)
+                .unwrap();
+        let output = accepted.unit();
+        let join = &output.functions[0].blocks[0];
+        assert_eq!(join.parameters.len(), 2);
+        assert_eq!(join.parameters[1].value, id(1_710, ValueId::new));
+        assert_eq!(join.nodes.len(), 1);
+        assert!(
+            matches!(join.nodes[0].operation, O::Return { value, .. } if value == id(1_710, ValueId::new))
+        );
+        for (source, leader) in [
+            (id(1_703, BlockId::new), id(1_711, ValueId::new)),
+            (id(1_705, BlockId::new), id(1_712, ValueId::new)),
+        ] {
+            let edge = output.functions[0]
+                .blocks
+                .iter()
+                .find(|block| block.id == source)
+                .unwrap()
+                .nodes
+                .last()
+                .unwrap()
+                .successors
+                .first()
+                .unwrap();
+            assert_eq!(edge.bindings.len(), 2);
+            assert_eq!(edge.bindings[1].parameter, id(1_710, ValueId::new));
+            assert_eq!(edge.bindings[1].argument, leader);
+        }
+        assert!(phi_translated_candidates(output).is_empty());
+
+        let mut corrupted_patch = patch;
+        corrupted_patch.incoming[0].leader_result = id(1_711, ValueId::new);
+        let corrupted = PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+            unit.identity,
+            PhiTranslatedObligationFreeScalarGvnRule::contract(),
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            candidate.predicted_cost_delta(),
+            corrupted_patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_phi_translated_scalar_common_subexpression_candidate(&unit, &corrupted),
+            Err(OptimizationUnitValidationError::CandidateIncomingBindingMismatch)
+        );
+    }
+
+    #[test]
+    fn phi_translated_gvn_requires_a_typed_leader_on_every_incoming_arm() {
+        for right_arm in [
+            PhiTranslatedRightArm::Missing,
+            PhiTranslatedRightArm::MismatchedType,
+        ] {
+            let unit = phi_translated_gvn_fixture(right_arm);
+            assert!(phi_translated_candidates(&unit).is_empty());
+        }
+    }
+
+    #[test]
+    fn phi_translated_gvn_candidate_rejects_noncanonical_incoming_order() {
+        let unit = phi_translated_gvn_unit();
+        let [candidate] = phi_translated_candidates(&unit).try_into().unwrap();
+        let PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(mut patch) =
+            candidate.patch()
+        else {
+            unreachable!()
+        };
+        patch.incoming.reverse();
+        assert_eq!(
+            PsiRewriteCandidate::new_phi_translated_scalar_common_subexpression(
+                unit.identity,
+                PhiTranslatedObligationFreeScalarGvnRule::contract(),
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                candidate.predicted_cost_delta(),
+                patch,
+            ),
+            Err(omega_optimization_unit::PsiRewriteCandidateError::PatchDecisionPointMismatch)
         );
     }
 

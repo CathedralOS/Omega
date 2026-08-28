@@ -5,8 +5,8 @@ This root owns the Omega-written product compiler together with
 Terminal Psi; Omega owns optimization, target realization, artifact emission,
 and the product entrypoint.
 
-The product compiler is authored once as the exact source closure `C`, using
-ordinary Omega constrained to the compositional `Ωself` authoring profile.
+The product compiler is authored once as the exact source closure `C`, using a
+deliberately conservative, compositional subset of ordinary Omega.
 
 ```text
 published Delta-produced compiler + C → omega₀
@@ -28,8 +28,8 @@ functionality or close a missing bootstrap dependency.
 - [`../delta/`](../delta/) — final lower-rung compiler and direct first-build
   producer.
 
-`Ωself` constrains forms used to author `C`; it does not restrict programs the
-resulting compiler accepts. Standalone viewers, interpreters, REPLs, and proof
+That source choice does not define a dialect or restrict programs the resulting
+compiler accepts. Standalone viewers, interpreters, REPLs, and proof
 explorers remain outside `C` unless the compiler executable imports them.
 
 Implementation work is tracked in [`../../TASKS.md`](../../TASKS.md); bootstrap

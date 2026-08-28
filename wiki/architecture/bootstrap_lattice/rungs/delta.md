@@ -16,7 +16,7 @@ Alpha → Beta → Gamma → Delta
 
 It is an independently specified deterministic compiler-host language, not an
 Omega subset and not an extra product compiler. Delta v1 is selected from the
-complete source needed for its canonical compiler and the direct `Ωself`
+complete source needed for its canonical compiler and the direct Omega-source
 compilation edge, together with compiler-host safety and maintainability needs.
 The old sample corpus or a temporary producer cannot define the language by
 accident.
@@ -30,7 +30,7 @@ build:
 Delta compiler source
   └─ Delta→Gamma elaboration + Gamma execution ─▶ Delta compiler artifact
 
-exact Omega compiler source C ∈ Ωself
+exact ordinary-Omega compiler source C
   └─ Delta compiler artifact ───────────────────▶ omega₀
 
 the same C
@@ -69,8 +69,8 @@ Delta closes when:
 1. its language contract covers the complete canonical compiler source;
 2. the compiler artifact is published through the lower-rung route without
    Rust defining the result;
-3. that artifact compiles every input admitted by the frozen `Ωself` profile,
-   rejecting unsupported Omega source rather than approximating it;
+3. that artifact accepts the compositional ordinary-Omega surface exercised by
+   `C`, rejecting unsupported source rather than approximating it;
 4. it builds the exact product source closure `C` into `omega₀`; and
 5. the resulting `omega₀` rebuilds that same `C` into the product compiler.
 

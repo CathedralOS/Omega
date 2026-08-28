@@ -1,23 +1,23 @@
 # `source/beta/` — the Beta compiler, written in Beta (SELF-HOSTING)
 
 This directory owns the complete Beta-language surface and its compiler written
-*in Beta itself* (`bc.beta`), not hand-written in assembly. **It self-hosts** —
+*in Beta itself* ([`compiler/bc.beta`](compiler/bc.beta)), not hand-written in assembly. **It self-hosts** —
 `bc` compiles its own source to a
 compiler that reproduces that compilation byte-for-byte (`selfhost.sh`). This
 closes the steady-state execution dependency on Rust. It does not by itself prove
-that the cold-started artifact corresponds to `bc.beta`; the separate
-lower-rooted ROOT checker now proves that correspondence for `B_bc1`.
+that the cold-started artifact corresponds to `bc.beta`; the adjacent validator
+reconstructs that claim, while its non-circular checker root remains open.
 
 The lower-rooted replacement is complete under
-[`cold-start/`](cold-start/README.md). The Alpha-written compiler covers the
+[`compiler/cold-start/`](compiler/cold-start/README.md). The Alpha-written compiler covers the
 exact pinned surface, builds `bc.beta`, reaches a byte-identical self-hosted fixed
 point, and reconstructs the persisted platform-independent
-[`artifacts/bc.tape`](artifacts/README.md). That artifact passes the whole Beta
-corpus and is consumed by the downstream proof-kernel, Gamma, Delta, bridge, and
-refinement gates. The former Rust producer has been retired.
+[`compiler/artifacts/bc.tape`](compiler/artifacts/README.md). That artifact passes the whole Beta
+corpus and is consumed by the downstream checker, Gamma, Delta, and compiler
+validation gates. The former Rust producer has been retired.
 
 ```
-bc.beta       the Beta compiler, in Beta:  reads .beta on stdin, emits Alpha asm
+compiler/     compiler source, admitted artifact, Alpha cold start, and validation
 selfhost.sh   THE gate: bc compiles bc.beta -> bc1; assert bc1(bc.beta) == bc(bc.beta)
 test.sh       language gate: bc compiles and runs the retained Beta corpus
 source-exhaustion.sh  exact B_bc1 compiler-resource boundaries and checked failures
@@ -35,8 +35,10 @@ source-exhaustion.sh  exact B_bc1 compiler-resource boundaries and checked failu
 The default gates stamp the persisted, platform-independent tape into the host's
 audited Alpha seed. No parallel Beta producer remains. The
 fixed-point equality establishes deterministic self-reproduction, not compiler
-correctness. Source-to-artifact authority comes from the separate complete
-maximal-observation refinement gate under `source/refinement/alpha-beta/`.
+correctness. Source-to-artifact authority requires the maximal-observation
+reconstruction under `source/beta/compiler/validation/` to terminate in a
+checker rooted below `bc`; the current `check.beta` construction does not yet
+satisfy that boundary.
 
 Run the gate:
 
@@ -94,7 +96,7 @@ the `db` directive itself.
 ## Role in the lattice
 
 The Beta compiler has a Rust-free cold-start and steady-state execution path,
-and complete lower-rooted validation of its `B_bc1` source correspondence. It builds
+and extensive lower-rooted reconstruction of its `B_bc1` source correspondence. It builds
 Gamma's canonical interpreter and type checker; Gamma in turn supplies Delta's meaning substrate. The proof kernel
 is a cross-cutting service with independent Beta and Gamma implementations, not
 a later language rung. No external Beta producer participates in the lineage.

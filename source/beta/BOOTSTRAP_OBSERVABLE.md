@@ -11,7 +11,7 @@ Let:
 - `S` be any finite byte stream supplied as Beta source on standard input;
 - `B` be the explicit finite resource profile under which the compiler runs;
 - `A` be one exact, fingerprinted Alpha tape claimed to implement
-  [`bc.beta`](bc.beta).
+  [`bc.beta`](compiler/bc.beta).
 
 The completed cold-start claim is:
 

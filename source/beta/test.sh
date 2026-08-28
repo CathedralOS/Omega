@@ -32,7 +32,7 @@ if [ -n "${BETA_COMPILER_EXE:-}" ]; then
   BC=$BETA_COMPILER_EXE
   echo "bc compiler: injected executable"
 else
-  . "$OMEGA_PATH_BETA/artifact_env.sh"
+  . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
   BC="$T/bc.exe"
   stamp_beta_compiler "$BC" >/dev/null || { echo "bc artifact stamp failed"; exit 1; }
   echo "bc compiler: persisted lattice artifact ($(wc -c < "$BETA_COMPILER_TAPE" | tr -d ' ') B)"

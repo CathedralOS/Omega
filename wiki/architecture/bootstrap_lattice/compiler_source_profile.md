@@ -3,12 +3,12 @@
 [Lattice overview](bootstrap_lattice.md) | [Decisions](decisions.md) |
 [Omega toolchain](omega_toolchain.md)
 
-Two source contracts govern the top of the lattice:
+Two source facts govern the top of the lattice:
 
 | Contract | Kind | Selected from |
 | --- | --- | --- |
 | Delta v1 | independent language specification | the complete canonical Delta compiler source plus compiler-host safety and maintainability requirements |
-| `Ωself` | compositional profile of ordinary Omega | the complete Omega product compiler source closure `C` |
+| compiler-source usage | incidental compositional subset of ordinary Omega | the complete Omega product compiler source closure `C` |
 
 Full Omega is already the product language specification. It is not a third
 bootstrap source profile.
@@ -19,16 +19,17 @@ bootstrap source profile.
 canonical Delta compiler source ∈ Delta v1
   └─ Delta→Gamma/Gamma publication ─▶ Delta-produced compiler
 
-exact product source closure C ∈ Ωself
+exact ordinary-Omega product source closure C
   └─ Delta-produced compiler ────────▶ omega₀
 
 the exact same C
   └─ omega₀ ─────────────────────────▶ omega
 ```
 
-The Delta-produced compiler must accept every program admitted by `Ωself` with
-exact Omega meaning and reject unsupported source. `omega₀` and `omega` are two
-artifacts of the same product compiler source, not two compiler designs.
+The Delta-produced compiler must accept every ordinary-Omega form exercised by
+`C` with exact Omega meaning and reject unsupported source. `omega₀` and
+`omega` are two artifacts of the same product compiler source, not two compiler
+designs.
 
 ## Delta v1
 
@@ -45,15 +46,16 @@ floor: structured control, scalar and aggregate data, modules, deterministic
 storage/allocation with explicit exhaustion, and sealed byte/artifact/
 diagnostic/exit boundaries.
 
-## `Ωself`
+## Compiler-source usage
 
-`Ωself` constrains only the source used to implement the product compiler. It
-does not constrain what that compiler implements for users.
+`C` may deliberately omit advanced Omega features from its own implementation
+source. That authoring choice does not constrain what the resulting compiler
+implements for users and does not define a named dialect.
 
 For every candidate Omega facility, record separately:
 
 1. whether `C` uses it;
-2. whether the Delta-produced compiler admits it under `Ωself`;
+2. whether the Delta-produced compiler admits the form used by `C`;
 3. whether production `omega` implements it for users; and
 4. whether any adjacent tool using it belongs to the actual compiler closure.
 
@@ -63,7 +65,7 @@ Those facts must not collapse into one “supported” bit.
 
 - `C` is determined by package resolution and the accepted source graph, not a
   hand-maintained file list.
-- The profile is structural and compositional. A compiler must not recognize
+- The accepted surface is structural and compositional. A compiler must not recognize
   only the particular trees present in the current source.
 - Unsupported source rejects loudly; there is no approximate bootstrap
   meaning.
