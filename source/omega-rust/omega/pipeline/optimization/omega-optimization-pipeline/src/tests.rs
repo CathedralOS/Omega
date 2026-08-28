@@ -8227,6 +8227,22 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
             &materialization,
         )
         .unwrap();
+    let baseline_layout = stage_optimized_resolved_selected_form_layout(
+        selected_stage.selected(),
+        &machine,
+        physical,
+        &baseline,
+    )
+    .unwrap();
+    let resolved =
+        stage_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &encoded,
+            &materialization,
+        )
+        .unwrap();
 
     let receipt = materialization.custody();
     assert!(receipt.action_count() > 0);
@@ -8240,7 +8256,31 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         encoded.movn_optimization().unwrap().materialization(),
         receipt.materialization()
     );
+    assert_eq!(resolved.movn_optimization(), encoded.movn_optimization());
+    assert!(resolved.machine_optimization().is_none());
     assert_ne!(baseline.identity(), encoded.identity());
+    assert_ne!(baseline_layout.identity(), resolved.identity());
+
+    let baseline_bytes = baseline_layout
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum::<u64>();
+    let resolved_bytes = resolved
+        .functions()
+        .iter()
+        .map(|function| function.byte_count)
+        .sum::<u64>();
+    let expected_shrink = receipt
+        .baseline_words()
+        .checked_sub(receipt.selected_words())
+        .unwrap()
+        .checked_mul(4)
+        .unwrap();
+    assert_eq!(
+        baseline_bytes.checked_sub(resolved_bytes),
+        Some(expected_shrink)
+    );
 
     let action = &materialization.materialization().plan().actions[0];
     let baseline_row = baseline
@@ -8272,6 +8312,64 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         &encoded,
     )
     .unwrap();
+    validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization(
+        selected_stage.selected(),
+        &machine,
+        physical,
+        &encoded,
+        &materialization,
+        &resolved,
+    )
+    .unwrap();
+
+    assert!(matches!(
+        validate_optimized_resolved_selected_form_layout(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &encoded,
+            &resolved,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::PreLayout(
+            OptimizedSelectedFormEncodingError::ArtifactMismatch
+        ))
+    ));
+    assert!(matches!(
+        validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &baseline,
+            &materialization,
+            &baseline_layout,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::PreLayout(
+            OptimizedSelectedFormEncodingError::ArtifactMismatch
+        ))
+    ));
+
+    let mut corrupted_layout = resolved.clone();
+    let row = corrupted_layout
+        .functions_mut()
+        .iter_mut()
+        .flat_map(|function| &mut function.blocks)
+        .flat_map(|block| &mut block.instructions)
+        .find(|row| {
+            row.instruction == materialization.materialization().plan().actions[0].instruction
+        })
+        .unwrap();
+    row.bytes[0] ^= 1;
+    assert_eq!(
+        validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization(
+            selected_stage.selected(),
+            &machine,
+            physical,
+            &encoded,
+            &materialization,
+            &corrupted_layout,
+        ),
+        Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+    );
 
     let mut corrupted = encoded.clone();
     let row = corrupted
@@ -8293,6 +8391,107 @@ fn named_aarch64_movn_materialization_shrinks_pre_layout_bytes_and_replays() {
         ),
         Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
     );
+}
+
+#[test]
+fn compiler_facing_physical_pipeline_routes_only_the_named_aarch64_movn_materialization() {
+    let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+        IntegerValue::Unsigned(u64::MAX as u128),
+    );
+    let selections = OptimizationSelections::new([
+        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+    ])
+    .unwrap();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget()).unwrap(),
+    )
+    .unwrap();
+    let mut staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+        optimized,
+        NativeTarget::linux_arm64(),
+        &[],
+    )
+    .unwrap();
+
+    assert_eq!(staged.selections(), selections.identity());
+    assert_eq!(staged.selected_lowering_completion(), None);
+    assert!(staged.function_relative_manifest().is_none());
+    assert!(staged.post_allocation_machine_optimization().is_none());
+    assert!(staged.post_allocation_movn_optimization().is_some());
+    let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn { layout } = &mut staged
+    else {
+        panic!("the exact MOVN selection must use its resolved-layout carrier")
+    };
+    let custody = validate_optimized_aarch64_movn_resolved_selected_form_layout(layout).unwrap();
+    assert_eq!(custody, *layout.custody());
+    assert_eq!(
+        custody.materialization(),
+        layout.materialization().custody()
+    );
+    assert_eq!(
+        custody.baseline_encoding(),
+        layout.baseline_encoding().identity()
+    );
+    assert_eq!(custody.encoding(), layout.encoding().identity());
+    assert_eq!(
+        custody.baseline_layout(),
+        layout.baseline_layout().identity()
+    );
+    assert_eq!(custody.layout(), layout.layout().identity());
+    assert!(custody.selected_bytes() < custody.baseline_bytes());
+
+    crate::aarch64_movn_resolved_selected_form_layout::corrupt_aarch64_movn_resolved_layout_receipt_for_test(
+        layout,
+    );
+    assert!(matches!(
+        validate_optimized_aarch64_movn_resolved_selected_form_layout(layout),
+        Err(OptimizedAarch64MovnResolvedSelectedFormLayoutError::ReceiptMismatch)
+    ));
+    crate::aarch64_movn_resolved_selected_form_layout::corrupt_aarch64_movn_resolved_layout_receipt_for_test(
+        layout,
+    );
+    validate_optimized_aarch64_movn_resolved_selected_form_layout(layout).unwrap();
+
+    crate::aarch64_movn_resolved_selected_form_layout::corrupt_aarch64_movn_resolved_layout_byte_for_test(
+        layout,
+    );
+    assert!(matches!(
+        validate_optimized_aarch64_movn_resolved_selected_form_layout(layout),
+        Err(OptimizedAarch64MovnResolvedSelectedFormLayoutError::Layout(
+            OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+        ))
+    ));
+}
+
+#[test]
+fn aarch64_post_allocation_machine_composition_rejects_without_hidden_ordering_policy() {
+    let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+        IntegerValue::Unsigned(u64::MAX as u128),
+    );
+    let selections = OptimizationSelections::new([
+        Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+    ])
+    .unwrap();
+    let optimized = optimize_artifact_sections(
+        &semantic,
+        &proof,
+        &AdmissionProfile::default(),
+        ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+    )
+    .unwrap();
+
+    assert!(matches!(
+        stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        ),
+        Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+    ));
 }
 
 #[test]

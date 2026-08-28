@@ -18,6 +18,8 @@ use omega_psi_to_abstract_operations::{
 };
 use psi_proof_admission::AdmissionProfile;
 
+#[path = "stages/layout/aarch64_movn_resolved_selected_form_layout.rs"]
+mod aarch64_movn_resolved_selected_form_layout;
 #[path = "stages/realization/active_resident_function_relative_realization.rs"]
 mod active_resident_function_relative_realization;
 #[path = "stages/machine/active_resident_rematerialization.rs"]
@@ -87,6 +89,17 @@ mod whole_function_exit_contract;
 #[path = "stages/layout/x86_branch_relaxation.rs"]
 mod x86_branch_relaxation;
 
+pub use aarch64_movn_resolved_selected_form_layout::{
+    OptimizedAarch64MovnResolvedSelectedFormLayoutError,
+    StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
+    StagedOptimizedAarch64MovnResolvedSelectedFormLayoutCustodyReceipt,
+    StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+    StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayoutCustodyReceipt,
+    stage_optimized_aarch64_movn_resolved_selected_form_layout,
+    stage_selected_lowering_aarch64_movn_resolved_selected_form_layout,
+    validate_optimized_aarch64_movn_resolved_selected_form_layout,
+    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout,
+};
 pub use active_resident_function_relative_realization::{
     OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
@@ -325,8 +338,10 @@ pub use resolved_selected_form_layout::{
     ResolvedStructuralUnitFunctionLayout, SelectedFunctionLayoutPolicy,
     StagedOptimizedResolvedSelectedFormLayout, stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
+    stage_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization,
     validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
+    validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization,
 };
 pub use selected_reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,

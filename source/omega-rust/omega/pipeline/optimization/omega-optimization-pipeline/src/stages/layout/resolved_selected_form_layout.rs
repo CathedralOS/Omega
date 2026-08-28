@@ -33,13 +33,15 @@ use sha2::{Digest, Sha256};
 use crate::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError, SelectedFormEncodingRow,
     SelectedFormEncodingState, SelectedFormMachineOptimizationCustody,
-    SelectedStructuralUnitFunctionEncoding, StagedOptimizedAarch64CbnzFusion,
+    SelectedFormMovnOptimizationCustody, SelectedStructuralUnitFunctionEncoding,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,
     StagedOptimizedPostAllocationMachinePlan, StagedOptimizedSelectedFormEncoding,
     validate_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization,
 };
 
-const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v5";
+const LAYOUT_SCHEMA: &[u8] = b"omega.terminal.resolved-selected-form-layout.v6";
 
 /// Required-stage baseline layout for the currently admitted three-block
 /// conditional. This is a visible policy identity, not an optimization level.
@@ -140,6 +142,7 @@ pub struct StagedOptimizedResolvedSelectedFormLayout {
     machine: omega_machine_optimizer::PostAllocationMachineIdentity,
     pre_layout: crate::SelectedFormEncodingIdentity,
     machine_optimization: Option<SelectedFormMachineOptimizationCustody>,
+    movn_optimization: Option<SelectedFormMovnOptimizationCustody>,
     target: NativeTarget,
     policy: SelectedFunctionLayoutPolicy,
     identity: ResolvedSelectedFormLayoutIdentity,
@@ -162,6 +165,10 @@ impl StagedOptimizedResolvedSelectedFormLayout {
 
     pub const fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
         self.machine_optimization
+    }
+
+    pub const fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
+        self.movn_optimization
     }
 
     pub const fn target(&self) -> NativeTarget {
@@ -197,6 +204,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
             self.machine,
             self.pre_layout,
             self.machine_optimization,
+            self.movn_optimization,
             self.target,
             self.policy,
             &functions,
@@ -207,6 +215,7 @@ impl StagedOptimizedResolvedSelectedFormLayout {
             machine: self.machine,
             pre_layout: self.pre_layout,
             machine_optimization: self.machine_optimization,
+            movn_optimization: self.movn_optimization,
             target: self.target,
             policy: self.policy,
             identity,
@@ -269,7 +278,13 @@ pub fn stage_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnalysi
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let artifact = compute(selected, machine, physical, pre_layout, None)?;
+    let artifact = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Baseline,
+    )?;
     validate_optimized_resolved_selected_form_layout(
         selected, machine, physical, pre_layout, &artifact,
     )?;
@@ -283,7 +298,13 @@ pub fn validate_optimized_resolved_selected_form_layout<S: ValidatedSelectedAnal
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let replayed = compute(selected, machine, physical, pre_layout, None)?;
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Baseline,
+    )?;
     if artifact != &replayed {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
@@ -303,7 +324,13 @@ pub fn stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion<
     pre_layout: &StagedOptimizedSelectedFormEncoding,
     fusion: &StagedOptimizedAarch64CbnzFusion,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    let artifact = compute(selected, machine, physical, pre_layout, Some(fusion))?;
+    let artifact = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Cbnz(fusion),
+    )?;
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
         selected, machine, physical, pre_layout, fusion, &artifact,
     )?;
@@ -322,11 +349,79 @@ pub fn validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusio
     fusion: &StagedOptimizedAarch64CbnzFusion,
     artifact: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
-    let replayed = compute(selected, machine, physical, pre_layout, Some(fusion))?;
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Cbnz(fusion),
+    )?;
     if artifact != &replayed {
         return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
     }
     Ok(())
+}
+
+/// Carry an independently validated shortest-MOVN materialization through
+/// required function-relative layout. Pre-layout already owns target-decoded
+/// scalar bytes; this boundary independently rebuilds every offset and branch.
+pub fn stage_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    materialization: &StagedOptimizedAarch64MovnMaterialization,
+) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
+    let artifact = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Movn(materialization),
+    )?;
+    validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        materialization,
+        &artifact,
+    )?;
+    Ok(artifact)
+}
+
+/// Independently replay MOVN pre-layout custody plus every resolved offset,
+/// branch byte sequence, and layout identity field.
+pub fn validate_optimized_resolved_selected_form_layout_after_aarch64_movn_materialization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    pre_layout: &StagedOptimizedSelectedFormEncoding,
+    materialization: &StagedOptimizedAarch64MovnMaterialization,
+    artifact: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<(), OptimizedResolvedSelectedFormLayoutError> {
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        pre_layout,
+        ResolvedMachineOptimization::Movn(materialization),
+    )?;
+    if artifact != &replayed {
+        return Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Copy)]
+enum ResolvedMachineOptimization<'a> {
+    Baseline,
+    Cbnz(&'a StagedOptimizedAarch64CbnzFusion),
+    Movn(&'a StagedOptimizedAarch64MovnMaterialization),
 }
 
 fn compute<S: ValidatedSelectedAnalysis>(
@@ -334,19 +429,56 @@ fn compute<S: ValidatedSelectedAnalysis>(
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     pre_layout: &StagedOptimizedSelectedFormEncoding,
-    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    optimization: ResolvedMachineOptimization<'_>,
 ) -> Result<StagedOptimizedResolvedSelectedFormLayout, OptimizedResolvedSelectedFormLayoutError> {
-    match fusion {
-        None => validate_optimized_layout_independent_selected_form_encoding(
-            selected, machine, physical, pre_layout,
-        ),
-        Some(fusion) => {
+    match optimization {
+        ResolvedMachineOptimization::Baseline => {
+            validate_optimized_layout_independent_selected_form_encoding(
+                selected, machine, physical, pre_layout,
+            )
+        }
+        ResolvedMachineOptimization::Cbnz(fusion) => {
             validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
                 selected, machine, physical, fusion, pre_layout,
             )
         }
+        ResolvedMachineOptimization::Movn(materialization) => {
+            validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization(
+                selected, machine, physical, materialization, pre_layout,
+            )
+        }
     }
     .map_err(OptimizedResolvedSelectedFormLayoutError::PreLayout)?;
+    let fusion = match optimization {
+        ResolvedMachineOptimization::Cbnz(fusion) => Some(fusion),
+        ResolvedMachineOptimization::Baseline | ResolvedMachineOptimization::Movn(_) => None,
+    };
+    let optimization_custody_matches = match optimization {
+        ResolvedMachineOptimization::Baseline => {
+            pre_layout.machine_optimization().is_none() && pre_layout.movn_optimization().is_none()
+        }
+        ResolvedMachineOptimization::Cbnz(fusion) => {
+            pre_layout.movn_optimization().is_none()
+                && pre_layout.machine_optimization()
+                    == Some(
+                        crate::post_allocation_selected_form_encoding::machine_optimization_custody(
+                            fusion,
+                        ),
+                    )
+        }
+        ResolvedMachineOptimization::Movn(materialization) => {
+            pre_layout.machine_optimization().is_none()
+                && pre_layout.movn_optimization().is_some_and(|custody| {
+                    custody.selections() == materialization.custody().selections()
+                        && custody.post_allocation_machine_selections()
+                            == materialization
+                                .custody()
+                                .post_allocation_machine_selections()
+                        && custody.materialization()
+                            == materialization.materialization().receipt().identity()
+                })
+        }
+    };
     let selected_plan = selected.selected_plan();
     let machine_plan = machine.machine().plan();
     if pre_layout.selected() != selected.selected_identity()
@@ -358,9 +490,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
             != machine_plan.structural_unit_functions.len()
         || selected_plan.structural_unit_functions.len()
             != pre_layout.structural_unit_functions().len()
-        || pre_layout.machine_optimization()
-            != fusion
-                .map(crate::post_allocation_selected_form_encoding::machine_optimization_custody)
+        || !optimization_custody_matches
     {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
@@ -370,7 +500,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
     if has_ordinary && has_structural {
         return Err(OptimizedResolvedSelectedFormLayoutError::MixedOrdinaryAndStructuralFunctions);
     }
-    if has_structural && fusion.is_some() {
+    if has_structural && !matches!(optimization, ResolvedMachineOptimization::Baseline) {
         return Err(OptimizedResolvedSelectedFormLayoutError::RootMismatch);
     }
     let policy = if has_structural {
@@ -501,6 +631,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
         machine_root,
         pre_layout_root,
         pre_layout.machine_optimization(),
+        pre_layout.movn_optimization(),
         target,
         policy,
         &functions,
@@ -511,6 +642,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
         machine: machine_root,
         pre_layout: pre_layout_root,
         machine_optimization: pre_layout.machine_optimization(),
+        movn_optimization: pre_layout.movn_optimization(),
         target,
         policy,
         identity,
@@ -1248,6 +1380,7 @@ fn layout_identity(
     machine: omega_machine_optimizer::PostAllocationMachineIdentity,
     pre_layout: crate::SelectedFormEncodingIdentity,
     machine_optimization: Option<SelectedFormMachineOptimizationCustody>,
+    movn_optimization: Option<SelectedFormMovnOptimizationCustody>,
     target: NativeTarget,
     policy: SelectedFunctionLayoutPolicy,
     functions: &[ResolvedSelectedFunctionLayout],
@@ -1265,6 +1398,15 @@ fn layout_identity(
             hasher.update(custody.selections().bytes());
             hasher.update(custody.post_allocation_machine_selections().bytes());
             hasher.update(custody.fusion().bytes());
+        }
+    }
+    match movn_optimization {
+        None => hasher.update([0]),
+        Some(custody) => {
+            hasher.update([1]);
+            hasher.update(custody.selections().bytes());
+            hasher.update(custody.post_allocation_machine_selections().bytes());
+            hasher.update(custody.materialization().bytes());
         }
     }
     hasher.update([match target.architecture {
