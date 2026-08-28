@@ -1176,6 +1176,37 @@ summary_require_call_identity:
         call summary_require_call_site
         ret
 
+; Rejoin an ordinary call whose continuation is its canonical nine-byte
+; fallthrough rather than a source transition. Inputs are event row/block/
+; arity/ambient/target-procedure identity in r20..r24. The checked event table
+; supplies the call PC only after source identity matches.
+summary_require_call_fallthrough_identity:
+        mov r30, r20
+        mov r31, r21
+        mov r33, r22
+        mov r34, r23
+        mov r35, r24
+        mov r20, r30
+        mov r21, r31
+        imm r22, 1
+        call exact_event_identity_pc
+        mov r32, r0
+        mov r36, r0
+        imm r1, 9
+        add r36, r1
+        mov r0, r35
+        call exact_proc_entry_pc
+        mov r35, r0
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        mov r23, r33
+        mov r24, r34
+        mov r25, r35
+        mov r26, r36
+        call summary_require_call_site
+        ret
+
 ; Canonical selected-row decoder family. These helpers rejoin values already
 ; reconstructed into the exact local, memory, primitive, and push tables; they
 ; do not accept a producer-selected subject or construct another witness.

@@ -58,17 +58,20 @@ for the selected `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`,
 boundaries instead of pinning those 79 entry PCs. Intra-procedure block, event,
 and call-site identity decoding now has one reusable fail-closed owner: a
 consumer fixes the source row plus its procedure/block/kind payload, and the
-checked table supplies the artifact PC. `emit_dec` is the first complete
-consumer; its block, transition, call, local, primitive, push, explicit-return,
-synthetic-return, and region-boundary checks no longer repeat 32 artifact-PC
-literals. Its call continuation comes from the identified transition, and its
-epilogues are reconstructed relative to the identified return event or next
-procedure entry. Other intra-procedure consumers remain to migrate. A fifth
+checked table supplies the artifact PC. `emit_dec` and the adjacent
+`emit_proc_prologue`/`emit_param_store` fixed-decimal family are complete
+consumers: their block, transition, call, local, primitive, push,
+explicit-return, synthetic-return, and region-boundary checks no longer repeat
+82 artifact-PC literals. Call continuations come from an identified transition
+or the canonical nine-byte call fallthrough, and epilogues are reconstructed
+relative to an identified return event or next procedure entry. The
+`emit_prelude` and `main.ready` consumers likewise resolve the former procedure
+41 entry pins by identity. Other intra-procedure consumers remain to migrate. A fifth
 negative control mutates `emit_dec`'s witness event PC while retaining the exact
 source and artifact and proves that witness coordinates cannot select semantic
-identity. The final ROOT tape is 79,460 bytes for the current
+identity. The final ROOT tape is 79,565 bytes for the current
 exact subjects, SHA-256
-`ce5199b2b48cb3a9f04ec4ba366f5c6f1efcffcc7c65f4591246d7b5b94c3fbf`.
+`066baedb5148a56c0bde2bd312f9364e6c051a2e14a5927ed6c92d497c5fad74`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

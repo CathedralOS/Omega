@@ -36,9 +36,9 @@ fixed_emitter_summary_init:
 fixed_emit_prove_write_str:
         imm r20, 29                   ; procedure
         imm r21, 147                  ; entry block
-        imm r22, 20599                ; entry pc
-        imm r23, 21226                ; checked exclusive end
-        imm r24, 221                  ; first event row
+        imm r22, 30                   ; next procedure / exclusive end
+        imm r23, 221                  ; first event row
+        imm r24, 12                   ; exact helper-call count
         call fixed_emit_begin
 
         imm r20, 221
@@ -78,9 +78,9 @@ fixed_emit_prove_write_str:
 fixed_emit_prove_prelude:
         imm r20, 41                   ; procedure
         imm r21, 208                  ; entry block
-        imm r22, 29619                ; entry pc
-        imm r23, 29903                ; exclusive end
-        imm r24, 311                  ; first event row
+        imm r22, 42                   ; next procedure / exclusive end
+        imm r23, 311                  ; first event row
+        imm r24, 5                    ; exact helper-call count
         call fixed_emit_begin
 
         imm r20, 311                  ; checked first prelude event
@@ -103,13 +103,22 @@ fixed_emit_prove_prelude:
         store r1, r2
         ret
 
-; Begin procedure proc/block/entry/end/first-event in r20..r24.
+; Begin procedure proc/block/next-proc/first-event/call-count in r20..r24.
+; Procedure identities reconstruct the artifact region; callers do not supply
+; either coordinate.
 fixed_emit_begin:
         mov r25, r20
         mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
+        mov r30, r22
+        mov r29, r23
+        mov r31, r24
+
+        mov r0, r25
+        call exact_proc_entry_pc
+        mov r27, r0                  ; checked entry
+        mov r0, r30
+        call exact_proc_entry_pc
+        mov r28, r0                  ; checked exclusive end
 
         imm r20, 7151616
         mov r21, r25
@@ -125,32 +134,11 @@ fixed_emit_begin:
         jeq r0, r1, fixed_emit_begin_block_proc
         jmp reject
 fixed_emit_begin_block_proc:
-        imm r20, 3145728
-        mov r21, r26
-        mov r22, r25
-        call transfer_require_cell
-        imm r20, 3178496
-        mov r21, r26
-        imm r22, 0
-        call transfer_require_cell
         mov r20, r26
-        mov r21, r27
-        call exact_require_block_pc
-        ; The next canonical block begins exactly at the supplied exclusive
-        ; end, and this procedure owns no second block anywhere in the table.
-        mov r2, r26
-        imm r1, 1
-        add r2, r1
-        imm r3, 355
-        jlt r2, r3, fixed_emit_begin_next_pc
-        jmp reject
-fixed_emit_begin_next_pc:
-        imm r3, 8
-        mul r2, r3
-        imm r3, 3235840
-        add r3, r2
-        load r4, r3
-        jeq r4, r28, fixed_emit_begin_unique_proc
+        mov r21, r25
+        imm r22, 0                   ; unique procedure entry block
+        call exact_block_identity_pc
+        jeq r0, r27, fixed_emit_begin_unique_proc
         jmp reject
 fixed_emit_begin_unique_proc:
         mov r20, r25
@@ -182,6 +170,7 @@ fixed_emit_begin_unique_proc:
         call fixed_emit_require_source_quiet
         mov r20, r27
         mov r21, r28
+        mov r22, r31
         call fixed_emit_scan_region
         ret
 
@@ -375,30 +364,20 @@ fixed_emit_memory_row:
 
 ; Scan [r20,r21): only the selected helper calls plus one final ret may be
 ; effectful. Reject direct I/O, halt, division, remainder, or hidden extra call.
-; Expected call count follows from the procedure block.
+; Exact expected call count is r22.
 fixed_emit_scan_region:
         mov r25, r20
         mov r26, r21
+        mov r29, r22                 ; expected calls
         imm r27, 0                   ; calls
         imm r28, 0                   ; returns
 fixed_emit_region_loop:
         jlt r25, r26, fixed_emit_region_pc
         imm r1, 1
-        jeq r28, r1, fixed_emit_region_call_expected
+        jeq r28, r1, fixed_emit_region_call_count
         jmp reject
-fixed_emit_region_call_expected:
-        imm r1, 20599
-        jeq r20, r1, fixed_emit_region_write_calls
-        imm r1, 29619
-        jeq r20, r1, fixed_emit_region_prelude_calls
-        jmp reject
-fixed_emit_region_write_calls:
-        imm r1, 12
-        jmp fixed_emit_region_call_count
-fixed_emit_region_prelude_calls:
-        imm r1, 5
 fixed_emit_region_call_count:
-        jeq r27, r1, fixed_emit_region_done
+        jeq r27, r29, fixed_emit_region_done
         jmp reject
 fixed_emit_region_pc:
         imm r1, 4194304
