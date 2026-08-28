@@ -205,6 +205,7 @@ mod tests {
                 target: omega_target::NativeTarget::linux_x64(),
                 entry: MachineId::new(1).unwrap(),
                 functions: Vec::new(),
+                structural_unit_functions: Vec::new(),
             },
         }
     }
