@@ -1,9 +1,10 @@
 use std::fmt::Write;
 
 use omega_optimization_core::{
-    FunctionRelativeOptimizationRealizationManifestIdentity, OptimizationSelectionIdentity,
-    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
-    SelectedLoweringOptimizationCompletionIdentity,
+    FunctionRelativeOptimizationRealizationManifestIdentity, Optimization,
+    OptimizationExecutionPhase, OptimizationSelectionIdentity, OptimizationSelections,
+    OptimizationWorkBudget, PostAllocationOptimizationManifestIdentity,
+    PrePhysicalOptimizationManifestIdentity, SelectedLoweringOptimizationCompletionIdentity,
 };
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
@@ -11,26 +12,34 @@ use omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentit
 
 use crate::{
     OptimizedPostAllocationMachinePipelineError, OptimizedPostSelectedLoweringHomeCustodyError,
-    OptimizedResolvedSelectedFormLayoutError, OptimizedSelectedFormEncodingError,
+    OptimizedRegisterHomeCustodyError, OptimizedResolvedSelectedFormLayoutError,
+    OptimizedSelectedFormEncodingError, OptimizedX86BranchRelaxationError,
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedPostSelectedLoweringHomeCustodyReceipt,
+    StagedOptimizedRegisterHomeCustodyReceipt, StagedOptimizedRegisterHomes,
     StagedOptimizedRegisterHomesAfterSelectedLowering, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, TerminalResolvedSelectedFormLayoutIdentity,
-    TerminalSelectedFormEncodingIdentity, TerminalSelectedFunctionLayoutPolicy,
-    TerminalWholeFunctionExitContractError, TerminalWholeFunctionExitContractIdentity,
+    StagedOptimizedSelectedFormEncoding, StagedOptimizedX86BranchRelaxation,
+    TerminalResolvedSelectedFormLayoutIdentity, TerminalSelectedFormEncodingIdentity,
+    TerminalSelectedFunctionLayoutPolicy, TerminalWholeFunctionExitContractError,
+    TerminalWholeFunctionExitContractIdentity, TerminalX86BranchRelaxationIdentity,
     ValidatedTerminalWholeFunctionExitContract,
     stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_post_allocation_machine_plan,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
-    stage_optimized_resolved_selected_form_layout, stage_terminal_whole_function_exit_contract,
+    stage_optimized_resolved_selected_form_layout, stage_optimized_x86_branch_relaxation,
+    stage_terminal_whole_function_exit_contract,
+    stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
     validate_optimized_layout_independent_selected_form_encoding,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
+    validate_optimized_post_allocation_machine_plan_custody,
     validate_optimized_register_home_after_selected_lowering_custody,
-    validate_optimized_resolved_selected_form_layout,
-    validate_terminal_whole_function_exit_contract,
+    validate_optimized_register_home_custody, validate_optimized_resolved_selected_form_layout,
+    validate_optimized_x86_branch_relaxation, validate_terminal_whole_function_exit_contract,
+    validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 2;
+const MANIFEST_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -66,7 +75,8 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub stage: FunctionRelativeOptimizationRealizationStage,
     pub selections: OptimizationSelectionIdentity,
     pub selected_lowering_selections: OptimizationSelectionIdentity,
-    pub selected_lowering_completion: SelectedLoweringOptimizationCompletionIdentity,
+    pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pub function_relative_layout_selections: OptimizationSelectionIdentity,
     pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
     pub post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     pub selected: TerminalSelectedInstructionPlanIdentity,
@@ -74,7 +84,9 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
         omega_machine_optimizer::TerminalPreAllocationMachineEffectIdentity,
     pub post_allocation_machine: omega_machine_optimizer::TerminalPostAllocationMachineIdentity,
     pub pre_layout: TerminalSelectedFormEncodingIdentity,
+    pub baseline_resolved_layout: TerminalResolvedSelectedFormLayoutIdentity,
     pub resolved_layout: TerminalResolvedSelectedFormLayoutIdentity,
+    pub x86_branch_relaxation: Option<TerminalX86BranchRelaxationIdentity>,
     pub whole_function_exit_contract: TerminalWholeFunctionExitContractIdentity,
     pub target: NativeTarget,
     pub layout_policy: TerminalSelectedFunctionLayoutPolicy,
@@ -94,7 +106,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v2\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v3\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -137,8 +149,17 @@ impl FunctionRelativeOptimizationRealizationManifest {
         let selections = OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let selected_lowering_selections =
             OptimizationSelectionIdentity::from_bytes(cursor.array()?);
-        let selected_lowering_completion =
-            SelectedLoweringOptimizationCompletionIdentity::from_bytes(cursor.array()?);
+        let selected_lowering_completion = match cursor.byte()? {
+            0 => None,
+            1 => Some(SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                cursor.array()?,
+            )),
+            tag => {
+                return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownSelectedLoweringCompletionStatus(tag));
+            }
+        };
+        let function_relative_layout_selections =
+            OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let pre_physical_manifest =
             PrePhysicalOptimizationManifestIdentity::from_bytes(cursor.array()?);
         let post_allocation_manifest =
@@ -153,8 +174,19 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 cursor.array()?,
             );
         let pre_layout = TerminalSelectedFormEncodingIdentity::from_bytes(cursor.array()?);
+        let baseline_resolved_layout =
+            TerminalResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
         let resolved_layout =
             TerminalResolvedSelectedFormLayoutIdentity::from_bytes(cursor.array()?);
+        let x86_branch_relaxation = match cursor.byte()? {
+            0 => None,
+            1 => Some(TerminalX86BranchRelaxationIdentity::from_bytes(
+                cursor.array()?,
+            )),
+            tag => {
+                return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(tag));
+            }
+        };
         let whole_function_exit_contract =
             TerminalWholeFunctionExitContractIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
@@ -202,13 +234,16 @@ impl FunctionRelativeOptimizationRealizationManifest {
             selections,
             selected_lowering_selections,
             selected_lowering_completion,
+            function_relative_layout_selections,
             pre_physical_manifest,
             post_allocation_manifest,
             selected,
             pre_allocation_machine_effects,
             post_allocation_machine,
             pre_layout,
+            baseline_resolved_layout,
             resolved_layout,
+            x86_branch_relaxation,
             whole_function_exit_contract,
             target,
             layout_policy,
@@ -252,10 +287,19 @@ impl FunctionRelativeOptimizationRealizationManifest {
             hex(&self.selected_lowering_selections.bytes())
         )
         .unwrap();
+        match self.selected_lowering_completion {
+            Some(identity) => writeln!(
+                output,
+                "selected-lowering completion: {}",
+                hex(&identity.bytes())
+            )
+            .unwrap(),
+            None => writeln!(output, "selected-lowering completion: not run").unwrap(),
+        }
         writeln!(
             output,
-            "selected-lowering completion: {}",
-            hex(&self.selected_lowering_completion.bytes())
+            "function-relative-layout suite: {}",
+            hex(&self.function_relative_layout_selections.bytes())
         )
         .unwrap();
         writeln!(
@@ -291,10 +335,22 @@ impl FunctionRelativeOptimizationRealizationManifest {
         .unwrap();
         writeln!(
             output,
-            "resolved layout: {}",
+            "baseline resolved layout: {}",
+            hex(&self.baseline_resolved_layout.bytes())
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "final resolved layout: {}",
             hex(&self.resolved_layout.bytes())
         )
         .unwrap();
+        match self.x86_branch_relaxation {
+            Some(identity) => {
+                writeln!(output, "x86 branch relaxation: {}", hex(&identity.bytes())).unwrap()
+            }
+            None => writeln!(output, "x86 branch relaxation: not run").unwrap(),
+        }
         writeln!(
             output,
             "whole-function exit contract: {}",
@@ -363,7 +419,8 @@ pub struct StagedSelectedLoweringFunctionRelativeRealization {
     homes: StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: StagedOptimizedPostAllocationMachinePlan,
     encoding: StagedOptimizedSelectedFormEncoding,
-    layout: StagedOptimizedResolvedSelectedFormLayout,
+    baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<StagedOptimizedX86BranchRelaxation>,
     exit_contract: ValidatedTerminalWholeFunctionExitContract,
     manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
     custody: StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt,
@@ -379,8 +436,14 @@ impl StagedSelectedLoweringFunctionRelativeRealization {
     pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
         &self.encoding
     }
-    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
-        &self.layout
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.baseline_layout
+    }
+    pub const fn relaxation(&self) -> Option<&StagedOptimizedX86BranchRelaxation> {
+        self.relaxation.as_ref()
+    }
+    pub fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        final_layout(&self.baseline_layout, self.relaxation.as_ref())
     }
     pub const fn exit_contract(&self) -> &ValidatedTerminalWholeFunctionExitContract {
         &self.exit_contract
@@ -404,6 +467,88 @@ impl StagedSelectedLoweringFunctionRelativeRealization {
     #[cfg(test)]
     pub(crate) fn exit_contract_mut(&mut self) -> &mut ValidatedTerminalWholeFunctionExitContract {
         &mut self.exit_contract
+    }
+}
+
+/// Function-relative realization reached directly from ordinary register homes
+/// when the build selected a function-relative layout optimization but no
+/// selected-lowering family. The absence of selected-lowering completion is
+/// retained in its manifest and custody rather than synthesized.
+#[derive(Debug)]
+pub struct StagedFunctionRelativeLayoutOptimizationRealization {
+    homes: StagedOptimizedRegisterHomes,
+    machine: StagedOptimizedPostAllocationMachinePlan,
+    encoding: StagedOptimizedSelectedFormEncoding,
+    baseline_layout: StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: StagedOptimizedX86BranchRelaxation,
+    exit_contract: ValidatedTerminalWholeFunctionExitContract,
+    manifest: ValidatedFunctionRelativeOptimizationRealizationManifest,
+    custody: StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
+}
+
+impl StagedFunctionRelativeLayoutOptimizationRealization {
+    pub const fn homes(&self) -> &StagedOptimizedRegisterHomes {
+        &self.homes
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachinePlan {
+        &self.machine
+    }
+    pub const fn encoding(&self) -> &StagedOptimizedSelectedFormEncoding {
+        &self.encoding
+    }
+    pub const fn baseline_layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        &self.baseline_layout
+    }
+    pub const fn relaxation(&self) -> &StagedOptimizedX86BranchRelaxation {
+        &self.relaxation
+    }
+    pub const fn layout(&self) -> &StagedOptimizedResolvedSelectedFormLayout {
+        self.relaxation.layout()
+    }
+    pub const fn exit_contract(&self) -> &ValidatedTerminalWholeFunctionExitContract {
+        &self.exit_contract
+    }
+    pub const fn manifest(&self) -> &ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &self.manifest
+    }
+    pub const fn custody(
+        &self,
+    ) -> &StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
+        &self.custody
+    }
+
+    #[cfg(test)]
+    pub(crate) fn manifest_mut(
+        &mut self,
+    ) -> &mut ValidatedFunctionRelativeOptimizationRealizationManifest {
+        &mut self.manifest
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
+    source: StagedOptimizedRegisterHomeCustodyReceipt,
+    machine: StagedOptimizedPostAllocationMachineCustodyReceipt,
+    relaxation: TerminalX86BranchRelaxationIdentity,
+    exit_contract: TerminalWholeFunctionExitContractIdentity,
+    realization: FunctionRelativeOptimizationRealizationManifestIdentity,
+}
+
+impl StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
+    pub const fn source(&self) -> StagedOptimizedRegisterHomeCustodyReceipt {
+        self.source
+    }
+    pub const fn machine(&self) -> &StagedOptimizedPostAllocationMachineCustodyReceipt {
+        &self.machine
+    }
+    pub const fn relaxation(&self) -> TerminalX86BranchRelaxationIdentity {
+        self.relaxation
+    }
+    pub const fn exit_contract(&self) -> TerminalWholeFunctionExitContractIdentity {
+        self.exit_contract
+    }
+    pub const fn realization(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
+        self.realization
     }
 }
 
@@ -433,10 +578,13 @@ impl StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationError {
     Homes(OptimizedPostSelectedLoweringHomeCustodyError),
+    DirectHomes(OptimizedRegisterHomeCustodyError),
     PostAllocationMachine(OptimizedPostAllocationMachinePipelineError),
     Encoding(OptimizedSelectedFormEncodingError),
     Layout(OptimizedResolvedSelectedFormLayoutError),
+    X86BranchRelaxation(OptimizedX86BranchRelaxationError),
     ExitContract(TerminalWholeFunctionExitContractError),
+    MissingFunctionRelativeLayoutOptimization,
     StatisticsOverflow,
     RootMismatch,
     ReceiptMismatch,
@@ -459,6 +607,8 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     WrongMagic,
     UnsupportedVersion(u32),
     UnknownStage(u8),
+    UnknownSelectedLoweringCompletionStatus(u8),
+    UnknownX86BranchRelaxationStatus(u8),
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,
@@ -497,16 +647,30 @@ pub fn stage_selected_lowering_function_relative_realization(
         .liveness_stage()
         .selected_stage();
     let physical = selected_stage.register_environment().physical();
-    let (encoding, layout, exit_contract, manifest) = match run.steps().last() {
-        Some(step) => build_realization(step.fold(), &homes, &machine, physical)?,
-        None => build_realization(selected_stage.selected(), &homes, &machine, physical)?,
+    let optimized = selected_stage.optimized_target().optimized();
+    let selections = optimized.selections();
+    let budget = optimized.budget_per_pass();
+    let (encoding, baseline_layout, relaxation, exit_contract, manifest) = match run.steps().last()
+    {
+        Some(step) => {
+            build_realization(step.fold(), &homes, &machine, physical, selections, budget)?
+        }
+        None => build_realization(
+            selected_stage.selected(),
+            &homes,
+            &machine,
+            physical,
+            selections,
+            budget,
+        )?,
     };
     let custody = custody_receipt(&homes, &machine, &exit_contract, &manifest);
     Ok(StagedSelectedLoweringFunctionRelativeRealization {
         homes,
         machine,
         encoding,
-        layout,
+        baseline_layout,
+        relaxation,
         exit_contract,
         manifest,
         custody,
@@ -537,6 +701,8 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
         .liveness_stage()
         .selected_stage();
     let physical = selected_stage.register_environment().physical();
+    let optimized = selected_stage.optimized_target().optimized();
+    let selections = optimized.selections();
     match run.steps().last() {
         Some(step) => {
             validate_realization_artifacts(
@@ -544,8 +710,10 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
                 &staged.machine,
                 physical,
                 &staged.encoding,
-                &staged.layout,
+                &staged.baseline_layout,
+                staged.relaxation.as_ref(),
                 &staged.exit_contract,
+                selections,
             )?;
         }
         None => {
@@ -554,8 +722,10 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
                 &staged.machine,
                 physical,
                 &staged.encoding,
-                &staged.layout,
+                &staged.baseline_layout,
+                staged.relaxation.as_ref(),
                 &staged.exit_contract,
+                selections,
             )?;
         }
     }
@@ -563,7 +733,8 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
         &staged.homes,
         &staged.machine,
         &staged.encoding,
-        &staged.layout,
+        &staged.baseline_layout,
+        staged.relaxation.as_ref(),
         &staged.exit_contract,
     )?;
     if replayed.record != staged.manifest.record {
@@ -581,15 +752,184 @@ pub fn validate_selected_lowering_function_relative_realization_custody(
     Ok(custody)
 }
 
+pub fn stage_function_relative_layout_optimization_realization(
+    homes: StagedOptimizedRegisterHomes,
+) -> Result<
+    StagedFunctionRelativeLayoutOptimizationRealization,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    validate_optimized_register_home_custody(
+        homes.legality_stage(),
+        homes.homes(),
+        homes.post_allocation_manifest(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
+    let machine = stage_optimized_post_allocation_machine_plan(&homes)
+        .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selected = selected_stage.selected();
+    let physical = selected_stage.register_environment().physical();
+    let optimized = selected_stage.optimized_target().optimized();
+    let selections = optimized.selections();
+    if !rel8_selected(selections)? {
+        return Err(
+            FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
+        );
+    }
+    let encoding =
+        stage_optimized_layout_independent_selected_form_encoding(selected, &machine, physical)
+            .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    let baseline_layout =
+        stage_optimized_resolved_selected_form_layout(selected, &machine, physical, &encoding)
+            .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    let relaxation = stage_optimized_x86_branch_relaxation(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        optimized.budget_per_pass(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)?;
+    let exit_contract = stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation(
+        selected,
+        &machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        &relaxation,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest = expected_direct_manifest(
+        &homes,
+        &machine,
+        &encoding,
+        &baseline_layout,
+        &relaxation,
+        &exit_contract,
+    )?;
+    let custody = direct_custody_receipt(&homes, &machine, &relaxation, &exit_contract, &manifest);
+    Ok(StagedFunctionRelativeLayoutOptimizationRealization {
+        homes,
+        machine,
+        encoding,
+        baseline_layout,
+        relaxation,
+        exit_contract,
+        manifest,
+        custody,
+    })
+}
+
+pub fn validate_function_relative_layout_optimization_realization_custody(
+    staged: &StagedFunctionRelativeLayoutOptimizationRealization,
+) -> Result<
+    StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let source = validate_optimized_register_home_custody(
+        staged.homes.legality_stage(),
+        staged.homes.homes(),
+        staged.homes.post_allocation_manifest(),
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::DirectHomes)?;
+    if source != staged.homes.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let machine =
+        validate_optimized_post_allocation_machine_plan_custody(&staged.homes, &staged.machine)
+            .map_err(FunctionRelativeOptimizationRealizationError::PostAllocationMachine)?;
+    if &machine != staged.machine.custody() {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    let selected_stage = staged
+        .homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let selected = selected_stage.selected();
+    let physical = selected_stage.register_environment().physical();
+    let selections = selected_stage.optimized_target().optimized().selections();
+    if !rel8_selected(selections)? {
+        return Err(
+            FunctionRelativeOptimizationRealizationError::MissingFunctionRelativeLayoutOptimization,
+        );
+    }
+    validate_optimized_layout_independent_selected_form_encoding(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
+    validate_optimized_resolved_selected_form_layout(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        &staged.baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_optimized_x86_branch_relaxation(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.relaxation,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)?;
+    validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation(
+        selected,
+        &staged.machine,
+        physical,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.relaxation,
+        &staged.exit_contract,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
+    let manifest = expected_direct_manifest(
+        &staged.homes,
+        &staged.machine,
+        &staged.encoding,
+        &staged.baseline_layout,
+        &staged.relaxation,
+        &staged.exit_contract,
+    )?;
+    if manifest.record != staged.manifest.record {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let custody = direct_custody_receipt(
+        &staged.homes,
+        &staged.machine,
+        &staged.relaxation,
+        &staged.exit_contract,
+        &manifest,
+    );
+    if custody != staged.custody {
+        return Err(FunctionRelativeOptimizationRealizationError::ReceiptMismatch);
+    }
+    Ok(custody)
+}
+
 fn build_realization<S: ValidatedTerminalSelectedAnalysis>(
     selected: &S,
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    selections: &OptimizationSelections,
+    budget: OptimizationWorkBudget,
 ) -> Result<
     (
         StagedOptimizedSelectedFormEncoding,
         StagedOptimizedResolvedSelectedFormLayout,
+        Option<StagedOptimizedX86BranchRelaxation>,
         ValidatedTerminalWholeFunctionExitContract,
         ValidatedFunctionRelativeOptimizationRealizationManifest,
     ),
@@ -598,47 +938,242 @@ fn build_realization<S: ValidatedTerminalSelectedAnalysis>(
     let encoding =
         stage_optimized_layout_independent_selected_form_encoding(selected, machine, physical)
             .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    let layout =
+    let baseline_layout =
         stage_optimized_resolved_selected_form_layout(selected, machine, physical, &encoding)
             .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    let exit_contract = stage_terminal_whole_function_exit_contract(
-        selected, machine, physical, &encoding, &layout,
-    )
-    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)?;
-    let manifest = expected_manifest(homes, machine, &encoding, &layout, &exit_contract)?;
-    Ok((encoding, layout, exit_contract, manifest))
+    let relaxation = stage_selected_relaxation(
+        selected,
+        machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        selections,
+        budget,
+    )?;
+    let exit_contract = stage_exit_contract(
+        selected,
+        machine,
+        physical,
+        &encoding,
+        &baseline_layout,
+        relaxation.as_ref(),
+    )?;
+    let manifest = expected_manifest(
+        homes,
+        machine,
+        &encoding,
+        &baseline_layout,
+        relaxation.as_ref(),
+        &exit_contract,
+    )?;
+    Ok((
+        encoding,
+        baseline_layout,
+        relaxation,
+        exit_contract,
+        manifest,
+    ))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn validate_realization_artifacts<S: ValidatedTerminalSelectedAnalysis>(
     selected: &S,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &omega_register_model::ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
     exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+    selections: &OptimizationSelections,
 ) -> Result<(), FunctionRelativeOptimizationRealizationError> {
     validate_optimized_layout_independent_selected_form_encoding(
         selected, machine, physical, encoding,
     )
     .map_err(FunctionRelativeOptimizationRealizationError::Encoding)?;
-    validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
-        .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
-    validate_terminal_whole_function_exit_contract(
+    validate_optimized_resolved_selected_form_layout(
         selected,
         machine,
         physical,
         encoding,
-        layout,
+        baseline_layout,
+    )
+    .map_err(FunctionRelativeOptimizationRealizationError::Layout)?;
+    validate_selected_relaxation(
+        selected,
+        machine,
+        physical,
+        encoding,
+        baseline_layout,
+        relaxation,
+        selections,
+    )?;
+    validate_exit_contract(
+        selected,
+        machine,
+        physical,
+        encoding,
+        baseline_layout,
+        relaxation,
         exit_contract,
     )
+}
+
+fn rel8_selected(
+    selections: &OptimizationSelections,
+) -> Result<bool, FunctionRelativeOptimizationRealizationError> {
+    let phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    match phase.as_slice() {
+        [] => Ok(false),
+        [Optimization::X86RelaxConditionalBranchesToRel8V1] => Ok(true),
+        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+    }
+}
+
+fn stage_selected_relaxation<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    selections: &OptimizationSelections,
+    budget: OptimizationWorkBudget,
+) -> Result<Option<StagedOptimizedX86BranchRelaxation>, FunctionRelativeOptimizationRealizationError>
+{
+    if !rel8_selected(selections)? {
+        return Ok(None);
+    }
+    stage_optimized_x86_branch_relaxation(
+        selected,
+        machine,
+        physical,
+        encoding,
+        baseline_layout,
+        budget,
+    )
+    .map(Some)
+    .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation)
+}
+
+fn validate_selected_relaxation<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    selections: &OptimizationSelections,
+) -> Result<(), FunctionRelativeOptimizationRealizationError> {
+    match (rel8_selected(selections)?, relaxation) {
+        (false, None) => Ok(()),
+        (true, Some(relaxation)) => validate_optimized_x86_branch_relaxation(
+            selected,
+            machine,
+            physical,
+            encoding,
+            baseline_layout,
+            relaxation,
+        )
+        .map_err(FunctionRelativeOptimizationRealizationError::X86BranchRelaxation),
+        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+    }
+}
+
+fn stage_exit_contract<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+) -> Result<ValidatedTerminalWholeFunctionExitContract, FunctionRelativeOptimizationRealizationError>
+{
+    match relaxation {
+        Some(relaxation) => {
+            stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation(
+                selected,
+                machine,
+                physical,
+                encoding,
+                baseline_layout,
+                relaxation,
+            )
+        }
+        None => stage_terminal_whole_function_exit_contract(
+            selected,
+            machine,
+            physical,
+            encoding,
+            baseline_layout,
+        ),
+    }
     .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)
+}
+
+fn validate_exit_contract<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<(), FunctionRelativeOptimizationRealizationError> {
+    match relaxation {
+        Some(relaxation) => {
+            validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation(
+                selected,
+                machine,
+                physical,
+                encoding,
+                baseline_layout,
+                relaxation,
+                exit_contract,
+            )
+        }
+        None => validate_terminal_whole_function_exit_contract(
+            selected,
+            machine,
+            physical,
+            encoding,
+            baseline_layout,
+            exit_contract,
+        ),
+    }
+    .map_err(FunctionRelativeOptimizationRealizationError::ExitContract)
+}
+
+fn final_layout<'layout>(
+    baseline_layout: &'layout StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&'layout StagedOptimizedX86BranchRelaxation>,
+) -> &'layout StagedOptimizedResolvedSelectedFormLayout {
+    relaxation
+        .map(StagedOptimizedX86BranchRelaxation::layout)
+        .unwrap_or(baseline_layout)
+}
+
+fn validate_relaxation_manifest_roots(
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
+    selections: &OptimizationSelections,
+) -> Result<(), FunctionRelativeOptimizationRealizationError> {
+    match (rel8_selected(selections)?, relaxation) {
+        (false, None) => Ok(()),
+        (true, Some(relaxation))
+            if relaxation.source() == baseline_layout.identity()
+                && relaxation.output() == relaxation.layout().identity() =>
+        {
+            Ok(())
+        }
+        _ => Err(FunctionRelativeOptimizationRealizationError::RootMismatch),
+    }
 }
 
 fn expected_manifest(
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
     encoding: &StagedOptimizedSelectedFormEncoding,
-    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: Option<&StagedOptimizedX86BranchRelaxation>,
     exit_contract: &ValidatedTerminalWholeFunctionExitContract,
 ) -> Result<
     ValidatedFunctionRelativeOptimizationRealizationManifest,
@@ -646,27 +1181,46 @@ fn expected_manifest(
 > {
     let run = homes.selected_lowering_run();
     let completion = run.custody();
+    let selections = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized()
+        .selections();
+    let selected_lowering_selections = selections
+        .for_phase(OptimizationExecutionPhase::SelectedLowering)
+        .identity();
+    let function_relative_layout_selections = selections
+        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+        .identity();
     let post = homes.post_allocation_manifest().record();
-    if post.selected_lowering_completion != Some(completion.identity())
+    if completion.selections() != selections.identity()
+        || completion.selected_lowering_selections() != selected_lowering_selections
+        || post.selected_lowering_completion != Some(completion.identity())
         || post.selected != completion.final_selected()
-        || post.target != layout.target()
+        || post.target != baseline_layout.target()
         || machine.machine().receipt().post_allocation_manifest() != post.identity
         || machine.machine().receipt().selected() != completion.final_selected()
         || encoding.selected() != completion.final_selected()
         || encoding.machine() != machine.machine().receipt().identity()
-        || layout.selected() != completion.final_selected()
-        || layout.machine() != machine.machine().receipt().identity()
-        || layout.pre_layout() != encoding.identity()
+        || baseline_layout.selected() != completion.final_selected()
+        || baseline_layout.machine() != machine.machine().receipt().identity()
+        || baseline_layout.pre_layout() != encoding.identity()
         || exit_contract.contract().selected != completion.final_selected()
         || exit_contract.contract().post_allocation_manifest != post.identity
         || exit_contract.contract().post_allocation_machine
             != machine.machine().receipt().identity()
         || exit_contract.contract().pre_layout != encoding.identity()
-        || exit_contract.contract().resolved_layout != layout.identity()
+        || exit_contract.contract().resolved_layout
+            != final_layout(baseline_layout, relaxation).identity()
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let statistics = statistics(layout)?;
+    validate_relaxation_manifest_roots(baseline_layout, relaxation, selections)?;
+    let final_layout = final_layout(baseline_layout, relaxation);
+    let statistics = statistics(final_layout)?;
     let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
     let mut record = FunctionRelativeOptimizationRealizationManifest {
         identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
@@ -674,21 +1228,117 @@ fn expected_manifest(
         ),
         stage:
             FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
-        selections: completion.selections(),
-        selected_lowering_selections: completion.selected_lowering_selections(),
-        selected_lowering_completion: completion.identity(),
+        selections: selections.identity(),
+        selected_lowering_selections,
+        selected_lowering_completion: Some(completion.identity()),
+        function_relative_layout_selections,
         pre_physical_manifest: completion.source().manifest(),
         post_allocation_manifest: post.identity,
         selected: completion.final_selected(),
         pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
         post_allocation_machine: machine.machine().receipt().identity(),
         pre_layout: encoding.identity(),
-        resolved_layout: layout.identity(),
+        baseline_resolved_layout: baseline_layout.identity(),
+        resolved_layout: final_layout.identity(),
+        x86_branch_relaxation: relaxation.map(StagedOptimizedX86BranchRelaxation::identity),
         whole_function_exit_contract: exit_contract.identity(),
-        target: layout.target(),
-        layout_policy: layout.policy(),
+        target: baseline_layout.target(),
+        layout_policy: baseline_layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
         statistics,
+        frame: unavailable,
+        machine_emission: unavailable,
+        section_placement: unavailable,
+        symbols: unavailable,
+        object_relocations: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    record.identity = record.recomputed_identity();
+    Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
+}
+
+fn expected_direct_manifest(
+    homes: &StagedOptimizedRegisterHomes,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: &StagedOptimizedX86BranchRelaxation,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let selected_stage = homes
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let optimized = selected_stage.optimized_target().optimized();
+    let selections = optimized.selections();
+    let selected_lowering_selections = selections
+        .for_phase(OptimizationExecutionPhase::SelectedLowering)
+        .identity();
+    let function_relative_layout_selections = selections
+        .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+        .identity();
+    if !selections
+        .for_phase(OptimizationExecutionPhase::SelectedLowering)
+        .is_empty()
+        || !rel8_selected(selections)?
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let source = homes.custody();
+    let selected = source.selected();
+    let post = homes.post_allocation_manifest().record();
+    if post.selected_lowering_completion.is_some()
+        || post.selected != selected
+        || post.target != baseline_layout.target()
+        || machine.machine().receipt().post_allocation_manifest() != post.identity
+        || machine.machine().receipt().selected() != selected
+        || encoding.selected() != selected
+        || encoding.machine() != machine.machine().receipt().identity()
+        || baseline_layout.selected() != selected
+        || baseline_layout.machine() != machine.machine().receipt().identity()
+        || baseline_layout.pre_layout() != encoding.identity()
+        || relaxation.source() != baseline_layout.identity()
+        || relaxation.output() != relaxation.layout().identity()
+        || exit_contract.contract().selected != selected
+        || exit_contract.contract().post_allocation_manifest != post.identity
+        || exit_contract.contract().post_allocation_machine
+            != machine.machine().receipt().identity()
+        || exit_contract.contract().pre_layout != encoding.identity()
+        || exit_contract.contract().resolved_layout != relaxation.layout().identity()
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
+    let mut record = FunctionRelativeOptimizationRealizationManifest {
+        identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
+            b"pending",
+        ),
+        stage:
+            FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
+        selections: selections.identity(),
+        selected_lowering_selections,
+        selected_lowering_completion: None,
+        function_relative_layout_selections,
+        pre_physical_manifest: source.manifest(),
+        post_allocation_manifest: post.identity,
+        selected,
+        pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
+        post_allocation_machine: machine.machine().receipt().identity(),
+        pre_layout: encoding.identity(),
+        baseline_resolved_layout: baseline_layout.identity(),
+        resolved_layout: relaxation.layout().identity(),
+        x86_branch_relaxation: Some(relaxation.identity()),
+        whole_function_exit_contract: exit_contract.identity(),
+        target: baseline_layout.target(),
+        layout_policy: baseline_layout.policy(),
+        scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
+        statistics: statistics(relaxation.layout())?,
         frame: unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,
@@ -772,26 +1422,57 @@ fn custody_receipt(
     }
 }
 
+fn direct_custody_receipt(
+    homes: &StagedOptimizedRegisterHomes,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    relaxation: &StagedOptimizedX86BranchRelaxation,
+    exit_contract: &ValidatedTerminalWholeFunctionExitContract,
+    manifest: &ValidatedFunctionRelativeOptimizationRealizationManifest,
+) -> StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
+    StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt {
+        source: homes.custody(),
+        machine: machine.custody().clone(),
+        relaxation: relaxation.identity(),
+        exit_contract: exit_contract.identity(),
+        realization: manifest.record.identity,
+    }
+}
+
 fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationManifest) -> Vec<u8> {
     let mut canonical = Vec::new();
     canonical.push(match manifest.stage {
         FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1 => 1,
     });
+    canonical.extend_from_slice(&manifest.selections.bytes());
+    canonical.extend_from_slice(&manifest.selected_lowering_selections.bytes());
+    match manifest.selected_lowering_completion {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
     for identity in [
-        manifest.selections.bytes(),
-        manifest.selected_lowering_selections.bytes(),
-        manifest.selected_lowering_completion.bytes(),
+        manifest.function_relative_layout_selections.bytes(),
         manifest.pre_physical_manifest.bytes(),
         manifest.post_allocation_manifest.bytes(),
         manifest.selected.bytes(),
         manifest.pre_allocation_machine_effects.bytes(),
         manifest.post_allocation_machine.bytes(),
         manifest.pre_layout.bytes(),
+        manifest.baseline_resolved_layout.bytes(),
         manifest.resolved_layout.bytes(),
-        manifest.whole_function_exit_contract.bytes(),
     ] {
         canonical.extend_from_slice(&identity);
     }
+    match manifest.x86_branch_relaxation {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
+    canonical.extend_from_slice(&manifest.whole_function_exit_contract.bytes());
     encode_target(&mut canonical, manifest.target);
     canonical.push(match manifest.layout_policy {
         TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
