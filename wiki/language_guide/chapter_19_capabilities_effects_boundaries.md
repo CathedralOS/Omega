@@ -928,6 +928,17 @@ application before installation binds its exact issuance occurrences. Only a
 requirement whose distinct applications genuinely need different providers
 declares an indexed slot family.
 
+The compiler foundation represents this as a non-authorizing indexed-
+application closure. It combines exact concrete demands with substituted,
+artifact-qualified symbolic demands, canonicalizes the reconstructed
+application set, and checks it against a generic or exact-family coverage
+assertion already retained with one selected provider plan. The closed result
+retains the selected closure, exact provider plan, application set, and complete
+coverage assertion; it does not create a slot for each application. Deriving
+the demand and coverage rows from verified artifacts and binding exact provider
+issuance occurrences at installation remain separate engineering steps, so
+this structural result alone grants no resident content or transfer authority.
+
 This is the same proof shape as a library import:
 
 - Omega proves caller-side type and state invariants.

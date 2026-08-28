@@ -4,6 +4,7 @@ mod component_era_entry_ledger;
 mod component_progress_manifest;
 mod executable_tcb_manifest;
 mod executable_tcb_profile;
+mod indexed_provider_applications;
 mod isolated_executable_scopes;
 mod process_static_services;
 mod selected_provider_plans;
@@ -49,6 +50,14 @@ pub use executable_tcb_profile::{
     ExactExecutableTcbAllowance, ExecutableTcbProfile, ExecutableTcbProfileAcceptance,
     ExecutableTcbProfileRejection, ExecutableTcbProfileViolation, IncompleteScopePolicy,
     evaluate_executable_tcb_profile,
+};
+pub use indexed_provider_applications::{
+    ClosedIndexedProviderApplicationSet, ConcreteIndexedProviderApplication,
+    IndexedProviderApplicationArgument, IndexedProviderApplicationArtifactIdentity,
+    IndexedProviderApplicationClosureError, IndexedProviderApplicationDemand,
+    IndexedProviderApplicationParameter, IndexedProviderApplicationSubstitution,
+    IndexedProviderConcreteArgument, IndexedProviderRequirementSchema,
+    ProviderAssertedIndexedApplicationCoverage, close_indexed_provider_applications,
 };
 pub use isolated_executable_scopes::{
     AdmittedIsolatedExecutableScope, ExecutableTcbManifestSet, IsolatedExecutableScopeCandidate,
