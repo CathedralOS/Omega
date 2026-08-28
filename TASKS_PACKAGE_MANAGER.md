@@ -608,9 +608,27 @@ complete.
   before acceptance. Canaries replace the retained repository and object-store
   names, turn a forbidden probe's parent into a regular file, substitute
   control/ref/object files with symlinks, and add an external hard link. Native
-  Git still receives a pathname, and the batch-request staging file is not yet
-  capability-relative, so active-launch confinement and request staging remain
+  Git still receives a pathname, so active-launch confinement remains
   subsequent native-isolation work.
+
+  Milestone 2026-08-27: the `cat-file --batch` request is now created no-follow
+  at exact Unix mode `0600` through the retained cache-entry capability. Its
+  open file and parent-relative name must preserve one identity before launch
+  and cleanup; cleanup synchronizes the retained parent, reports failure ahead
+  of an ordinary operation error, and preserves a replacement already observed
+  at the old name. The final identity-check/unlink pair is not atomic against
+  an active same-user rename race. Snapshot collection bootstrap likewise
+  classifies `snapshots` through the retained entry and treats only exact
+  `NotFound` as absent. A newly created
+  collection is provisionally cleanup-owned and exact mode `0700`; existing
+  collections are opened no-follow with stable identity and custody checks.
+  Publication lookup and mutable materialization staging then remain beneath
+  that retained collection instead of reopening its ambient pathname. Canaries
+  replace the entry and batch-request names, check private modes and replacement-
+  preserving cleanup, remove and bootstrap the snapshot collection, and prove
+  later staging remains in the displaced retained entry. Native Git's working-
+  directory pathname and active same-user replacement remain isolation-backend
+  work rather than a property claimed by these capability-relative files.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
