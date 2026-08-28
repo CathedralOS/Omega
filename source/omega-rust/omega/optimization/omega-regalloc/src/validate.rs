@@ -467,8 +467,8 @@ fn reject_v1_unsupported(
     function_index: usize,
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
-    let mut tied_registers = BTreeSet::new();
-    let mut early_registers = Vec::new();
+    let mut tied_edges = Vec::new();
+    let mut early_rows = Vec::new();
     for instruction in function.blocks.iter().flat_map(ordered_instructions) {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
@@ -496,14 +496,39 @@ fn reject_v1_unsupported(
                 }
                 values.push(operand.virtual_register);
             }
+            let tied_source = definition.tied_to.and_then(|operand| {
+                instruction
+                    .operands
+                    .iter()
+                    .find(|candidate| candidate.operand == operand)
+            });
+            let source_is_valid = match tied_source {
+                None => true,
+                Some(source) => {
+                    source.access == RegisterOperandAccess::Use
+                        && source.operand < definition.operand
+                        && source.virtual_register != definition.virtual_register
+                        && source.class == definition.class
+                        && source.tied_to.is_none()
+                }
+            };
+            let unrelated = instruction
+                .operands
+                .iter()
+                .filter(|operand| {
+                    operand.operand != definition.operand
+                        && tied_source.is_none_or(|source| source.operand != operand.operand)
+                })
+                .collect::<Vec<_>>();
             if early.len() != 1
                 || definition.access != RegisterOperandAccess::Def
-                || definition.tied_to.is_some()
                 || instruction.operands.len() < 2
+                || !source_is_valid
+                || tied_source.is_some() && unrelated.is_empty()
                 || instruction.operands.iter().any(|operand| {
-                    operand.tied_to.is_some()
-                        || (operand.operand != definition.operand
-                            && operand.access != RegisterOperandAccess::Use)
+                    operand.operand != definition.operand
+                        && (operand.access != RegisterOperandAccess::Use
+                            || operand.tied_to.is_some())
                 })
             {
                 return Err(TerminalLivenessError::UnsupportedEarlyClobber {
@@ -512,12 +537,16 @@ fn reject_v1_unsupported(
                     operand: early.get(1).copied().unwrap_or(definition).operand,
                 });
             }
-            early_registers.extend(
-                instruction
-                    .operands
-                    .iter()
-                    .map(|operand| (operand.virtual_register, instruction.id.0, operand.operand)),
-            );
+            early_rows.push((
+                instruction.id.0,
+                definition.operand,
+                definition.virtual_register,
+                tied_source.map(|source| source.virtual_register),
+                unrelated
+                    .into_iter()
+                    .map(|operand| (operand.virtual_register, operand.operand))
+                    .collect::<Vec<_>>(),
+            ));
         }
         let tied = instruction
             .operands
@@ -549,19 +578,39 @@ fn reject_v1_unsupported(
                     operand: definition.operand,
                 });
             }
-            tied_registers.insert(use_operand.virtual_register);
-            tied_registers.insert(definition.virtual_register);
+            tied_edges.push((use_operand.virtual_register, definition.virtual_register));
         }
     }
-    if let Some((_, instruction, operand)) = early_registers
-        .into_iter()
-        .find(|(register, _, _)| tied_registers.contains(register))
-    {
-        return Err(TerminalLivenessError::UnsupportedEarlyClobber {
-            function: function_index,
-            instruction,
-            operand,
+    for (instruction, def_operand, definition, tied_source, unrelated) in early_rows {
+        let source_and_definition_form_one_edge = match tied_source {
+            None => tied_edges
+                .iter()
+                .all(|(left, right)| *left != definition && *right != definition),
+            Some(source) => {
+                let incident = tied_edges
+                    .iter()
+                    .filter(|(left, right)| {
+                        *left == source
+                            || *right == source
+                            || *left == definition
+                            || *right == definition
+                    })
+                    .collect::<Vec<_>>();
+                incident.len() == 1 && *incident[0] == (source, definition)
+            }
+        };
+        let related_unrelated_operand = unrelated.iter().find(|(register, _)| {
+            tied_edges
+                .iter()
+                .any(|(left, right)| left == register || right == register)
         });
+        if !source_and_definition_form_one_edge || related_unrelated_operand.is_some() {
+            return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+                function: function_index,
+                instruction,
+                operand: related_unrelated_operand.map_or(def_operand, |(_, operand)| *operand),
+            });
+        }
     }
     Ok(())
 }
@@ -652,5 +701,24 @@ mod tests {
         );
         assert_eq!(computed.blocks[0].instructions[1].virtual_uses.len(), 1);
         assert_eq!(computed.blocks[0].instructions[1].virtual_defs.len(), 1);
+    }
+
+    #[test]
+    fn independent_liveness_replay_accepts_multiple_isolated_tied_early_clobbers() {
+        let function =
+            crate::compute::tests::supported_multiple_isolated_tied_early_clobber_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert_eq!(
+            computed
+                .operand_positions
+                .iter()
+                .filter(|operand| operand.tied_to.is_some() && operand.early_clobber)
+                .count(),
+            2
+        );
+        assert_eq!(computed.blocks[0].instructions[0].virtual_uses.len(), 2);
+        assert_eq!(computed.blocks[0].instructions[0].virtual_defs.len(), 1);
     }
 }

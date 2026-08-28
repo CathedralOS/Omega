@@ -433,12 +433,39 @@ fn independently_derive_early_clobbers(
                     operand: marked.get(1).copied().unwrap_or(definition).operand,
                 });
             }
+            let tied_source = match definition.tied_to {
+                None => None,
+                Some(source_operand) => Some(
+                    operands
+                        .iter()
+                        .copied()
+                        .find(|operand| operand.operand == source_operand)
+                        .ok_or(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                            function,
+                            instruction: definition.instruction.0,
+                            operand: definition.operand,
+                        })?,
+                ),
+            };
+            if let Some(source) = tied_source
+                && (source.access != RegisterOperandAccess::Use
+                    || source.operand >= definition.operand
+                    || source.virtual_register == definition.virtual_register
+                    || source.class != definition.class
+                    || source.tied_to.is_some())
+            {
+                return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                    function,
+                    instruction: definition.instruction.0,
+                    operand: definition.operand,
+                });
+            }
             let mut seen = Vec::new();
             for operand in &operands {
                 if seen.contains(&operand.virtual_register)
-                    || operand.tied_to.is_some()
                     || (operand.operand != definition.operand
-                        && operand.access != RegisterOperandAccess::Use)
+                        && (operand.access != RegisterOperandAccess::Use
+                            || operand.tied_to.is_some()))
                 {
                     return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
                         function,
@@ -448,28 +475,66 @@ fn independently_derive_early_clobbers(
                 }
                 seen.push(operand.virtual_register);
             }
-            for tied_definition in live
+            let tied_edges = live
                 .operand_positions
                 .iter()
                 .filter(|operand| operand.tied_to.is_some())
-            {
-                let tied_source = live.operand_positions.iter().find(|operand| {
-                    operand.instruction == tied_definition.instruction
-                        && Some(operand.operand) == tied_definition.tied_to
-                });
-                if seen.contains(&tied_definition.virtual_register)
-                    || tied_source.is_some_and(|operand| seen.contains(&operand.virtual_register))
-                {
-                    return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
-                        function,
-                        instruction: definition.instruction.0,
-                        operand: definition.operand,
-                    });
+                .filter_map(|tied_definition| {
+                    live.operand_positions
+                        .iter()
+                        .find(|operand| {
+                            operand.instruction == tied_definition.instruction
+                                && Some(operand.operand) == tied_definition.tied_to
+                        })
+                        .map(|source| (source.virtual_register, tied_definition.virtual_register))
+                })
+                .collect::<Vec<_>>();
+            let unrelated = operands
+                .iter()
+                .copied()
+                .filter(|operand| {
+                    operand.operand != definition.operand
+                        && tied_source.is_none_or(|source| source.operand != operand.operand)
+                })
+                .collect::<Vec<_>>();
+            let tie_isolated = match tied_source {
+                None => tied_edges.iter().all(|(left, right)| {
+                    *left != definition.virtual_register && *right != definition.virtual_register
+                }),
+                Some(source) => {
+                    let incident = tied_edges
+                        .iter()
+                        .filter(|(left, right)| {
+                            *left == source.virtual_register
+                                || *right == source.virtual_register
+                                || *left == definition.virtual_register
+                                || *right == definition.virtual_register
+                        })
+                        .collect::<Vec<_>>();
+                    incident.len() == 1
+                        && *incident[0] == (source.virtual_register, definition.virtual_register)
                 }
+            };
+            if !tie_isolated
+                || tied_source.is_some() && unrelated.is_empty()
+                || unrelated.iter().any(|operand| {
+                    tied_edges.iter().any(|(left, right)| {
+                        *left == operand.virtual_register || *right == operand.virtual_register
+                    })
+                })
+            {
+                return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                    function,
+                    instruction: definition.instruction.0,
+                    operand: definition.operand,
+                });
             }
             let uses = operands
                 .iter()
-                .filter(|operand| operand.operand != definition.operand)
+                .filter(|operand| {
+                    operand.operand != definition.operand
+                        && tied_source.is_none_or(|source| source.operand != operand.operand)
+                })
                 .map(|operand| TerminalEarlyClobberUse {
                     operand: operand.operand,
                     virtual_register: operand.virtual_register,
@@ -993,6 +1058,58 @@ mod tests {
             require_early_clobber_rows(0, &corrupt_point, &expected),
             Err(TerminalLiveRangeError::EarlyClobberMismatch { function: 0 })
         );
+    }
+
+    #[test]
+    fn isolated_tied_early_clobber_replay_rejects_malformed_and_corrupt_rows() {
+        let selected = crate::compute::tests::supported_isolated_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &selected).unwrap();
+        let expected = crate::live_range_compute::derive_early_clobbers(0, &live).unwrap();
+        let replayed = independently_derive_early_clobbers(0, &live).unwrap();
+        assert_eq!(expected, replayed);
+        assert_eq!(
+            super::independently_derive_ties(0, &live).unwrap(),
+            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+        );
+        assert_eq!(expected[0].uses.len(), 1);
+        assert_eq!(
+            expected[0].uses[0].virtual_register,
+            TerminalVirtualRegisterId(1)
+        );
+
+        let mut tied_source_duplicated_as_hazard = expected.clone();
+        tied_source_duplicated_as_hazard[0]
+            .uses
+            .push(crate::TerminalEarlyClobberUse {
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(0),
+                class: RegisterClassId(0),
+            });
+        assert_eq!(
+            require_early_clobber_rows(0, &tied_source_duplicated_as_hazard, &expected),
+            Err(TerminalLiveRangeError::EarlyClobberMismatch { function: 0 })
+        );
+
+        let mut no_unrelated = live.clone();
+        no_unrelated
+            .operand_positions
+            .retain(|operand| operand.virtual_register != TerminalVirtualRegisterId(1));
+        assert!(matches!(
+            independently_derive_early_clobbers(0, &no_unrelated),
+            Err(TerminalLiveRangeError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut tied_unrelated = live;
+        tied_unrelated
+            .operand_positions
+            .iter_mut()
+            .find(|operand| operand.virtual_register == TerminalVirtualRegisterId(1))
+            .unwrap()
+            .tied_to = Some(0);
+        assert!(matches!(
+            independently_derive_early_clobbers(0, &tied_unrelated),
+            Err(TerminalLiveRangeError::UnsupportedEarlyClobber { .. })
+        ));
     }
 
     #[test]

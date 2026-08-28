@@ -583,4 +583,75 @@ mod tests {
             vec![RegisterViewId(0), RegisterViewId(1)]
         );
     }
+
+    #[test]
+    fn computes_before_phase_legality_for_isolated_tied_early_definition() {
+        let physical = physical();
+        let target = NativeTarget {
+            architecture: Architecture::X86_64,
+            object_format: ObjectFormat::Elf,
+            pointer_size: 8,
+            pointer_alignment: 8,
+        };
+        let reservations = validate_register_reservation_profile(
+            RegisterReservationProfile {
+                name: "none".into(),
+                active_overlays: Vec::new(),
+            },
+            target,
+            &physical,
+        )
+        .unwrap();
+        let availability = availability(&physical);
+        let ranges = TerminalFunctionLiveRanges {
+            machine: MachineId::new(1).unwrap(),
+            block_domains: Vec::new(),
+            virtual_registers: vec![range(0, 0, 1), range(1, 0, 1), range(2, 1, 2)],
+            tied_pairs: vec![TerminalDistinctUseDefTie {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(0),
+                instruction: TerminalSelectedInstructionId(0),
+                use_operand: 0,
+                use_virtual_register: TerminalVirtualRegisterId(0),
+                use_point: TerminalLiveRangePoint(0),
+                def_operand: 2,
+                def_virtual_register: TerminalVirtualRegisterId(2),
+                def_point: TerminalLiveRangePoint(1),
+                class: RegisterClassId(0),
+            }],
+            early_clobbers: vec![TerminalEarlyClobberConstraint {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(0),
+                instruction: TerminalSelectedInstructionId(0),
+                early_point: TerminalLiveRangePoint(0),
+                def_operand: 2,
+                def_virtual_register: TerminalVirtualRegisterId(2),
+                def_class: RegisterClassId(0),
+                def_point: TerminalLiveRangePoint(1),
+                uses: vec![TerminalEarlyClobberUse {
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    class: RegisterClassId(0),
+                }],
+            }],
+            architectural_units: Vec::new(),
+            interference: Vec::new(),
+        };
+        let legality =
+            compute_function(0, &ranges, &availability, &physical, &reservations).unwrap();
+        let replayed = crate::allocation_legality_validate::replay_register_for_test(
+            0,
+            &ranges,
+            &ranges.virtual_registers[2],
+            &availability,
+            &physical,
+            &reservations,
+        )
+        .unwrap();
+        assert_eq!(legality.virtual_registers[2], replayed);
+        assert_eq!(
+            legality.virtual_registers[2].early_clobber_points[0].candidates,
+            vec![RegisterViewId(0), RegisterViewId(1)]
+        );
+    }
 }

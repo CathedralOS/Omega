@@ -679,6 +679,41 @@ mod tests {
             reject_constraint_topologies(0, &tied),
             Err(TerminalSpillChoiceError::UnsupportedTiedOperands { function: 0 })
         );
+
+        let mut composed = ranges(&[(0, 0), (0, 0), (1, 1)]);
+        composed.tied_pairs.push(crate::TerminalDistinctUseDefTie {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(0),
+            instruction: TerminalSelectedInstructionId(0),
+            use_operand: 0,
+            use_virtual_register: TerminalVirtualRegisterId(0),
+            use_point: TerminalLiveRangePoint(0),
+            def_operand: 2,
+            def_virtual_register: TerminalVirtualRegisterId(2),
+            def_point: TerminalLiveRangePoint(1),
+            class: RegisterClassId(0),
+        });
+        composed
+            .early_clobbers
+            .push(TerminalEarlyClobberConstraint {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(0),
+                instruction: TerminalSelectedInstructionId(0),
+                early_point: TerminalLiveRangePoint(0),
+                def_operand: 2,
+                def_virtual_register: TerminalVirtualRegisterId(2),
+                def_class: RegisterClassId(0),
+                def_point: TerminalLiveRangePoint(1),
+                uses: vec![TerminalEarlyClobberUse {
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    class: RegisterClassId(0),
+                }],
+            });
+        assert_eq!(
+            reject_constraint_topologies(0, &composed),
+            Err(TerminalSpillChoiceError::UnsupportedTiedOperands { function: 0 })
+        );
     }
 
     fn computed(intervals: &[(u32, u32)]) -> (TerminalFunctionSpillChoices, OptimizationWorkUsage) {
