@@ -102,22 +102,6 @@ impl PhaseDiagramBuilder {
         id
     }
 
-    pub fn node_details(&mut self, id: &str, details: impl Into<String>) {
-        let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
-            return;
-        };
-
-        node.details = Some(details.into());
-    }
-
-    pub fn node_scoped_label(&mut self, id: &str, label: impl Into<String>) {
-        let Some(node) = self.nodes.iter_mut().find(|node| node.id == id) else {
-            return;
-        };
-
-        node.scoped_label = Some(label.into());
-    }
-
     pub fn node_service_reaches(
         &mut self,
         id: &str,

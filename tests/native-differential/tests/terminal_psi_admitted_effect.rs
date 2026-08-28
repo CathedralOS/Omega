@@ -31,8 +31,8 @@ use omega_image_emission::{
     decode_installation_record, emit_executable_image, encode_installation_record,
     validate_installation_record,
 };
-use omega_instruction_selection::lower_post_handoff_writer_fragment;
 use omega_machine_emission::emit_machine_code;
+use omega_program_entry_plan::lower_post_handoff_writer_fragment;
 use omega_provider_planning::plans::{
     SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
 };
@@ -646,6 +646,8 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
 
     let mut argument_prefix = Vec::new();
     argument_prefix.extend_from_slice(&custody_place.get().to_le_bytes());
+    argument_prefix.push(1);
+    argument_prefix.extend_from_slice(&[0; 3]);
     argument_prefix.extend_from_slice(&1_u32.to_le_bytes());
     argument_prefix.push(2);
     argument_prefix.extend_from_slice(&[0; 3]);
@@ -654,7 +656,7 @@ fn admitted_provider_execution_flows_through_lowering_and_installation() {
         .rposition(|window| window == argument_prefix)
         .expect("encoded structural argument");
     let mut malformed = encoded;
-    malformed[argument_offset + 12] = 0xff;
+    malformed[argument_offset + 16] = 0xff;
     assert_eq!(
         decode_installation_record(&malformed),
         Err(InstallationError::InvalidSettlementArgumentPathTag(0xff))
