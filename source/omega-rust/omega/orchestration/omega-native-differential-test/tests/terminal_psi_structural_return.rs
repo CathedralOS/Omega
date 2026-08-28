@@ -3,6 +3,7 @@
 use omega_calling_conventions::{
     CallingPolicy, MachineRegister, ValueLocation, ValuePlacement, ValueShape,
 };
+use omega_optimization_validation::validate_verified_psi_optimization_unit;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunctionResult, TerminalAbstractOperation,
@@ -17,7 +18,10 @@ use omega_terminal_image_emission::{
 };
 use omega_terminal_machine_code::{TerminalNativeFuelSite, TerminalScalarControlFlowEvidence};
 use omega_terminal_machine_emission::emit_machine_code;
-use omega_terminal_psi_to_abstract_operations::lower_artifact_sections;
+use omega_terminal_psi_to_abstract_operations::{
+    build_verified_psi_optimization_unit, lower_artifact_sections,
+    lower_artifact_sections_for_optimization,
+};
 use omega_terminal_target_operations::{
     TerminalCallSiteOwner, TerminalScalarParameterLocation, TerminalTargetIntegerExpression,
     TerminalTargetOperation,
@@ -36,7 +40,7 @@ use psi_terminal::{OperationKind, TerminalAffineCleanupAction, TerminalMachineRe
 use psi_terminal_codec::{
     decode_module, encode_module, encode_proof_bundle, terminal_psi_identity,
 };
-use psi_terminal_fuel::TerminalFuelMeter;
+use psi_terminal_fuel::{TerminalFuelMeter, TerminalFuelSchedule};
 use psi_terminal_interpreter::{
     TerminalExecution, TerminalExecutionResult, TerminalExecutionStatus, TerminalScalarValue,
     TerminalStructuralResult, TerminalStructuralValue,
@@ -5861,6 +5865,38 @@ fn direct_structural_result_call_reaches_every_native_artifact() {
     let semantic = encode_module(&lowered.semantic_module).expect("semantic artifact");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("proof artifact");
     let entry = lowered.semantic_module.entry;
+    let optimizer_input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("structural-result call verifies for optimizer admission");
+    let verified_unit = build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("structural-result call retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified_unit)
+        .expect("source-derived structural call result dominates its return");
+    let optimizer_caller = verified_unit
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == entry)
+        .expect("optimizer unit retains the structural caller");
+    let optimizer_entry = optimizer_caller
+        .blocks
+        .iter()
+        .find(|block| block.id == optimizer_caller.entry)
+        .expect("optimizer caller retains its declared entry block");
+    let [call_node, return_node] = optimizer_entry.nodes.as_slice() else {
+        panic!("optimizer caller retains one structural call and return")
+    };
+    let (
+        TerminalAbstractOperation::CallStructural { result, .. },
+        TerminalAbstractOperation::ReturnStructural { source, .. },
+    ) = (&call_node.operation, &return_node.operation)
+    else {
+        panic!("optimizer caller retains structural result production and return")
+    };
+    assert_eq!(result.place, *source);
     let abstract_plan = lower_artifact_sections(&semantic, &proof, &AdmissionProfile::default())
         .expect("structural-result call crosses the Omega boundary");
     let abstract_entry = abstract_plan

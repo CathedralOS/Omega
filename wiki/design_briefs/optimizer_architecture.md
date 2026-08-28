@@ -778,11 +778,17 @@ independent field namespaces remain legal. Top-level structural type and domain
 rosters require canonical ID order and unique nonempty identities; domain
 semantic identities are independently unique, carrier references are closed,
 shared carriers remain legal, first-class byte sequences are borrowed views,
-and fixed arrays are nonempty. Full provider-attachment specialization replay,
-structural-domain content-projection validation, path-sensitive availability of
-operation-result and local roots, exact payloadless-callee classification, and
-the wider crash/requirement/effect vocabulary remain explicit unfinished
-validator layers. It
+and fixed arrays are nonempty. Structural returns independently locate an exact
+`CallStructural` result producer in the current executable nodes and require it
+to occur strictly earlier in the same block or in a CFG-dominating block; block
+storage order and immutable source-frontier rows grant no availability. A
+source-derived content-bearing structural call/return canary exercises that
+admission boundary. Full provider-attachment specialization replay,
+structural-domain content-projection validation, remaining root-kind legality,
+byte-literal and affine-local availability, provider and ownership/custody
+replay, exact payloadless-callee classification, and the wider
+crash/requirement/effect vocabulary remain explicit unfinished validator
+layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal

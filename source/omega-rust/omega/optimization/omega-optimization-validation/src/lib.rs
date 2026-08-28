@@ -204,6 +204,12 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         place: PlaceId,
     },
+    StructuralPlaceNotAvailable {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        place: PlaceId,
+    },
     UnknownClaim {
         machine: MachineId,
         claim: ClaimId,
@@ -10443,6 +10449,8 @@ fn validate_function(
         }
     }
 
+    validate_operation_result_availability(function, &blocks, &predecessor)?;
+
     validate_provenance_fuel_effects(function)?;
     validate_fact_index(function)?;
     validate_values_and_bindings(
@@ -10567,6 +10575,75 @@ fn validate_fact_index(
         return Err(OptimizationUnitValidationError::FactIndexMismatch(
             function.machine,
         ));
+    }
+    Ok(())
+}
+
+/// Reconstruct the current-revision availability of structural operation
+/// results from executable nodes and CFG dominance. Immutable source frontier
+/// facts do not authorize a result at a rewritten site.
+fn validate_operation_result_availability(
+    function: &PsiOptimizationFunction,
+    blocks: &BTreeMap<BlockId, &omega_optimization_unit::OptimizationBlock>,
+    predecessors: &BTreeMap<BlockId, BTreeSet<BlockId>>,
+) -> Result<(), OptimizationUnitValidationError> {
+    let mut producers = BTreeMap::<OperationId, (PlaceId, BlockId, u32)>::new();
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let O::CallStructural {
+                psi_operation,
+                result,
+                ..
+            } = &node.operation
+            else {
+                continue;
+            };
+            producers.insert(
+                *psi_operation,
+                (
+                    result.place,
+                    block.id,
+                    u32::try_from(node_index).expect("unit node index fits u32"),
+                ),
+            );
+        }
+    }
+    let dominators = dominators(function.entry, blocks.keys().copied(), predecessors);
+    for block in &function.blocks {
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let O::ReturnStructural { source, .. } = &node.operation else {
+                continue;
+            };
+            let Some(StructuralPlaceKind::OperationResult { producer, .. }) = function
+                .structural_places
+                .iter()
+                .find(|place| place.id == *source)
+                .map(|place| place.kind)
+            else {
+                continue;
+            };
+            let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+            let available = producers.get(&producer).is_some_and(
+                |(produced_place, producer_block, producer_node)| {
+                    *produced_place == *source
+                        && ((*producer_block == block.id && *producer_node < node_index)
+                            || (*producer_block != block.id
+                                && dominators
+                                    .get(&block.id)
+                                    .is_some_and(|set| set.contains(producer_block))))
+                },
+            );
+            if !available {
+                return Err(
+                    OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                        place: *source,
+                    },
+                );
+            }
+        }
     }
     Ok(())
 }
@@ -11506,8 +11583,7 @@ fn validate_structural_call_result(
     if payloadless {
         return true;
     }
-    if !callee.content_entry_claims.is_empty()
-        || callee.entry_claim_declarations.is_empty()
+    if callee.entry_claim_declarations.is_empty()
         || result.claims.is_empty()
         || returned.is_empty()
         || returned.windows(2).any(|pair| pair[0] >= pair[1])
@@ -12048,7 +12124,21 @@ fn reconstruct_declared_places(
         .collect::<BTreeSet<_>>();
     for block in &function.blocks {
         for node in &block.nodes {
-            validate_operation_places(function.machine, &node.operation, &mut known_places)?;
+            match &node.operation {
+                O::EstablishByteSequenceLiteral { place, .. }
+                | O::EstablishTrivialAffineLocal { place, .. } => {
+                    known_places.insert(place.id);
+                }
+                O::CallStructural { result, .. } => {
+                    known_places.insert(result.place);
+                }
+                _ => {}
+            }
+        }
+    }
+    for block in &function.blocks {
+        for node in &block.nodes {
+            validate_operation_places(function.machine, &node.operation, &known_places)?;
         }
     }
     Ok(known_places)
@@ -12057,7 +12147,7 @@ fn reconstruct_declared_places(
 fn validate_operation_places(
     machine: MachineId,
     operation: &omega_terminal_abstract_operations::TerminalAbstractOperation,
-    known: &mut BTreeSet<PlaceId>,
+    known: &BTreeSet<PlaceId>,
 ) -> Result<(), OptimizationUnitValidationError> {
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
     let require = |place: PlaceId, known: &BTreeSet<PlaceId>| {
@@ -12068,10 +12158,7 @@ fn validate_operation_places(
         }
     };
     match operation {
-        O::EstablishByteSequenceLiteral { place, .. }
-        | O::EstablishTrivialAffineLocal { place, .. } => {
-            known.insert(place.id);
-        }
+        O::EstablishByteSequenceLiteral { .. } | O::EstablishTrivialAffineLocal { .. } => {}
         O::CallUnit {
             structural_arguments,
             ..
@@ -12090,9 +12177,6 @@ fn validate_operation_places(
         } => {
             for argument in structural_arguments {
                 require(argument.place, known)?;
-            }
-            if let O::CallStructural { result, .. } = operation {
-                known.insert(result.place);
             }
         }
         O::BooleanStructuralField { source, .. } | O::ReturnStructural { source, .. } => {
@@ -13230,6 +13314,229 @@ mod tests {
             .unwrap()
     }
 
+    #[derive(Clone, Copy)]
+    enum OperationResultCfgShape {
+        DominatingNonTopological,
+        SiblingReturn,
+        PartialPredecessor,
+    }
+
+    fn operation_result_cfg_unit(shape: OperationResultCfgShape) -> PsiOptimizationUnit {
+        use omega_terminal_abstract_operations::TerminalAbstractSuccessor;
+
+        let caller = id(370, MachineId::new);
+        let callee = id(371, MachineId::new);
+        let entry = id(372, BlockId::new);
+        let producer_block = id(373, BlockId::new);
+        let bypass_block = id(374, BlockId::new);
+        let join = id(375, BlockId::new);
+        let callee_block = id(376, BlockId::new);
+        let condition = id(377, ValueId::new);
+        let structural_type = id(378, StructuralTypeId::new);
+        let callee_result = id(379, PlaceId::new);
+        let caller_result = id(380, PlaceId::new);
+        let call_result = id(381, PlaceId::new);
+        let call = || TerminalAbstractOperation::CallStructural {
+            psi_operation: id(382, OperationId::new),
+            result: psi_terminal::StructuralOperationResult {
+                place: call_result,
+                structural_type,
+                multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                qualifications: Vec::new(),
+                claims: Vec::new(),
+            },
+            callee,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            returned_claim_transfers: Vec::new(),
+        };
+        let return_result = |edge| TerminalAbstractOperation::ReturnStructural {
+            psi_edge: edge,
+            source: call_result,
+            returned_claims: Vec::new(),
+            trivial_affine_locals: Vec::new(),
+            trivial_affine_discards: Vec::new(),
+        };
+        let jump = |edge| TerminalAbstractOperation::Jump {
+            psi_edge: edge,
+            target: join,
+            bindings: Vec::new(),
+        };
+        let conditional = || TerminalAbstractOperation::Conditional {
+            condition,
+            when_true: TerminalAbstractSuccessor {
+                psi_edge: id(383, EdgeId::new),
+                target: producer_block,
+                bindings: Vec::new(),
+            },
+            when_false: TerminalAbstractSuccessor {
+                psi_edge: id(384, EdgeId::new),
+                target: bypass_block,
+                bindings: Vec::new(),
+            },
+        };
+        let (block_entries, operations) = match shape {
+            OperationResultCfgShape::DominatingNonTopological => (
+                vec![
+                    TerminalAbstractBlockEntry {
+                        block: join,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: producer_block,
+                        parameters: Vec::new(),
+                        operation_offset: 1,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: bypass_block,
+                        parameters: Vec::new(),
+                        operation_offset: 2,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: entry,
+                        parameters: Vec::new(),
+                        operation_offset: 3,
+                    },
+                ],
+                vec![
+                    return_result(id(385, EdgeId::new)),
+                    jump(id(386, EdgeId::new)),
+                    jump(id(387, EdgeId::new)),
+                    call(),
+                    conditional(),
+                ],
+            ),
+            OperationResultCfgShape::SiblingReturn => (
+                vec![
+                    TerminalAbstractBlockEntry {
+                        block: entry,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: producer_block,
+                        parameters: Vec::new(),
+                        operation_offset: 1,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: bypass_block,
+                        parameters: Vec::new(),
+                        operation_offset: 3,
+                    },
+                ],
+                vec![
+                    conditional(),
+                    call(),
+                    return_result(id(385, EdgeId::new)),
+                    return_result(id(386, EdgeId::new)),
+                ],
+            ),
+            OperationResultCfgShape::PartialPredecessor => (
+                vec![
+                    TerminalAbstractBlockEntry {
+                        block: entry,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: producer_block,
+                        parameters: Vec::new(),
+                        operation_offset: 1,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: bypass_block,
+                        parameters: Vec::new(),
+                        operation_offset: 3,
+                    },
+                    TerminalAbstractBlockEntry {
+                        block: join,
+                        parameters: Vec::new(),
+                        operation_offset: 4,
+                    },
+                ],
+                vec![
+                    conditional(),
+                    call(),
+                    jump(id(385, EdgeId::new)),
+                    jump(id(386, EdgeId::new)),
+                    return_result(id(387, EdgeId::new)),
+                ],
+            ),
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([17; 32]),
+            },
+            entry: caller,
+            structural_types: vec![psi_terminal::StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "validation::operation-result-availability".into(),
+                shape: psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            }],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: condition,
+                        scalar_type: ScalarType::Boolean,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Structural(
+                        psi_terminal::StructuralResultDeclaration {
+                            place: caller_result,
+                            structural_type,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                        },
+                    ),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries,
+                    operations,
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: callee_block,
+                    parameters: Vec::new(),
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Structural(
+                        psi_terminal::StructuralResultDeclaration {
+                            place: callee_result,
+                            structural_type,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                            qualifications: Vec::new(),
+                        },
+                    ),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: callee_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::ReturnStructural {
+                        psi_edge: id(388, EdgeId::new),
+                        source: callee_result,
+                        returned_claims: Vec::new(),
+                        trivial_affine_locals: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    }],
+                },
+            ],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
     fn redundant_parameter_region_fixture() -> (
         PsiOptimizationUnit,
         PsiOptimizationUnit,
@@ -13459,6 +13766,51 @@ mod tests {
         validate_psi_optimization_unit(&unit()).unwrap();
         validate_psi_optimization_unit(&scalar_call_unit()).unwrap();
         validate_psi_optimization_unit(&scalar_boundary_call_unit()).unwrap();
+    }
+
+    #[test]
+    fn operation_result_return_accepts_cross_block_dominance_independent_of_storage_order() {
+        let candidate =
+            operation_result_cfg_unit(OperationResultCfgShape::DominatingNonTopological);
+        assert_ne!(
+            candidate.functions[0].blocks[0].id, candidate.functions[0].entry,
+            "fixture stores the return block before its dominating producer block"
+        );
+        validate_psi_optimization_unit(&candidate)
+            .expect("CallStructural result dominates the structural return through the CFG");
+    }
+
+    #[test]
+    fn operation_result_return_rejects_sibling_and_partial_predecessor_producers() {
+        let call_result = id(381, PlaceId::new);
+
+        let mut sibling = operation_result_cfg_unit(OperationResultCfgShape::SiblingReturn);
+        refresh_node_derivatives(&mut sibling, 0, 2, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&sibling),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(370, MachineId::new),
+                    block: id(374, BlockId::new),
+                    node: 0,
+                    place: call_result,
+                }
+            )
+        );
+
+        let mut partial = operation_result_cfg_unit(OperationResultCfgShape::PartialPredecessor);
+        refresh_node_derivatives(&mut partial, 0, 3, 0);
+        assert_eq!(
+            validate_psi_optimization_unit(&partial),
+            Err(
+                OptimizationUnitValidationError::StructuralPlaceNotAvailable {
+                    machine: id(370, MachineId::new),
+                    block: id(375, BlockId::new),
+                    node: 0,
+                    place: call_result,
+                }
+            )
+        );
     }
 
     #[test]
