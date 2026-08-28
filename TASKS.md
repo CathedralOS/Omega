@@ -9201,13 +9201,21 @@ boundary without its corresponding checked law.
   resolutions. Independent replay checks the segment/section/source extents,
   congruence, alignment, special-header aliases, exact upstream fixup coverage,
   and deferred procedure-placement envelopes while keeping AArch64 relocation
-  pages at 4 KiB. No template or payload bytes are mutated.
-  Runnable ELF emission remains fail closed before image mutation: section-
-  header fixup application, ELF/program/section-header serialization, the seven
-  internal `.dynamic` address fixups, optional `.gnu.hash`, procedure/source
-  address-fixup application, image mutation, and independent final-byte replay
-  remain unimplemented. Validated semantic tags and absolute geometry do not
-  constitute a dynamic image.
+  pages at 4 KiB. The section-header application rung now consumes that exact
+  absolute owner, copies the retained 768-byte template, and applies only the
+  eleven resolved file offsets and ten resolved virtual addresses to their
+  typed zero placeholders as little-endian `u64` values. An independent bounded
+  decoder replays all twelve roster rows, every unchanged field, exact ledger
+  order/coordinate/kind/value, null and file-only `.shstrtab` semantics,
+  deterministic content-bound identity, and load-layout custody. It still
+  chooses no `e_shoff`, serializes no ELF or program header, mutates no final
+  image, and claims no runnable authority.
+  Runnable ELF emission remains fail closed before image mutation: ELF/program
+  header serialization and final section-header placement, the seven internal
+  `.dynamic` address fixups, optional `.gnu.hash`, procedure/source address-
+  fixup application, image mutation, and independent final-byte replay remain
+  unimplemented. Validated semantic tags, absolute geometry, and applied
+  section-header bytes do not constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

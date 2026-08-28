@@ -21,6 +21,7 @@ mod headers;
 mod imports;
 mod layout;
 mod load_layout;
+mod placed_section_headers;
 mod relative_section_layout;
 mod section_header_bytes;
 mod section_name_table;
@@ -72,6 +73,10 @@ pub use load_layout::{
     ElfLoadProgramHeaderKind, ElfPlacedDynamicSection, ElfPlacedDynamicSectionKind,
     ElfResolvedSectionHeaderPlacement, ElfSectionPlacementResolutionKind,
     ValidatedElfDynamicLoadLayout, plan_elf_dynamic_load_layout,
+};
+pub use placed_section_headers::{
+    ElfAppliedSectionHeaderPlacement, ElfSectionHeaderPlacementApplicationError,
+    ValidatedElfPlacedSectionHeaderTable, apply_elf_section_header_placements,
 };
 pub use relative_section_layout::{
     ElfRelativeSectionPayloadLayoutError, ElfRelativeSectionPayloadRegion,
