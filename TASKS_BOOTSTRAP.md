@@ -178,6 +178,10 @@ and validates the bounded Darwin ARM64 target dialect.
   The atomic six-file installer, reconstruction verifier, and fail-closed
   artifact loader are implemented and tested; the canonical installation stays
   absent until the active exact attempt finishes and its custody receipt passes.
+  The initial realization is now an explicit-input, no-discovery command that
+  binds stable assembly/toolchain snapshots, exact command order, empty process
+  streams, and the existing observation verifier before exclusively publishing
+  its four-file staging result; no hand-assembled clang invocation is required.
 - [x] Realization replay, strict target validation, source closure custody, and
   reconstruction-bearing receipt machinery are implemented under
   `source/delta/compiler/validation/`.
