@@ -20,6 +20,7 @@ use omega_terminal_psi_to_abstract_operations::{
 use psi_proof_admission::AdmissionProfile;
 
 mod active_resident_rematerialization;
+mod active_resident_selected_form_encoding;
 mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
@@ -52,6 +53,13 @@ pub use active_resident_rematerialization::{
     StagedOptimizedActiveResidentRematerializationCustodyReceipt,
     stage_optimized_active_resident_rematerialization,
     validate_optimized_active_resident_rematerialization,
+};
+pub use active_resident_selected_form_encoding::{
+    OptimizedActiveResidentRematerializationSelectedFormEncodingError,
+    StagedOptimizedActiveResidentRematerializationSelectedFormEncoding,
+    StagedOptimizedActiveResidentRematerializationSelectedFormEncodingCustodyReceipt,
+    stage_optimized_active_resident_rematerialization_selected_form_encoding,
+    validate_optimized_active_resident_rematerialization_selected_form_encoding,
 };
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
@@ -1812,6 +1820,28 @@ mod tests {
         )
         .unwrap();
         stage_optimized_allocation_legality_with_availability(ranges, availability).unwrap()
+    }
+
+    fn staged_active_resident_rematerialization_and_machine(
+        target: NativeTarget,
+    ) -> (
+        StagedOptimizedActiveResidentRematerialization,
+        StagedOptimizedPostAllocationMachinePlan,
+    ) {
+        let source = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(target),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let machine =
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &source,
+            )
+            .unwrap();
+        (source, machine)
     }
 
     fn conditional_widened_u8_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
@@ -5722,6 +5752,118 @@ mod tests {
                 &x86_post,
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both_architectures()
+    {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
+            let transformed_selected = source.rematerialization().receipt().transformed_selected();
+            let machine_root = machine.machine().receipt().identity();
+            let machine_row_count = machine.custody().instruction_count();
+            let rematerialization = source.custody();
+            let fresh_materialize = source.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .unwrap()
+                .fresh_materialize;
+
+            let staged = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                source, machine,
+            )
+            .unwrap();
+            assert_eq!(staged.encoding().selected(), transformed_selected);
+            assert_eq!(staged.encoding().machine(), machine_root);
+            assert_eq!(staged.custody().rematerialization(), rematerialization);
+            assert_eq!(staged.custody().machine(), staged.machine().custody());
+            assert_eq!(
+                staged.custody().transformed_selected(),
+                transformed_selected
+            );
+            assert_eq!(staged.custody().encoding(), staged.encoding().identity());
+            assert_eq!(staged.custody().row_count(), machine_row_count);
+            assert_eq!(
+                staged.custody().encoded_count() + staged.custody().deferred_count(),
+                machine_row_count
+            );
+            assert_eq!(staged.custody().deferred_count(), 1);
+            assert!(staged.encoding().rows().iter().all(|row| match &row.state {
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
+                TerminalSelectedFormEncodingState::DeferredControl { .. } => true,
+            }));
+            let fresh_row = staged
+                .encoding()
+                .rows()
+                .iter()
+                .find(|row| row.instruction == fresh_materialize)
+                .expect("fresh rematerialization must reach the encoder roster");
+            assert_eq!(
+                fresh_row.alternative.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::MaterializeI64
+            );
+            assert!(matches!(
+                &fresh_row.state,
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. } if !bytes.is_empty()
+            ));
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization_selected_form_encoding(
+                    &staged,
+                )
+                .unwrap(),
+                staged.custody().clone()
+            );
+        }
+    }
+
+    #[test]
+    fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custody() {
+        let (mut corrupt_source, machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        crate::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
+            &mut corrupt_source,
+        );
+        assert!(matches!(
+            stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                corrupt_source,
+                machine,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationSelectedFormEncodingError::Rematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+
+        let (x86_source, _) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        let (_, arm_machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_arm64());
+        assert!(matches!(
+            stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                x86_source,
+                arm_machine,
+            ),
+            Err(OptimizedActiveResidentRematerializationSelectedFormEncodingError::Machine(_))
+        ));
+
+        let (source, machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        let mut staged = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+            source, machine,
+        )
+        .unwrap();
+        crate::active_resident_selected_form_encoding::corrupt_active_resident_selected_form_encoding_byte_for_test(
+            &mut staged,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_selected_form_encoding(&staged),
+            Err(
+                OptimizedActiveResidentRematerializationSelectedFormEncodingError::Encoding(
+                    OptimizedSelectedFormEncodingError::ArtifactMismatch
+                )
+            )
         );
     }
 
