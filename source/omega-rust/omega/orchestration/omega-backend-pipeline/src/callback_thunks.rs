@@ -100,6 +100,18 @@ mod tests {
         SymbolHandle::from_arena_index(index)
     }
 
+    fn resource_receipt(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine, entry, 0xfeed,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn fixture() -> (ControlFlowPlan, BoundNominalCallbackPlacement) {
         let selected_machine = symbol(4);
         let selected_entry = symbol(5);
@@ -134,6 +146,7 @@ mod tests {
             satisfaction_requirement: symbol(2),
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            resource_receipt: resource_receipt(selected_machine, selected_entry),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
         };

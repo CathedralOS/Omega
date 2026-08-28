@@ -7574,18 +7574,25 @@ Owners:
   a redundant hash minted from the same copied values. Remaining callback work
   stays on the separately listed resource, body, lease, cross-target, and
   private-relocation frontiers. The checked resource-representation
-  prerequisite is now live. Every concrete machine retains one declaration-
-  ordered row per exact entry. Each row independently binds the machine, entry,
-  and realized contract identity to three distinct downstream derivation
-  obligations: Terminal-plus-target stack closure, Terminal control under an
-  explicit fuel schedule, and selected-instruction machine-state footprint.
+  prerequisite and its first callback-placement receipt are now live. Every
+  concrete machine retains one declaration-ordered row per exact entry. Each
+  row independently binds the machine, entry, and realized contract identity
+  to three distinct downstream derivation obligations: Terminal-plus-target
+  stack closure, Terminal control under an explicit fuel schedule, and
+  selected-instruction machine-state footprint. A boundary callback use now
+  retains the exact selected row's machine, entry, actual-contract identity,
+  three axis identities, and envelope identity beside its calling-plan join
+  key. Target planning independently rejoins that receipt to the current
+  checked roster before carrying it in the bound placement and complete
+  placement identity; thunk/root/manifest replay and the existing callback
+  identity summary therefore reject a substituted checked resource anchor.
   Structural replay rejects a missing, duplicate, reordered, cross-entry,
   cross-machine, cross-contract, fused-axis, or fingerprint-drifted row. These
-  are compilation-local derivation anchors, not numeric ceilings, realized
-  demands, backend footprints, provider receipts, or installation authority.
-  Resource-ceiling aggregation still stops at this checked-envelope boundary:
-  next bind the exact per-entry resource receipt through callback placement,
-  then join each axis to its independently derived downstream evidence. The
+  are compilation-local derivation anchors and carriage receipts, not numeric
+  ceilings, realized demands, backend footprints, provider receipts, or
+  installation authority. Resource-ceiling aggregation still stops after this
+  identity carriage: next join each axis to its independently derived Terminal,
+  target, and backend evidence. The
   existing three-column external-root rows remain installation-owned and cannot
   be promoted backward into callback admission. This does not relax the private-
   placement decision or infer resources from `BoundaryEntryPlan`. Callback

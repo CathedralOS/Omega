@@ -659,13 +659,18 @@ Current ownership is:
   to the required Terminal-plus-target stack closure, Terminal control/fuel-
   schedule proof, and selected-instruction machine-state footprint. Checked
   replay proves complete owned-entry coverage and rejects axis fusion or
-  identity drift. The rows deliberately contain no numeric ceiling, realized
-  demand, target footprint, provider receipt, callback-placement receipt, or
+  identity drift. A checked boundary-callback use additionally retains one
+  exact receipt over the selected row's machine, entry, actual-contract, three
+  axis, and envelope identities beside its independent target calling-plan
+  key. Construction and nominal-use replay reject a foreign entry or endpoint;
+  target planning must still rejoin the receipt to the current checked roster
+  before backend carriage. The rows and receipts deliberately contain no
+  numeric ceiling, realized demand, target footprint, provider receipt, or
   installation authority; their fingerprints are compilation-local join
   summaries only. Neither envelope changes the published fingerprint or
   promotes inferred witnesses into caller facts. Callback resource admission
-  remains closed until placement binds the exact entry row to all three
-  independently derived downstream receipts.
+  remains closed until all three axes join their independently derived
+  downstream evidence.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional

@@ -199,6 +199,18 @@ mod tests {
         SymbolHandle::from_arena_index(index)
     }
 
+    fn resource_receipt(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine, entry, 0xfeed,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn callback_fixture(
         policy: CallingPolicy,
         signature: &CallSignature,
@@ -223,6 +235,7 @@ mod tests {
             satisfaction_requirement: symbol(2),
             canonical_requirement_overload: format!("Handler::call#{placement_index}"),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            resource_receipt: resource_receipt(symbol(machine), symbol(state)),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
         };

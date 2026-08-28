@@ -508,6 +508,17 @@ mod tests {
         }
     }
 
+    fn resource_receipt(entry_key: StateKey) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                entry_key.machine,
+                entry_key.state,
+                0xfeed,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn thunk(
         entry_key: StateKey,
         placement: &omega_backend_plan::BoundNominalCallbackPlacement,
@@ -554,6 +565,7 @@ mod tests {
             satisfaction_requirement: SymbolHandle::from_arena_index(5),
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            resource_receipt: resource_receipt(entry_key),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
         }
@@ -656,6 +668,7 @@ mod tests {
         let mut invalid_thunk = thunk(state_key(2), &invalid_placement);
         invalid_placement.selected_machine = StateKey::default().machine;
         invalid_placement.selected_entry = StateKey::default().state;
+        invalid_placement.resource_receipt = resource_receipt(StateKey::default());
         invalid_thunk.entry_key = StateKey::default();
         invalid_thunk.function_identity = Default::default();
         invalid_thunk.placement_identity =
