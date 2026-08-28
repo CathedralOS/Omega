@@ -1316,6 +1316,12 @@ public/private exposure. A parent available only through a transitive package
 therefore rejects; the existing `trait_parent` source location is explanatory
 review provenance, not package admission.
 
+An attached declaration head such as `machine Data::operation` also selects the
+exact `Data` declaration. That carrier coordinate is retained as a type-
+reference row under the machine's interface exposure, including exported
+boundary supply even when the boundary declaration is not spelled `pub`.
+Qualification does not relabel or implicitly admit a transitive carrier.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free
