@@ -133,9 +133,8 @@ fn float_range_recasts_preserve_aliasing_and_interval_facts() {
 
 #[test]
 fn shared_record_float_range_weakening_preserves_the_leaf_value() {
-    let main = repo_root().join(
-        "tests/omega/pass/recast/runtime_shared_record_float_range_weakening_exit/main.omg",
-    );
+    let main = repo_root()
+        .join("tests/omega/pass/recast/runtime_shared_record_float_range_weakening_exit/main.omg");
     let checked = compile_to_checked(&main, None).unwrap_or_else(|diagnostics| {
         panic!(
             "shared record float-range weakening should compile:\n{}",

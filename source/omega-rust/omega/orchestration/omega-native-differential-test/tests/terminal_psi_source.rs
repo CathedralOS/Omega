@@ -912,7 +912,7 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
 }
 
 #[test]
-fn selected_optimizer_source_enters_verified_physical_pipeline_and_fails_closed_at_selection() {
+fn selected_optimizer_source_cannot_create_a_second_native_pipeline() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
         .expect("selected optimizer source should reach checked compilation");
     let diagnostics = stage_terminal_component(
@@ -922,7 +922,7 @@ fn selected_optimizer_source_enters_verified_physical_pipeline_and_fails_closed_
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("optimized staging must stop before component publication");
+    .expect_err("selected physical work is not a second production backend");
     assert_eq!(diagnostics.len(), 1);
     assert!(
         diagnostics[0]
@@ -934,17 +934,21 @@ fn selected_optimizer_source_enters_verified_physical_pipeline_and_fails_closed_
     assert!(
         diagnostics[0]
             .message
-            .contains("entered the optimized verified physical pipeline"),
+            .contains("cannot enter native production"),
         "{}",
         diagnostics[0].message
     );
-    assert!(diagnostics[0].message.contains("UnsupportedSourceShape"));
-    assert!(!diagnostics[0].message.contains("staged target assignment"));
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("selected-instruction pipeline does not yet cover baseline")
+    );
+    assert!(!diagnostics[0].message.contains("UnsupportedSourceShape"));
     assert!(diagnostics[0].message.contains("no output was installed"));
 }
 
 #[test]
-fn lower_only_optimizer_source_enters_the_same_verified_physical_pipeline() {
+fn lower_only_optimizer_source_cannot_create_a_second_native_pipeline() {
     let checked = compile_to_checked(
         &selected_lowering_optimizer_source_canary(),
         Some("linux_x64"),
@@ -957,12 +961,12 @@ fn lower_only_optimizer_source_enters_the_same_verified_physical_pipeline() {
         &AdmissionProfile::default(),
         &[],
     )
-    .expect_err("unsupported selected shape must fail before publication");
+    .expect_err("selected physical work is not a second production backend");
     assert_eq!(diagnostics.len(), 1);
     let message = &diagnostics[0].message;
     assert!(message.contains("`SelectedIncomingU12ExactAddImmediate`"));
-    assert!(message.contains("entered the optimized verified physical pipeline"));
-    assert!(message.contains("UnsupportedSourceShape"));
+    assert!(message.contains("cannot enter native production"));
+    assert!(message.contains("selected-instruction pipeline does not yet cover baseline"));
     assert!(message.contains("no output was installed"));
 }
 
