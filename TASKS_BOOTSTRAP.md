@@ -72,7 +72,7 @@ bootstrap. The durable source owners are therefore the language directories;
 | Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
 | Gamma | Beta-written canonical interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution; do not invent a Gamma compiler artifact where canonical evaluation is the actual edge |
 | Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
-| Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | finish the product compiler and freeze the exact surface actually used by `C` |
+| Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | consume the completed compiler closure published by `TASKS.md` and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
 
 ## Artifact-edge queue
@@ -285,19 +285,20 @@ the accepted surface cannot be frozen from today's partial compiler.
 - [ ] Reuse ordinary compiler formats where useful; do not create a private
   sequence of versioned bridge IRs merely to measure progress.
 
-### 3. Close the product compiler source
+### 3. Bind the completed product source into the lattice
 
 Design blocker: [`OWNER_QUESTIONS.md`](OWNER_QUESTIONS.md) Q8 must settle the
 requested-target versus source-selected-target rule before the durable product
-build entry and final `C` closure can freeze. This does not block implementation
-of compiler modules that do not exercise target selection.
+build entry and final `C` closure can freeze. Implementing Psi, proof checking,
+optimization, lowering, emission, and the product command belongs exclusively
+to **OMEGA-PRODUCT-COMPILER-SOURCE** in [`TASKS.md`](TASKS.md); those modules are
+not bootstrap tasks. This queue begins at the exact closure that task publishes.
 
-- [ ] Finish the Omega-written Psi frontend, proof checking, optimizer, target
-  lowering, artifact emission, and the command-entry modules that do not depend
-  on the unresolved target-selection rule.
+- [ ] Consume the deterministic transitive compiler manifest published by
+  **OMEGA-PRODUCT-COMPILER-SOURCE** as `C`; do not maintain a second bootstrap
+  source list, feature list, or implementation queue.
 - [ ] **BLOCKED — OWNER Q8:** finalize the durable requested-target acceptance
-  entry and compute the exact transitive compiler executable closure `C`
-  through the package system.
+  entry and bind the manifest for `C` through the package system.
 - [ ] Census the ordinary Omega forms used by `C` only after the complete
   compiler builds; record a tested input boundary without naming a new dialect.
 - [ ] Keep package acceptance, generated-source custody, target semantics, and

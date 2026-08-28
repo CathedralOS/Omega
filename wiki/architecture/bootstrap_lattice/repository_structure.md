@@ -3,7 +3,8 @@
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
 
-The repository groups source by semantic owner. There is no standalone hosted
+The repository groups source by semantic owner. Bootstrap is a property of the
+compiler build graph, not a source owner, and there is no standalone hosted
 bridge between Delta and Omega.
 
 ```text
