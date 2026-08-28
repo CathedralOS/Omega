@@ -905,6 +905,26 @@ complete.
   broader policy. The only remaining broad macOS file-content reads are SSH
   discovery/fetch, whose trust and credential authority is blocked on Q16.
 
+  Follow-up 2026-08-28: every discovery/fetch endpoint route now shares one
+  compiler-owned whole-resolution bidirectional transfer budget across all
+  commands, routes, connections, and relay workers. Its ceiling is independently
+  derived as `min(source-byte ceiling + 64 MiB, 576 MiB)`. CONNECT framing and
+  DNS traffic are excluded; encrypted TLS/SSH tunnel bytes are included.
+  Endpoint schema 2 retains exact uploaded/downloaded counts and a closed
+  `TransferCeilingReached` outcome. Atomic charging cannot overshoot; an
+  over-ceiling read is neither charged nor forwarded. Successful final issuance
+  rejects any ceiling event and requires exact equality between the live counter
+  and the checked sum of all retained events. Native policy schema 8 binds the
+  route ceiling, final observation schema/domain 4 binds directional aggregate
+  evidence, and Git cache policy v21 prevents reuse of state fetched without
+  this floor. Native tests cover directional counts, shared-route exhaustion,
+  canonical sensitivity, and concurrent non-overshoot; all 157 source-resolver
+  tests pass. This is a strict broker-routed quota, not a universal network
+  guarantee: macOS endpoint confinement prevents direct child egress, while
+  Linux/Windows helpers can still bypass the broker. It does not mark
+  `AggregateResourcesConfined` or close object-store, descendant-resource,
+  transport-trust, credential-custody, or package-admission work.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

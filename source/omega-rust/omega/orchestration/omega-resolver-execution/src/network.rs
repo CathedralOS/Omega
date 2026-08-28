@@ -1,7 +1,7 @@
 use std::io::{self, Read, Write};
 use std::net::{IpAddr, Ipv4Addr, Shutdown, SocketAddr, TcpListener, TcpStream, ToSocketAddrs};
 use std::str::FromStr;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
@@ -16,7 +16,7 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(5);
 const RELAY_TIMEOUT: Duration = Duration::from_secs(120);
 const IO_POLL_INTERVAL: Duration = Duration::from_millis(2);
 
-const ENDPOINT_OBSERVATION_SCHEMA_VERSION: u32 = 1;
+const ENDPOINT_OBSERVATION_SCHEMA_VERSION: u32 = 2;
 const ENDPOINT_OBSERVATION_CANONICAL_BYTE_LIMIT: usize = 128 * 1024;
 const CONNECT_RESPONSE_BYTE_LIMIT: usize = 4 * 1024;
 
@@ -105,6 +105,7 @@ pub struct ResolverExecutionEndpointRoutePolicy {
     requested_endpoint: ResolverExecutionRequestedEndpoint,
     broker_endpoint: SocketAddr,
     connection_limit: u16,
+    transfer_byte_ceiling: u64,
 }
 
 impl ResolverExecutionEndpointRoutePolicy {
@@ -120,6 +121,10 @@ impl ResolverExecutionEndpointRoutePolicy {
         self.connection_limit
     }
 
+    pub const fn transfer_byte_ceiling(&self) -> u64 {
+        self.transfer_byte_ceiling
+    }
+
     pub fn http_proxy_url(&self) -> String {
         format!("http://{}", self.broker_endpoint)
     }
@@ -128,6 +133,7 @@ impl ResolverExecutionEndpointRoutePolicy {
         self.requested_endpoint.encode(bytes);
         encode_socket_address(bytes, self.broker_endpoint);
         bytes.extend_from_slice(&self.connection_limit.to_le_bytes());
+        bytes.extend_from_slice(&self.transfer_byte_ceiling.to_le_bytes());
     }
 }
 
@@ -139,6 +145,7 @@ pub enum ResolverExecutionEndpointOutcome {
     OversizedConnect,
     DestinationRejected,
     UpstreamUnavailable,
+    TransferCeilingReached,
 }
 
 impl ResolverExecutionEndpointOutcome {
@@ -149,6 +156,7 @@ impl ResolverExecutionEndpointOutcome {
             Self::OversizedConnect => 3,
             Self::DestinationRejected => 4,
             Self::UpstreamUnavailable => 5,
+            Self::TransferCeilingReached => 6,
         }
     }
 }
@@ -160,6 +168,8 @@ pub struct ResolverExecutionEndpointEvent {
     ordinal: u16,
     outcome: ResolverExecutionEndpointOutcome,
     effective_peer: Option<SocketAddr>,
+    uploaded_bytes: u64,
+    downloaded_bytes: u64,
 }
 
 impl ResolverExecutionEndpointEvent {
@@ -173,6 +183,14 @@ impl ResolverExecutionEndpointEvent {
 
     pub const fn effective_peer(&self) -> Option<SocketAddr> {
         self.effective_peer
+    }
+
+    pub const fn uploaded_bytes(&self) -> u64 {
+        self.uploaded_bytes
+    }
+
+    pub const fn downloaded_bytes(&self) -> u64 {
+        self.downloaded_bytes
     }
 }
 
@@ -211,6 +229,8 @@ impl ResolverExecutionEndpointObservation {
                 }
                 None => bytes.push(0),
             }
+            bytes.extend_from_slice(&event.uploaded_bytes.to_le_bytes());
+            bytes.extend_from_slice(&event.downloaded_bytes.to_le_bytes());
         }
         assert!(bytes.len() <= ENDPOINT_OBSERVATION_CANONICAL_BYTE_LIMIT);
         bytes
@@ -221,6 +241,48 @@ impl ResolverExecutionEndpointObservation {
 struct BrokerState {
     stop: AtomicBool,
     events: Mutex<Vec<ResolverExecutionEndpointEvent>>,
+    transfer_budget: ResolverExecutionTransferBudget,
+}
+
+/// One compiler-owned aggregate byte budget shared by every endpoint route in
+/// a source resolution. The counter covers tunneled bytes accepted by the
+/// broker in both directions; CONNECT framing is excluded.
+#[derive(Debug, Clone)]
+pub struct ResolverExecutionTransferBudget {
+    ceiling: u64,
+    observed: Arc<AtomicU64>,
+}
+
+impl ResolverExecutionTransferBudget {
+    pub fn new(ceiling: u64) -> io::Result<Self> {
+        if ceiling == 0 {
+            return Err(invalid_input("resolver transfer byte ceiling is zero"));
+        }
+        Ok(Self {
+            ceiling,
+            observed: Arc::new(AtomicU64::new(0)),
+        })
+    }
+
+    pub const fn ceiling(&self) -> u64 {
+        self.ceiling
+    }
+
+    pub fn observed(&self) -> u64 {
+        self.observed.load(Ordering::Acquire)
+    }
+
+    fn charge(&self, count: usize) -> Result<(), ()> {
+        let count = u64::try_from(count).map_err(|_| ())?;
+        self.observed
+            .fetch_update(Ordering::AcqRel, Ordering::Acquire, |current| {
+                current
+                    .checked_add(count)
+                    .filter(|attempted| *attempted <= self.ceiling)
+            })
+            .map(|_| ())
+            .map_err(|_| ())
+    }
 }
 
 /// A compiler-owned, fixed-bound HTTP CONNECT route.
@@ -235,7 +297,10 @@ pub struct ResolverExecutionEndpointRoute {
 }
 
 impl ResolverExecutionEndpointRoute {
-    pub(crate) fn open(requested_endpoint: ResolverExecutionRequestedEndpoint) -> io::Result<Self> {
+    pub(crate) fn open(
+        requested_endpoint: ResolverExecutionRequestedEndpoint,
+        transfer_budget: ResolverExecutionTransferBudget,
+    ) -> io::Result<Self> {
         // Resolve and bound the complete answer before the broker can open an
         // upstream socket. A successful early address cannot hide an oversized
         // DNS answer suffix.
@@ -252,10 +317,12 @@ impl ResolverExecutionEndpointRoute {
             requested_endpoint,
             broker_endpoint,
             connection_limit: ENDPOINT_CONNECTION_LIMIT,
+            transfer_byte_ceiling: transfer_budget.ceiling(),
         };
         let state = Arc::new(BrokerState {
             stop: AtomicBool::new(false),
             events: Mutex::new(Vec::with_capacity(usize::from(ENDPOINT_CONNECTION_LIMIT))),
+            transfer_budget,
         });
         let thread_policy = policy.clone();
         let thread_state = Arc::clone(&state);
@@ -335,6 +402,7 @@ fn broker_loop(
                         &worker_policy,
                         &worker_addresses,
                         &worker_state.stop,
+                        &worker_state.transfer_budget,
                     );
                     if let Ok(mut events) = worker_state.events.lock() {
                         events.push(event);
@@ -362,6 +430,7 @@ fn handle_client(
     policy: &ResolverExecutionEndpointRoutePolicy,
     upstream_addresses: &[SocketAddr],
     stop: &AtomicBool,
+    transfer_budget: &ResolverExecutionTransferBudget,
 ) -> ResolverExecutionEndpointEvent {
     let request = match read_connect_request(&mut client, stop) {
         Ok(request) => request,
@@ -407,7 +476,18 @@ fn handle_client(
     };
     let effective_peer = upstream.peer_addr().ok();
     if write_response(&mut client, b"HTTP/1.1 200 Connection Established\r\n\r\n").is_ok() {
-        let _ = relay(&mut client, &mut upstream, stop);
+        let relay = relay(&mut client, &mut upstream, stop, transfer_budget);
+        return ResolverExecutionEndpointEvent {
+            ordinal,
+            outcome: if relay.transfer_ceiling_reached {
+                ResolverExecutionEndpointOutcome::TransferCeilingReached
+            } else {
+                ResolverExecutionEndpointOutcome::Connected
+            },
+            effective_peer,
+            uploaded_bytes: relay.uploaded_bytes,
+            downloaded_bytes: relay.downloaded_bytes,
+        };
     }
     endpoint_event(
         ordinal,
@@ -425,6 +505,8 @@ fn endpoint_event(
         ordinal,
         outcome,
         effective_peer,
+        uploaded_bytes: 0,
+        downloaded_bytes: 0,
     }
 }
 
@@ -629,18 +711,38 @@ fn write_response(stream: &mut TcpStream, response: &[u8]) -> io::Result<()> {
     stream.write_all(response)
 }
 
-fn relay(client: &mut TcpStream, upstream: &mut TcpStream, stop: &AtomicBool) -> io::Result<()> {
-    client.set_nonblocking(true)?;
-    upstream.set_nonblocking(true)?;
+fn relay(
+    client: &mut TcpStream,
+    upstream: &mut TcpStream,
+    stop: &AtomicBool,
+    transfer_budget: &ResolverExecutionTransferBudget,
+) -> RelayObservation {
+    if client.set_nonblocking(true).is_err() || upstream.set_nonblocking(true).is_err() {
+        let _ = client.shutdown(Shutdown::Both);
+        let _ = upstream.shutdown(Shutdown::Both);
+        return RelayObservation::default();
+    }
     let deadline = Instant::now() + RELAY_TIMEOUT;
     let mut client_to_upstream = RelayDirection::default();
     let mut upstream_to_client = RelayDirection::default();
     while Instant::now() < deadline && !stop.load(Ordering::Acquire) {
         let mut progressed = false;
-        progressed |= client_to_upstream.pump(client, upstream)?;
-        progressed |= upstream_to_client.pump(upstream, client)?;
+        match client_to_upstream.pump(client, upstream, transfer_budget) {
+            Ok(direction_progressed) => progressed |= direction_progressed,
+            Err(RelayError::TransferLimit) => {
+                return relay_observation(&client_to_upstream, &upstream_to_client, true);
+            }
+            Err(RelayError::Io) => break,
+        }
+        match upstream_to_client.pump(upstream, client, transfer_budget) {
+            Ok(direction_progressed) => progressed |= direction_progressed,
+            Err(RelayError::TransferLimit) => {
+                return relay_observation(&client_to_upstream, &upstream_to_client, true);
+            }
+            Err(RelayError::Io) => break,
+        }
         if client_to_upstream.complete() && upstream_to_client.complete() {
-            return Ok(());
+            return relay_observation(&client_to_upstream, &upstream_to_client, false);
         }
         if !progressed {
             thread::sleep(IO_POLL_INTERVAL);
@@ -648,7 +750,31 @@ fn relay(client: &mut TcpStream, upstream: &mut TcpStream, stop: &AtomicBool) ->
     }
     let _ = client.shutdown(Shutdown::Both);
     let _ = upstream.shutdown(Shutdown::Both);
-    Ok(())
+    relay_observation(&client_to_upstream, &upstream_to_client, false)
+}
+
+#[derive(Default)]
+struct RelayObservation {
+    uploaded_bytes: u64,
+    downloaded_bytes: u64,
+    transfer_ceiling_reached: bool,
+}
+
+fn relay_observation(
+    upload: &RelayDirection,
+    download: &RelayDirection,
+    transfer_ceiling_reached: bool,
+) -> RelayObservation {
+    RelayObservation {
+        uploaded_bytes: upload.transferred_bytes,
+        downloaded_bytes: download.transferred_bytes,
+        transfer_ceiling_reached,
+    }
+}
+
+enum RelayError {
+    Io,
+    TransferLimit,
 }
 
 #[derive(Default)]
@@ -657,10 +783,16 @@ struct RelayDirection {
     offset: usize,
     source_closed: bool,
     destination_closed: bool,
+    transferred_bytes: u64,
 }
 
 impl RelayDirection {
-    fn pump(&mut self, source: &mut TcpStream, destination: &mut TcpStream) -> io::Result<bool> {
+    fn pump(
+        &mut self,
+        source: &mut TcpStream,
+        destination: &mut TcpStream,
+        transfer_budget: &ResolverExecutionTransferBudget,
+    ) -> Result<bool, RelayError> {
         let mut progressed = false;
         if self.offset < self.buffer.len() {
             match destination.write(&self.buffer[self.offset..]) {
@@ -670,7 +802,7 @@ impl RelayDirection {
                     progressed = true;
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                Err(error) => return Err(error),
+                Err(_error) => return Err(RelayError::Io),
             }
             if self.offset == self.buffer.len() {
                 self.buffer.clear();
@@ -685,11 +817,18 @@ impl RelayDirection {
                     let _ = destination.shutdown(Shutdown::Write);
                 }
                 Ok(count) => {
+                    transfer_budget
+                        .charge(count)
+                        .map_err(|()| RelayError::TransferLimit)?;
+                    self.transferred_bytes = self
+                        .transferred_bytes
+                        .checked_add(u64::try_from(count).map_err(|_| RelayError::Io)?)
+                        .ok_or(RelayError::Io)?;
                     self.buffer.extend_from_slice(&buffer[..count]);
                     progressed = true;
                 }
                 Err(error) if error.kind() == io::ErrorKind::WouldBlock => {}
-                Err(error) => return Err(error),
+                Err(_error) => return Err(RelayError::Io),
             }
         }
         Ok(progressed)
@@ -833,6 +972,10 @@ fn read_connect_response(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
 mod tests {
     use super::*;
 
+    fn transfer_budget() -> ResolverExecutionTransferBudget {
+        ResolverExecutionTransferBudget::new(1024 * 1024).expect("construct transfer budget")
+    }
+
     fn send_request(route: &ResolverExecutionEndpointRoute, request: &[u8]) -> Vec<u8> {
         let mut stream = TcpStream::connect(route.policy().broker_endpoint())
             .expect("connect to endpoint broker");
@@ -855,6 +998,7 @@ mod tests {
         assert!(ResolverExecutionRequestedEndpoint::new("bad_name.example", 443).is_err());
         assert!(ResolverExecutionRequestedEndpoint::new("example.com", 0).is_err());
         assert!(ResolverExecutionRequestedEndpoint::new("2001:db8::1", 22).is_ok());
+        assert!(ResolverExecutionTransferBudget::new(0).is_err());
     }
 
     #[test]
@@ -889,7 +1033,8 @@ mod tests {
             upstream_endpoint.port(),
         )
         .expect("construct upstream endpoint");
-        let route = ResolverExecutionEndpointRoute::open(requested.clone())
+        let budget = transfer_budget();
+        let route = ResolverExecutionEndpointRoute::open(requested.clone(), budget.clone())
             .expect("open compiler endpoint route");
         let upstream_worker = thread::spawn(move || {
             let (mut connection, _) = upstream.accept().expect("accept routed connection");
@@ -917,10 +1062,15 @@ mod tests {
 
         upstream_worker.join().expect("join upstream canary");
         let observation = route.finish().expect("finish endpoint route");
-        assert!(observation.events().iter().any(|event| {
-            event.outcome() == ResolverExecutionEndpointOutcome::Connected
-                && event.effective_peer() == Some(upstream_endpoint)
-        }));
+        let event = observation
+            .events()
+            .iter()
+            .find(|event| event.outcome() == ResolverExecutionEndpointOutcome::Connected)
+            .expect("retain connected event");
+        assert_eq!(event.effective_peer(), Some(upstream_endpoint));
+        assert_eq!(event.uploaded_bytes(), 4);
+        assert_eq!(event.downloaded_bytes(), 4);
+        assert_eq!(budget.observed(), 8);
     }
 
     #[test]
@@ -951,7 +1101,8 @@ mod tests {
             destination_address.port(),
         )
         .expect("destination endpoint");
-        let route = ResolverExecutionEndpointRoute::open(endpoint).expect("open route");
+        let route =
+            ResolverExecutionEndpointRoute::open(endpoint, transfer_budget()).expect("open route");
 
         let changed_port = if destination_address.port() == u16::MAX {
             destination_address.port() - 1
@@ -988,7 +1139,9 @@ mod tests {
             observation
                 .events()
                 .iter()
-                .all(|event| event.effective_peer().is_none())
+                .all(|event| event.effective_peer().is_none()
+                    && event.uploaded_bytes() == 0
+                    && event.downloaded_bytes() == 0)
         );
     }
 
@@ -1007,7 +1160,9 @@ mod tests {
             destination_address.port(),
         )
         .expect("destination endpoint");
-        let route = ResolverExecutionEndpointRoute::open(endpoint.clone()).expect("open route");
+        let budget = transfer_budget();
+        let route = ResolverExecutionEndpointRoute::open(endpoint.clone(), budget.clone())
+            .expect("open route");
         let mut client =
             TcpStream::connect(route.policy().broker_endpoint()).expect("connect proxy");
         write!(
@@ -1039,6 +1194,9 @@ mod tests {
             observation.events()[0].effective_peer(),
             Some(destination_address)
         );
+        assert_eq!(observation.events()[0].uploaded_bytes(), 1);
+        assert_eq!(observation.events()[0].downloaded_bytes(), 1);
+        assert_eq!(budget.observed(), 2);
         assert_eq!(observation.route().requested_endpoint(), &endpoint);
         assert_eq!(
             observation.canonical_bytes(),
@@ -1050,7 +1208,8 @@ mod tests {
     fn broker_acceptance_and_observation_are_connection_bounded() {
         let endpoint =
             ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9).expect("discard endpoint");
-        let route = ResolverExecutionEndpointRoute::open(endpoint).expect("open route");
+        let route =
+            ResolverExecutionEndpointRoute::open(endpoint, transfer_budget()).expect("open route");
         for _ in 0..ENDPOINT_CONNECTION_LIMIT {
             let response = send_request(&route, b"GET / HTTP/1.1\r\n\r\n");
             assert!(response.starts_with(b"HTTP/1.1 400"));
@@ -1076,5 +1235,105 @@ mod tests {
             observation.events().last().expect("last event").ordinal(),
             ENDPOINT_CONNECTION_LIMIT
         );
+    }
+
+    #[test]
+    fn shared_transfer_budget_is_atomic_and_never_overshoots() {
+        let budget = ResolverExecutionTransferBudget::new(100).expect("construct tight budget");
+        let workers = (0..8)
+            .map(|_| {
+                let budget = budget.clone();
+                thread::spawn(move || (0..100).filter(|_| budget.charge(1).is_ok()).count())
+            })
+            .collect::<Vec<_>>();
+        let charged = workers
+            .into_iter()
+            .map(|worker| worker.join().expect("join charging worker"))
+            .sum::<usize>();
+        assert_eq!(charged, 100);
+        assert_eq!(budget.observed(), budget.ceiling());
+        assert!(budget.charge(1).is_err());
+    }
+
+    #[test]
+    fn transfer_ceiling_is_shared_across_routes_and_recorded_conservatively() {
+        let upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind upstream");
+        let upstream_endpoint = upstream.local_addr().expect("read upstream endpoint");
+        let endpoint = ResolverExecutionRequestedEndpoint::new(
+            &upstream_endpoint.ip().to_string(),
+            upstream_endpoint.port(),
+        )
+        .expect("construct endpoint");
+        let acceptance = thread::spawn(move || {
+            for _ in 0..2 {
+                let (mut connection, _) = upstream.accept().expect("accept routed connection");
+                let mut request = Vec::new();
+                connection
+                    .read_to_end(&mut request)
+                    .expect("read routed request");
+            }
+        });
+        let budget = ResolverExecutionTransferBudget::new(6).expect("construct tight budget");
+
+        let first = ResolverExecutionEndpointRoute::open(endpoint.clone(), budget.clone())
+            .expect("open first route");
+        let (mut tunnel, _) =
+            open_connect_tunnel(first.policy().broker_endpoint(), &endpoint).expect("open tunnel");
+        tunnel.write_all(b"four").expect("write first request");
+        tunnel
+            .shutdown(Shutdown::Write)
+            .expect("finish first request");
+        let mut response = Vec::new();
+        tunnel
+            .read_to_end(&mut response)
+            .expect("close first tunnel");
+        let first = first.finish().expect("finish first route");
+        assert_eq!(
+            first.events()[0].outcome(),
+            ResolverExecutionEndpointOutcome::Connected
+        );
+        assert_eq!(first.events()[0].uploaded_bytes(), 4);
+        assert_eq!(budget.observed(), 4);
+
+        let second = ResolverExecutionEndpointRoute::open(endpoint.clone(), budget.clone())
+            .expect("open second route");
+        let (mut tunnel, _) = open_connect_tunnel(second.policy().broker_endpoint(), &endpoint)
+            .expect("open second tunnel");
+        tunnel.write_all(b"four").expect("write rejected request");
+        tunnel
+            .shutdown(Shutdown::Write)
+            .expect("finish rejected request");
+        let mut response = Vec::new();
+        tunnel
+            .read_to_end(&mut response)
+            .expect("close rejected tunnel");
+        let second = second.finish().expect("finish second route");
+        assert_eq!(
+            second.events()[0].outcome(),
+            ResolverExecutionEndpointOutcome::TransferCeilingReached
+        );
+        assert_eq!(second.events()[0].uploaded_bytes(), 0);
+        assert_eq!(second.events()[0].downloaded_bytes(), 0);
+        assert_eq!(budget.observed(), 4);
+        acceptance.join().expect("join upstream worker");
+    }
+
+    #[test]
+    fn route_policy_identity_binds_the_transfer_ceiling() {
+        let endpoint = ResolverExecutionRequestedEndpoint::new("127.0.0.1", 443).expect("endpoint");
+        let broker_endpoint = SocketAddr::from((Ipv4Addr::LOCALHOST, 12345));
+        let first = ResolverExecutionEndpointRoutePolicy {
+            requested_endpoint: endpoint.clone(),
+            broker_endpoint,
+            connection_limit: ENDPOINT_CONNECTION_LIMIT,
+            transfer_byte_ceiling: 10,
+        };
+        let mut second = first.clone();
+        second.transfer_byte_ceiling = 11;
+        let mut first_bytes = Vec::new();
+        first.encode(&mut first_bytes);
+        let mut second_bytes = Vec::new();
+        second.encode(&mut second_bytes);
+        assert_ne!(first_bytes, second_bytes);
     }
 }

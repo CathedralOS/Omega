@@ -14,7 +14,7 @@ pub use network::{
     ResolverExecutionEndpointHost, ResolverExecutionEndpointObservation,
     ResolverExecutionEndpointOutcome, ResolverExecutionEndpointRoute,
     ResolverExecutionEndpointRoutePolicy, ResolverExecutionRequestedEndpoint,
-    run_resolver_connect_helper,
+    ResolverExecutionTransferBudget, run_resolver_connect_helper,
 };
 
 #[cfg(target_os = "macos")]
@@ -29,7 +29,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 7;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 8;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -518,9 +518,10 @@ impl ResolverExecutionBackend {
     pub fn open_endpoint_route(
         &self,
         requested_endpoint: ResolverExecutionRequestedEndpoint,
+        transfer_budget: ResolverExecutionTransferBudget,
     ) -> io::Result<ResolverExecutionEndpointRoute> {
         self.verify()?;
-        ResolverExecutionEndpointRoute::open(requested_endpoint)
+        ResolverExecutionEndpointRoute::open(requested_endpoint, transfer_budget)
     }
 
     fn policy_observation(
@@ -1332,6 +1333,7 @@ mod tests {
         ResolverExecutionBackend, ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
         ResolverExecutionGuaranteeDisposition, ResolverExecutionNetworkTransport,
         ResolverExecutionPhase, ResolverExecutionRequestedEndpoint,
+        ResolverExecutionTransferBudget,
     };
     use std::path::Path;
     #[cfg(target_os = "macos")]
@@ -1342,6 +1344,8 @@ mod tests {
             .open_endpoint_route(
                 ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
                     .expect("construct loopback endpoint"),
+                ResolverExecutionTransferBudget::new(1024 * 1024)
+                    .expect("construct transfer budget"),
             )
             .expect("open loopback endpoint route")
     }
@@ -2511,6 +2515,8 @@ mod tests {
             .open_endpoint_route(
                 ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
                     .expect("construct executable-denial endpoint"),
+                ResolverExecutionTransferBudget::new(1024 * 1024)
+                    .expect("construct transfer budget"),
             )
             .expect("open executable-denial route");
         let mut command = backend
@@ -2613,6 +2619,8 @@ mod tests {
             .open_endpoint_route(
                 ResolverExecutionRequestedEndpoint::new("127.0.0.1", port)
                     .expect("construct broker destination"),
+                ResolverExecutionTransferBudget::new(1024 * 1024)
+                    .expect("construct transfer budget"),
             )
             .expect("open endpoint route");
         let broker_port = route.policy().broker_endpoint().port();

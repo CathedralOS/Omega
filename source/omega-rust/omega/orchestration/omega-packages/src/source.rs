@@ -23,6 +23,7 @@ use omega_resolver_execution::{
     ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
     ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
     ResolverExecutionPolicyObservation, ResolverExecutionRequestedEndpoint,
+    ResolverExecutionTransferBudget,
 };
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -41,7 +42,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v20";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v21";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -73,14 +74,16 @@ const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
 const GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
 const GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
+const GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
+const GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
 const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 3;
-const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v3";
+const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 4;
+const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v4";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -461,6 +464,7 @@ pub struct ResolvedGitSource {
     execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     command_execution_observations: Vec<GitCommandExecutionObservation>,
     captured_output_observation: GitCapturedOutputObservation,
+    network_transfer_observation: GitNetworkTransferObservation,
     resolution_observation: GitSourceResolutionObservation,
 }
 
@@ -521,6 +525,10 @@ impl ResolvedGitSource {
         &self.captured_output_observation
     }
 
+    pub const fn network_transfer_observation(&self) -> &GitNetworkTransferObservation {
+        &self.network_transfer_observation
+    }
+
     /// Canonical final-result provenance issued only after source, cache,
     /// executable, policy, and command reconciliation all succeed.
     ///
@@ -547,6 +555,7 @@ struct PendingResolvedGitSource {
     execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
     command_execution_observations: Vec<GitCommandExecutionObservation>,
     captured_output_observation: GitCapturedOutputObservation,
+    network_transfer_observation: GitNetworkTransferObservation,
 }
 
 #[cfg(test)]
@@ -567,6 +576,7 @@ impl PendingResolvedGitSource {
             execution_policy_observations: resolved.execution_policy_observations.clone(),
             command_execution_observations: resolved.command_execution_observations.clone(),
             captured_output_observation: resolved.captured_output_observation.clone(),
+            network_transfer_observation: resolved.network_transfer_observation.clone(),
         }
     }
 }
@@ -592,6 +602,35 @@ impl GitCapturedOutputObservation {
     }
 }
 
+/// Compiler-owned bidirectional accounting for bytes accepted by the endpoint
+/// broker across one Git resolution. CONNECT framing and DNS traffic are not
+/// included. This does not claim that every platform prevents direct helper
+/// egress around the broker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitNetworkTransferObservation {
+    ceiling: u64,
+    uploaded: u64,
+    downloaded: u64,
+}
+
+impl GitNetworkTransferObservation {
+    pub const fn ceiling(&self) -> u64 {
+        self.ceiling
+    }
+
+    pub const fn uploaded(&self) -> u64 {
+        self.uploaded
+    }
+
+    pub const fn downloaded(&self) -> u64 {
+        self.downloaded
+    }
+
+    pub const fn observed(&self) -> u64 {
+        self.uploaded + self.downloaded
+    }
+}
+
 /// Compact canonical identity of one locally successful Git resolution.
 ///
 /// The observation is issued by the resolver and has no public constructor or
@@ -604,6 +643,9 @@ pub struct GitSourceResolutionObservation {
     command_count: usize,
     captured_output_ceiling: u64,
     captured_output_observed: u64,
+    network_transfer_ceiling: u64,
+    network_transfer_uploaded: u64,
+    network_transfer_downloaded: u64,
 }
 
 impl GitSourceResolutionObservation {
@@ -625,6 +667,18 @@ impl GitSourceResolutionObservation {
 
     pub const fn captured_output_observed(&self) -> u64 {
         self.captured_output_observed
+    }
+
+    pub const fn network_transfer_ceiling(&self) -> u64 {
+        self.network_transfer_ceiling
+    }
+
+    pub const fn network_transfer_uploaded(&self) -> u64 {
+        self.network_transfer_uploaded
+    }
+
+    pub const fn network_transfer_downloaded(&self) -> u64 {
+        self.network_transfer_downloaded
     }
 }
 
@@ -665,6 +719,16 @@ fn issue_git_source_resolution_observation(
     if resolved.captured_output_observation != expected_captured_output {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "final Git resolution captured-output accounting is inconsistent".to_owned(),
+        });
+    }
+    let expected_network_transfer = git_network_transfer_observation(
+        &resolved.execution_policy_observations,
+        &resolved.command_execution_observations,
+        git_resolution_network_transfer_ceiling(limits),
+    )?;
+    if resolved.network_transfer_observation != expected_network_transfer {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git resolution network-transfer accounting is inconsistent".to_owned(),
         });
     }
     let object_algorithm = git_object_algorithm(&resolved.commit)?;
@@ -755,6 +819,12 @@ fn issue_git_source_resolution_observation(
     }
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.ceiling);
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.observed);
+    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.ceiling);
+    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.uploaded);
+    hash_resolution_u64(
+        &mut hasher,
+        resolved.network_transfer_observation.downloaded,
+    );
     hash_resolution_field(&mut hasher, b"resolved-non-admitting");
 
     Ok(GitSourceResolutionObservation {
@@ -763,6 +833,9 @@ fn issue_git_source_resolution_observation(
         command_count: resolved.command_execution_observations.len(),
         captured_output_ceiling: resolved.captured_output_observation.ceiling,
         captured_output_observed: resolved.captured_output_observation.observed,
+        network_transfer_ceiling: resolved.network_transfer_observation.ceiling,
+        network_transfer_uploaded: resolved.network_transfer_observation.uploaded,
+        network_transfer_downloaded: resolved.network_transfer_observation.downloaded,
     })
 }
 
@@ -771,6 +844,68 @@ fn git_resolution_captured_output_ceiling(limits: LocalSourceLimits) -> u64 {
         .max_bytes
         .saturating_add(GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE)
         .min(GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT)
+}
+
+fn git_resolution_network_transfer_ceiling(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_add(GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE)
+        .min(GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT)
+}
+
+fn git_network_transfer_observation(
+    policies: &[ResolverExecutionPolicyObservation],
+    commands: &[GitCommandExecutionObservation],
+    ceiling: u64,
+) -> Result<GitNetworkTransferObservation, SourceResolveError> {
+    for policy in policies {
+        if let Some(route) = policy.endpoint_route()
+            && route.transfer_byte_ceiling() != ceiling
+        {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git endpoint route carries a different transfer ceiling".to_owned(),
+            });
+        }
+    }
+    let mut uploaded = 0_u64;
+    let mut downloaded = 0_u64;
+    for endpoint in commands
+        .iter()
+        .filter_map(|command| command.endpoint_observation.as_ref())
+    {
+        for event in endpoint.events() {
+            if event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "Git endpoint route reached its network-transfer ceiling".to_owned(),
+                });
+            }
+            uploaded = uploaded
+                .checked_add(event.uploaded_bytes())
+                .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "Git upload accounting overflowed".to_owned(),
+                })?;
+            downloaded = downloaded
+                .checked_add(event.downloaded_bytes())
+                .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "Git download accounting overflowed".to_owned(),
+                })?;
+        }
+    }
+    let observed = uploaded.checked_add(downloaded).ok_or_else(|| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git network-transfer accounting overflowed".to_owned(),
+        }
+    })?;
+    if observed > ceiling {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git network-transfer observations exceed their compiler ceiling".to_owned(),
+        });
+    }
+    Ok(GitNetworkTransferObservation {
+        ceiling,
+        uploaded,
+        downloaded,
+    })
 }
 
 fn git_captured_output_observation(
@@ -970,6 +1105,7 @@ struct GitExecutor {
     execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
     command_execution_observations: RefCell<Vec<GitCommandExecutionObservation>>,
     captured_output_budget: GitCapturedOutputBudget,
+    network_transfer_budget: ResolverExecutionTransferBudget,
     maximum_launches: usize,
     execution_backend: ResolverExecutionBackend,
 }
@@ -1651,6 +1787,7 @@ fn resolve_verified_git_cache_entry(
         execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
         command_execution_observations: executor.command_execution_observations.borrow().clone(),
         captured_output_observation: executor.captured_output_observation()?,
+        network_transfer_observation: executor.network_transfer_observation()?,
     })
 }
 
@@ -1694,6 +1831,7 @@ fn finalize_git_resolution(
         execution_policy_observations: pending.execution_policy_observations,
         command_execution_observations: pending.command_execution_observations,
         captured_output_observation: pending.captured_output_observation,
+        network_transfer_observation: pending.network_transfer_observation,
         resolution_observation,
     })
 }
@@ -1751,6 +1889,7 @@ fn validate_pending_git_execution(
     let policies = executor.execution_policy_observations.borrow();
     let commands = executor.command_execution_observations.borrow();
     let captured_output = executor.captured_output_observation()?;
+    let network_transfer = executor.network_transfer_observation()?;
     if pending.transport_profile != executor.execution_transport.profile()
         || pending.git_executable != executor.identity
         || pending.transport_executable.as_ref() != expected_transport
@@ -1758,6 +1897,7 @@ fn validate_pending_git_execution(
         || pending.execution_policy_observations.as_slice() != policies.as_slice()
         || pending.command_execution_observations.as_slice() != commands.as_slice()
         || pending.captured_output_observation != captured_output
+        || pending.network_transfer_observation != network_transfer
     {
         return Err(SourceResolveError::GitExecutionBoundaryInvalid {
             message: "pending Git result diverged from final executable and command custody"
@@ -7099,6 +7239,7 @@ impl GitExecutor {
                     GIT_FIXED_COMMAND_ALLOWANCE,
                     GIT_RESOLUTION_TIMEOUT,
                     git_resolution_captured_output_ceiling(limits),
+                    git_resolution_network_transfer_ceiling(limits),
                     execution_transport,
                     requested_network_endpoint,
                 );
@@ -7114,6 +7255,7 @@ impl GitExecutor {
             GIT_FIXED_COMMAND_ALLOWANCE,
             GIT_RESOLUTION_TIMEOUT,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
             test_file_network_endpoint(),
         )
@@ -7130,6 +7272,7 @@ impl GitExecutor {
             maximum_launches,
             timeout,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
             test_file_network_endpoint(),
         )
@@ -7147,6 +7290,7 @@ impl GitExecutor {
             maximum_launches,
             timeout,
             captured_output_ceiling,
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
             test_file_network_endpoint(),
         )
@@ -7157,6 +7301,7 @@ impl GitExecutor {
         maximum_launches: usize,
         timeout: Duration,
         captured_output_ceiling: u64,
+        network_transfer_ceiling: u64,
         execution_transport: GitExecutionTransport,
         requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     ) -> Result<Self, SourceResolveError> {
@@ -7191,6 +7336,12 @@ impl GitExecutor {
                 message: error.to_string(),
             }
         })?;
+        let network_transfer_budget =
+            ResolverExecutionTransferBudget::new(network_transfer_ceiling).map_err(|error| {
+                SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot establish network-transfer budget: {error}"),
+                }
+            })?;
         Ok(Self {
             identity: GitExecutableIdentity {
                 path: canonical,
@@ -7207,6 +7358,7 @@ impl GitExecutor {
             execution_policy_observations: RefCell::new(Vec::new()),
             command_execution_observations: RefCell::new(Vec::new()),
             captured_output_budget: GitCapturedOutputBudget::new(captured_output_ceiling),
+            network_transfer_budget,
             maximum_launches,
             execution_backend,
         })
@@ -7368,6 +7520,23 @@ impl GitExecutor {
         if expected.observed != self.captured_output_budget.observed() {
             return Err(SourceResolveError::GitExecutionBoundaryInvalid {
                 message: "Git captured-output counter does not match retained command outcomes"
+                    .to_owned(),
+            });
+        }
+        Ok(expected)
+    }
+
+    fn network_transfer_observation(
+        &self,
+    ) -> Result<GitNetworkTransferObservation, SourceResolveError> {
+        let expected = git_network_transfer_observation(
+            &self.execution_policy_observations.borrow(),
+            &self.command_execution_observations.borrow(),
+            self.network_transfer_budget.ceiling(),
+        )?;
+        if expected.observed() != self.network_transfer_budget.observed() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git network-transfer counter does not match retained endpoint outcomes"
                     .to_owned(),
             });
         }
@@ -8305,7 +8474,10 @@ where
         Some(
             executor
                 .execution_backend
-                .open_endpoint_route(executor.requested_network_endpoint.clone())
+                .open_endpoint_route(
+                    executor.requested_network_endpoint.clone(),
+                    executor.network_transfer_budget.clone(),
+                )
                 .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
                     message: format!("cannot open the compiler-owned endpoint route: {error}"),
                 })?,
@@ -8997,7 +9169,10 @@ fn sealed_git_command(
         Some(
             executor
                 .execution_backend
-                .open_endpoint_route(executor.requested_network_endpoint.clone())
+                .open_endpoint_route(
+                    executor.requested_network_endpoint.clone(),
+                    executor.network_transfer_budget.clone(),
+                )
                 .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
                     message: format!("cannot open the compiler-owned endpoint route: {error}"),
                 })?,
@@ -11054,7 +11229,7 @@ mod tests {
             resolved.command_execution_observations().len(),
             resolved.execution_policy_observations().len()
         );
-        assert_eq!(resolved.resolution_observation().schema_version(), 3);
+        assert_eq!(resolved.resolution_observation().schema_version(), 4);
         assert_eq!(resolved.resolution_observation().identity().len(), 64);
         assert_eq!(
             resolved.resolution_observation().command_count(),
@@ -11080,6 +11255,27 @@ mod tests {
             resolved.resolution_observation().captured_output_observed(),
             resolved.captured_output_observation().observed()
         );
+        assert_eq!(
+            resolved.network_transfer_observation().ceiling(),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default())
+        );
+        assert_eq!(resolved.network_transfer_observation().observed(), 0);
+        assert_eq!(
+            resolved.resolution_observation().network_transfer_ceiling(),
+            resolved.network_transfer_observation().ceiling()
+        );
+        assert_eq!(
+            resolved
+                .resolution_observation()
+                .network_transfer_uploaded(),
+            resolved.network_transfer_observation().uploaded()
+        );
+        assert_eq!(
+            resolved
+                .resolution_observation()
+                .network_transfer_downloaded(),
+            resolved.network_transfer_observation().downloaded()
+        );
         let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
         let alternate_policy_observation = issue_git_source_resolution_observation(
             &alternate_policy_result,
@@ -11093,23 +11289,6 @@ mod tests {
             alternate_policy_observation.identity(),
             resolved.resolution_observation().identity(),
             "the final observation must bind compiler source ceilings"
-        );
-        let alternate_output_limits = LocalSourceLimits {
-            max_bytes: LocalSourceLimits::default().max_bytes - 1,
-            ..LocalSourceLimits::default()
-        };
-        let mut alternate_output_result = PendingResolvedGitSource::from_issued(&resolved);
-        alternate_output_result.captured_output_observation.ceiling =
-            git_resolution_captured_output_ceiling(alternate_output_limits);
-        let alternate_output_observation = issue_git_source_resolution_observation(
-            &alternate_output_result,
-            alternate_output_limits,
-        )
-        .expect("issue observation for an alternate captured-output policy");
-        assert_ne!(
-            alternate_output_observation.identity(),
-            resolved.resolution_observation().identity(),
-            "the final observation must bind the cumulative output ceiling"
         );
         let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
         unjoined_result.command_execution_observations.pop();
@@ -11144,6 +11323,18 @@ mod tests {
             )
             .is_err(),
             "final issuance must reject changed cumulative output accounting"
+        );
+        let mut mismatched_network_accounting = PendingResolvedGitSource::from_issued(&resolved);
+        mismatched_network_accounting
+            .network_transfer_observation
+            .uploaded += 1;
+        assert!(
+            issue_git_source_resolution_observation(
+                &mismatched_network_accounting,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject changed network-transfer accounting"
         );
         let mut mismatched_transport = PendingResolvedGitSource::from_issued(&resolved);
         mismatched_transport.transport_profile = GitTransportProfile::Https;
@@ -13696,6 +13887,7 @@ mod tests {
             1,
             Duration::from_secs(3),
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             transport,
             ResolverExecutionRequestedEndpoint::new("127.0.0.1", port)
                 .expect("construct loopback execution endpoint"),
@@ -13721,6 +13913,10 @@ mod tests {
         .expect("launch the retained HTTPS executable chain");
         assert!(!output.status.success());
         acceptance.join().expect("observe HTTPS helper connection");
+        let transfer = executor
+            .network_transfer_observation()
+            .expect("reconcile HTTPS transfer accounting");
+        assert!(transfer.uploaded() > 0 || transfer.downloaded() > 0);
     }
 
     #[cfg(target_os = "macos")]
@@ -14040,6 +14236,17 @@ mod tests {
                 ..LocalSourceLimits::default()
             }),
             GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT
+        );
+        assert_eq!(
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
+            LocalSourceLimits::default().max_bytes + GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE
+        );
+        assert_eq!(
+            git_resolution_network_transfer_ceiling(LocalSourceLimits {
+                max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
+                ..LocalSourceLimits::default()
+            }),
+            GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT
         );
 
         let root = temp_root("git-resolution-budget");
