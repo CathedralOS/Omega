@@ -52,6 +52,15 @@ These facts constrain the work below.
   general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
   spill, reload, rematerialize, allocate a frame, or emit instructions.
+  Separate exact pressure-rematerialization policies now consume a classified
+  active-resident immediate-u64 victim with one local unconnected range and no
+  later fixed use. The single-use policy reconstructs only its sole future
+  flexible use; the multi-use policy inserts one reconstruction before the
+  first of at least two future flexible uses and rewrites the complete canonical
+  suffix. Both retain the authored materialization and fuel, add only one fresh
+  zero-fuel/value-lineage reconstruction, and require full replay plus fresh
+  liveness/range/legality/home evidence. They are bounded transformations, not
+  general spill, frame, or loop authority.
   A separate validated allocator-availability artifact now narrows only
   unconstrained allocator candidates under either the named
   `AllEnvironmentAllocatableViewsV1` baseline or an explicit canonical view
@@ -191,9 +200,15 @@ These facts constrain the work below.
   exact zero-relocation conclusion. A following canonical Terminal artifact
   now owns the verified semantic/proof input and clean object by value, binds
   every retained lowering/layout/object manifest and rebuild root, and exposes
-  strict `OMGOTA`/`OMGOTM` v1 records through the cumulative report. External/
-  process entry bridging, native image construction, installation, and
-  publication remain closed and install no output.
+  strict `OMGOTA`/`OMGOTM` v1 records through the cumulative report. A following
+  ordinary-callable classifier consumes that artifact by value, rejoins the
+  target-native calling plan, semantic parameters, selected fixed live-ins,
+  pseudo-result declaration, per-return-edge result bindings, physical homes,
+  private entry symbol, and whole-function exit evidence, and exposes strict
+  `OMGOER`/`OMGOEM` v1 records through the same opaque reporting lane. Its
+  disposition remains `ExternalProcessEntryBridgeRequiredV1`; process-entry
+  bridging, native image construction, installation, and publication remain
+  closed and install no output.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -1109,11 +1124,20 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns six
+  Current slice: the exact named `GlobalValueNumbering` selection owns eight
   rules in canonical order: obligation-free same-block CSE, proof-certified
   same-block CSE, obligation-free dominator GVN, and proof-certified dominator
-  GVN, followed by obligation-free and proof-certified phi-translated GVN. The
-  obligation-free rules cover literals, Boolean operations, integer
+  GVN, followed by obligation-free and proof-certified phi-translated GVN, then
+  proof-certified compatible-policy same-block CSE and dominator GVN. The last
+  two allow a redundant exact add/subtract/multiply to reuse an earlier
+  obligation-free wrapping or saturating operation of the same integer family,
+  domain, and operands, and a redundant exact shift to reuse the matching
+  wrapping shift. They deliberately exclude division and remainder, and do not
+  reverse the relation by replacing an obligation-free operation with an exact
+  leader. The exact redundant operation still requires its own active
+  verifier-accepted obligation; the rewrite consumes only that active reference
+  while retaining the accepted-fact catalog. The obligation-free rules cover
+  literals, Boolean operations, integer
   comparisons/bitwise/widening, wrapping shifts, and wrapping or saturating
   add/subtract/multiply. The proof-certified rules add exact integer casts,
   shifts, add/subtract/multiply/divide/remainder, plus wrapping or saturating
@@ -1136,9 +1160,9 @@ dependency.
   definitions, uses, dense effects, fact/place indexes, substitution, and
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
-  reference disappears with the node. Candidate encoding v21,
-  optimization-unit identity v10, the named v5 pass, prephysical manifest v14,
-  and projection v15 bind this meaning; ledger v4 already represents the
+  reference disappears with the node. Candidate encoding v24,
+  optimization-unit identity v10, the named v6 pass, prephysical manifest v22,
+  and projection v23 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
   The fifth and sixth rules admit a join expression only when it references at
@@ -1725,7 +1749,13 @@ dependency.
   one zero-fuel value-lineage reconstruction before its sole future flexible
   use, rewrites only that operand, and reaches fresh independently replayed
   two-view homes. It grants no implicit loop, storage, frame, emission, or
-  publication authority. The separately validated allocator-availability
+  publication authority. Its multi-use sibling,
+  `SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1`,
+  admits at least two ordered future flexible uses, places one equivalent
+  reconstruction before the first future-use instruction, and rewrites the
+  entire classified suffix to one fresh VReg. Both policies share a v2 ordered
+  rewrite-row recipe and remain independently replayed. The separately
+  validated allocator-availability
   boundary now supplies that production pressure vertical without misusing
   reservation overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
   literal the deterministic incoming victim on both targets, while fixed views
@@ -1770,7 +1800,10 @@ dependency.
   by the exact, default-off
   `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` build choice in the
   `AllocationRecovery` phase. Neither closes general fixed-use, call, pressure,
-  rematerialization, or address-stability splitting.
+  or address-stability splitting. The two active-resident immediate-u64
+  pressure-rematerialization policies separately close single-use and
+  multiple-future-use local suffix cases, but do not split connected ranges,
+  cross blocks, calls, loops, or address-stable values.
 
 - **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
   constants/addresses.
@@ -1798,9 +1831,20 @@ dependency.
   provenance/fuel remain unchanged for the already-executed segment. One fresh
   VReg and zero-logical-fuel `MaterializeI64` carrying only the source-value
   lineage are inserted immediately before that sole future use, and only that
-  operand is rewritten. A strict v1 codec and structurally independent
-  validator replay the complete rooted recipe; fresh liveness, range,
-  interference, legality, and homes evidence proves that the admitted two-view
+  operand is rewritten.
+
+  `SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1`
+  extends that closed case to a canonical suffix of at least two later
+  same-block flexible uses and still rejects every later fixed use. It inserts
+  one fresh zero-fuel/value-lineage-only `MaterializeI64` immediately before
+  the first classified future-use instruction, then rewrites every classified
+  future use to that one fresh VReg in canonical instruction/operand order.
+  Earlier and unrelated uses remain unchanged. Both policies now use an ordered
+  rewrite-row action; the pressure-rematerialization identity and strict codec
+  are v2 while the liveness, range, legality, and home identities remain
+  unchanged. A structurally independent validator replays the complete rooted
+  recipe; fresh liveness, range, interference, legality, and homes evidence
+  proves that the admitted two-view
   pressure point closes. This policy grants no memory spill, frame, loop,
   emission, or general rematerialization authority.
 
@@ -2068,19 +2112,35 @@ dependency.
   Entry bridging, image construction, installation, and publication remain
   explicitly unavailable.
 
-  Next engineering slice: add
-  `ValidatedOptimizedTerminalOrdinaryCallableEntryV1`. It consumes that artifact
-  by value and classifies the private semantic-entry symbol as an ordinary
-  target-ABI callable, binding its parameter/result ValueIds, selected VRegs,
-  fixed views/storage units, exact exit policy and hardening, stack alignment,
-  red-zone facts, and caller-created return-state assumption. Its disposition
-  must remain `ExternalProcessEntryBridgeRequiredV1`; it creates no `main` or
-  `_main`, wrapper byte, relocation, image, installation, or publication
-  authority. Strict `OMGOER`/`OMGOEM` v1 records and independent reconstruction
-  from the retained Terminal, selection, homes, symbol, and exit custody are
-  required. This classifier is engineering-ready. A real process-entry bridge
-  remains blocked on an authoritative source/sink for process arguments,
-  result/termination behavior, and return-state establishment.
+  The following ordinary-callable boundary consumes that artifact by value.
+  `ValidatedOptimizedTerminalOrdinaryCallableEntryV1` admits the current exact
+  unattached, frameless scalar callable shape and classifies its private
+  semantic-entry symbol under the target-native calling policy. It binds each
+  semantic scalar parameter and ABI shape to its selected VReg, fixed assigned
+  view, canonical storage units, and ABI register. Because Terminal scalar
+  results are pseudo-result declarations rather than one globally selected
+  value, it separately binds the semantic result declaration and an ordered row
+  for every return edge's actual returned ValueId, selected VReg, view, and
+  units. It also binds the selected plan, homes, physical model, whole-function
+  exit, exact exit policy and hardening, stack alignment, red-zone facts,
+  caller-created return-state assumption, object/container roots, and private
+  entry-symbol span. Production and an independently coded replay recompute the
+  complete native call plan and all joins. Strict `OMGOER`/`OMGOEM` v1 records
+  remain metadata only; the disposition is
+  `ExternalProcessEntryBridgeRequiredV1`, and wrapper bytes, relocations, native
+  image, installation, and publication are explicitly unavailable. Reports can
+  gain this record only from the new opaque carrier.
+
+  The real process-entry bridge is an engineering join, not an unresolved
+  language-design question. Existing target/program-storage vocabulary already
+  makes `ProgramEntry` target-owned, records its selected source signature,
+  supplies schema-visible root arguments through the generated ABI shell, and
+  currently requires a Unit source result. The scalar-result conditional
+  fixture used by this callable classifier is therefore intentionally not a
+  positive `ProgramEntry`. The next publication slice must add optimized
+  selected vocabulary and fixtures for the actual Unit entry/source shape,
+  then join target-owned ProgramEntry/root/source-signature/program-storage
+  custody without weakening this classifier.
 
   Remaining for the named rel8 rule: replace the current compiler execution
   gate with an end-to-end selected-build path that carries the validated object
