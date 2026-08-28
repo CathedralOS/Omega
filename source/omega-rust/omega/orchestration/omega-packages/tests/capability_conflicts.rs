@@ -1,5 +1,6 @@
 use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
+    PackageReviewSourceLocationRole,
 };
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits, PackageTriageDisposition,
@@ -1287,7 +1288,7 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
         .expect("changed public const retains candidate source custody");
     for locations in [baseline_locations, candidate_locations] {
         assert!(locations.iter().any(|location| {
-            location.role() == omega_compiler::PackageReviewSourceLocationRole::ConstInitializer
+            location.role() == PackageReviewSourceLocationRole::ConstInitializer
                 && location.relative_path() == "main.omg"
         }));
     }
@@ -1453,7 +1454,7 @@ fn public_callable_parameter_changes_render_exact_parameter_locations() {
             .iter()
             .find(|location| {
                 location.role()
-                    == omega_compiler::PackageReviewSourceLocationRole::CallableParameter
+                    == PackageReviewSourceLocationRole::CallableParameter
             })
             .expect("exact callable parameter source location");
         assert_eq!(location.relative_path(), "main.omg");
@@ -1699,7 +1700,7 @@ fn public_trait_requirement_changes_render_exact_requirement_locations() {
                 .iter()
                 .any(|location| {
                     location.role()
-                        == omega_compiler::PackageReviewSourceLocationRole::TraitRequirement
+                        == PackageReviewSourceLocationRole::TraitRequirement
                         && location.relative_path() == "main.omg"
                 })
         );
@@ -1844,7 +1845,7 @@ fn public_data_shape_changes_render_exact_member_locations() {
                 .expect("public data source locations")
                 .iter()
                 .any(|location| {
-                    location.role() == omega_compiler::PackageReviewSourceLocationRole::DataMember
+                    location.role() == PackageReviewSourceLocationRole::DataMember
                         && location.relative_path() == "main.omg"
                 })
         );
@@ -2228,7 +2229,7 @@ fn transparent_proposition_changes_render_exact_formula_custody() {
                 .iter()
                 .any(|location| {
                     location.role()
-                        == omega_compiler::PackageReviewSourceLocationRole::PropositionFormula
+                        == PackageReviewSourceLocationRole::PropositionFormula
                         && location.relative_path() == "main.omg"
                 })
         );
@@ -2306,7 +2307,7 @@ fn public_domain_changes_render_exact_proof_fact_custody() {
                 .expect("public domain source locations")
                 .iter()
                 .any(|location| {
-                    location.role() == omega_compiler::PackageReviewSourceLocationRole::ProofFact
+                    location.role() == PackageReviewSourceLocationRole::ProofFact
                         && location.relative_path() == "main.omg"
                 })
         );
