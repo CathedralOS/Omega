@@ -377,13 +377,15 @@ makes format-as-data descriptive, not speculative.
    Target providers retain differential-suite identity and results covering
    normal/subnormal boundaries, ties, overflow/underflow, signed zero,
    infinities, NaNs, and policy edges. Raw-bit comparison is required only when
-   an exact NaN representation refinement is claimed. The first generic Linux
-   x86-64 baseline suite retains 36 exact checked provider-plan identities,
-   interpreter observations, the explicit target/build binding, and two
-   byte-identical ELF builds under one host-independent result identity.
-   Hardware execution is retained separately and only on a Linux x86-64 host.
-   Its corpus deliberately excludes directed and fused operations, so build
-   success neither selects generic FMA nor widens target admission.
+   an exact NaN representation refinement is claimed. The generic Linux and
+   Windows x86-64 baseline suites each retain 36 exact checked provider-plan
+   identities, interpreter observations, the explicit target/build binding,
+   and two byte-identical target images under host-independent result
+   identities. The Linux suite retains ELF output; the Windows suite retains
+   PE/COFF output and replays the DOS/PE signature plus AMD64 machine header.
+   Hardware execution is retained separately and only on a matching x86-64
+   host. Their corpora deliberately exclude directed and fused operations, so
+   build success neither selects generic FMA nor widens target admission.
 7. **Engineering order.** Signed Rat -> `FloatMeaning` -> executable semantic
    functions -> policy adapters -> target conformances -> differential
    validation. Signed Rat belongs to the quotient/Real lane and is a hard F7

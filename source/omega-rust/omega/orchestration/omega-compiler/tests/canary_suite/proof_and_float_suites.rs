@@ -1698,3 +1698,198 @@ fn linux_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
 
     let _ = fs::remove_dir_all(&scratch);
 }
+
+#[test]
+fn windows_x64_baseline_float_semantic_edge_twin_retains_artifact_evidence() {
+    const SUITE_ID: &str = "omega.float.hardware.windows_x64.baseline-semantic-edge-twin.v1";
+    const COVERAGE: &[&str] = &[
+        "one zero-argument baseline semantic machine at build time and runtime",
+        "binary32/binary64 nearest-even add/subtract/multiply/divide",
+        "subnormal underflow and finite overflow",
+        "signed zero, infinities, NaNs, and partial comparisons",
+        "minimum/maximum, classify/predicates, square root, and negate",
+        "separately rounded multiply-then-add",
+    ];
+    const EXPECTED_PLAN_COUNT: usize = 36;
+    const EXPECTED_BUILD_ARTIFACT_IDENTITY: u64 = 0x0551_4042_2e6f_f7b1;
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    const EXPECTED_HOSTED_EXECUTION_IDENTITY: u64 = 0xa36f_0003_a672_28d6;
+
+    fn retain(hash: &mut u64, bytes: &[u8]) {
+        for byte in (bytes.len() as u64)
+            .to_le_bytes()
+            .into_iter()
+            .chain(bytes.iter().copied())
+        {
+            *hash ^= u64::from(byte);
+            *hash = hash.wrapping_mul(0x100000001b3);
+        }
+    }
+
+    let canary = pass_canary("float/build_runtime_semantics_twins_windows_x64");
+    let main_path = canary.join("main.omg");
+    let scratch = std::env::temp_dir().join(format!(
+        "omega-windows-x64-baseline-float-semantic-edge-twin-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&scratch);
+
+    let checked = omega_compiler::compile_to_checked(&main_path, Some("windows_x64"))
+        .expect("baseline Windows x64 float twin should compile and evaluate its array length");
+    let mut selected_intrinsics = std::collections::BTreeSet::new();
+    let mut selected_plan_identities = Vec::new();
+    for provider_plan_identity in checked
+        .facts
+        .operators
+        .resolved_uses()
+        .map(|operator_use| operator_use.provider_plan_identity)
+        .chain(
+            checked
+                .facts
+                .operators
+                .named_uses()
+                .map(|operator_use| operator_use.provider_plan_identity),
+        )
+    {
+        let Some(plan) = checked
+            .selected_provider_plans()
+            .plan_by_identity(provider_plan_identity)
+        else {
+            continue;
+        };
+        let [row] = plan.rows.as_slice() else {
+            continue;
+        };
+        let omega_effects::provider_plan::ProviderBinding::CompilerIntrinsic { machine } =
+            &row.binding
+        else {
+            continue;
+        };
+        selected_intrinsics.insert(machine.clone());
+        selected_plan_identities.push(plan.identity_fingerprint());
+    }
+    selected_plan_identities.sort_unstable();
+    selected_plan_identities.dedup();
+    assert_eq!(selected_intrinsics.len(), EXPECTED_PLAN_COUNT);
+    assert_eq!(selected_plan_identities.len(), EXPECTED_PLAN_COUNT);
+    assert!(selected_intrinsics.iter().all(|intrinsic| {
+        !intrinsic.contains("toward_") && !intrinsic.contains("fused_multiply_add")
+    }));
+
+    let interpreted = interpret(&checked, &[]);
+    assert_eq!(interpreted.error, None);
+    assert_eq!(interpreted.exit_code, 70);
+
+    let first_build = compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(scratch.join("first-build")),
+        target_name: Some("windows_x64".into()),
+        write_output: true,
+    })
+    .expect("baseline Windows x64 float twin should produce an exact windows_x64 image");
+    let first_path = first_build
+        .checked_native_executable_path()
+        .expect("windows_x64 cross-build must retain its executable receipt");
+    let image_bytes = fs::read(first_path).expect("read retained windows_x64 image bytes");
+    assert_eq!(image_bytes.get(..2), Some(b"MZ".as_slice()));
+    let pe_offset = u32::from_le_bytes(
+        image_bytes
+            .get(0x3c..0x40)
+            .expect("PE image must retain its DOS e_lfanew field")
+            .try_into()
+            .expect("PE e_lfanew field has an exact four-byte width"),
+    ) as usize;
+    assert_eq!(
+        image_bytes.get(pe_offset..pe_offset + 4),
+        Some(b"PE\0\0".as_slice()),
+        "retained image must carry the PE signature at e_lfanew"
+    );
+    assert_eq!(
+        image_bytes.get(pe_offset + 4..pe_offset + 6),
+        Some([0x64, 0x86].as_slice()),
+        "retained PE image must name the AMD64 machine"
+    );
+
+    let second_build = compile(CompileOptions {
+        root_path: main_path.clone(),
+        build_dir: Some(scratch.join("second-build")),
+        target_name: Some("windows_x64".into()),
+        write_output: true,
+    })
+    .expect("baseline Windows x64 float twin should reproduce its exact windows_x64 image");
+    let second_bytes = fs::read(
+        second_build
+            .checked_native_executable_path()
+            .expect("second windows_x64 cross-build must retain its executable receipt"),
+    )
+    .expect("read second windows_x64 image bytes");
+    assert_eq!(image_bytes, second_bytes);
+
+    let mut build_artifact_identity = 0xcbf29ce484222325_u64;
+    retain(&mut build_artifact_identity, SUITE_ID.as_bytes());
+    retain(
+        &mut build_artifact_identity,
+        b"evidence:cross-build-exact-image",
+    );
+    for category in COVERAGE {
+        retain(&mut build_artifact_identity, category.as_bytes());
+    }
+    for intrinsic in &selected_intrinsics {
+        retain(&mut build_artifact_identity, intrinsic.as_bytes());
+    }
+    for identity in &selected_plan_identities {
+        retain(&mut build_artifact_identity, &identity.to_le_bytes());
+    }
+    retain(
+        &mut build_artifact_identity,
+        &interpreted.exit_code.to_le_bytes(),
+    );
+    retain(&mut build_artifact_identity, &interpreted.stdout);
+    retain(&mut build_artifact_identity, &interpreted.stderr);
+    retain(&mut build_artifact_identity, b"target-profile:windows_x64");
+    retain(&mut build_artifact_identity, b"architecture:x86_64");
+    retain(&mut build_artifact_identity, b"object-format:coff");
+    retain(
+        &mut build_artifact_identity,
+        &(omega_target::NativeTarget::windows_x64().pointer_size as u64).to_le_bytes(),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &(omega_target::NativeTarget::windows_x64().pointer_alignment as u64).to_le_bytes(),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &fs::read(&main_path).expect("read retained Windows x64 baseline source bytes"),
+    );
+    retain(
+        &mut build_artifact_identity,
+        &fs::read(canary.join("build.omg")).expect("read retained windows_x64 build binding"),
+    );
+    retain(&mut build_artifact_identity, &image_bytes);
+    assert_eq!(
+        build_artifact_identity, EXPECTED_BUILD_ARTIFACT_IDENTITY,
+        "{SUITE_ID} build/artifact identity changed ({build_artifact_identity:#018x}); validate the exact baseline plans, interpreter result, target binding, and reproducible image before refreshing it",
+    );
+
+    #[cfg(all(target_os = "windows", target_arch = "x86_64"))]
+    {
+        let output = Command::new(first_path)
+            .output()
+            .expect("hosted windows_x64 baseline twin should execute its retained image");
+        assert_eq!(output.status.code(), Some(70));
+        let mut execution_identity = build_artifact_identity;
+        retain(&mut execution_identity, b"evidence:hosted-native-execution");
+        retain(
+            &mut execution_identity,
+            &output.status.code().unwrap_or_default().to_le_bytes(),
+        );
+        retain(&mut execution_identity, &output.stdout);
+        retain(&mut execution_identity, &output.stderr);
+        assert_eq!(
+            execution_identity, EXPECTED_HOSTED_EXECUTION_IDENTITY,
+            "{SUITE_ID} hosted execution identity changed ({execution_identity:#018x})",
+        );
+    }
+
+    let _ = fs::remove_dir_all(&scratch);
+}

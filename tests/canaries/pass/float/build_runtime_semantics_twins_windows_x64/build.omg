@@ -1,0 +1,7 @@
+target windows_x64 {
+}
+
+machine build(builder: &mut Build) {
+    builder.application("windows-x64-baseline-float-semantic-edge-twin");
+    builder.roots.bind(windows_x86_64::ProgramEntry, Main::main);
+}
