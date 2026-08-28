@@ -819,6 +819,7 @@ mod tests {
                 "11".repeat(32),
             ),
             transport_executable: None,
+            execution_helper_executables: Vec::new(),
             execution_policy_observations: Vec::new(),
         };
 

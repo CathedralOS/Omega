@@ -120,6 +120,13 @@ remain useful enforcement tests, but the observation conservatively marks all
 filesystem, network, and executable-path strict guarantees unavailable because
 the imported policy closure is not identity-bound and semantically audited.
 Only the exact compiler-owned rlimit rows are presently `Enforced` on macOS.
+Before a successful Git result is issued, the package layer also requires the
+number of retained policy observations to equal the bounded launch count and
+requires every observation's executable path set to equal the paths backed by
+the still-verified Git, selected transport, and fixed platform-helper content
+identities for that phase. The result now retains those fixed helper identities
+instead of dropping them. This closes configuration-to-content association for
+successful resolution; it still is not an execution-result receipt.
 
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
