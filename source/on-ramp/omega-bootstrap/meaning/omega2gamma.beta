@@ -21,10 +21,11 @@
 ; Self-arrays thread as gamma LIST slots a{i} (after locals+fields), zero-init `(Cons 0 .. Nil)` of the
 ; length in `data Main { arr: [i32; N]; }`; reads -> `(nth a{i} ix)`, writes -> `(setl a{i} ix v)`; the
 ; nth/setl helper defs are prepended when the entry uses arrays.
-; read_byte: stdin threads as list slot `inp`; `x = read_byte()` -> two lets: x=head `(match inp (Nil
-; (- 0 1)) ((Cons h t) h))`, inp=tail `(match inp (Nil Nil) ((Cons h t) t))`. The stream's INITIAL value in
-; the entry call is a `STDIN` placeholder (omega2gamma is a pure stdin->stdout filter, no env access); the
-; runner/diamond substitutes the `(Cons b0 .. Nil)` byte list — the analog of the Rust route's DELTA_GAMMA_INPUT.
+; read_byte: stdin threads as carrier `inp` plus byte cursor `ipos`. Historical small inputs remain ordinary
+; `(Cons b0 .. Nil)` lists. Compiler-sized inputs use `(Chunks byte_length tree)`, where depth-17 tree leaves
+; are little-endian packed u32 words (four exact bytes per leaf). `x = read_byte()` lowers through the pure
+; `inhead`/`innext`/`inadvance` helpers. The entry call contains a `STDIN` placeholder followed by cursor zero;
+; the meaning-owned encoder substitutes either carrier without adding Gamma syntax or interpreter effects.
 ; FEATURE SET (grown over the 2026-07 producer arc; each lands with meaning-gate + termination-canary
 ; coverage): scalars/arrays/record-arrays (Pair-tuple elements), string carriers (+ .len, write_line of
 ; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
@@ -1296,6 +1297,13 @@ proc print_inpname() {
     state isT { write_byte('t')  emit_dec(word[6470000])  return 0 }   ; INP_VAL
 }
 
+; the packed-input cursor's current gamma name: `ipos` until a read rebinds it to t{val}.
+proc print_inpposname() {
+    state k { to isI when (word[6500000] == 0)  to isT }         ; INPPOS_KIND
+    state isI { emit("ipos")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6510000])  return 0 }   ; INPPOS_VAL
+}
+
 ; the stdout accumulator slot's current gamma name: `out` until a write rebinds it to t{val}.
 proc print_outname() {
     state k { to isO when (word[6480000] == 0)  to isT }         ; OUT_KIND
@@ -1436,14 +1444,14 @@ proc emit_exit_om() {
     }
 }
 
-; ---- self-methods: the program-wide UNIFIED self-state {scalar carrier, arrays, inp, out} ----
+; ---- self-methods: the program-wide UNIFIED self-state {scalar carrier, arrays, inp, ipos, out} ----
 
 ; the number of unified self-slots (shared by every &mut self machine).
 proc self_slot_count() {
-    return field_carrier_count() + word[6000040] + word[6000048] + word[6000056]
+    return field_carrier_count() + word[6000040] + word[6000048] * 2 + word[6000056]
 }
 
-; print the current gamma name of self-slot i (order: scalar carrier, arrays, inp, out).
+; print the current gamma name of self-slot i (order: scalar carrier, arrays, inp, ipos, out).
 proc print_self_slot(i) {
     let nf = field_carrier_count()
     let na = word[6000040]
@@ -1451,11 +1459,13 @@ proc print_self_slot(i) {
         to fld when (i < nf)
         to arr when (i < nf + na)
         to inq when (i < nf + na + word[6000048])
+        to inpq when (i < nf + na + word[6000048] * 2)
         to ouq
     }
     state fld { print_field_carrier()  return 0 }
     state arr { print_acurname(i - nf)  return 0 }
     state inq { print_inpname()  return 0 }
+    state inpq { print_inpposname()  return 0 }
     state ouq { print_outname()  return 0 }
 }
 
@@ -1467,11 +1477,13 @@ proc set_self_slot(i, fv) {
         to fld when (i < nf)
         to arr when (i < nf + na)
         to inq when (i < nf + na + word[6000048])
+        to inpq when (i < nf + na + word[6000048] * 2)
         to ouq
     }
     state fld { set_field_carrier(fv)  return 0 }
     state arr { word[6440000 + (i - nf) * 8] = 1  word[6450000 + (i - nf) * 8] = fv  return 0 }
     state inq { word[6460000] = 1  word[6470000] = fv  return 0 }
+    state inpq { word[6500000] = 1  word[6510000] = fv  return 0 }
     state ouq { word[6480000] = 1  word[6490000] = fv  return 0 }
 }
 
@@ -1941,7 +1953,7 @@ proc reset_curname(mi) {
         ai = ai + 1
         to aloop
     }
-    state inp { word[6460000] = 0  word[6480000] = 0  return 0 }   ; INP_KIND, OUT_KIND = params
+    state inp { word[6460000] = 0  word[6500000] = 0  word[6480000] = 0  return 0 }   ; input/cursor/output params
 }
 
 ; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
@@ -2167,37 +2179,43 @@ proc do_write_slot(kindb, valb, idx) {
         word[6000016] = word[6000016] + 1
         to tosemi
     }
-    state rbyte {                      ; x = read_byte()  ->  bind x to the head, rebind input to the tail
+    state rbyte {                      ; x = read_byte() -> bind byte, next carrier, and next packed cursor
         skip_ident()  skip_ws()  adv()  skip_ws()  adv()   ; consume `read_byte` `(` `)`
         let f0 = word[6000016]
         let f1 = word[6000016] + 1
-        word[6000016] = word[6000016] + 2
-        emit("(let t")  emit_dec(f0)  emit(" (match ")  print_inpname()  emit(" (Nil (- 0 1)) ((Cons h t) h)) ")
-        emit("(let t")  emit_dec(f1)  emit(" (match ")  print_inpname()  emit(" (Nil Nil) ((Cons h t) t)) ")
+        let f2 = word[6000016] + 2
+        word[6000016] = word[6000016] + 3
+        emit("(let t")  emit_dec(f0)  emit(" (inhead ")  print_inpname()  write_byte(' ')  print_inpposname()  emit(") ")
+        emit("(let t")  emit_dec(f1)  emit(" (innext ")  print_inpname()  emit(") ")
+        emit("(let t")  emit_dec(f2)  emit(" (inadvance ")  print_inpname()  write_byte(' ')  print_inpposname()  emit(") ")
         to rtarget_field when (kindb == 6420000)
         word[kindb + idx * 8] = 1      ; target = t{f0} (the byte, or -1 at EOF)
         word[valb + idx * 8] = f0
         word[6460000] = 1              ; INP_KIND = t
         word[6470000] = f1             ; input = t{f1} (the tail)
+        word[6500000] = 1              ; INPPOS_KIND = t
+        word[6510000] = f2             ; packed cursor = t{f2}
         to rbsemi
     }
     state rtarget_field {
         word[6460000] = 1
         word[6470000] = f1
+        word[6500000] = 1
+        word[6510000] = f2
         to rbfield
     }
     state rbfield {
-        let f2 = word[6000016]
-        word[6000016] = f2 + 1
-        emit("(let t")  emit_dec(f2)  emit(" (setl ")  print_field_carrier()
+        let f3 = word[6000016]
+        word[6000016] = f3 + 1
+        emit("(let t")  emit_dec(f3)  emit(" (setl ")  print_field_carrier()
         write_byte(' ')  emit_dec(idx)  emit(" t")  emit_dec(f0)  emit(") ")
-        set_field_carrier(f2)
+        set_field_carrier(f3)
         to rbsemi_field
     }
     state rbsemi_field { to rbeat_field when (cbyte() == ';')  adv()  to rbsemi_field }
-    state rbeat_field { adv()  return 3 }
+    state rbeat_field { adv()  return 4 }
     state rbsemi { to rbeat when (cbyte() == ';')  adv()  to rbsemi }
-    state rbeat { adv()  return 2 }
+    state rbeat { adv()  return 3 }
     state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
     state esemi { adv()  return 1 + hd }
 }
@@ -3415,7 +3433,7 @@ proc add_field(pref, off) {
     state dup { return 0 }
 }
 
-; machine mi's shared def signature: l0 .. l{lcnt-1}, then optional `gs`, arrays, input, output.
+; machine mi's shared def signature: l0 .. l{lcnt-1}, then optional `gs`, arrays, input/cursor, output.
 proc emit_sig(mi) {
     let nl = word[6018000 + mi * 8]
     let nf = 0
@@ -3426,7 +3444,7 @@ proc emit_sig(mi) {
         to withf when (word[6012000 + mi * 8] != 1)     ; has_self (entry or method) -> self-slots in sig
         to go
     }
-    state withf { nf = field_carrier_count()  na = word[6000040]  ni = word[6000048]  no = word[6000056]  to go }
+    state withf { nf = field_carrier_count()  na = word[6000040]  ni = word[6000048] * 2  no = word[6000056]  to go }
     state go { let tot = nl + nf + na + ni + no  let x = 0  to loop }
     state loop {
         to done when (x == tot)
@@ -3448,8 +3466,10 @@ proc emit_sig(mi) {
     }
     state inp {
         to outp when (x >= nl + nf + na + ni)
-        emit("inp")  to next            ; the stdin stream slot (present iff HAS_INPUT)
+        to inppos when (x == nl + nf + na + 1)
+        emit("inp")  to next            ; stdin carrier (present iff HAS_INPUT)
     }
+    state inppos { emit("ipos")  to next } ; packed-carrier byte cursor
     state outp { emit("out")  to next }  ; the stdout accumulator slot (present iff HAS_OUTPUT)
     state next { x = x + 1  to loop }
     state done { return 0 }
@@ -3533,7 +3553,19 @@ proc emit_field_zeros(count) {
 }
 
 proc render() {
-    state h {
+    state h { to inphelp when (word[6000048] == 1)  to arrtest }
+    state inphelp {
+        ; Input is an ordinary Gamma value. Lists preserve the historical small-fixture path. A Chunks
+        ; carrier stores four little-endian bytes in every depth-17 u32 leaf and carries its exact byte
+        ; length; padding is therefore unobservable and EOF remains -1.
+        emit("(def inntht (t d k) (if (eq d 0) (match t (ZeroTree 0) (v v)) (match t (ZeroTree 0) ((Node l r) (if (eq (% k 2) 0) (inntht l (- d 1) (/ k 2)) (inntht r (- d 1) (/ k 2))))))) ")
+        emit("(def inbyte (w lane) (if (eq lane 0) (% w 256) (if (eq lane 1) (% (/ w 256) 256) (if (eq lane 2) (% (/ w 65536) 256) (% (/ w 16777216) 256))))) ")
+        emit("(def inhead (xs k) (match xs (Nil (- 0 1)) ((Cons h t) h) ((Chunks n t) (if (lt k n) (inbyte (inntht t 17 (/ k 4)) (% k 4)) (- 0 1))))) ")
+        emit("(def innext (xs) (match xs (Nil Nil) ((Cons h t) t) ((Chunks n t) xs))) ")
+        emit("(def inadvance (xs k) (match xs (Nil k) ((Cons h t) k) ((Chunks n t) (if (lt k n) (+ k 1) k)))) ")
+        to arrtest
+    }
+    state arrtest {
         to arrhelp when (word[6000040] > 0)             ; arrays use nth/setl (+ listeq/listcat)
         to arrhelp when (word[6000024] > 0)             ; compact scalar carrier also uses nth/setl
         to strhelp0                                     ; no arrays -> maybe just the string helpers
@@ -3600,7 +3632,7 @@ proc render() {
         to inpinit when (word[6000048] == 1)            ; HAS_INPUT -> the runner injects the stream here
         to outinit
     }
-    state inpinit { emit(" STDIN")  to outinit }        ; placeholder; the diamond harness substitutes the bytes
+    state inpinit { emit(" STDIN 0")  to outinit }      ; exact carrier plus initial byte cursor
     state outinit {
         to fin when (word[6000056] == 0)                ; HAS_OUTPUT -> stdout accumulator starts empty
         emit(" Nil")

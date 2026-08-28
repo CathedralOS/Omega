@@ -47,7 +47,12 @@ index resolved for a parsed call expression; the cache is private evaluator
 metadata and leaves source name resolution, argument evaluation, fuel, and
 observable values unchanged. Exhausting the canonical
 interpreter's private source, argument, or node capacities is a fail-closed host
-outcome and never publishes a partial Gamma value.
+outcome and never publishes a partial Gamma value. Parsed syntax is pinned for
+the evaluation. Runtime values may be reclaimed by a stable-address,
+representation-aware conservative collector: candidate roots must decode to
+exact live allocation starts, so conservative retention cannot change values,
+matching, evaluation order, or printed constructor trees. Exhausting the
+runtime heap after reclamation remains the same fail-closed host outcome.
 
 ## Statically checked surface
 

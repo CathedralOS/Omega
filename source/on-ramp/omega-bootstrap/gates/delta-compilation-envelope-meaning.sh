@@ -95,24 +95,22 @@ with (out / "manifest.tsv").open("w") as f:
         f.write(f"{name}\t{status}\t{path}\n")
 PY
 
-python3 - "$T/interp.exe" "$T/checker.gamma" "$T/cases/manifest.tsv" <<'PY'
+python3 - "$T/interp.exe" "$T/checker.gamma" "$T/cases/manifest.tsv" \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/encode-gamma-input.py" <<'PY'
 from pathlib import Path
-import subprocess, sys, time
-interpreter, gamma_name, manifest = sys.argv[1:]
-template = Path(gamma_name).read_text()
-if template.count("STDIN") != 1:
-    raise SystemExit("compilation envelope meaning FAIL - expected one STDIN placeholder")
-def gamma_list(data):
-    value = "Nil"
-    for byte in reversed(data): value = f"(Cons {byte} {value})"
-    return value
+import importlib.util, subprocess, sys, time
+interpreter, gamma_name, manifest, encoder_name = sys.argv[1:]
+spec = importlib.util.spec_from_file_location("encode_gamma_input", encoder_name)
+assert spec is not None and spec.loader is not None
+encoder = importlib.util.module_from_spec(spec); spec.loader.exec_module(encoder)
+template = Path(gamma_name).read_bytes()
 total = 0.0
 for row in Path(manifest).read_text().splitlines():
     name, expected, source = row.split("\t"); expected = int(expected)
-    program = template.replace("STDIN", gamma_list(Path(source).read_bytes()))
+    program = encoder.inject(template, Path(source).read_bytes())
     started = time.monotonic()
     try:
-        result = subprocess.run([interpreter], input=program.encode(), stdout=subprocess.PIPE,
+        result = subprocess.run([interpreter], input=program, stdout=subprocess.PIPE,
                                 stderr=subprocess.PIPE, timeout=30, check=False)
     except subprocess.TimeoutExpired:
         raise SystemExit(f"compilation envelope meaning FAIL - {name} exceeded 30s")
