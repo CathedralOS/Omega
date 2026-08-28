@@ -259,11 +259,13 @@ These facts constrain the work below.
   emit and place the shorter validated bytes. Direct and selected-lowering
   physical-pipeline routes retain homes, the selected machine, symbolic MOVN
   materialization, baseline and transformed encoding/layout roots, and an
-  exact replayed byte reduction in an owning carrier. The explicit stage
-  currently stops before whole-function exit, realization manifests, emission,
-  object, callable, installation, and publication authority. Combining it with
-  another post-allocation rule fails closed until an ordered composition is
-  specified.
+  exact replayed byte reduction in an owning carrier. Whole-function exit v7
+  names the exact MOVN materialization custody, and function-relative manifest
+  v8 retains the baseline/final roots, strict byte reduction, phase projection,
+  exit identity, and optional MOVN identity for reporting. The explicit stage
+  currently stops before fragment emission, text placement, object, callable,
+  installation, and publication authority. Combining it with another post-
+  allocation rule fails closed until an ordered composition is specified.
 
   The first Unit backend vocabulary is now admitted without claiming an entry
   bridge. Independent legalization replay accepts exactly one receiver-free,
@@ -280,7 +282,7 @@ These facts constrain the work below.
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
   selected-form encoding v6, resolved-layout v6,
-  whole-function exit v6, function-relative manifest v7, fragment manifest
+  whole-function exit v7, function-relative manifest v8, fragment manifest
   v5, text manifest v5, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
   reject older detached vocabulary. The ordinary-callable record/manifest
@@ -375,12 +377,12 @@ These facts constrain the work below.
   replayed ordinary/structural counts. It grants no layout or relocation
   authority. Resolved-layout v6 now retains exact caller spans `[0, 89)` and
   `[89, 90)`, the leaf `[0, 1)` return, and the still-unresolved typed fixup.
-  Whole-function-exit v6 validates both the distinct balanced Microsoft-x64
+  Whole-function-exit v7 validates both the distinct balanced Microsoft-x64
   caller policy and a separately named frameless structural Unit leaf policy.
   It admits exactly either the two-function entry-caller-to-leaf topology or
   one call-free entry leaf without weakening roster, return, preservation, or
   byte replay. A separate owning
-  structural function-relative carrier and `OMGFRM` v7 manifest retain ordinary
+  structural function-relative carrier and `OMGFRM` v8 manifest retain ordinary
   counts `0/0/0/0/0`, structural counts `2/2/3/91`, and one unresolved internal-
   Machine fixup under independent replay. Machine-code fragment schema v3 and
   `OMGFFE` v5 now carry a generalized structural Unit roster. The two-function
@@ -2925,7 +2927,7 @@ alternate semantic handoff.
   and post-allocation machine replay. The target-owned encoder produces an
   independently decoded canonical 89-byte template with one typed unresolved
   internal-Machine rel32 fixup; selected-form encoding v5, resolved-layout v6,
-  whole-function-exit v6, and function-relative manifest v7 now retain it, its
+  whole-function-exit v7, and function-relative manifest v8 now retain it, its
   full footprint, exact 90/1-byte function spans, separate returns, balanced
   caller policy, and structural statistics without misclassifying the zero
   field as a resolved call. Machine-code fragments, two-pass whole-section
@@ -3049,7 +3051,7 @@ alternate semantic handoff.
   complete an owning function-relative realization: they retain homes,
   selected machine, symbolic fusion, baseline and fused encoding/layout roots,
   and CBNZ-aware whole-function exit custody. Function-relative manifest/codec
-  v6 and whole-function exit identity v4 independently replay the zero-byte
+  v8 and whole-function exit identity v7 independently replay the zero-byte
   compare row, four-byte shrink, canonical CBNZ bytes/effects, and exact post-
   allocation selection. The root build vocabulary remains explicit and
   default-off, and the compiler still rejects selected native output because
@@ -3069,16 +3071,18 @@ alternate semantic handoff.
   consumes that custody and proves the byte/footprint/size result. Resolved-
   layout v6 retains the typed MOVN custody, independently replays the selected
   bytes and every offset, and proves the exact four-byte-per-elided-word
-  reduction. Direct and selected-lowering compiler-facing routes return an
-  owning carrier that keeps baseline and transformed encodings/layouts beside
-  homes, machine, and materialization custody. The root build vocabulary
-  remains an exact named opt-in and the zero-seeded baseline is unchanged.
-  Other post-allocation selections or combinations fail closed.
+  reduction. Direct and selected-lowering compiler-facing routes now complete
+  whole-function exit v7 and an `OMGFRM` v8 realization. The owning boundary
+  keeps baseline and transformed encodings/layouts beside homes, machine,
+  materialization, exit, and manifest custody; the report exposes the exact
+  optional MOVN identity while rejecting simultaneous x86-relaxation or CBNZ
+  custody. The root build vocabulary remains an exact named opt-in and the
+  zero-seeded baseline is unchanged. Other post-allocation selections or
+  combinations fail closed.
 
-  Remaining here includes carrying MOVN custody through whole-function exit,
-  realization manifests, emission and later boundaries, general redundant
-  move/spill/reload rules, and additional independently validated target
-  combines.
+  Remaining here includes carrying MOVN custody through fragment emission,
+  text placement, object custody and later boundaries, general redundant move/
+  spill/reload rules, and additional independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

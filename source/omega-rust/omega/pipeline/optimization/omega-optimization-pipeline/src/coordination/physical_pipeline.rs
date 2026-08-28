@@ -13,6 +13,7 @@ use omega_target::NativeTarget;
 
 use crate::{
     FunctionRelativeOptimizationRealizationError,
+    OptimizedAarch64MovnFunctionRelativeRealizationError,
     OptimizedAarch64MovnResolvedSelectedFormLayoutError,
     OptimizedActiveResidentRematerializationError,
     OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
@@ -26,13 +27,13 @@ use crate::{
     OptimizedSelectedReanalysisError, OptimizedSelectionPipelineError,
     StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization, StagedOptimizedAarch64CbnzFusion,
+    StagedOptimizedAarch64MovnFunctionRelativeRealization,
     StagedOptimizedAarch64MovnMaterialization,
-    StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
     StagedOptimizedLiveRanges, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
     StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
-    StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+    StagedSelectedLoweringAarch64MovnFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations_with_provider_executions,
@@ -40,6 +41,7 @@ use crate::{
     run_selected_lowering_optimizations, stage_aarch64_cbnz_function_relative_realization,
     stage_function_relative_layout_optimization_realization, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
+    stage_optimized_aarch64_movn_function_relative_realization,
     stage_optimized_aarch64_movn_materialization,
     stage_optimized_aarch64_movn_materialization_after_selected_lowering,
     stage_optimized_aarch64_movn_resolved_selected_form_layout,
@@ -58,6 +60,7 @@ use crate::{
     stage_optimized_register_homes, stage_optimized_register_homes_after_fixed_view_copies,
     stage_optimized_register_homes_after_selected_lowering, stage_optimized_selected_reanalysis,
     stage_selected_lowering_aarch64_cbnz_function_relative_realization,
+    stage_selected_lowering_aarch64_movn_function_relative_realization,
     stage_selected_lowering_aarch64_movn_resolved_selected_form_layout,
     stage_selected_lowering_function_relative_realization,
 };
@@ -75,13 +78,13 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
         realization: StagedAarch64CbnzFunctionRelativeRealization,
     },
     PostAllocationMachineMovn {
-        layout: StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
+        realization: StagedOptimizedAarch64MovnFunctionRelativeRealization,
     },
     SelectedLoweringPostAllocationMachine {
         realization: StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     },
     SelectedLoweringPostAllocationMachineMovn {
-        layout: StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+        realization: StagedSelectedLoweringAarch64MovnFunctionRelativeRealization,
     },
     AllocationRecovery {
         homes: StagedOptimizedRegisterHomesAfterFixedViewCopies,
@@ -118,7 +121,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::PostAllocationMachineMovn { layout } => layout
+            Self::PostAllocationMachineMovn { realization } => realization
                 .homes()
                 .legality_stage()
                 .live_range_stage()
@@ -137,7 +140,7 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => layout
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => realization
                 .homes()
                 .selected_lowering_run()
                 .source_legality_stage()
@@ -196,12 +199,14 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PostAllocationMachine { realization } => {
                 realization.homes().post_allocation_manifest()
             }
-            Self::PostAllocationMachineMovn { layout } => layout.homes().post_allocation_manifest(),
+            Self::PostAllocationMachineMovn { realization } => {
+                realization.homes().post_allocation_manifest()
+            }
             Self::SelectedLoweringPostAllocationMachine { realization } => {
                 realization.homes().post_allocation_manifest()
             }
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => {
-                layout.homes().post_allocation_manifest()
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => {
+                realization.homes().post_allocation_manifest()
             }
             Self::AllocationRecovery { homes, .. } => homes.post_allocation_manifest(),
             Self::ActiveResidentRematerialization { realization } => realization
@@ -222,9 +227,11 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         match self {
             Self::PsiOnly { machine, .. } => machine,
             Self::PostAllocationMachine { realization } => realization.machine(),
-            Self::PostAllocationMachineMovn { layout } => layout.machine(),
+            Self::PostAllocationMachineMovn { realization } => realization.machine(),
             Self::SelectedLoweringPostAllocationMachine { realization } => realization.machine(),
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => layout.machine(),
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => {
+                realization.machine()
+            }
             Self::AllocationRecovery { machine, .. } => machine,
             Self::ActiveResidentRematerialization { realization } => {
                 realization.source().pre_layout().machine()
@@ -254,13 +261,14 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&ValidatedFunctionRelativeOptimizationRealizationManifest> {
         match self {
-            Self::PsiOnly { .. }
-            | Self::PostAllocationMachineMovn { .. }
-            | Self::SelectedLoweringPostAllocationMachineMovn { .. }
-            | Self::AllocationRecovery { .. } => None,
+            Self::PsiOnly { .. } | Self::AllocationRecovery { .. } => None,
             Self::ActiveResidentRematerialization { realization } => Some(realization.manifest()),
             Self::PostAllocationMachine { realization } => Some(realization.manifest()),
+            Self::PostAllocationMachineMovn { realization } => Some(realization.manifest()),
             Self::SelectedLoweringPostAllocationMachine { realization } => {
+                Some(realization.manifest())
+            }
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => {
                 Some(realization.manifest())
             }
             Self::FunctionRelativeLayout { realization } => Some(realization.manifest()),
@@ -282,14 +290,14 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
             Self::PostAllocationMachine { realization } => {
                 realization.fusion().custody().selections()
             }
-            Self::PostAllocationMachineMovn { layout } => {
-                layout.materialization().custody().selections()
+            Self::PostAllocationMachineMovn { realization } => {
+                realization.materialization().custody().selections()
             }
             Self::SelectedLoweringPostAllocationMachine { realization } => {
                 realization.fusion().custody().selections()
             }
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => {
-                layout.materialization().custody().selections()
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => {
+                realization.materialization().custody().selections()
             }
             Self::AllocationRecovery { homes, .. } => homes
                 .reanalysis_stage()
@@ -349,9 +357,13 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
                     .custody()
                     .identity(),
             ),
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => {
-                Some(layout.homes().selected_lowering_run().custody().identity())
-            }
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => Some(
+                realization
+                    .homes()
+                    .selected_lowering_run()
+                    .custody()
+                    .identity(),
+            ),
             Self::SelectedLowering { realization } => Some(
                 realization
                     .homes()
@@ -384,9 +396,9 @@ impl StagedOptimizedVerifiedPhysicalPipeline {
         &self,
     ) -> Option<&StagedOptimizedAarch64MovnMaterialization> {
         match self {
-            Self::PostAllocationMachineMovn { layout } => Some(layout.materialization()),
-            Self::SelectedLoweringPostAllocationMachineMovn { layout } => {
-                Some(layout.materialization())
+            Self::PostAllocationMachineMovn { realization } => Some(realization.materialization()),
+            Self::SelectedLoweringPostAllocationMachineMovn { realization } => {
+                Some(realization.materialization())
             }
             _ => None,
         }
@@ -428,6 +440,7 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
         OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     ),
     Aarch64MovnResolvedLayout(OptimizedAarch64MovnResolvedSelectedFormLayoutError),
+    Aarch64MovnFunctionRelative(OptimizedAarch64MovnFunctionRelativeRealizationError),
     UnsupportedPhysicalPhaseComposition,
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
@@ -717,9 +730,14 @@ fn stage_non_active_resident_rematerialization_physical_pipeline(
                         materialization,
                     )
                     .map_err(OptimizedVerifiedPhysicalPipelineError::Aarch64MovnResolvedLayout)?;
+                    let realization =
+                        stage_optimized_aarch64_movn_function_relative_realization(layout)
+                            .map_err(
+                                OptimizedVerifiedPhysicalPipelineError::Aarch64MovnFunctionRelative,
+                            )?;
                     Ok(
                         StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn {
-                            layout,
+                            realization,
                         },
                     )
                 }
@@ -768,9 +786,14 @@ fn stage_non_active_resident_rematerialization_physical_pipeline(
                     materialization,
                 )
                 .map_err(OptimizedVerifiedPhysicalPipelineError::Aarch64MovnResolvedLayout)?;
+                let realization =
+                    stage_selected_lowering_aarch64_movn_function_relative_realization(layout)
+                        .map_err(
+                            OptimizedVerifiedPhysicalPipelineError::Aarch64MovnFunctionRelative,
+                        )?;
                 Ok(
                     StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachineMovn {
-                        layout,
+                        realization,
                     },
                 )
             }

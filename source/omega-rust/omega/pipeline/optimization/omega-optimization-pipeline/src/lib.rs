@@ -18,6 +18,8 @@ use omega_psi_to_abstract_operations::{
 };
 use psi_proof_admission::AdmissionProfile;
 
+#[path = "stages/realization/aarch64_movn_function_relative_realization.rs"]
+mod aarch64_movn_function_relative_realization;
 #[path = "stages/layout/aarch64_movn_resolved_selected_form_layout.rs"]
 mod aarch64_movn_resolved_selected_form_layout;
 #[path = "stages/realization/active_resident_function_relative_realization.rs"]
@@ -89,6 +91,17 @@ mod whole_function_exit_contract;
 #[path = "stages/layout/x86_branch_relaxation.rs"]
 mod x86_branch_relaxation;
 
+pub use aarch64_movn_function_relative_realization::{
+    OptimizedAarch64MovnFunctionRelativeRealizationError,
+    StagedOptimizedAarch64MovnFunctionRelativeRealization,
+    StagedOptimizedAarch64MovnFunctionRelativeRealizationCustodyReceipt,
+    StagedSelectedLoweringAarch64MovnFunctionRelativeRealization,
+    StagedSelectedLoweringAarch64MovnFunctionRelativeRealizationCustodyReceipt,
+    stage_optimized_aarch64_movn_function_relative_realization,
+    stage_selected_lowering_aarch64_movn_function_relative_realization,
+    validate_optimized_aarch64_movn_function_relative_realization,
+    validate_selected_lowering_aarch64_movn_function_relative_realization,
+};
 pub use aarch64_movn_resolved_selected_form_layout::{
     OptimizedAarch64MovnResolvedSelectedFormLayoutError,
     StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
@@ -372,11 +385,15 @@ pub use whole_function_exit_contract::{
     WholeFunctionExitLayoutCustody, WholeFunctionExitPolicy, WholeFunctionHardeningPolicy,
     WholeFunctionReturnEvidence, WholeFunctionReturnMechanism, WholeFunctionReturnValueEvidence,
     WholeFunctionStructuralUnitCallEvidence, WholeFunctionStructuralUnitExitEvidence,
+    stage_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization,
     stage_whole_function_exit_contract,
     stage_whole_function_exit_contract_after_aarch64_cbnz_fusion,
+    stage_whole_function_exit_contract_after_aarch64_movn_materialization,
     stage_whole_function_exit_contract_after_x86_branch_relaxation,
+    validate_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization,
     validate_whole_function_exit_contract,
     validate_whole_function_exit_contract_after_aarch64_cbnz_fusion,
+    validate_whole_function_exit_contract_after_aarch64_movn_materialization,
     validate_whole_function_exit_contract_after_x86_branch_relaxation,
 };
 pub use x86_branch_relaxation::{

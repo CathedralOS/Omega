@@ -9,8 +9,8 @@ use omega_isa_x86_64::{
     X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
 };
 use omega_machine_optimizer::{
-    Aarch64CbnzFusionIdentity, Aarch64CbnzInstructionDisposition, PhysicalOperandFootprint,
-    PostAllocationMachineInstruction,
+    Aarch64CbnzFusionIdentity, Aarch64CbnzInstructionDisposition,
+    Aarch64MovnMaterializationIdentity, PhysicalOperandFootprint, PostAllocationMachineInstruction,
 };
 use omega_regalloc::ValidatedSelectedAnalysis;
 use omega_register_model::{
@@ -30,15 +30,18 @@ use sha2::{Digest, Sha256};
 use crate::{
     OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
     ResolvedSelectedFormLayoutIdentity, SelectedFormEncodingIdentity, SelectedFormEncodingState,
-    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
-    StagedOptimizedX86BranchRelaxation, X86BranchRelaxationIdentity,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedSelectedFormEncoding, StagedOptimizedX86BranchRelaxation,
+    StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout, X86BranchRelaxationIdentity,
+    validate_optimized_aarch64_movn_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout,
     validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_x86_branch_relaxation,
+    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v6\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v7\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct WholeFunctionExitContractIdentity([u8; 32]);
@@ -86,6 +89,9 @@ pub enum WholeFunctionExitLayoutCustody {
     },
     Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
         fusion: Aarch64CbnzFusionIdentity,
+    },
+    Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+        materialization: Aarch64MovnMaterializationIdentity,
     },
 }
 
@@ -224,6 +230,7 @@ impl ValidatedWholeFunctionExitContract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum WholeFunctionExitContractError {
     Layout(OptimizedResolvedSelectedFormLayoutError),
+    MovnLayout,
     Relaxation(OptimizedX86BranchRelaxationError),
     RootMismatch,
     UnsupportedTargetPolicy,
@@ -449,6 +456,169 @@ pub fn validate_whole_function_exit_contract_after_aarch64_cbnz_fusion<
         layout,
         layout_custody,
     )?;
+    if replayed != contract.contract {
+        return Err(WholeFunctionExitContractError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Stage an exit contract over the direct-homes owning shortest-MOVN layout
+/// carrier. The exact materialization identity remains explicit exit custody;
+/// transformed bytes are never admitted through the baseline layout mode.
+pub fn stage_whole_function_exit_contract_after_aarch64_movn_materialization(
+    staged: &StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
+) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
+    validate_optimized_aarch64_movn_resolved_selected_form_layout(staged)
+        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
+    let selected_stage = staged
+        .homes()
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let layout_custody =
+        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization: staged
+                .materialization()
+                .materialization()
+                .receipt()
+                .identity(),
+        };
+    let contract = compute(
+        selected_stage.selected(),
+        staged.machine(),
+        selected_stage.register_environment().physical(),
+        staged.encoding(),
+        staged.layout(),
+        layout_custody,
+    )?;
+    let validated = ValidatedWholeFunctionExitContract { contract };
+    validate_whole_function_exit_contract_after_aarch64_movn_materialization(staged, &validated)?;
+    Ok(validated)
+}
+
+/// Independently replay the owning direct-homes MOVN carrier before accepting
+/// its whole-function exit contract.
+pub fn validate_whole_function_exit_contract_after_aarch64_movn_materialization(
+    staged: &StagedOptimizedAarch64MovnResolvedSelectedFormLayout,
+    contract: &ValidatedWholeFunctionExitContract,
+) -> Result<(), WholeFunctionExitContractError> {
+    validate_optimized_aarch64_movn_resolved_selected_form_layout(staged)
+        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
+    let selected_stage = staged
+        .homes()
+        .legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let layout_custody =
+        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization: staged
+                .materialization()
+                .materialization()
+                .receipt()
+                .identity(),
+        };
+    let replayed = compute(
+        selected_stage.selected(),
+        staged.machine(),
+        selected_stage.register_environment().physical(),
+        staged.encoding(),
+        staged.layout(),
+        layout_custody,
+    )?;
+    if replayed != contract.contract {
+        return Err(WholeFunctionExitContractError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Stage the same exact MOVN exit custody after a named selected-lowering run.
+/// The transformed selected plan is derived only from the retained completion.
+pub fn stage_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
+    staged: &StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+) -> Result<ValidatedWholeFunctionExitContract, WholeFunctionExitContractError> {
+    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout(staged)
+        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
+    let run = staged.homes().selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let layout_custody =
+        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization: staged
+                .materialization()
+                .materialization()
+                .receipt()
+                .identity(),
+        };
+    let contract = match run.steps().last() {
+        Some(step) => compute(
+            step.fold(),
+            staged.machine(),
+            selected_stage.register_environment().physical(),
+            staged.encoding(),
+            staged.layout(),
+            layout_custody,
+        ),
+        None => compute(
+            selected_stage.selected(),
+            staged.machine(),
+            selected_stage.register_environment().physical(),
+            staged.encoding(),
+            staged.layout(),
+            layout_custody,
+        ),
+    }?;
+    let validated = ValidatedWholeFunctionExitContract { contract };
+    validate_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
+        staged, &validated,
+    )?;
+    Ok(validated)
+}
+
+/// Independently replay selected lowering, homes, MOVN materialization, and
+/// resolved layout before accepting the selected-lowering exit contract.
+pub fn validate_selected_lowering_whole_function_exit_contract_after_aarch64_movn_materialization(
+    staged: &StagedSelectedLoweringAarch64MovnResolvedSelectedFormLayout,
+    contract: &ValidatedWholeFunctionExitContract,
+) -> Result<(), WholeFunctionExitContractError> {
+    validate_selected_lowering_aarch64_movn_resolved_selected_form_layout(staged)
+        .map_err(|_| WholeFunctionExitContractError::MovnLayout)?;
+    let run = staged.homes().selected_lowering_run();
+    let selected_stage = run
+        .source_legality_stage()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let layout_custody =
+        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization: staged
+                .materialization()
+                .materialization()
+                .receipt()
+                .identity(),
+        };
+    let replayed = match run.steps().last() {
+        Some(step) => compute(
+            step.fold(),
+            staged.machine(),
+            selected_stage.register_environment().physical(),
+            staged.encoding(),
+            staged.layout(),
+            layout_custody,
+        ),
+        None => compute(
+            selected_stage.selected(),
+            staged.machine(),
+            selected_stage.register_environment().physical(),
+            staged.encoding(),
+            staged.layout(),
+            layout_custody,
+        ),
+    }?;
     if replayed != contract.contract {
         return Err(WholeFunctionExitContractError::ArtifactMismatch);
     }
@@ -1449,6 +1619,12 @@ fn contract_identity(contract: &WholeFunctionExitContract) -> WholeFunctionExitC
             hasher.update([3]);
             hasher.update(fusion.bytes());
         }
+        WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+            materialization,
+        } => {
+            hasher.update([4]);
+            hasher.update(materialization.bytes());
+        }
     }
     encode_target(&mut hasher, contract.target);
     hasher.update([policy_tag(contract.policy)]);
@@ -1679,7 +1855,7 @@ mod tests {
     }
 
     #[test]
-    fn layout_custody_and_relaxation_receipt_are_identity_bound() {
+    fn layout_custody_and_optimization_receipts_are_identity_bound() {
         let baseline = contract_with_custody(WholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
         let relaxed = contract_with_custody(
             WholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
@@ -1691,9 +1867,22 @@ mod tests {
                 relaxation: X86BranchRelaxationIdentity::from_bytes([9; 32]),
             },
         );
+        let movn = contract_with_custody(
+            WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+                materialization: Aarch64MovnMaterializationIdentity::from_bytes([8; 32]),
+            },
+        );
+        let another_movn = contract_with_custody(
+            WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+                materialization: Aarch64MovnMaterializationIdentity::from_bytes([9; 32]),
+            },
+        );
 
         assert_ne!(baseline.identity, relaxed.identity);
         assert_ne!(relaxed.identity, another_relaxation.identity);
+        assert_ne!(baseline.identity, movn.identity);
+        assert_ne!(relaxed.identity, movn.identity);
+        assert_ne!(movn.identity, another_movn.identity);
     }
 
     #[test]
