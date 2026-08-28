@@ -13,7 +13,9 @@ use omega_calling_conventions::{
     NativePlace, SystemVEightbyteClass, ValueClass, ValueLocation, ValuePlacement, ValueShape,
 };
 use omega_optimization_core::{AcceptedObligationFactIdentity, OptimizationUnitIdentity};
-use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
+use omega_optimization_unit::{
+    EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::TerminalValueBinding;
 use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
@@ -144,6 +146,8 @@ pub struct TerminalLegalizedStructuralUnitFunction {
     pub call: Option<TerminalLegalizedCallUnit>,
     pub return_edge: EdgeId,
     pub return_fuel: Vec<FuelSettlement>,
+    pub return_effect: EffectLink,
+    pub return_ownership: Vec<OwnershipEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -165,6 +169,8 @@ pub struct TerminalLegalizedCallUnit {
     pub arguments: Vec<TerminalLegalizedCallUnitArgument>,
     pub claim_transfers: Vec<ClaimTransfer>,
     pub fuel: Vec<FuelSettlement>,
+    pub effect: EffectLink,
+    pub ownership: Vec<OwnershipEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -445,11 +451,80 @@ fn encode_structural_unit_function(
                 bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
             }
             encode_fuel(bytes, &call.fuel);
+            encode_effect(bytes, call.effect);
+            encode_ownership_roster(bytes, &call.ownership);
         }
         None => bytes.push(0),
     }
     bytes.extend_from_slice(&function.return_edge.get().to_le_bytes());
     encode_fuel(bytes, &function.return_fuel);
+    encode_effect(bytes, function.return_effect);
+    encode_ownership_roster(bytes, &function.return_ownership);
+}
+
+fn encode_effect(bytes: &mut Vec<u8>, effect: EffectLink) {
+    bytes.extend_from_slice(&effect.input.to_le_bytes());
+    bytes.extend_from_slice(&effect.output.to_le_bytes());
+}
+
+fn encode_ownership_roster(bytes: &mut Vec<u8>, ownership: &[OwnershipEvent]) {
+    encode_len(bytes, ownership.len());
+    for event in ownership {
+        match event {
+            OwnershipEvent::ClaimTransfer(claims) => {
+                bytes.push(1);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
+            OwnershipEvent::ClaimCompletion(claims) => {
+                bytes.push(2);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
+            OwnershipEvent::Cleanup(actions) => {
+                bytes.push(3);
+                encode_len(bytes, actions.len());
+                for action in actions {
+                    encode_cleanup_action(bytes, action);
+                }
+            }
+            OwnershipEvent::StructuralReturn(claims) => {
+                bytes.push(4);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
+            OwnershipEvent::CrashFrontier(claims) => {
+                bytes.push(5);
+                encode_ids(bytes, claims.iter().map(|claim| claim.get()));
+            }
+        }
+    }
+}
+
+fn encode_cleanup_action(bytes: &mut Vec<u8>, action: &psi_terminal::TerminalAffineCleanupAction) {
+    match action {
+        psi_terminal::TerminalAffineCleanupAction::DiscardRoot(place) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&place.get().to_le_bytes());
+        }
+        psi_terminal::TerminalAffineCleanupAction::DiscardResidual(discard) => {
+            bytes.push(2);
+            bytes.extend_from_slice(&discard.place.get().to_le_bytes());
+            encode_structural_path(bytes, &discard.path);
+            bytes.extend_from_slice(&discard.structural_type.get().to_le_bytes());
+        }
+        psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup) => {
+            bytes.push(3);
+            bytes.extend_from_slice(&cleanup.place.get().to_le_bytes());
+            bytes.extend_from_slice(&cleanup.structural_type.get().to_le_bytes());
+            bytes.extend_from_slice(&cleanup.cleanup_machine.get().to_le_bytes());
+            encode_option_id(bytes, cleanup.cleanup_receiver.map(|place| place.get()));
+            encode_ids(
+                bytes,
+                cleanup
+                    .requirement_obligations
+                    .iter()
+                    .map(|obligation| obligation.get()),
+            );
+        }
+    }
 }
 
 fn encode_call_plan(bytes: &mut Vec<u8>, plan: &CallPlan) {
@@ -1350,12 +1425,22 @@ mod tests {
                         site: PsiProvenance::Operation(call),
                         units: 2,
                     }],
+                    effect: EffectLink {
+                        input: 0,
+                        output: 1,
+                    },
+                    ownership: vec![OwnershipEvent::ClaimTransfer(vec![id(1), id(2)])],
                 }),
                 return_edge,
                 return_fuel: vec![FuelSettlement {
                     site: PsiProvenance::Edge(return_edge),
                     units: 1,
                 }],
+                return_effect: EffectLink {
+                    input: 1,
+                    output: 2,
+                },
+                return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
             }],
         }
     }
@@ -1480,11 +1565,47 @@ mod tests {
         assert_identity_drift(identity, &corrupted);
 
         let mut corrupted = plan.clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("call")
+            .effect
+            .output += 1;
+        assert_identity_drift(identity, &corrupted);
+
+        let mut corrupted = plan.clone();
+        let OwnershipEvent::ClaimTransfer(claims) = &mut corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("call")
+            .ownership[0]
+        else {
+            panic!("call claim-transfer ownership");
+        };
+        claims.swap(0, 1);
+        assert_identity_drift(identity, &corrupted);
+
+        let mut corrupted = plan.clone();
         corrupted.structural_unit_functions[0].call = None;
         assert_identity_drift(identity, &corrupted);
 
         let mut corrupted = plan.clone();
         corrupted.structural_unit_functions[0].return_fuel[0].units += 1;
+        assert_identity_drift(identity, &corrupted);
+
+        let mut corrupted = plan.clone();
+        corrupted.structural_unit_functions[0].return_effect.input += 1;
+        assert_identity_drift(identity, &corrupted);
+
+        let mut corrupted = plan.clone();
+        let OwnershipEvent::Cleanup(actions) =
+            &mut corrupted.structural_unit_functions[0].return_ownership[0]
+        else {
+            panic!("return cleanup ownership");
+        };
+        actions.push(psi_terminal::TerminalAffineCleanupAction::DiscardRoot(id(
+            1,
+        )));
         assert_identity_drift(identity, &corrupted);
     }
 
