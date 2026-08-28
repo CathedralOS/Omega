@@ -2,8 +2,8 @@ use psi_core::{
     BlockId, BoundaryMachineId, CanonicalStructuralPathSegment, ClaimId, ContentAlgebra,
     ContentAlgebraKind, ContentDomainId, ContentPlaceSegment, ContentPlaceVersion,
     ContentProjectionExpression, ContentProjectionIdentity, ContentProjectionScalar,
-    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, MachineId,
-    ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
+    ContentStructuralPlace, ContentTerm, ContractId, EdgeId, EvidenceIdentity, IeeeFloatFormat,
+    MachineId, ObligationId, OperationId, PlaceId, Proposition, ScalarTerm, ScalarType, ServiceId,
     StructuralDomainId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_proof_admission::{
@@ -1111,6 +1111,29 @@ fn exact_two_primitive_fields_nominal_affine_cleanup_validates() {
         ],
     };
     validate_module(&module).expect("two primitive-field nominal cleanup should validate");
+}
+
+#[test]
+fn erased_ieee_float_structural_field_requires_an_opaque_semantic_type() {
+    let mut module = nominal_affine_module();
+    let structural_type = module.structural_types[0].id;
+    let field = psi_core::StructuralFieldId::new(1).expect("field identity");
+    module.structural_types[0].shape = StructuralTypeShape::Record {
+        fields: vec![StructuralFieldDeclaration {
+            identity: "proof_float".into(),
+            id: field,
+            field_type: StructuralFieldType::IeeeFloat(IeeeFloatFormat::Binary32),
+            relevance: psi_terminal::BindingRelevance::Erased,
+        }],
+    };
+
+    assert!(matches!(
+        validate_module(&module),
+        Err(ModuleError::InvalidErasedStructuralField {
+            structural_type: actual_type,
+            field: actual_field,
+        }) if actual_type == structural_type && actual_field == field
+    ));
 }
 
 #[test]

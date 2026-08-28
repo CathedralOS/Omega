@@ -71,6 +71,24 @@ pub enum OptimizationUnitValidationError {
     DuplicateBoundaryMachine(BoundaryMachineId),
     DuplicateStructuralType(StructuralTypeId),
     RecursiveStructuralType(StructuralTypeId),
+    InvalidStructuralFieldIdentity {
+        structural_type: StructuralTypeId,
+        field: psi_core::StructuralFieldId,
+    },
+    InvalidStructuralCaseIdentity {
+        structural_type: StructuralTypeId,
+        case: psi_core::StructuralCaseId,
+    },
+    NonCanonicalStructuralFieldOrder {
+        structural_type: StructuralTypeId,
+        case: Option<psi_core::StructuralCaseId>,
+    },
+    NonCanonicalStructuralCaseOrder(StructuralTypeId),
+    EmptyStructuralSum(StructuralTypeId),
+    InvalidErasedStructuralField {
+        structural_type: StructuralTypeId,
+        field: psi_core::StructuralFieldId,
+    },
     DuplicateStructuralDomain(StructuralDomainId),
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
@@ -9713,6 +9731,20 @@ fn index_structural_catalogs(
                 machine: None,
             });
         }
+        match &declaration.shape {
+            psi_terminal::StructuralTypeShape::ByteSequence(_)
+            | psi_terminal::StructuralTypeShape::FixedArray { .. } => {}
+            psi_terminal::StructuralTypeShape::Record { fields } => {
+                validate_structural_fields(unit, declaration.id, None, fields, true)?;
+            }
+            psi_terminal::StructuralTypeShape::Sum { cases } => {
+                validate_structural_cases(unit, declaration.id, cases)?;
+            }
+            psi_terminal::StructuralTypeShape::Mixed { fields, cases } => {
+                validate_structural_fields(unit, declaration.id, None, fields, false)?;
+                validate_structural_cases(unit, declaration.id, cases)?;
+            }
+        }
     }
     for declaration in &unit.structural_types {
         let referenced = match &declaration.shape {
@@ -9776,6 +9808,128 @@ fn index_structural_catalogs(
         }
     }
     Ok((types, domains))
+}
+
+fn validate_structural_fields(
+    unit: &PsiOptimizationUnit,
+    structural_type: StructuralTypeId,
+    case: Option<psi_core::StructuralCaseId>,
+    fields: &[psi_terminal::StructuralFieldDeclaration],
+    permit_provider_attachment: bool,
+) -> Result<(), OptimizationUnitValidationError> {
+    if fields.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+        return Err(
+            OptimizationUnitValidationError::NonCanonicalStructuralFieldOrder {
+                structural_type,
+                case,
+            },
+        );
+    }
+    let mut identities = BTreeSet::new();
+    for field in fields {
+        if field.identity.is_empty() || !identities.insert(field.identity.as_str()) {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralFieldIdentity {
+                    structural_type,
+                    field: field.id,
+                },
+            );
+        }
+        let invalid_erased = || OptimizationUnitValidationError::InvalidErasedStructuralField {
+            structural_type,
+            field: field.id,
+        };
+        match (&field.field_type, field.relevance) {
+            (psi_terminal::StructuralFieldType::Erased { type_identity }, _)
+                if type_identity.is_empty() =>
+            {
+                return Err(invalid_erased());
+            }
+            (
+                psi_terminal::StructuralFieldType::Erased { .. },
+                psi_terminal::BindingRelevance::Erased,
+            ) => {}
+            (
+                psi_terminal::StructuralFieldType::Erased { .. },
+                psi_terminal::BindingRelevance::Relevant,
+            ) if permit_provider_attachment
+                && has_provider_attachment_witness(unit, structural_type, field.id) => {}
+            (
+                psi_terminal::StructuralFieldType::Erased { .. },
+                psi_terminal::BindingRelevance::Relevant,
+            ) => return Err(invalid_erased()),
+            (
+                psi_terminal::StructuralFieldType::Scalar(_)
+                | psi_terminal::StructuralFieldType::IeeeFloat(_)
+                | psi_terminal::StructuralFieldType::Structural(_),
+                psi_terminal::BindingRelevance::Erased,
+            ) => return Err(invalid_erased()),
+            (
+                psi_terminal::StructuralFieldType::Scalar(_)
+                | psi_terminal::StructuralFieldType::IeeeFloat(_)
+                | psi_terminal::StructuralFieldType::ByteSequence(_)
+                | psi_terminal::StructuralFieldType::Structural(_),
+                psi_terminal::BindingRelevance::Relevant,
+            )
+            | (
+                psi_terminal::StructuralFieldType::ByteSequence(_),
+                psi_terminal::BindingRelevance::Erased,
+            ) => {}
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_cases(
+    unit: &PsiOptimizationUnit,
+    structural_type: StructuralTypeId,
+    cases: &[psi_terminal::StructuralCaseDeclaration],
+) -> Result<(), OptimizationUnitValidationError> {
+    if cases.is_empty() {
+        return Err(OptimizationUnitValidationError::EmptyStructuralSum(
+            structural_type,
+        ));
+    }
+    if cases.windows(2).any(|pair| pair[0].id >= pair[1].id) {
+        return Err(
+            OptimizationUnitValidationError::NonCanonicalStructuralCaseOrder(structural_type),
+        );
+    }
+    let mut identities = BTreeSet::new();
+    for case in cases {
+        if case.identity.is_empty() || !identities.insert(case.identity.as_str()) {
+            return Err(
+                OptimizationUnitValidationError::InvalidStructuralCaseIdentity {
+                    structural_type,
+                    case: case.id,
+                },
+            );
+        }
+    }
+    for case in cases {
+        validate_structural_fields(unit, structural_type, Some(case.id), &case.fields, false)?;
+    }
+    Ok(())
+}
+
+fn has_provider_attachment_witness(
+    unit: &PsiOptimizationUnit,
+    structural_type: StructuralTypeId,
+    field: psi_core::StructuralFieldId,
+) -> bool {
+    unit.functions.iter().any(|function| {
+        function.attachment == Some(structural_type)
+            && function.structural_places.iter().any(|place| {
+                matches!(
+                    place.kind,
+                    StructuralPlaceKind::ProviderAttachment {
+                        attachment,
+                        field: provider_field,
+                        ..
+                    } if attachment == structural_type && provider_field == field
+                )
+            })
+    })
 }
 
 fn validate_structural_type_graph(
@@ -12921,6 +13075,15 @@ mod tests {
         }
     }
 
+    fn structural_catalog_unit(
+        structural_types: Vec<psi_terminal::StructuralTypeDeclaration>,
+    ) -> PsiOptimizationUnit {
+        let mut candidate = unit();
+        candidate.structural_types = structural_types;
+        refresh_identity(&mut candidate);
+        candidate
+    }
+
     fn structural_result_call_unit() -> PsiOptimizationUnit {
         let caller = id(350, MachineId::new);
         let callee = id(351, MachineId::new);
@@ -13434,6 +13597,372 @@ mod tests {
             validate_psi_optimization_unit(&candidate),
             Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None })
         );
+    }
+
+    #[test]
+    fn structural_field_namespaces_require_canonical_ids_and_unique_nonempty_identities() {
+        let owner = id(440, StructuralTypeId::new);
+        let scalar_field = |raw| {
+            structural_leaf_field(
+                raw,
+                psi_terminal::BindingRelevance::Relevant,
+                psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+            )
+        };
+
+        let mut descending = vec![scalar_field(2), scalar_field(1)];
+        let candidate = structural_catalog_unit(vec![structural_type(
+            440,
+            psi_terminal::StructuralTypeShape::Record {
+                fields: descending.clone(),
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::NonCanonicalStructuralFieldOrder {
+                    structural_type: owner,
+                    case: None,
+                }
+            )
+        );
+
+        descending.reverse();
+        descending[1].identity = descending[0].identity.clone();
+        let duplicate_name = descending[1].id;
+        let candidate = structural_catalog_unit(vec![structural_type(
+            440,
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: descending,
+                cases: vec![structural_case(1, Vec::new())],
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidStructuralFieldIdentity {
+                    structural_type: owner,
+                    field: duplicate_name,
+                }
+            )
+        );
+
+        let mut empty_name = scalar_field(1);
+        empty_name.identity.clear();
+        let empty_name_id = empty_name.id;
+        let case = structural_case(1, vec![empty_name]);
+        let case_id = case.id;
+        let candidate = structural_catalog_unit(vec![structural_type(
+            440,
+            psi_terminal::StructuralTypeShape::Sum { cases: vec![case] },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidStructuralFieldIdentity {
+                    structural_type: owner,
+                    field: empty_name_id,
+                }
+            )
+        );
+
+        let duplicate_id = vec![scalar_field(1), scalar_field(1)];
+        let candidate = structural_catalog_unit(vec![structural_type(
+            440,
+            psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![structural_case(1, duplicate_id)],
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::NonCanonicalStructuralFieldOrder {
+                    structural_type: owner,
+                    case: Some(case_id),
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn structural_cases_require_canonical_unique_nonempty_declarations() {
+        let owner = id(441, StructuralTypeId::new);
+        for shape in [
+            psi_terminal::StructuralTypeShape::Sum { cases: Vec::new() },
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: Vec::new(),
+                cases: Vec::new(),
+            },
+        ] {
+            let candidate = structural_catalog_unit(vec![structural_type(441, shape)]);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::EmptyStructuralSum(owner))
+            );
+        }
+
+        let candidate = structural_catalog_unit(vec![structural_type(
+            441,
+            psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![
+                    structural_case(2, Vec::new()),
+                    structural_case(1, Vec::new()),
+                ],
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::NonCanonicalStructuralCaseOrder(owner))
+        );
+
+        let first = structural_case(1, Vec::new());
+        let mut duplicate = structural_case(2, Vec::new());
+        duplicate.identity = first.identity.clone();
+        let duplicate_id = duplicate.id;
+        let candidate = structural_catalog_unit(vec![structural_type(
+            441,
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: Vec::new(),
+                cases: vec![first, duplicate],
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidStructuralCaseIdentity {
+                    structural_type: owner,
+                    case: duplicate_id,
+                }
+            )
+        );
+
+        let mut empty = structural_case(1, Vec::new());
+        empty.identity.clear();
+        let empty_id = empty.id;
+        let candidate = structural_catalog_unit(vec![structural_type(
+            441,
+            psi_terminal::StructuralTypeShape::Sum { cases: vec![empty] },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidStructuralCaseIdentity {
+                    structural_type: owner,
+                    case: empty_id,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn structural_field_namespaces_are_independent_and_payloadless_cases_are_valid() {
+        let shared_field = || {
+            structural_leaf_field(
+                1,
+                psi_terminal::BindingRelevance::Relevant,
+                psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+            )
+        };
+        let candidate = structural_catalog_unit(vec![
+            structural_type(
+                442,
+                psi_terminal::StructuralTypeShape::Mixed {
+                    fields: vec![shared_field()],
+                    cases: vec![
+                        structural_case(1, vec![shared_field()]),
+                        structural_case(2, vec![shared_field()]),
+                        structural_case(3, Vec::new()),
+                    ],
+                },
+            ),
+            structural_type(
+                448,
+                psi_terminal::StructuralTypeShape::Sum {
+                    cases: vec![structural_case(1, Vec::new())],
+                },
+            ),
+        ]);
+        validate_psi_optimization_unit(&candidate)
+            .expect("field namespaces are independent and Sum/Mixed cases may be payloadless");
+    }
+
+    #[test]
+    fn structural_field_erasure_matrix_matches_canonical_terminal_admission() {
+        let owner = id(443, StructuralTypeId::new);
+        let invalid = vec![
+            psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+            psi_terminal::StructuralFieldType::IeeeFloat(psi_core::IeeeFloatFormat::Binary32),
+            psi_terminal::StructuralFieldType::Structural(owner),
+        ];
+        for field_type in invalid {
+            let field =
+                structural_leaf_field(1, psi_terminal::BindingRelevance::Erased, field_type);
+            let field_id = field.id;
+            let candidate = structural_catalog_unit(vec![structural_type(
+                443,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![field],
+                },
+            )]);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(
+                    OptimizationUnitValidationError::InvalidErasedStructuralField {
+                        structural_type: owner,
+                        field: field_id,
+                    }
+                )
+            );
+        }
+
+        for (raw, field_type) in [
+            (
+                1,
+                psi_terminal::StructuralFieldType::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            (
+                2,
+                psi_terminal::StructuralFieldType::Erased {
+                    type_identity: "validation::proof-only".into(),
+                },
+            ),
+        ] {
+            let candidate = structural_catalog_unit(vec![structural_type(
+                443,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![structural_leaf_field(
+                        raw,
+                        psi_terminal::BindingRelevance::Erased,
+                        field_type,
+                    )],
+                },
+            )]);
+            validate_psi_optimization_unit(&candidate)
+                .expect("Terminal admits the exact proof-side leaf carrier");
+        }
+
+        let empty_erased = structural_leaf_field(
+            1,
+            psi_terminal::BindingRelevance::Erased,
+            psi_terminal::StructuralFieldType::Erased {
+                type_identity: String::new(),
+            },
+        );
+        let empty_erased_id = empty_erased.id;
+        let candidate = structural_catalog_unit(vec![structural_type(
+            443,
+            psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![structural_case(1, vec![empty_erased])],
+            },
+        )]);
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(
+                OptimizationUnitValidationError::InvalidErasedStructuralField {
+                    structural_type: owner,
+                    field: empty_erased_id,
+                }
+            )
+        );
+    }
+
+    #[test]
+    fn relevant_erased_field_requires_an_exact_record_provider_attachment_witness() {
+        let owner = id(444, StructuralTypeId::new);
+        let field = id(1, psi_core::StructuralFieldId::new);
+        let provider_field = || {
+            structural_leaf_field(
+                1,
+                psi_terminal::BindingRelevance::Relevant,
+                psi_terminal::StructuralFieldType::Erased {
+                    type_identity: "validation::provider".into(),
+                },
+            )
+        };
+        let provider_place =
+            |attachment, provider_field| psi_terminal::StructuralPlaceDeclaration {
+                id: id(445, PlaceId::new),
+                kind: StructuralPlaceKind::ProviderAttachment {
+                    attachment,
+                    field: provider_field,
+                    boundary: id(446, BoundaryMachineId::new),
+                },
+            };
+
+        let mut valid = structural_catalog_unit(vec![structural_type(
+            444,
+            psi_terminal::StructuralTypeShape::Record {
+                fields: vec![provider_field()],
+            },
+        )]);
+        valid.functions[0].attachment = Some(owner);
+        valid.functions[0]
+            .structural_places
+            .push(provider_place(owner, field));
+        refresh_identity(&mut valid);
+        validate_psi_optimization_unit(&valid)
+            .expect("an exact Record provider-attachment root witnesses its relevant erased field");
+
+        for (attachment, provider_field_id) in [
+            (None, None),
+            (Some(owner), Some(id(2, psi_core::StructuralFieldId::new))),
+            (Some(id(447, StructuralTypeId::new)), Some(field)),
+        ] {
+            let mut invalid = structural_catalog_unit(vec![structural_type(
+                444,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![provider_field()],
+                },
+            )]);
+            if let (Some(attachment), Some(provider_field_id)) = (attachment, provider_field_id) {
+                invalid.functions[0].attachment = Some(attachment);
+                invalid.functions[0]
+                    .structural_places
+                    .push(provider_place(attachment, provider_field_id));
+            }
+            refresh_identity(&mut invalid);
+            assert_eq!(
+                validate_psi_optimization_unit(&invalid),
+                Err(
+                    OptimizationUnitValidationError::InvalidErasedStructuralField {
+                        structural_type: owner,
+                        field,
+                    }
+                )
+            );
+        }
+
+        for shape in [
+            psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![structural_case(1, vec![provider_field()])],
+            },
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: vec![provider_field()],
+                cases: vec![structural_case(1, Vec::new())],
+            },
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: Vec::new(),
+                cases: vec![structural_case(1, vec![provider_field()])],
+            },
+        ] {
+            let mut invalid = structural_catalog_unit(vec![structural_type(444, shape)]);
+            invalid.functions[0].attachment = Some(owner);
+            invalid.functions[0]
+                .structural_places
+                .push(provider_place(owner, field));
+            refresh_identity(&mut invalid);
+            assert_eq!(
+                validate_psi_optimization_unit(&invalid),
+                Err(
+                    OptimizationUnitValidationError::InvalidErasedStructuralField {
+                        structural_type: owner,
+                        field,
+                    }
+                )
+            );
+        }
     }
 
     #[test]

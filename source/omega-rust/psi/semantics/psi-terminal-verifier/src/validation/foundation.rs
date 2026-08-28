@@ -47,7 +47,9 @@ fn validate_structural_fields(
                     field: field.id,
                 });
             }
-            StructuralFieldType::Scalar(_) | StructuralFieldType::Structural(_)
+            StructuralFieldType::Scalar(_)
+            | StructuralFieldType::IeeeFloat(_)
+            | StructuralFieldType::Structural(_)
                 if field.relevance.is_erased() =>
             {
                 return Err(ModuleError::InvalidErasedStructuralField {
