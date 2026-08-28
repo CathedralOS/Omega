@@ -700,7 +700,7 @@ source/omega/pipeline/
 Rust migration/reference implementation:
 
 ```text
-source/on-ramp/rust/omega/
+source/omega-rust/omega/
   foundation/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/

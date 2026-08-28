@@ -20,10 +20,10 @@ derivation checker. Its role name does not move it into the bootstrap assurance
 owner.
 
 ```text
-Alpha → Beta → Gamma → Delta                   language spine
-              ↘       ↙       ↓
-                proof kernel   omega-bootstrap → production omega
-                assurance      hosted compiler edge
+Alpha → Beta → Gamma → Delta → omega₀ → omega  compiler spine
+              ↘       ↙       ↓       ↓
+                proof kernel   checked compiler edges
+                assurance
 ```
 
 ## Judgment
@@ -179,9 +179,9 @@ proved.
 
 ## Producer and self-host boundaries
 
-The Delta-built `omega-bootstrap` compiler and the production Omega compiler
-may both emit certificates. Neither compiler decides whether its own evidence is
-valid. A bug in the bridge can reproduce into production Omega, but it
+The Delta-produced compiler, `omega₀`, and production Omega may all emit
+certificates. No compiler decides whether its own evidence is valid. A compiler
+bug can reproduce into production Omega, but it
 cannot forge a derivation accepted by an independent sound kernel or choose a
 different artifact obligation when canonical reconstruction is in place.
 

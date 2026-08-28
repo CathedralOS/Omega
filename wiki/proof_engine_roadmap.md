@@ -7,7 +7,7 @@ and the certificate work queue is in [`../TASKS.md`](../TASKS.md).
 
 ## Live automation
 
-`source/on-ramp/rust/psi/semantics/psi-validation/src/contract_entailment.rs` checks the
+`source/omega-rust/psi/semantics/psi-validation/src/contract_entailment.rs` checks the
 supported contract fragment rather than accepting unsupported conclusions as
 proof. Its current vocabulary includes:
 

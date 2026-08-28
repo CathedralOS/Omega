@@ -31,7 +31,7 @@ repeat milestone history.
 The repository currently has two backend lanes.
 
 - The installed-output compatibility path in
-  `source/on-ramp/rust/omega/` still lowers `CheckedTrees -> StateGraph ->
+  `source/omega-rust/omega/` still lowers `CheckedTrees -> StateGraph ->
   ControlFlowPlan -> AbstractOperations`. Its state-value planner performs
   useful expression substitution and constant folding, but it still consumes
   checked-tree expression handles. The retained-native product no longer uses
@@ -2039,7 +2039,7 @@ source/omega/
 ```
 
 During the Rust migration/reference phase, mirror responsibility rather than
-files under `source/on-ramp/rust/omega/`:
+files under `source/omega-rust/omega/`:
 
 ```text
 omega/
