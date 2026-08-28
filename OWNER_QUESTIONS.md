@@ -883,3 +883,77 @@ carriers join that semantic custody.
 - Tempting but wrong: label the existing semantic wrapper symbol as the UEFI
   entry or publish an image while `physical_shell_emitted` and
   `bootstrap_invoked` remain false.
+
+## Q18 — Guarded simulation judgment for Beta compiler admission
+
+### Context
+
+The Beta admission owner independently reconstructs the exact `bc.beta` source,
+persisted Alpha tape, source and artifact transition systems, typed resource
+outcomes, and maximal observations for the finite `B_bc1` input profile. Its
+canonical ROOT executable checks matching termination, output, rejection,
+resource exhaustion, and coinductive divergence. The accepted Alpha-owned
+derivation checker is built below `bc`, but its current calculus has no encoded
+Alpha/Beta simulation relation or coinduction rule capable of stating that ROOT
+claim.
+
+The executable conjunction is strong evidence and already prevents the
+candidate compiler from selecting its own subject or obligation. It is not a
+certificate in the accepted calculus, and running it successfully cannot be
+relabelled as a derivation.
+
+### Problem statement
+
+The checker needs an exact rule for cyclic operational refinement before it can
+admit the Beta compiler edge. Induction over finite executions covers terminal
+and resource outcomes but does not establish matching divergence. Fuel-bounded
+prefix agreement is likewise not coinduction: exhausting a chosen bound proves
+neither an infinite run nor a greatest-fixed-point relation.
+
+The open choice is the public proof-kernel judgment and certificate shape. It
+must bind two independently reconstructed transition systems and their
+observation profile, require every terminal observation to agree, and permit a
+cyclic proof reference only after observable progress. It must remain small
+enough for each checker implementation and must not introduce artifact-specific
+verification policy into the generic kernel.
+
+### Proposed direction
+
+Ratify one versioned guarded simulation/bisimulation judgment over finite
+descriptions of deterministic labelled transition systems. A certificate names
+a finite relation of paired states. Each row proves one of:
+
+- matching terminal outcomes under the exact observation profile; or
+- one matching observable/internal step plus successor membership in the same
+  relation.
+
+A back-reference is admissible only after at least one checked paired step, so
+an unguarded cyclic certificate cannot prove itself. The artifact-aware Beta
+owner, not the compiler or kernel, reconstructs the exact Alpha and Beta
+systems, initial-state relation, `B_bc1` input quantification, resource outcomes,
+and observation labels. The generic checker validates only the guarded
+relation rules against those exact premises.
+
+Require implementations in the accepted Beta checker and independent Gamma
+checker, exact encoding/version identity, positive finite and divergent seams,
+and negative controls for an unguarded cycle, missing successor, mismatched
+output, changed resource result, swapped subject, and weakened observation
+profile before using the judgment for compiler admission.
+
+### Alternates
+
+- Acceptable: ratify a one-way forward simulation plus a separate determinism
+  theorem when that composition proves exactly the required maximal-observation
+  equality, including divergence.
+- Acceptable: use a structurally recursive proof of all finite prefixes plus a
+  separately checked productivity theorem, if the combined judgment is no
+  weaker than guarded coinduction and has a finite certificate.
+- Acceptable: initially scope the rule to deterministic finitely described
+  systems and the exact `B_bc1` profile, while keeping the judgment generic
+  rather than naming Beta or Alpha opcodes.
+- Tempting but wrong: accept the ROOT executable's status as a proof-kernel
+  premise or add a rule that trusts a verifier-selected Boolean.
+- Tempting but wrong: infer divergence from a large fuel bound, repeated fixed
+  points, compiler self-hosting, DDC, or agreement between implementations.
+- Tempting but wrong: let `bc`, its witness mapper, or its emitted artifact
+  choose the relation, observation profile, or terminal cases it must satisfy.

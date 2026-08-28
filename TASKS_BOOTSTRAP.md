@@ -109,10 +109,11 @@ admission, and optional stress evidence stay under the same compiler owner.
   semantic modules. Preserve the cold-start fixed point and both exact-subject
   admission gates. The measured representative Gamma workload improvement was
   about 10.5%; remeasure the canonical workload after admission.
-- [ ] Close the remaining checker soundness bridge by reconstructing the exact
-  compiler-simulation/coinduction proposition below `bc` and checking it with
-  the Alpha-owned derivation checker. Candidate compiler output must never
-  select its own proposition or accept its own evidence.
+- [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
+  simulation/coinduction judgment and finite certificate shape, then reconstruct
+  the exact compiler proposition below `bc` and check it with the Alpha-owned
+  derivation checker. Candidate compiler output must never select its own
+  proposition or accept its own evidence.
 - [ ] Keep alternate checkers, fuzzing, large corpora, exhaustive mutations,
   generated refinement samples, and developer reports optional. The default
   edge builds the artifact and runs only the bounded gates required to admit
