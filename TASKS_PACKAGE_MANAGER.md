@@ -2555,11 +2555,22 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v74/canonical row v32, conflict fingerprint v10, renderer V9, and
-  canonical-row recovery envelope v7 bind the appended roles; stale envelopes
+  review v74/canonical row v32, conflict fingerprint v11, renderer V10, and
+  canonical-row recovery envelope v8 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Remaining per-fact spans are
   incremental engineering work and require deliberate retention before typed
   lowering, not later source-text reconstruction.
+  Milestone 2026-08-27: every authored external executable leaf now retains
+  the exact `via` keyword occurrence on the same conformance that owns its
+  normalized binding identity. Syntax copying, resolution, and typed lowering
+  preserve that custody. Projection requires exact binding/span parity and
+  attaches one `external_binding` location to each public or private trait- or
+  operator-based external-supply row; missing, source-free, or contradictory
+  custody rejects, and no later lookup by spelling is permitted. Coordinates
+  remain outside semantic row bytes, so review v74/canonical row v32 remain
+  unchanged. Canonical-row recovery envelope v8, conflict fingerprint v11,
+  and renderer V10 bind the appended explanatory role; stale recovery records
+  reject.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 
@@ -3188,6 +3199,13 @@ debt in this section, not a reason to preserve the old tree.
       injection resolves exact graph nodes; std source is classified by its
       admitted package identity rather than residence beneath a toolchain root;
       and removing the declared std dependency rejects every std selection.
+
+      Re-audit 2026-08-27: the existing capability-conflict regression now
+      demonstrates this seam directly. A source-level `FilesystemHost` reach
+      loaded through the relocated physical std path produces callable changes
+      but no canonical dangerous-authority-slack row. Restoring the expected
+      row by adding another path exception would be the wrong fix; exact graph
+      package identity must replace physical toolchain-root classification.
 
       Milestone 2026-08-26: a resolver/compiler vertical canary now consumes
       the repository's real `source/library/std` through an ordinary

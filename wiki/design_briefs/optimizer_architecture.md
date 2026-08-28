@@ -823,7 +823,12 @@ and every scalar definition's lattice state. The validation crate owns a second
 fixed-point implementation and reconstructs this snapshot without depending on
 the optimizer crate. A digest supplied by the optimizer is therefore only a
 claim; it becomes rewrite evidence only when the validator independently
-derives the identical snapshot and fact identity.
+derives the identical snapshot and fact identity. The current thirty exact
+rules cover every evaluable Boolean and integer operation in the admitted
+verified-unit vocabulary. Structural-field and call results stay overdefined
+without immutable structural-version or call-summary facts. This is a
+current-vocabulary completion boundary, not permission to guess semantics for
+future float, trapping, or otherwise extended scalar operations.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
@@ -867,7 +872,27 @@ equivalence. Real memory traces, explicit suspension edges, arbitrary node-set
 regions, and path-derived current ownership facts remain future vocabulary.
 The pass has its own block-parameter-count convergence measure and its own
 explicit `CopyPropagation` selection; it is not a hidden prerequisite of SCCP
-or an optimization-level bundle.
+or an optimization-level bundle. Block parameters and their incoming bindings
+are the current Psi vocabulary's only scalar copy form: calls directly define
+their result `ValueId`, and there is no scalar `Copy`, `Move`, or debug-value
+operation. A verified call-result artifact therefore exercises the existing
+generic rule rather than adding a call-specific rewrite. It proves that the
+parameter and binding disappear, uses select the dominating call result, and
+the complete effectful call node, callee, effect link, provenance, logical
+fuel, and function roster remain exact.
+
+Terminal debug maps remain a separate identified input. They may name a block
+parameter with `DebugSubject::Value`, so executable-unit correctness does not
+by itself authorize publication of an optimized debug map after that parameter
+is removed. A debug-projection gate must replay each validated scalar
+substitution, retain every authored source span through a many-to-one
+alias/recovery relation, prove every surviving projected subject exists in the
+optimized module, and carry durable reconstruction custody in the ledger or a
+separately validated receipt. This cannot blindly rewrite both subjects to one
+debug-map key because the map permits only one primary span per subject. Until
+the recovery vocabulary exists, the optimizer may retain the original debug
+map as separate source custody but must not claim an optimized debug-map
+projection.
 
 The first `ControlFlowCleanup` rule has an equally narrow contract. A
 conditional whose Boolean condition has an independently reconstructible SCCP
@@ -947,15 +972,16 @@ validation v7 bind this admission meaning. Marking a reachable outgoing source
 CFG shapes still fails closed until target/selected/native custody supports the
 shape.
 
-The fourth rule, `adjacent-single-predecessor-block-merge.v3`, is the first
+The fourth rule, `adjacent-single-predecessor-block-merge.v4`, is the first
 nonempty redundant-jump elimination contract. It merges only the immediately
 following target block and only when the jump is its sole incoming edge. The
 target must begin with a real operation having no successor arms, consist of
 its conditional terminator, or consist of an exact return/crash terminal with
 edge provenance. These restrictions make the transformation block-
 boundary erasure rather than non-adjacent code motion. The validator
-independently reconstructs
-typed target-parameter substitutions and requires identical ownership snapshots
+independently reconstructs typed target-parameter substitutions, requires each
+replacement definition to dominate every use (including uses in dominated
+successor blocks), rewrites that complete use set, and requires identical ownership snapshots
 at incoming-edge entry, incoming-edge exit, and target-block entry. Every moved
 node occurrence is renamed to its new block/node location; the removed edge's
 source and fuel are additionally realized behind the first operation's direct
@@ -965,8 +991,8 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v14, optimization-unit content identity v8, `ControlFlowCleanup` v9,
-prephysical manifest v8, and optimized-plan projection validation v9 bind this
+v20, optimization-unit content identity v10, `ControlFlowCleanup` v11,
+prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
 at the fused node, so return, cleanup, structural-return, crash, and fuel work
@@ -1020,6 +1046,56 @@ duplicated, reordered, resurrected, provider-root, attachment-root, call-root,
 or cleanup-root machine. Candidate v14, optimization-unit content identity v8,
 `ControlFlowCleanup` v9, prephysical manifest v8, and optimized-plan projection
 validation v9 bind this admission meaning.
+
+The seventh rule,
+`non-adjacent-unique-predecessor-block-merge.v1`, owns the code-motion contract
+that the adjacent rule intentionally excludes. The target must be a non-entry,
+nonempty block with one exact incoming edge, and the predecessor must end in
+that edge's unconditional jump. A target consisting only of an empty jump is
+left to the earlier empty-block rules. “Non-adjacent” means outside the
+immediately-following roster relation admitted by the fourth rule; a target
+serialized before the predecessor is necessarily handled here even when their
+roster slots happen to touch.
+
+Source-roster order is never execution authority. The producer explicitly
+requires CFG, dominators, use-definition, and ownership-frontier products. It
+proves the predecessor dominates the target, reconstructs the sole incoming
+edge and exact typed parameter bindings, and proves each replacement dominates
+every parameter use. Those uses are rewritten across the complete function,
+including calls, scalar operations, return values, conditional operands, and
+successor bindings in dominated blocks. Values defined by the moved target
+keep their `ValueId`s; their definition sites move to the predecessor and total
+validation re-proves every downstream use.
+
+The typed patch separately names the predecessor location, incoming `EdgeId`,
+and removed target. Candidate accounting includes the predecessor and target,
+every block changed by global substitution, and every block whose dense effect
+links shift when target nodes cross the serialized roster. Each sourced target
+node moves from `target:i` to `predecessor:(jump-index+i)`. Incoming-edge
+custody is appended to the first moved direct node, or is realized on every
+exact successor edge when that first node is a source-less control terminator.
+No reachable target work is tombstoned. The validator independently rebuilds
+dominators, substitutions, affected blocks, provenance/fuel rows, the roster
+mutation in either direction, node metadata, dense effects, facts, declared
+places, and content identity before total validation.
+
+A verified non-topological Boolean artifact exercises two consecutive merges,
+global parameter substitution into a descendant serialized before its
+definition, a moved definition still used by that descendant, exact ledger and
+prephysical projection replay, and successful x64/arm64 lowering. Candidate
+v20, `ControlFlowCleanup` v11, prephysical manifest v14, and optimized-plan
+projection validator v15 bind the new admission. Optimization-unit identity
+v10 and ledger v4 require no schema bump because they already encode block
+removal, moved definition sites, one-to-one occurrence moves, fusion, and
+fanout.
+
+There is deliberately no standalone “prune blocks already unreachable from
+entry” rule over `PsiOptimizationUnit`. Terminal verification and independent
+total-unit validation reject `UnreachableBlock`, including disconnected SCCs,
+before any optimizer rule can propose a candidate. Dead-region pruning must
+therefore remain atomic with the reachability-changing rewrite that proves the
+region dead. Admitting a partially reachable pre-verification IR would be a
+new layer and a separately versioned design, not an omitted cleanup rule here.
 
 ### Dead pure scalar work
 

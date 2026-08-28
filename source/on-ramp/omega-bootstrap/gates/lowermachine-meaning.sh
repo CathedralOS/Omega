@@ -241,116 +241,9 @@ grep -q 'E2G-UNSUPPORTED-array-capacity' "$T/tree-too-large.gamma" || {
   exit 1
 }
 
-case "$(uname -sm)" in
-  "Darwin arm64")
-    for TOOL in cargo clang codesign; do
-      command -v "$TOOL" >/dev/null 2>&1 || {
-        echo "lowermachine meaning: skipped native differentials ($TOOL absent)"
-        TOOL_MISSING=1
-      }
-    done
-    if [ "${TOOL_MISSING:-0}" -eq 0 ]; then
-      cargo build -q --manifest-path "$OMEGA_PATH_DELTA_RUST/Cargo.toml"
-      DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-        "$OMEGA_PATH_DELTA/samples/lowermachine.alp" "$T/lowermachine.native" >/dev/null
-      python3 - "$T" <<'PY'
-import pathlib
-import sys
-
-out = pathlib.Path(sys.argv[1])
-(out / "io-boundary.alp").write_text(r'''
-boundary trait Console { machine exit_process(return_code: i32); machine write_byte(b: i32); }
-data Main { console: Console; i: i32; }
-machine Main::main(&mut self) {
-    transition 0 { _ -> loop() }
-    state loop() { transition self.i < 4097 { true -> emit() _ -> done() } }
-    state emit() { write_byte(65 + self.i % 26); self.i = self.i + 1; transition 0 { _ -> loop() } }
-    state done() { self.console.exit_process(0); }
-}
-''', encoding="ascii")
-(out / "io-boundary.expected").write_bytes(bytes(65 + i % 26 for i in range(4097)))
-(out / "io-order.alp").write_text(r'''
-boundary trait Console { machine exit_process(return_code: i32); machine write_byte(b: i32); machine write_line(text: &[u8]); }
-data Main { console: Console; }
-machine Main::main(&mut self) { write_byte(65); write_line("B"); write_byte(67); self.console.exit_process(7); }
-''', encoding="ascii")
-(out / "io-order.expected").write_bytes(b"AB\nC")
-(out / "io-read.alp").write_text(r'''
-boundary trait Console { machine exit_process(return_code: i32); machine read_byte() -> i32; machine write_byte(b: i32); }
-data Main { console: Console; c: i32; }
-machine Main::main(&mut self) { write_byte(65); self.c = read_byte(); write_byte(self.c); self.console.exit_process(0); }
-''', encoding="ascii")
-(out / "io-read.expected").write_bytes(b"AZ")
-(out / "io-implicit.alp").write_text(r'''
-boundary trait Console { machine write_byte(b: i32); }
-data Main { console: Console; }
-machine Main::emit(&mut self) { write_byte(81); }
-machine Main::main(&mut self) { self.emit(); }
-''', encoding="ascii")
-(out / "io-implicit.expected").write_bytes(b"Q")
-(out / "io-trap.alp").write_text(r'''
-boundary trait Console { machine write_byte(b: i32); }
-data Main { console: Console; bytes: [i32; 1]; i: i32; }
-machine Main::main(&mut self) { write_byte(84); self.i = self.bytes[1]; }
-''', encoding="ascii")
-(out / "io-trap.expected").write_bytes(b"T")
-PY
-      compile_io_fixture() {
-        "$T/lowermachine.native" < "$T/$1.alp" > "$T/$1.s"
-        clang -arch arm64 -o "$T/$1" "$T/$1.s"
-        codesign -f -s - "$T/$1" >/dev/null 2>&1
-      }
-      for IO_CASE in io-boundary io-order io-read io-implicit io-trap; do
-        compile_io_fixture "$IO_CASE"
-      done
-      "$T/io-boundary" > "$T/io-boundary.stdout"
-      cmp "$T/io-boundary.stdout" "$T/io-boundary.expected"
-      set +e
-      "$T/io-order" > "$T/io-order.stdout"
-      IO_ORDER_STATUS=$?
-      set -e
-      [ "$IO_ORDER_STATUS" -eq 7 ] && cmp "$T/io-order.stdout" "$T/io-order.expected" || {
-        echo "lowermachine meaning: buffered write_line/nonzero-exit order differs" >&2
-        exit 1
-      }
-      printf 'Z' | "$T/io-read" > "$T/io-read.stdout"
-      cmp "$T/io-read.stdout" "$T/io-read.expected"
-      "$T/io-implicit" > "$T/io-implicit.stdout"
-      cmp "$T/io-implicit.stdout" "$T/io-implicit.expected"
-      python3 - "$T/io-trap" "$T/io-trap.expected" <<'PY'
-import pathlib
-import subprocess
-import sys
-
-result = subprocess.run([sys.argv[1]], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-if result.returncode == 0 or result.stdout != pathlib.Path(sys.argv[2]).read_bytes():
-    raise SystemExit("lowermachine meaning: buffered trap publication differs")
-PY
-      set +e
-      "$T/lowermachine.native" < "$OMEGA_PATH_DELTA/samples/arith.alp" \
-        > "$T/lowermachine-arith.native.stdout"
-      LOWERMACHINE_NATIVE_STATUS=$?
-      set -e
-      [ "$LOWERMACHINE_NATIVE_STATUS" -eq "$LOWERMACHINE_GAMMA_STATUS" ] \
-        && cmp "$T/lowermachine-arith.native.stdout" "$T/lowermachine-arith.gamma.stdout" || {
-          echo "lowermachine meaning: native/Gamma compiler observation differs" >&2
-          exit 1
-        }
-      DELTA_ARCH=aarch64 "$OMEGA_PATH_DELTA_RUST/target/debug/delta" \
-        "$T/tree-array.alp" "$T/tree-array.native" >/dev/null
-      set +e
-      "$T/tree-array.native" > "$T/tree-array.native.stdout"
-      TREE_NATIVE_STATUS=$?
-      set -e
-      [ "$TREE_NATIVE_STATUS" -eq "$TREE_STATUS" ] \
-        && cmp "$T/tree-array.native.stdout" "$T/tree-array.gamma.stdout" || {
-          echo "lowermachine meaning: native/Gamma tree-array observation differs" >&2
-          exit 1
-        }
-    fi
-    ;;
-  *) echo "lowermachine meaning: native differentials skipped on $(uname -sm)" ;;
-esac
+# Native comparison belonged to the retired external Delta producer. This gate
+# now states only lower-rooted Gamma meaning and resource facts. Native and
+# self-built comparisons return once the canonical Delta artifact is published.
 
 python3 - "$T/source-exact.gamma" "$T/source-plus-one.gamma" <<'PY'
 import pathlib
@@ -411,4 +304,4 @@ set -e
   exit 1
 }
 
-echo "lowermachine meaning: $LOWERMACHINE_GAMMA_BYTES-byte marker-free elaboration, exact arith compile, buffered publication/order/read/exit/trap, state/tree/source/argument capacity teeth, and differentials passed"
+echo "lowermachine meaning: $LOWERMACHINE_GAMMA_BYTES-byte marker-free elaboration, exact arith compile, tree behavior, and state/source/argument capacity teeth passed"

@@ -866,6 +866,116 @@ mod tests {
         )
     }
 
+    fn non_adjacent_block_merge_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_501).unwrap();
+        let entry = BlockId::new(1_502).unwrap();
+        let descendant = BlockId::new(1_503).unwrap();
+        let target = BlockId::new(1_504).unwrap();
+        let sibling = BlockId::new(1_505).unwrap();
+        let predecessor = BlockId::new(1_506).unwrap();
+        let condition = ValueId::new(1_507).unwrap();
+        let incoming = ValueId::new(1_508).unwrap();
+        let target_parameter = ValueId::new(1_509).unwrap();
+        let target_result = ValueId::new(1_510).unwrap();
+        let computed = ValueId::new(1_511).unwrap();
+        let predecessor_value = ValueId::new(1_520).unwrap();
+        let result = ValueId::new(1_522).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut module = module_with_blocks(
+            machine,
+            entry,
+            TerminalMachineResult::Scalar(boolean(result)),
+            vec![
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(1_512).unwrap(),
+                            target: predecessor,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(1_513).unwrap(),
+                            target: sibling,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: descendant,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_514).unwrap(),
+                        result: OperationResult::Scalar(boolean(computed)),
+                        kind: OperationKind::BooleanEqual {
+                            left: target_parameter,
+                            right: target_result,
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_515).unwrap(),
+                        value: computed,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: target,
+                    parameters: vec![boolean(target_parameter)],
+                    operations: vec![Operation {
+                        id: OperationId::new(1_516).unwrap(),
+                        result: OperationResult::Scalar(boolean(target_result)),
+                        kind: OperationKind::BooleanNot {
+                            operand: target_parameter,
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_517).unwrap(),
+                        target: descendant,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: sibling,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_518).unwrap(),
+                        value: incoming,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: predecessor,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_521).unwrap(),
+                        result: OperationResult::Scalar(boolean(predecessor_value)),
+                        kind: OperationKind::BooleanNot { operand: incoming },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_519).unwrap(),
+                        target,
+                        arguments: vec![predecessor_value],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines[0]
+            .parameters
+            .extend([boolean(condition), boolean(incoming)]);
+        verified(module, ProofBundle::default())
+    }
+
     fn shared_terminal_jump_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_061).unwrap();
         let entry = BlockId::new(1_062).unwrap();
@@ -1078,6 +1188,96 @@ mod tests {
         )
     }
 
+    fn call_result_block_parameter_verified() -> VerifiedPsiOptimizationUnit {
+        let caller = MachineId::new(1_601).unwrap();
+        let callee = MachineId::new(1_602).unwrap();
+        let caller_entry = BlockId::new(1_603).unwrap();
+        let caller_result = ValueId::new(1_604).unwrap();
+        let call_result = ValueId::new(1_605).unwrap();
+        let forwarded = ValueId::new(1_606).unwrap();
+        let caller_exit = BlockId::new(1_607).unwrap();
+        let callee_entry = BlockId::new(1_611).unwrap();
+        let callee_value = ValueId::new(1_612).unwrap();
+        let callee_result = ValueId::new(1_613).unwrap();
+        let boolean = |id| ValueDeclaration {
+            id,
+            scalar_type: ScalarType::Boolean,
+        };
+        let mut module = module_with_blocks(
+            caller,
+            caller_entry,
+            TerminalMachineResult::Scalar(boolean(caller_result)),
+            vec![
+                Block {
+                    id: caller_entry,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(1_608).unwrap(),
+                        result: OperationResult::Scalar(boolean(call_result)),
+                        kind: OperationKind::Call {
+                            callee,
+                            arguments: Vec::new(),
+                            requirement_obligations: Vec::new(),
+                            crash_continuations: Vec::new(),
+                        },
+                    }],
+                    terminator: Terminator::Jump {
+                        edge: EdgeId::new(1_609).unwrap(),
+                        target: caller_exit,
+                        arguments: vec![call_result],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                Block {
+                    id: caller_exit,
+                    parameters: vec![boolean(forwarded)],
+                    operations: Vec::new(),
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(1_610).unwrap(),
+                        value: forwarded,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+        );
+        module.machines.push(TerminalMachine {
+            id: callee,
+            attachment: None,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Scalar(boolean(callee_result)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry: callee_entry,
+            blocks: vec![Block {
+                id: callee_entry,
+                parameters: Vec::new(),
+                operations: vec![Operation {
+                    id: OperationId::new(1_614).unwrap(),
+                    result: OperationResult::Scalar(boolean(callee_value)),
+                    kind: OperationKind::BooleanConstant { value: true },
+                }],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(1_615).unwrap(),
+                    value: callee_value,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+            contract: MachineContract {
+                id: ContractId::new(1_616).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        });
+        verified(module, ProofBundle::default())
+    }
+
     fn run(
         verified: VerifiedPsiOptimizationUnit,
         selections: OptimizationSelections,
@@ -1163,6 +1363,64 @@ mod tests {
                 omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_054).unwrap()),
             ]
         );
+    }
+
+    #[test]
+    fn non_adjacent_block_merges_replay_and_lower_in_both_target_families() {
+        let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
+        let optimized =
+            project_optimization_run(run(non_adjacent_block_merge_verified(), selections.clone()))
+                .unwrap();
+
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.transformation_ledger().records().len(), 2);
+        assert_eq!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .map(|record| record.provenance.len())
+                .collect::<Vec<_>>(),
+            [6, 6]
+        );
+        assert!(
+            optimized
+                .transformation_ledger()
+                .records()
+                .iter()
+                .flat_map(|record| &record.provenance)
+                .all(|row| row.disposition.is_realized())
+        );
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 3);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 6);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 3);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::BooleanNot { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[3],
+            TerminalAbstractOperation::BooleanNot { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[4],
+            TerminalAbstractOperation::BooleanEqual { .. }
+        ));
+        assert!(matches!(
+            optimized.plan().functions[0].operations[5],
+            TerminalAbstractOperation::Return { .. }
+        ));
+
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let optimized = project_optimization_run(run(
+                non_adjacent_block_merge_verified(),
+                selections.clone(),
+            ))
+            .unwrap();
+            let lowered = lower_optimized_to_target_operations(optimized, target).unwrap();
+            assert_eq!(lowered.target(), target);
+            assert_eq!(lowered.optimized().commits().len(), 2);
+        }
     }
 
     #[test]
@@ -1601,6 +1859,62 @@ mod tests {
         let target =
             lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64()).unwrap();
         assert_eq!(target.optimized().commits().len(), 1);
+    }
+
+    #[test]
+    fn copy_propagation_preserves_scalar_call_result_effect_and_custody() {
+        let verified = call_result_block_parameter_verified();
+        let call_before = verified.unit().functions[0].blocks[0].nodes[0].clone();
+        let callee_before = verified.unit().functions[1].clone();
+        let selections = OptimizationSelections::new([Optimization::CopyPropagation]).unwrap();
+        let optimized = project_optimization_run(run(verified, selections)).unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(
+            optimized.unit().functions[0].blocks[0].nodes[0],
+            call_before
+        );
+        assert!(matches!(
+            optimized.unit().functions[0].blocks[0].nodes[0].operation,
+            TerminalAbstractOperation::Call {
+                result,
+                callee,
+                ..
+            } if result == ValueId::new(1_605).unwrap()
+                && callee == MachineId::new(1_602).unwrap()
+        ));
+        assert!(
+            optimized.plan().functions[0].block_entries[1]
+                .parameters
+                .is_empty()
+        );
+        assert!(matches!(
+            &optimized.plan().functions[0].operations[1],
+            TerminalAbstractOperation::Jump { bindings, .. } if bindings.is_empty()
+        ));
+        assert!(matches!(
+            &optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::Return { value, .. }
+                if *value == ValueId::new(1_605).unwrap()
+        ));
+        assert_eq!(optimized.unit().functions[1], callee_before);
+        assert_eq!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .source_statistics
+                .functions,
+            2
+        );
+        assert_eq!(
+            optimized
+                .pre_physical_manifest()
+                .record()
+                .optimized_statistics
+                .functions,
+            2
+        );
     }
 
     #[test]

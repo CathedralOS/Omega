@@ -1480,7 +1480,15 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 locations.iter().any(|location| {
                     location.role() == PackageReviewSourceLocationRole::Declaration
                         && location.relative_path() == "main.omg"
-                })
+                }) && locations
+                    .iter()
+                    .filter(|location| {
+                        location.role() == PackageReviewSourceLocationRole::ExternalBinding
+                            && location.relative_path() == "main.omg"
+                            && location.end_byte() - location.start_byte() == 3
+                    })
+                    .count()
+                    == 1
             })
     }));
     for row in supply_rows {
@@ -1618,7 +1626,15 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
                 locations.iter().any(|location| {
                     location.role() == PackageReviewSourceLocationRole::Declaration
                         && location.relative_path() == "main.omg"
-                })
+                }) && locations
+                    .iter()
+                    .filter(|location| {
+                        location.role() == PackageReviewSourceLocationRole::ExternalBinding
+                            && location.relative_path() == "main.omg"
+                            && location.end_byte() - location.start_byte() == 3
+                    })
+                    .count()
+                    == 1
             })
     }));
     for row in supply_rows {
@@ -1936,26 +1952,68 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .contains("supply mechanism inconsistent with its exact binding identity")
     }));
 
-    let mut missing_conformance_binding = checked.clone();
-    let satisfies = missing_conformance_binding
+    let mut span_without_conformance_binding = checked.clone();
+    let satisfies = span_without_conformance_binding
         .typed
         .machines()
         .iter()
         .find(|machine| machine.name.as_str() == "invoke_leaf")
         .expect("external leaf")
         .satisfies;
-    missing_conformance_binding
+    span_without_conformance_binding
         .typed
         .machine_trait_conformances
         .span_mut_or_empty(satisfies)[0]
         .external_binding = None;
-    let diagnostics = project_checked_package_review(&missing_conformance_binding)
-        .expect_err("missing conformance binding must fail closed");
+    let diagnostics = project_checked_package_review(&span_without_conformance_binding)
+        .expect_err("authored custody without a binding must fail closed");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("conformance without its exact external binding")
+            .contains("retains authored `via` custody without an external binding")
     }));
+
+    let mut binding_without_source_span = checked.clone();
+    let satisfies = binding_without_source_span
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "invoke_leaf")
+        .expect("external leaf")
+        .satisfies;
+    binding_without_source_span
+        .typed
+        .machine_trait_conformances
+        .span_mut_or_empty(satisfies)[0]
+        .external_binding_source_span = None;
+    let diagnostics = project_checked_package_review(&binding_without_source_span)
+        .expect_err("external binding without authored custody must fail closed");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("has no exact authored `via` custody")
+    }));
+
+    let mut invalid_source_span = checked.clone();
+    let satisfies = invalid_source_span
+        .typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "invoke_leaf")
+        .expect("external leaf")
+        .satisfies;
+    invalid_source_span
+        .typed
+        .machine_trait_conformances
+        .span_mut_or_empty(satisfies)[0]
+        .external_binding_source_span = Some(Default::default());
+    let diagnostics = project_checked_package_review(&invalid_source_span)
+        .expect_err("source-free external binding custody must fail closed");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("source span"))
+    );
 
     let mut missing_binding_identity = checked.clone();
     let invalid_binding = psi_language_semantics::ExternalBindingId(u32::MAX);

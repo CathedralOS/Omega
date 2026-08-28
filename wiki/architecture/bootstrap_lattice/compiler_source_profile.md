@@ -236,41 +236,25 @@ the Delta rung's
 
 The exact profile cannot be frozen before the production compiler source and
 deterministic dependency manifest close. It can and should be derived
-provisionally from versioned deterministic snapshots while that source is being
-written. The working policy is specific enough to guide the first snapshot;
-each later snapshot reruns the same feature census and retain/refactor analysis.
+provisionally from deterministic reports over the live resolved closure while
+that source is being written. Each coherent source milestone reruns the same
+feature census and retain/refactor analysis.
 
-The first measured snapshot now exists:
-[`checkpoint-000001.json`](../../../source/omega/source-checkpoints/checkpoint-000001.json)
-closes the product Psi source-to-token phase;
-[`profile-000001.json`](../../../source/omega/source-checkpoints/profile-000001.json)
-mechanically binds its provisional normalized-syntax/resource admission rules,
-census, canaries, and ceilings; and
-[`profile-000001.md`](../../../source/omega/source-checkpoints/profile-000001.md)
-explains the evidence and unresolved decisions. The snapshot remains bounded
-evidence for the pinned source it describes. Its manifest, profile,
-Cargo/provider provenance, and extracted build prelude were refreshed
-coherently, and its complete gate compares the product compiler's versioned
-structural lexical observation with an independently encoded Rust observation
-across success, retained-prefix rejection, and capacity cases. The fast gate
-rejects later compiled-source, provenance, prelude, feature, or resource drift
-until the evidence set is refreshed again. The current evidence is coherent;
-the published snapshot is enough to begin evidence-led bridge work for those
-facilities only.
-It supplies no evidence for
-later parser, checker, terminal-Psi, optimizer, or emitter source needs, and it
-does not settle typed semantics, ABI/layout, lowering, or bridge cost for the
-general profile. A first record/array/attached-machine cluster now has private
-checked-IR and lower-rooted artifact evidence; that bounded cluster does not
-promote the rest of the checkpoint.
+Numbered product snapshots were abandoned on 2026-08-26 because they duplicated
+identity already owned by Git, package resolution, and the accepted source
+closure, and encouraged the bridge to target frozen partial source. Working
+feature and resource censuses are generated from the live resolver-selected
+product closure. Historical checkpoint 000001 remains only in Git as bounded
+cost evidence for the former Psi source-to-token slice; it is not a current
+identity authority or bootstrap input.
 
-The checkpoint's present dependency replay resolves `use` components through
-repository paths, and most product units omit explicit `module` items. This
-records the exact provisional closure but is not the final module contract.
-The bridge must consume resolver-owned logical placement from its accepted
+The live dependency replay must resolve `use` components through
+resolver-owned logical placement rather than repository paths. Most product
+units currently omit explicit `module` items; this is implementation evidence,
+not the final module contract. The bridge must consume logical placement from its accepted
 compilation input, require any authored module declaration to agree, and apply
 the normative requester-local reach and visibility rules. The final product
-source checkpoint must close under those rules rather than making the bridge
+source closure must close under those rules rather than making the bridge
 recreate the deleted Rust on-ramp dependency scanner.
 
 The two contracts may co-evolve, but the [decision-status table](#decision-status)
@@ -291,7 +275,7 @@ encounter it:
 
 This routing is also an ownership rule. Product-source implementation and any
 refactor used to remove a facility from that source live under the product
-compiler task. Bootstrap work consumes the resulting checkpoint, measures and
+compiler task. Bootstrap work consumes the resulting resolved closure, measures and
 implements the profile, and validates the hosted edge. Neither queue may create
 a third language inventory to avoid coordinating those two responsibilities.
 
@@ -317,7 +301,7 @@ compiler closure. These columns must not collapse into one "supported" bit.
 In particular, an `Ωself` exclusion requires bridge rejection and product
 acceptance evidence; it never licenses the production compiler to omit the
 feature. The authoritative ledger is published at the completed source/bridge
-join, while checkpoint tables remain provisional evidence.
+join, while generated working reports remain provisional evidence.
 
 This procedure does not reward feature removal by itself. A small general
 facility is preferable to monomorphic duplication, hand-expanded variants, or
@@ -326,7 +310,7 @@ powerful facility used only incidentally should not enter the bridge merely
 because the production compiler can express itself with it.
 
 The working feature disposition is below. These are biases for authoring and
-measurement, not ratified exclusions or admissions. A checkpoint may omit and
+measurement, not ratified exclusions or admissions. A provisional closure may omit and
 provisionally reject a facility that its source does not use, but that absence
 does not settle the final profile while later compiler phases remain unwritten.
 A row becomes resolved only when the final deterministic compiler-source closure
@@ -357,9 +341,9 @@ establishes the implementation and assurance cost.
 | state machines, state parameters, mutation, calls, and explicit result fields | presumptively retain for the observed finite forms | checkpoint 000001 expresses every lexical loop with this surface; CKIR20 closes a mutable ten-parameter push carrying structural `SourceId` and `TokenKind` values plus eight scalars, and a shared indexed read as two real receiver calls, with pure nontrapping canonical arguments. Continue to exclude observable argument-order combinations and implicit branching value results until their separate rules are settled |
 | boundary traits, target-qualified/bodyless machines, `satisfies`, and compiler-intrinsic realizations | measure the exact sealed product forms; selected `Console` plan and checked-adapter cost closed | checkpoint 000001 contains one boundary trait, 20 target-qualified machines, 18 `satisfies` clauses, 16 bodyless leaves, and 16 compiler-intrinsic realizations. OMGRSW9/OMGLOWI18/CKIR17/OMGRFN20 close the selected six-requirement `Console` plan plus receiverless execution of its two checked adapters and ranked helper as ordered abstract byte events. Four compiler-intrinsic leaves remain plan custody only. Provider admission, native boundary effects, and the remaining general product surface stay separate; none imports general boundary traits into Delta's sealed host interface |
 | static provider path arguments and explicit build selection | measure from checkpoint 000001; exact build-role, complete-plan, and platform-neutral checked-execution cost closed | OMGCOMP3 marks exactly one root-package build source without deriving the role from a filename, readable machine name, declaration order, provider defaults, or candidate uniqueness. OMGRSW9 harvests the explicit `Build::select_provider<Console, ConsoleNativeProvider>` only from that role and retains the complete six-requirement plan; OMGLOWI18/CKIR17/OMGRFN20 preserve the selected identities through abstract execution. Selection is not admission: installed-provider authority, the accepted-closure join, and native effects remain open. This checkpoint is not evidence for general generics or a ruling for target-package defaults outside this closure |
-| basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require a later checkpoint with actual declarations before implementing or admitting the general bridge surface |
+| basic generic declarations and calls | presumptively retain when used; not yet observed | collection, result, arena-ID, and compiler-data reuse versus monomorphic duplication; require the live closure to contain actual declarations before implementing or admitting the general bridge surface |
 | generated ordinary-Omega data and pinned generators | presumptively retain closure rules | checkpoint 000001 imports generated Unicode range arrays; bind generated source, generator, and external data as deterministic inputs while treating the arrays as ordinary admitted Omega rather than a private compiler exception |
-| concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when a later checkpoint uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
+| concrete domains and domain arithmetic | presumptively retain when used; not yet observed | retain ordinary named domains when the live closure uses them to keep arithmetic or compiler contexts regular; compare unusually broad domain machinery with explicit contexts and narrow operations |
 | domain polymorphism | measure | admit only the forms used by the closed source manifest |
 | advanced authored generic constraints | measure | source benefit versus bridge and assurance cost |
 | specialization and reflection | no source-profile ruling yet | neither has a distinct accepted authored source spelling to admit or exclude; add a row when there is a censusable Omega surface |
@@ -370,7 +354,7 @@ establishes the implementation and assurance cost.
 This table is the single working inventory for those choices. In particular,
 the bootstrap task board must not sprout separate “remove proofs,” “remove
 generics,” or “split every enum” projects. A facility becomes bridge work only
-when a product checkpoint uses it or a retained general profile rule requires
+when the live product closure uses it or a retained general profile rule requires
 it; a source refactor remains product work. Final retain/exclude decisions occur
 at the completed source-and-bridge join, not by intuition ahead of either
 implementation.
@@ -408,10 +392,10 @@ gates rather than being repeated in this decision document.
 | actual TokenStream owner, structural record/sum Copy, ten-argument push, and indexed payload dispatch | OMGRSWC12, OMGLOWL21/CKIR20, modular Rust-free meaning, corrected conservative backend, and OMGRFN23 responsibility-local R1–R5 over actual native/self producers | [`OMEGA_BOOTSTRAP_RESOLUTION_V12.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V12.md), [`OMEGA_BOOTSTRAP_CHECKED_IR_V20.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V20.md), and [`OMGCOMP_REFINEMENT_WITNESS_V23.md`](../../../source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V23.md) |
 | complete static product `Console` provider plan | OMGRSW9 retains the authoritative build selection, all six requirements, two checked adapters, four Linux-x64 intrinsic leaves, complete plan rows, and requirement-targeted calls; OMGRFN19 independently reconstructs the structural relation with persisted-Beta projections and the actual native/self producer bytes | [`OMEGA_BOOTSTRAP_RESOLUTION_V9.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_RESOLUTION_V9.md) and [`OMGCOMP_REFINEMENT_WITNESS_V19.md`](../../../source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V19.md) |
 | selected `Console` checked-adapter execution | OMGLOWI18/CKIR17 preserve exact service, requirement, plan, candidate, reach, ranking, receiverless/static-owner, recurrent head/tail, and explicit `u8 as i32` identities while observing ordered abstract byte events; OMGRFN20 independently joins exact source, OMGRSW9, and actual native/self CKIR17 bytes through R1–R5 | [`OMEGA_BOOTSTRAP_CHECKED_IR_V17.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_CHECKED_IR_V17.md), [`OMEGA_BOOTSTRAP_LOWERING_V18.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_LOWERING_V18.md), and [`OMGCOMP_REFINEMENT_WITNESS_V20.md`](../../../source/refinement/delta-omega-bootstrap/OMGCOMP_REFINEMENT_WITNESS_V20.md) |
-| generated ordinary-Omega source custody for the exact Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, CKIR3/OMGRFN4 preflight composition, and a coherent product-owned checkpoint refresh over the same tuple | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md) and the [`source checkpoint status`](../../../source/omega/source-checkpoints/README.md) |
+| generated ordinary-Omega source custody for the exact historical Unicode tuple | sealed locked/offline two-run reproduction, generic provenance roles, bounded/no-publication teeth, exact OMGCOMP1 source extent, and CKIR3/OMGRFN4 preflight composition; this remains bounded cost evidence, not a live product checkpoint | [`OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md`](../../../source/on-ramp/omega-bootstrap/compiler/OMEGA_BOOTSTRAP_GENERATED_SOURCE_CUSTODY.md) |
 
 Every row is implementation-and-assurance cost evidence for a selected slice.
-No row admits a facility to final `Ωself`, claims general checkpoint coverage,
+No row admits a facility to final `Ωself`, claims general product-closure coverage,
 or widens beyond the boundary stated in its linked contract.
 
 Structural multi-unit custody is separately closed by
@@ -462,8 +446,8 @@ modules as ordinary `Ωself` source; it need not duplicate or execute their
 product role. A direct bridge-specific checked IR and conservative lowering are
 equally valid when they reduce total bootstrap and assurance cost.
 
-Checkpoint 000001's compiler-produced snapshot-v3/census-v2 profile establishes
-that the current closure uses target-qualified and bodyless machines,
+The retired checkpoint 000001 snapshot-v3/census-v2 profile recorded that its
+historical bounded closure used target-qualified and bodyless machines,
 `satisfies` clauses, and sealed compiler-intrinsic bindings. It also establishes
 a useful negative source convention:
 branching computations publish explicit result fields before callers dispatch.
@@ -510,8 +494,8 @@ implementation + assurance cost in the required Delta compiler/bridge source clo
 ```
 
 Payload sums, basic generics, and concrete domains are favorable ordinary
-compiler facilities when real source uses them, but checkpoint 000001 currently
-proves only static provider path arguments, not general generic declarations or
+compiler facilities when real source uses them. Historical checkpoint 000001
+recorded only static provider path arguments, not general generic declarations or
 authored domain use. Proof syntax and dependent typing are not favorable
 defaults. This is a total-cost profile, not a contest to remove the most
 features: retaining a cheap general facility is preferable to forcing large,
@@ -544,18 +528,19 @@ Delta-written-compiler → Omega-source edge is a cross-language hosted build.
 
 ## Mechanical enforcement
 
-The production compiler task must publish a deterministic source/dependency
-manifest at each coherent source checkpoint. This is a staged discovery loop,
+The production compiler task must expose a deterministic resolver-derived
+source/dependency closure at each coherent source milestone. This is a staged discovery loop,
 not a circular build dependency: the product source can be authored under the
 working policy while the Delta bridge and ledger evolve against versioned
 provisional closures. `Ωself` can be derived and enforced provisionally from the
-first complete checkpoint; neither the final file set nor final profile must be
+first complete closure; neither the final file set nor final profile must be
 pretended frozen at that point. Its cost claims cannot be final until the
 general bridge implementation exists. Keep provisional derivation and the
 freeze join as distinct milestones:
 
-1. Write a coherent product-compiler source checkpoint under the conservative
-   working policy and publish its complete deterministic transitive closure.
+1. Write a coherent product-compiler source milestone under the conservative
+   working policy and select its complete deterministic transitive closure
+   through the resolver.
 2. Derive or update provisional `Ωself`; measure each used feature against its
    benefit in that source snapshot and record the Delta implementation/assurance
    cost that is known or still missing.
@@ -564,7 +549,7 @@ freeze join as distinct milestones:
 4. Implement and assure the retained candidate rules in `omega-bootstrap`,
    feeding measured cost back into the retain/refactor decision. A provisional
    retention is not a final admission until this evidence exists.
-5. Repeat for later source checkpoints and resolve every remaining row. At the
+5. Repeat for later source milestones and resolve every remaining row. At the
    completed product-source/bridge join, freeze both publications: `Ωself`
    from the final product manifest plus measured bridge cost, and Delta v1 from
    the final canonical-compiler and bridge closures plus its explicit
@@ -581,14 +566,7 @@ not a special case accepted by them.
 
 The final bootstrap gate must compile that exact closure under the explicit
 `Ωself` profile rules and reject an excluded-feature canary for every exclusion.
-Checkpoint 000001 now binds its manifest to a separately hashed provisional
-normalized-syntax/resource profile, every-target compiler census, valid-Omega
-positive and negative admission canaries, rounded ceilings, and mutation teeth.
-That artifact explicitly leaves typed semantic distinctions, ABI/layout,
-lowering coverage, Delta capacity behavior, and measured bridge costs for the
-general checkpoint unresolved rather than presenting syntax census—or the
-first bounded artifact cluster—as broader evidence.
-The manifest includes compiler modules, compile-time code, build/module
+The resolver-derived manifest includes compiler modules, compile-time code, build/module
 behavior, and runtime/library dependencies; hiding a feature in a library does
 not remove it from the bootstrap surface.
 

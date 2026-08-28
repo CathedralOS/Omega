@@ -58,8 +58,6 @@ reject_role() {
   fail "Psi product owner is $OMEGA_PATH_PSI_PRODUCT"
 [ "$OMEGA_PATH_OMEGA_PRODUCT" = "$OMEGA_REPO_ROOT/source/omega" ] ||
   fail "Omega product owner is $OMEGA_PATH_OMEGA_PRODUCT"
-[ "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" = "$OMEGA_REPO_ROOT/source/omega/source-checkpoints" ] ||
-  fail "product source-checkpoint owner is $OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
 
 for owner in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_ALPHA_ASSEMBLER" \
@@ -69,16 +67,14 @@ for owner in \
   "$OMEGA_PATH_PROOF_KERNEL" "$OMEGA_PATH_OMEGA_BOOTSTRAP" \
   "$OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT" "$OMEGA_PATH_CORPUS" \
   "$OMEGA_PATH_PSI_RUST" "$OMEGA_PATH_OMEGA_RUST" \
-  "$OMEGA_PATH_PSI_PRODUCT" "$OMEGA_PATH_OMEGA_PRODUCT" \
-  "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"; do
+  "$OMEGA_PATH_PSI_PRODUCT" "$OMEGA_PATH_OMEGA_PRODUCT"; do
   [ -d "$owner" ] && [ ! -L "$owner" ] || fail "canonical owner is not a physical directory: $owner"
 done
 
 # The semantic-owner tree has no aggregate compiler or bootstrap directory.
-for retired in "$OMEGA_REPO_ROOT/bootstrap" "$OMEGA_REPO_ROOT/source/compiler" \
-  "$OMEGA_REPO_ROOT/source/assurance"; do
-  [ ! -e "$retired" ] && [ ! -L "$retired" ] ||
-    fail "retired ownership bucket remains: $retired"
+for retired in bootstrap source/compiler source/assurance source/omega/source-checkpoints; do
+  [ -z "$(git -C "$OMEGA_REPO_ROOT" ls-files "$retired" "$retired/*")" ] ||
+    fail "retired tracked ownership bucket remains: $retired"
 done
 
 # Role-local links retain deliberately shared assurance/sample ownership. They
@@ -137,11 +133,9 @@ expect_role psi "$OMEGA_PATH_PSI_PRODUCT"
 expect_role psi/foundation "$OMEGA_PATH_PSI_PRODUCT/foundation"
 expect_role omega "$OMEGA_PATH_OMEGA_PRODUCT"
 expect_role omega/backend "$OMEGA_PATH_OMEGA_PRODUCT/backend"
-expect_role source-checkpoints "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS"
-expect_role source-checkpoints/verify.sh "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS/verify.sh"
 
 for role in alpha-assembler-rust beta-rust beta-rs beta-assembler beta-lang \
-  beta-lang-rs beta-lang-py delta-rust delta-rs lattice-corpus; do
+  beta-lang-rs beta-lang-py delta-rust delta-rs lattice-corpus source-checkpoints; do
   reject_role "$role"
 done
 
