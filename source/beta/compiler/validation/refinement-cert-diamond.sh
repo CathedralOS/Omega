@@ -8,23 +8,23 @@
 # auditable reference checker) AND checker.gamma (the gamma-language checker, via refcert_to_gamma.py, which
 # maps (k CID args) to the curried (Apply.. (Con CID) ..) constructor encoding — Con/Apply thread through
 # pnorm/nateq/subt/freet, so no gamma feature was needed). All THREE must agree verdict-for-verdict; this is a
-# bug-finding cross-check, not DDC or a replacement for the soundness bridge. (The
+# bug-finding cross-check, not a replacement for the soundness bridge. (The
 # straight-line fuzz certs go through prover.py; the prover-diamond triple-checks those separately.)
 set -e
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "refinement-cert-diamond: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}"/artifact_env.sh

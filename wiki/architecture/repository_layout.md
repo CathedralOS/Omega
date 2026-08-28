@@ -44,7 +44,7 @@ packages.
 > target-neutral half under `source/omega/psi/`; the
 > live Psi lexical slice has landed while later phases remain open.
 > Bootstrap gates resolve cross-owner locations through the
-> role manifest in `tools/bootstrap/paths.sh`; new cross-owner sibling-relative paths
+> role manifest in `tools/lattice/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
 > the canonical bootstrap inventory is documented in the
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
@@ -198,7 +198,7 @@ Omega/
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tests/lattice/corpus/                                  # Shared stable lattice inputs.
-|-- tools/bootstrap/                                       # Lattice orchestration and path gates.
+|-- tools/lattice/                                         # Lattice orchestration and path gates.
 |
 |-- samples/
 |   |-- cli_mvp/                                        # Smallest console program.
@@ -206,9 +206,9 @@ Omega/
 |   `-- README.md                                       # Notes for sample expectations and local build output.
 |
 |-- tests/
-|   |-- canaries/
-|   |   |-- pass/                                       # Tiny feature canaries expected to check.
-|   |   `-- fail/                                       # Tiny negative canaries with expected diagnostics.
+|   |-- omega/
+|   |   |-- pass/                                       # Focused Omega cases expected to check.
+|   |   `-- fail/                                       # Focused Omega cases expected to reject.
 |   `-- fixtures/packages/                              # Package-shaped integration fixtures.
 |
 |-- tools/                                              # Repository maintenance tools.
@@ -230,8 +230,8 @@ source/alpha/checker/                  root derivation checking
 source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator
 tests/lattice/                         shared lattice corpora and cache manifests
-tests/{canaries,fixtures}/             language and package integration tests
-tools/bootstrap/                       lattice orchestration and path gates
+tests/{omega,fixtures}/                language and package integration tests
+tools/lattice/                         lattice orchestration and path gates
 tools/                                 other repository maintenance scripts
 ```
 
@@ -413,6 +413,6 @@ move; the final implementation resolves std through the package graph.
 
 - Public crate roots should explain exports, not hide implementation.
 - Tests should not live in giant `lib.rs` files.
-- Language canaries live only under `tests/canaries/`; a root-level `canaries/`
-  tree is relocation residue and must not be recreated.
+- Omega language cases live only under `tests/omega/`; generic `canaries/`
+  trees obscure the language owner and must not be recreated.
 - `mod.rs` and `lib.rs` declare boundaries; they are not junk drawers.

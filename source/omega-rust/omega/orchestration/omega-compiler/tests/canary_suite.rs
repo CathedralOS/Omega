@@ -2572,11 +2572,11 @@ fn sample_project(path: &str) -> PathBuf {
 }
 
 fn pass_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pass").join(path)
+    repo_root().join("tests/omega/pass").join(path)
 }
 
 fn fail_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/fail").join(path)
+    repo_root().join("tests/omega/fail").join(path)
 }
 
 fn hosted_main_program_entry_build(target: &str) -> String {
@@ -2640,11 +2640,11 @@ fn native_hosted_target() -> &'static str {
 }
 
 fn pending_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pending").join(path)
+    repo_root().join("tests/omega/pending").join(path)
 }
 
 fn run_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/run").join(path)
+    repo_root().join("tests/omega/run").join(path)
 }
 
 fn copy_dir_recursive(from: &Path, to: &Path) -> std::io::Result<()> {

@@ -1,0 +1,23 @@
+// RUN CANARY (exit 70) + interpreter differential. Saturating `<<` clamps
+// when the TRUE value x * 2^n leaves the type's range (shift slice C,
+// closing the shift-domain arc): u8 17 << 4 = 272 clamps to 255. All three
+// engines conform -- the count is statically proven in range, while the
+// interpreter and both native backends detect and clamp value overflow.
+// PROMOTED
+// from tests/omega/pending after sitting parked as a three-way divergence.
+// exits: 71 = neither clamped nor wrapped; 72 = wrapped (the old native
+// plain-shl behavior).
+use omega::language::std::console;
+data Main { console: Console; a: u8 in Saturating; b: u8 [0..=7]; r: u8 in Saturating; }
+machine Main::main(&mut self) {
+    self.a = 17;
+    self.b = 4;
+    self.r = self.a << self.b;
+    transition self.r == 255 { true -> clamped() _ -> chk16() }
+    state chk16(&mut self) {
+        transition self.r == 16 { true -> wrapped() _ -> bad() }
+    }
+    state clamped(&mut self) { self.console.exit_process(70); }
+    state wrapped(&mut self) { self.console.exit_process(72); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

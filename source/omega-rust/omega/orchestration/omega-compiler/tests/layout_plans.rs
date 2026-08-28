@@ -193,7 +193,7 @@ fn plan_laid_value_types_are_placed_by_their_plan() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
+        .join("tests/omega/pass/layouts/runtime_plan_laid_value_field_exit/main.omg");
     let mut checked = compile_to_checked(&canary, None).expect("plan-laid canary should compile");
 
     // The pipeline recorded the validated plan on the typed trees.
@@ -399,7 +399,7 @@ fn plan_laid_private_callback_slot_retains_exact_target_neutral_demand() {
         "core layout must publish exactly one normative PrivateCallbackSlot trait"
     );
     let canary = repository
-        .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+        .join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
     let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x51))
             .expect("private callback-slot layout canary should compile");
@@ -493,7 +493,7 @@ fn target_closure_proves_one_inline_named_field_then_one_private_callback_slot()
         .ancestors()
         .nth(5)
         .unwrap()
-        .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+        .join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
     let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
             .expect("private callback-slot layout canary should compile");
@@ -571,7 +571,7 @@ fn target_closed_private_callback_slot_rejects_geometry_mutations() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/pass/layouts/private_callback_slot_demand_compile/main.omg");
+        .join("tests/omega/pass/layouts/private_callback_slot_demand_compile/main.omg");
     let mut checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x56))
             .expect("private callback-slot layout canary should compile");
@@ -662,7 +662,7 @@ fn private_callback_slot_rejects_a_different_layout_subject() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/fail/layouts/private_callback_slot_wrong_layout/main.omg");
+        .join("tests/omega/fail/layouts/private_callback_slot_wrong_layout/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x52))
             .expect_err("a private slot for another layout must reject");
@@ -685,7 +685,7 @@ fn private_callback_slot_rejects_duplicate_placement() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/fail/layouts/private_callback_slot_duplicate/main.omg");
+        .join("tests/omega/fail/layouts/private_callback_slot_duplicate/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x53))
             .expect_err("placing one exact private slot twice must reject");
@@ -708,7 +708,7 @@ fn authored_place_private_lookalike_cannot_mint_a_receipt() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/fail/layouts/private_callback_slot_authored_lookalike/main.omg");
+        .join("tests/omega/fail/layouts/private_callback_slot_authored_lookalike/main.omg");
     let diagnostics =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x54))
             .expect_err("an authored Plan::place_private lookalike must reject");
@@ -732,7 +732,7 @@ fn untaken_private_callback_slot_branch_emits_no_receipt() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/pass/layouts/private_callback_slot_untaken_compile/main.omg");
+        .join("tests/omega/pass/layouts/private_callback_slot_untaken_compile/main.omg");
     let checked =
         compile_to_checked_with_packages(&canary, None, package_inputs_for_source(&canary, 0x55))
             .expect("the policy with an untaken private-placement branch should compile");
@@ -755,7 +755,7 @@ fn plan_laid_compact_bits_retain_validated_fragment_geometry() {
         .expect(
             "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
         )
-        .join("tests/canaries/pass/layouts/runtime_plan_laid_compact_bits_exit/main.omg");
+        .join("tests/omega/pass/layouts/runtime_plan_laid_compact_bits_exit/main.omg");
     let checked = compile_to_checked(&canary, None).expect("compact-bit canary should compile");
 
     assert_eq!(checked.typed.plan_laid_layouts.len(), 1);
@@ -2683,7 +2683,7 @@ fn integer_at_retains_total_write_evidence_for_a_bounded_carrier() {
         .ancestors()
         .nth(5)
         .expect("compiler crate should live below the repository root")
-        .join("tests/canaries/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg");
+        .join("tests/omega/pass/layouts/runtime_plan_laid_integer_at_total_write_exit/main.omg");
     let mut checked =
         compile_to_checked(&canary, None).expect("total-write canary should typecheck");
     let recorded_index = checked

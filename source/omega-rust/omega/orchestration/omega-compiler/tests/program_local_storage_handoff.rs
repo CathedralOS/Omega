@@ -737,7 +737,7 @@ fn compiled_receiver_free_bridge(
     let directory = temp_directory(&format!("compiled-{label}"));
     fs::create_dir_all(&directory).expect("create compiled entry project");
     let source = include_str!(
-        "../../../../../../tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"
+        "../../../../../../tests/omega/pass/build/uefi_program_entry_storage_roots/main.omg"
     );
     let prefix = source
         .split_once("data Boot {")

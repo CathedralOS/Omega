@@ -16,7 +16,7 @@ into the callee's parameter slot, so the case tag stayed 0 (Idle), the
 dispatch guard failed, and `self.register.balance` was never updated.
 
 The fix and a minimal regression canary are in
-`tests/canaries/pass/calls/by_value_case_param_self_write_exit`.
+`tests/omega/pass/calls/by_value_case_param_self_write_exit`.
 
 ## Build
 

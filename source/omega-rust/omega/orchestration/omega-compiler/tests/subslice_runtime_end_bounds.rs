@@ -37,7 +37,7 @@ fn repo_root() -> PathBuf {
 
 fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     let profile = omega_target::TargetProfile::host();
-    let canary = repo_root().join("tests/canaries/pass").join(canary_rel);
+    let canary = repo_root().join("tests/omega/pass").join(canary_rel);
     let build_dir = std::env::temp_dir().join(format!("omega-{}-{}", tag, std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 

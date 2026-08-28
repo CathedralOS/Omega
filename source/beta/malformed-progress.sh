@@ -6,12 +6,12 @@ set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$GATE_DIR
-while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
   PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
   [ "$PARENT" != "$OMEGA_REPO_ROOT" ] || exit 2
   OMEGA_REPO_ROOT=$PARENT
 done
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 

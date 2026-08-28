@@ -11,14 +11,20 @@ Let `C` be the exact source closure of the Omega-written compiler. It is
 ordinary Omega deliberately authored with a conservative subset of features:
 
 ```text
-Alpha → Beta → Gamma → Delta-produced compiler
-Delta-produced compiler + C → omega₀
-omega₀ + the same C            → omega
+audited Alpha seed
+  → Alpha assembler + Alpha-written Beta cold start → bc
+  → bc-built canonical Gamma evaluator/type checker
+  → canonical Gamma evaluation of Delta compiler source → delta
+  → delta + C → omega₀
+  → omega₀ + the same C → omega
 ```
 
 The chain has no separate hosted bridge compiler. `omega₀` is the first product
 compiler artifact. Rebuilding the same `C` closes the ordinary self-hosting
 edge; it does not introduce another language or compiler generation.
+Gamma contributes canonical evaluation, not a required separately published
+“Gamma compiler” binary. The executable artifact and source/meaning role at
+each arrow must be named exactly rather than inferred from the rung label.
 
 ## Trust by checking, not pedigree
 
@@ -102,13 +108,22 @@ verified merely because a producer or parent package accepted them.
 
 ## Orchestration is replaceable
 
-`tools/bootstrap/` may run stages, provide diagnostics, and compare artifacts.
+`tools/lattice/` may run stages, provide diagnostics, and compare artifacts.
 Shell and other scaffolding are permissible while convenient. They are not
 semantic owners. Source discovery, parsing, lowering, evidence construction,
 and trust decisions belong to compiler or checker stages named above.
 
 Deleting or rewriting a runner may change ergonomics; it must not change what
 the chain means.
+
+## No diversified-compilation stage
+
+Diversified double compilation (DDC) is not a rung, gate, or release
+requirement in this architecture. The audited seed and the checked exact
+source-to-artifact refinement at every edge address the compiler-corruption
+question directly across the whole chain. Independently written compilers and
+checkers remain valuable regression oracles, but agreement supplies diagnostic
+evidence only and cannot replace the checked refinement proposition.
 
 ## Open work
 

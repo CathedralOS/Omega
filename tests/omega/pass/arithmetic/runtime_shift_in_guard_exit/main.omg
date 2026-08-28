@@ -1,0 +1,63 @@
+// Shift operators used DIRECTLY IN A GUARD SUBJECT (`self.x >> n == k`), newly
+// supported. `<<` is signedness-agnostic; `>>` threads the shifted VALUE's
+// signedness -- arithmetic `sar` for a signed value, logical `shr` for an
+// unsigned one. Values are built at runtime (loop) so the shifts run in codegen,
+// not const-folded. Previously the dispatch-guard blocker rejected any shift in a
+// guard subject (former tests/omega/fail/arithmetic/shift_in_guard_rejected); the
+// sound workaround was to bind the shift to a field first. The differential
+// oracle also checks native==interpreter.
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    base: i32 in Wrapping;
+    i: i32 in Wrapping;
+    neg: i32 in Wrapping;
+    u: u32 in Wrapping;
+}
+
+machine Main::main(&mut self) {
+    self.base = 0;
+    self.i = 0;
+    transition { _ -> build() }
+
+    state build(&mut self) {
+        transition self.i < 5 { true -> step() _ -> pos_guard() }
+    }
+    state step(&mut self) {
+        self.base = self.base + 64;
+        self.i = self.i + 1;
+        transition { _ -> build() }
+    }
+
+    // base = 320 at runtime from here on.
+    state pos_guard(&mut self) {
+        // signed `>>` in a guard subject: 320 >> 2 == 80.
+        transition self.base >> 2 == 80 { true -> neg_guard() _ -> bad() }
+    }
+    state neg_guard(&mut self) {
+        self.neg = 0 - self.base; // -320
+        // signed ARITHMETIC `>>` in a guard: -320 >> 2 == -80 (not a huge logical
+        // value -- a mis-lowered logical shr, or a 64-bit sar on the zero-extended
+        // i32, would give 0x3FFFFFB0). This case forced the operand-width shift fix.
+        transition self.neg >> 2 == -80 { true -> unsigned_guard() _ -> bad() }
+    }
+    state unsigned_guard(&mut self) {
+        self.u = 4294967295;
+        // unsigned LOGICAL `>>` in a guard: 0xFFFFFFFF >> 4 == 0x0FFFFFFF. A
+        // mis-lowered arithmetic sar would keep the sign bits (== -1).
+        transition self.u >> 4 == 268435455 { true -> left_guard() _ -> bad() }
+    }
+    state left_guard(&mut self) {
+        // `<<` in a guard subject (signedness-agnostic): 320 << 2 == 1280.
+        transition self.base << 2 == 1280 { true -> good() _ -> bad() }
+    }
+
+    state good(&mut self) {
+        self.console.exit_process(70);
+    }
+    state bad(&mut self) {
+        self.console.exit_process(71);
+    }
+}

@@ -8,8 +8,8 @@
 # reference interpreter). They were written differently, in different languages,
 # at different rungs. For each proof below — expressed in BOTH input syntaxes — the
 # two checkers must return the SAME verdict, and it must be the expected one. A
-# disagreement exposes a bug or unsupported semantic mismatch. Agreement is not
-# DDC and does not itself prove either checker sound.
+# disagreement exposes a bug or unsupported semantic mismatch. Agreement does
+# not itself prove either checker sound.
 #
 # A THIRD oracle joins below: implementations/gamma/checker_typed.gamma — the fully type-annotated checker
 # that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped
@@ -21,17 +21,17 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
 . "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"

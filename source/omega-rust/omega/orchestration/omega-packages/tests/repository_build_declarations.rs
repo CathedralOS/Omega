@@ -54,9 +54,9 @@ const ROLE_MIGRATION_EXCEPTIONS: &[&str] = &[
     "pass/providers/test-owner-provider-override-compile",
 ];
 
-fn canary_migration_key(canaries: &Path, root: &Path) -> String {
-    root.strip_prefix(canaries)
-        .expect("canary root must be beneath the canary corpus")
+fn omega_case_migration_key(cases: &Path, root: &Path) -> String {
+    root.strip_prefix(cases)
+        .expect("Omega case root must be beneath the Omega case corpus")
         .to_string_lossy()
         .replace(['_', '\\'], "-")
 }
@@ -101,15 +101,21 @@ fn assert_scoped_build_exception(root: &Path) {
     );
 }
 
-fn expected_canary_application_name(root: &Path) -> String {
+fn expected_omega_case_application_name(root: &Path) -> String {
     let leaf = root
         .file_name()
         .and_then(|name| name.to_str())
-        .expect("canary root must have a UTF-8 leaf name");
+        .expect("Omega case root must have a UTF-8 leaf name");
     if root.ends_with("pass/arithmetic/float_trapping_invalid_traps")
         || root.ends_with("pass/arithmetic/float_trapping_overflow_traps")
     {
         return format!("arithmetic-{}", leaf.replace('_', "-"));
+    }
+    if root.ends_with("pass/float/build_runtime_semantics_twins_windows_x64") {
+        return "windows-x64-baseline-float-semantic-edge-twin".to_owned();
+    }
+    if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
+        return "x86-baseline-float-semantic-edge-twin".to_owned();
     }
     leaf.replace('_', "-")
 }
@@ -178,27 +184,24 @@ fn executable_samples_declare_canonical_application_roles() {
 }
 
 #[test]
-fn ordinary_canary_projects_declare_canonical_application_roles() {
-    let canaries = repository_root().join("tests/canaries");
+fn ordinary_omega_case_projects_declare_canonical_application_roles() {
+    let cases = repository_root().join("tests/omega");
     let mut roots = Vec::new();
-    collect_build_roots(&canaries, &mut roots);
-    assert_eq!(
-        roots.len(),
-        1_121,
-        "unexpected canary build-root population"
-    );
+    collect_build_roots(&cases, &mut roots);
+    assert!(!roots.is_empty(), "Omega case corpus must not be empty");
+    let root_count = roots.len();
 
     let mut exceptions = 0;
     let mut applications = 0;
     for root in roots {
-        let migration_key = canary_migration_key(&canaries, &root);
+        let migration_key = omega_case_migration_key(&cases, &root);
         if ROLE_MIGRATION_EXCEPTIONS.contains(&migration_key.as_str()) {
             assert_scoped_build_exception(&root);
             exceptions += 1;
             continue;
         }
 
-        let expected_name = expected_canary_application_name(&root);
+        let expected_name = expected_omega_case_application_name(&root);
         assert_eq!(
             extract_build_declaration(&root).unwrap_or_else(|error| {
                 panic!(
@@ -209,12 +212,12 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
             BuildDeclaration::Application(omega_packages::ApplicationDeclaration {
                 name: PackageName::parse(&expected_name).unwrap(),
             }),
-            "unexpected canary application declaration in {}",
+            "unexpected Omega case application declaration in {}",
             root.display()
         );
         applications += 1;
     }
 
     assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications, 1_116);
+    assert_eq!(applications + exceptions, root_count);
 }

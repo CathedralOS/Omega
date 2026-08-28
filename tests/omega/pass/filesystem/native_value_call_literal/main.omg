@@ -1,0 +1,43 @@
+// NATIVE value-call literal forwarding (step 14, fix #1). A VALUE-CALL to a
+// sub-machine forwards a slice LITERAL ("hello") to a `bytes: &[u8]` param, which
+// the callee writes to a file. The callee reaches the host `write` via a FIELD
+// (`self.n = self.fs.write(fd, bytes)`) so the call is collected + emitted (a
+// `let`-bound host call is a separate, still-open collection gap — see
+// tests/omega/run/filesystem/value_call_slice_literal_len + TASKS_FS.md step 14).
+//
+// The literal is aliased into the callee as its `bytes` param; its data object is
+// keyed to the CALLER's statement, so the host-op operand resolution must follow
+// the alias to that literal (compiler fix `aliased_literal_data_object`). Before
+// the fix the forwarded slice materialized len 0 -> an empty write. PASS iff the
+// file holds the 5 forwarded bytes (seek-to-end == 5).
+
+use omega::language::std::filesystem_host;
+
+data Main {
+    fs: FilesystemHost;
+    mode: i32;
+    fd: i32;
+    n: i64;
+    size: i64;
+}
+
+machine Main::main(&mut self) {
+    self.mode = 420;
+    self.fd = self.fs.create("/tmp/omega_vcl.txt", self.mode);
+    transition self.fd >= 0 { true -> drive() _ -> fail() }
+    state drive(&mut self) {
+        self.n = self.putv(self.fd, "hello");
+        self.size = self.fs.seek(self.fd, 0, 2);
+        self.n = self.fs.close(self.fd);
+        self.n = self.fs.remove("/tmp/omega_vcl.txt");
+        transition self.size == 5 { true -> good() _ -> fail() }
+    }
+    state good(&mut self) { self.n = self.fs.write(1, "PASS: value-call forwards a 5-byte literal\n"); }
+    state fail(&mut self) { self.n = self.fs.write(1, "FAIL: value-call literal forwarding\n"); }
+}
+
+machine Main::putv(&mut self, fd: i32, bytes: &[u8]) -> i64 {
+    self.n = self.fs.write(fd, bytes);
+    transition self.n >= 0 { true -> done() _ -> done() }
+    state done(&mut self) -> i64 { self.n }
+}

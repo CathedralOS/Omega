@@ -152,7 +152,7 @@ fn terminal_source_canary(name: &str) -> PathBuf {
         .ancestors()
         .nth(5)
         .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
-        .join("tests/canaries/pass/terminal_psi")
+        .join("tests/omega/pass/terminal_psi")
         .join(name)
         .join("main.omg")
 }
@@ -166,7 +166,7 @@ fn progress_source_canary() -> PathBuf {
         .ancestors()
         .nth(5)
         .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
-        .join("tests/canaries/pass/progress/provider_receiver_progress_installation/main.omg")
+        .join("tests/omega/pass/progress/provider_receiver_progress_installation/main.omg")
 }
 
 fn progress_free_selected_source_canary() -> PathBuf {

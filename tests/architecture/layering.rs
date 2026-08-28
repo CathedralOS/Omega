@@ -1699,16 +1699,16 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
 }
 
 #[test]
-fn language_canaries_remain_under_tests() {
+fn omega_language_cases_remain_under_tests() {
     let root = workspace_root();
     assert!(
         !root.join("canaries").exists(),
-        "language canaries belong under tests/canaries; do not recreate a root-level canaries tree"
+        "Omega language cases belong under tests/omega; do not recreate a generic root test tree"
     );
     for lane in ["pass", "fail"] {
         assert!(
-            root.join("tests/canaries").join(lane).is_dir(),
-            "tests/canaries/{lane} must remain the canonical {lane}-canary lane"
+            root.join("tests/omega").join(lane).is_dir(),
+            "tests/omega/{lane} must remain the canonical Omega {lane} lane"
         );
     }
 }

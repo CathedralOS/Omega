@@ -75,9 +75,9 @@ fn repo_root() -> PathBuf {
 }
 
 fn pass_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pass").join(path)
+    repo_root().join("tests/omega/pass").join(path)
 }
 
 fn fail_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/fail").join(path)
+    repo_root().join("tests/omega/fail").join(path)
 }

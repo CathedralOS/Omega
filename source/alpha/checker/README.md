@@ -10,7 +10,7 @@ Beta compiler, below `bc`, and reconstructed byte-for-byte by
 regression and differential evidence, but cannot admit its own producer.
 
 This tree is checker infrastructure rather than a compiler or language rung.
-Canonical callers resolve the `proof-kernel` role through `tools/bootstrap/paths.sh`.
+Canonical callers resolve the `proof-kernel` role through `tools/lattice/paths.sh`.
 Internal ownership is split by responsibility; the host language of a file does
 not determine its owner.
 See the
