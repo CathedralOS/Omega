@@ -202,8 +202,9 @@ content from that same open Source root. Authenticated Git paths, kinds, and
 executable bits are compared with the captured tree rather than ambient
 metadata. Native Git mutation remains pathname-visible to the unconfined
 helper. On macOS, retained cache directories, regular files, and locks are
-queried for extended ACL allow entries through their descriptors; pre-open
-root/ancestry, symlink, and executable ACL observations remain path-based.
+queried for extended ACL allow entries through their descriptors. Concrete
+selected executables and their ancestry are descriptor-queried as well;
+pre-open cache root/ancestry and symlink ACL observations remain path-based.
 Destination exclusion is cooperative rather than an atomic hostile-same-user
 no-replace primitive, so this still does not claim exclusion of an actively
 hostile same-user process.
@@ -288,11 +289,13 @@ ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
 other executable components, establish Windows ownership/DACL custody, protect
 against same-user replacement, bind TLS trust or the effective endpoint, or
 prove that an observed file equals an already loaded image. On macOS, every
-selected executable, transport invocation entry, canonical transport target,
-and executable ancestor is additionally read through the native extended-ACL
-surface. The narrow platform wrapper classifies only native allow/deny tags and
-does not resolve ACL principals through ambient identity services. Any allow
-entry rejects; deny-only entries cannot broaden custody.
+concrete selected executable, transport invocation entry, canonical transport
+target, and executable ancestor is opened no-follow, required to preserve its
+classified file identity, and read through the descriptor form of the native
+extended-ACL surface. Symlink invocation entries use the path-oriented native
+link ACL interface. The narrow platform wrapper classifies only native
+allow/deny tags and does not resolve ACL principals through ambient identity
+services. Any allow entry rejects; deny-only entries cannot broaden custody.
 Failure to inspect an ACL rejects rather than degrading to mode-only checks.
 These ACL checks run at the same repeated custody points as owner, mode,
 ancestry, and executable identity checks. They close ordinary extended-ACL

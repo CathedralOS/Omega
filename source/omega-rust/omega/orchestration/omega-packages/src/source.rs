@@ -5444,7 +5444,11 @@ fn verify_git_transport_invocation_node_custody(
             message: "transport invocation entry is owned by an unrelated user".to_owned(),
         });
     }
-    verify_macos_extended_acl_custody(path, false)?;
+    if metadata.file_type().is_symlink() {
+        verify_macos_path_extended_acl_custody(path, false)?;
+    } else {
+        verify_macos_open_executable_acl_custody(path, metadata)?;
+    }
     Ok(())
 }
 
@@ -5501,7 +5505,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
             message: "resolver executable has no executable mode bit".to_owned(),
         });
     }
-    verify_macos_extended_acl_custody(path, true)?;
+    verify_macos_open_executable_acl_custody(path, &metadata)?;
 
     verify_git_executable_ancestry(path)
 }
@@ -5547,13 +5551,13 @@ fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError>
                         .to_owned(),
             });
         }
-        verify_macos_extended_acl_custody(ancestor, true)?;
+        verify_macos_open_executable_ancestry_acl_custody(ancestor, &metadata)?;
     }
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn verify_macos_extended_acl_custody(
+fn verify_macos_path_extended_acl_custody(
     path: &Path,
     follow_symbolic_link: bool,
 ) -> Result<(), SourceResolveError> {
@@ -5579,10 +5583,129 @@ fn verify_macos_extended_acl_custody(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_acl_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no absolute custody parent".to_owned(),
+        })?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no concrete filename".to_owned(),
+        })?;
+    let parent = open_absolute_directory_nofollow(parent_path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: parent_path.to_path_buf(),
+            message: format!("could not retain resolver executable parent: {error}"),
+        }
+    })?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not open resolver executable without following links: {error}"),
+        }
+    })?;
+    let opened = file
+        .metadata()
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not inspect retained resolver executable: {error}"),
+        })?;
+    if !opened.is_file() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_macos_open_executable_extended_acl_custody(path, &file.into_std())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_ancestry_acl_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not retain resolver executable ancestry: {error}"),
+        }
+    })?;
+    let opened =
+        directory
+            .dir_metadata()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "could not inspect retained resolver executable ancestry: {error}"
+                ),
+            })?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_macos_open_executable_extended_acl_custody(
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!("could not clone retained executable ancestry: {error}"),
+            })?
+            .into_std_file(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_extended_acl_custody(
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let has_allow_entry = omega_platform_custody::open_file_extended_acl_has_allow_entry(file)
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "could not inspect retained resolver executable extended ACL custody: {error}"
+            ),
+        })?;
+    if has_allow_entry {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable custody contains an extended ACL allow entry".to_owned(),
+        });
+    }
+    Ok(())
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_extended_acl_custody(
+fn verify_macos_path_extended_acl_custody(
     _path: &Path,
     _follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_open_executable_acl_custody(
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_open_executable_ancestry_acl_custody(
+    _path: &Path,
+    _classified: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }
@@ -10200,6 +10323,39 @@ mod tests {
 
         std::fs::remove_file(&fake_git).expect("remove fake Git executable");
         std::fs::remove_dir(&root).expect("remove executable ACL custody root");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn executable_acl_handle_open_rejects_classified_path_replacement() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temporary_root = temp_root("git-executable-acl-handle-replacement");
+        std::fs::create_dir_all(&temporary_root).expect("create executable ACL test root");
+        let root = temporary_root
+            .canonicalize()
+            .expect("canonicalize executable ACL test root");
+        let executable = root.join("git");
+        let retained = root.join("retained");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 0\n").expect("write classified executable");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("make classified executable private");
+        let classified =
+            std::fs::symlink_metadata(&executable).expect("classify executable before replacement");
+
+        std::fs::rename(&executable, &retained).expect("relocate classified executable");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 1\n").expect("write replacement executable");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("make replacement executable private");
+        change_macos_acl(&executable, &["+a", "everyone allow write"]);
+
+        assert!(matches!(
+            verify_macos_open_executable_acl_custody(&executable, &classified),
+            Err(SourceResolveError::GitExecutableChanged { path }) if path == executable
+        ));
+
+        change_macos_acl(&executable, &["-N"]);
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[cfg(target_os = "macos")]
