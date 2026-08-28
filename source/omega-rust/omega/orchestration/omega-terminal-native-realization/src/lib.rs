@@ -5,6 +5,15 @@
 //! This stage owns the target-dependent lowering join. It does not own source
 //! compilation, component policy, executable installation, or publication.
 
+mod optimized_semantic_wrapper_encoding;
+
+pub use optimized_semantic_wrapper_encoding::{
+    OptimizedProgramStorageSemanticWrapperEncodingError,
+    StagedOptimizedProgramStorageSemanticWrapperEncoding,
+    select_optimized_program_storage_semantic_wrapper_encoding,
+    validate_optimized_program_storage_semantic_wrapper_encoding,
+};
+
 use std::collections::BTreeSet;
 
 use omega_terminal_abstract_operations_to_target_operations::{

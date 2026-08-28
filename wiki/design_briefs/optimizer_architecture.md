@@ -198,7 +198,8 @@ canonical Terminal Psi semantic + proof sections
           -> whole-section resolution
           -> zero-relocation two-Machine object (generic codegen proof)
           -> settled Terminal continuation object/artifact
-          -> compiler-owned wrapper encoding selection and replay (next)
+          -> compiler-owned wrapper encoding selection and replay
+          -> one-function structural Unit continuation custody (next)
           -> separate semantic ProgramStorage wrapper object (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
@@ -2486,14 +2487,28 @@ optimization pipeline. It must consume the canonical optimized object artifact
 for the actual settled Terminal entry, bind that exact object-local
 `MachineId` symbol as the private continuation, independently replay the
 semantic contract and wrapper plan, and then synthesize a separate
-compiler-owned wrapper object. Before it can grant wrapper-byte custody, the
-target-owned encoding contract must resolve the current layout split: the clean
-structural encoder places the call opcode/field at function offsets `80/81`,
-while the older full-frame wrapper recipe records `113/114`. The optimized
-route may select the shorter encoding only after the wrapper plan and validator
-describe and replay that choice; it must not silently treat the generic
-structural caller as the wrapper. This is an engineering representation task,
-not a language-design dependency.
+compiler-owned wrapper object.
+
+The encoding split is now explicit. The semantic wrapper plan owns no byte
+coordinates and requires a later target encoding. Native realization consumes
+that plan by value and projects all eleven semantic steps into the named compact
+Microsoft-x64 caller-saved-only/no-control-state-mutation policy. The
+target-owned encoder independently parses its complete 90-byte function,
+retains root reads, copy writes, argument-register rewrites, caller-saved
+clobbers, stack/IP/flags effects, balanced frame, fault/call/cleanup behavior,
+and Unit return, and owns opcode/field/next-IP offsets `80/81/85`. Its resolver
+checks the signed target equation and every byte outside the field. The older
+compatibility emitter remains a distinct 143-byte full-frame encoding with
+coordinates `113/114/118`; neither layout impersonates the other.
+
+The immediate prerequisite for the object join is a real one-function
+structural two-Extent `ReturnUnit` continuation. Selection, machine effects,
+encoding, and resolved layout already admit the call-free structural shape,
+but whole-function exit currently requires exactly the generic two-Machine
+caller/leaf topology. A separately named, independently replayed structural
+Unit leaf exit policy must carry that settled entry through fragments, text,
+object, and canonical artifact custody. This is an engineering representation
+task, not a language-design dependency.
 
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the settled internal continuation is MachineId-rooted. The checked-source

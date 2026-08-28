@@ -21,8 +21,6 @@ const PRE_CALL_STACK_ALIGNMENT: u16 = 16;
 const EXTENT_BYTE_COUNT: u16 = 16;
 const EXTENT_ALIGNMENT: u16 = 8;
 const CALL_STEP_INDEX: usize = 8;
-const CALL_INSTRUCTION_FUNCTION_BYTE_OFFSET: u32 = 113;
-const CALL_RELOCATION_FUNCTION_BYTE_OFFSET: u32 = 114;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperContinuationDisposition {
@@ -34,13 +32,18 @@ pub enum OptimizedProgramStorageSemanticWrapperRelocationKind {
     X86Relative32PrivateContinuationV1,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptimizedProgramStorageSemanticWrapperEncodingDisposition {
+    /// A target realization must select, emit, and independently replay one
+    /// concrete encoding before any byte or object custody exists.
+    TargetEncodingRequiredV1,
+}
+
 /// One symbolic relocation requirement. The downstream object join must bind
 /// its target to the exact private Terminal entry symbol.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     call_step_index: usize,
-    call_instruction_function_byte_offset: u32,
-    relocation_function_byte_offset: u32,
     byte_width: u8,
     addend: i64,
     kind: OptimizedProgramStorageSemanticWrapperRelocationKind,
@@ -50,14 +53,6 @@ pub struct OptimizedProgramStorageSemanticWrapperRelocationRequirement {
 impl OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     pub const fn call_step_index(&self) -> usize {
         self.call_step_index
-    }
-
-    pub const fn call_instruction_function_byte_offset(&self) -> u32 {
-        self.call_instruction_function_byte_offset
-    }
-
-    pub const fn relocation_function_byte_offset(&self) -> u32 {
-        self.relocation_function_byte_offset
     }
 
     pub const fn byte_width(&self) -> u8 {
@@ -124,6 +119,7 @@ pub struct OptimizedProgramStorageSemanticWrapperPlan {
     pre_call_stack_alignment: u16,
     steps: [OptimizedProgramStorageSemanticWrapperStep; 11],
     relocation: OptimizedProgramStorageSemanticWrapperRelocationRequirement,
+    encoding_disposition: OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition,
 }
 
@@ -160,6 +156,12 @@ impl OptimizedProgramStorageSemanticWrapperPlan {
         &self.relocation
     }
 
+    pub const fn encoding_disposition(
+        &self,
+    ) -> OptimizedProgramStorageSemanticWrapperEncodingDisposition {
+        self.encoding_disposition
+    }
+
     pub const fn physical_disposition(&self) -> OptimizedProgramStoragePhysicalEntryDisposition {
         self.physical_disposition
     }
@@ -182,6 +184,8 @@ pub fn plan_optimized_program_storage_semantic_wrapper(
         pre_call_stack_alignment: PRE_CALL_STACK_ALIGNMENT,
         steps: expected_steps(fingerprint),
         relocation: expected_relocation(),
+        encoding_disposition:
+            OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1,
         physical_disposition: OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1,
     };
     validate_optimized_program_storage_semantic_wrapper(&plan)?;
@@ -199,6 +203,8 @@ pub fn validate_optimized_program_storage_semantic_wrapper(
         || plan.outgoing_frame_byte_count != OUTGOING_FRAME_BYTE_COUNT
         || plan.outgoing_release_byte_count != plan.outgoing_frame_byte_count
         || plan.pre_call_stack_alignment != PRE_CALL_STACK_ALIGNMENT
+        || plan.encoding_disposition
+            != OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1
         || plan.physical_disposition
             != OptimizedProgramStoragePhysicalEntryDisposition::PlannedNotInvokedV1
     {
@@ -346,8 +352,6 @@ fn bind(
 fn expected_relocation() -> OptimizedProgramStorageSemanticWrapperRelocationRequirement {
     OptimizedProgramStorageSemanticWrapperRelocationRequirement {
         call_step_index: CALL_STEP_INDEX,
-        call_instruction_function_byte_offset: CALL_INSTRUCTION_FUNCTION_BYTE_OFFSET,
-        relocation_function_byte_offset: CALL_RELOCATION_FUNCTION_BYTE_OFFSET,
         byte_width: 4,
         addend: 0,
         kind: OptimizedProgramStorageSemanticWrapperRelocationKind::X86Relative32PrivateContinuationV1,
@@ -662,10 +666,9 @@ mod tests {
         assert_eq!(plan.relocation(), &expected_relocation());
         assert_eq!(plan.relocation().call_step_index(), 8);
         assert_eq!(
-            plan.relocation().call_instruction_function_byte_offset(),
-            113
+            plan.encoding_disposition(),
+            OptimizedProgramStorageSemanticWrapperEncodingDisposition::TargetEncodingRequiredV1
         );
-        assert_eq!(plan.relocation().relocation_function_byte_offset(), 114);
         assert_eq!(plan.relocation().byte_width(), 4);
         assert_eq!(plan.relocation().addend(), 0);
         assert_eq!(
@@ -715,7 +718,7 @@ mod tests {
 
         for corrupt in [
             |relocation: &mut OptimizedProgramStorageSemanticWrapperRelocationRequirement| {
-                relocation.relocation_function_byte_offset = 115;
+                relocation.call_step_index = 7;
             },
             |relocation: &mut OptimizedProgramStorageSemanticWrapperRelocationRequirement| {
                 relocation.byte_width = 8;

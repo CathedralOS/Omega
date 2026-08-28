@@ -581,6 +581,13 @@ mod tests {
         let template = template();
         let exact_kinds = expected_validation_kinds(template.continuation_identity);
         let exact_bytes = expected_emitted_bytes().unwrap();
+        assert_eq!(exact_bytes.len(), 143);
+        assert_eq!(exact_bytes[113], 0xe8);
+        assert_eq!(&exact_bytes[114..118], &[0, 0, 0, 0]);
+        assert_eq!(
+            &exact_bytes[122..],
+            &omega_isa_x86_64::encode_return_bytes()
+        );
         validate_emitted_rows(&template, &exact_kinds, &exact_bytes).unwrap();
 
         let mut opcode_tamper = exact_bytes.clone();

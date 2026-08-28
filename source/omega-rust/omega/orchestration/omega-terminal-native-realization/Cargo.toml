@@ -20,6 +20,7 @@ omega-terminal-abstract-operations = { path = "../../representations/omega-termi
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
+omega-terminal-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-x86_64" }
 omega-terminal-machine-emission = { path = "../../backend/omega-terminal-machine-emission" }
 omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
@@ -32,6 +33,8 @@ psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 
 [dev-dependencies]
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
 psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
