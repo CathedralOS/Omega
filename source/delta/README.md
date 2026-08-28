@@ -29,6 +29,11 @@ between Delta and `omega₀`.
   prepares a fresh exact evidence attempt, reports token/epoch-bound stage
   status, and finalizes the existing V1 receipt without hiding a compiler run
   inside the verifier.
+- [`lower_rooted_artifact_custody_v1.py`](lower_rooted_artifact_custody_v1.py)
+  re-verifies that complete assembly evidence and binds it to one exact bounded,
+  unsigned Darwin ARM64 Mach-O image and realization toolchain. Its receipt is
+  custody-only while the authoritative Delta v1 semantics subject and direct
+  source/artifact refinement remain open.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
@@ -43,6 +48,8 @@ retains them.
 - The Delta-produced compiler may lower conservatively, but accepted source
   retains exact ordinary Omega meaning.
 - Unsupported input and resource exhaustion reject before publication.
+- An ambient assembler/linker result may receive an exact custody receipt, but
+  it gains no compiler authority without separately checked direct refinement.
 - Shell and Python files may drive tests or verify recorded receipts. They are
   not semantic compiler stages and must be replaceable by direct invocation of
   the compiler artifacts they coordinate.
