@@ -728,8 +728,21 @@ complete.
   code or signal and exact bounded stdout/stderr lengths and digests join
   positionally to the native policy-observation digest. Successful resolution
   requires launch, policy, and outcome counts to agree. Effective endpoint,
-  transferred bytes, aggregate resource observations, and strict acceptance
-  remain outside this provenance rung.
+  transferred bytes, object-store and descendant aggregate-resource
+  observations, and strict acceptance remain outside this provenance rung.
+
+  Follow-up 2026-08-28: one compiler-owned whole-resolution captured-output
+  budget now spans both capture threads and every Git command. Its ceiling is
+  `min(source-byte ceiling + 64 MiB, 576 MiB)` and remains independent of each
+  command's stdout/stderr ceilings. Overflow-safe atomic charging rejects with a
+  distinct cumulative-output error and terminates/reaps the command container.
+  Successful issuance requires the observed counter to equal the sum of every
+  retained stdout/stderr length; schema-2 final observations bind both ceiling
+  and observed count. Git cache policy v13 prevents reuse of entries fetched
+  before this floor. This closes cumulative parent-captured output only and does
+  not mark aggregate-resource confinement: network transfer, object-store and
+  temporary disk usage, descendant CPU/memory/process count, and true during-
+  operation quotas remain separate work.
 
   Follow-up 2026-08-28: after the outer resolver also reconciles retained cache
   namespace/custody and final executable content, it physically reopens and
@@ -743,8 +756,8 @@ complete.
   command rows. It has no public constructor or decoder, is sensitive to policy
   changes, and carries only the fixed outcome `resolved-non-admitting`. This
   closes the final successful-result join without pretending unavailable
-  containment, endpoint/credential trust, transfer/resource accounting, or
-  strict receipt acceptance exists.
+  containment, endpoint/credential trust, network-transfer/object-store/
+  descendant aggregate-resource accounting, or strict receipt acceptance exists.
 
   Follow-up 2026-08-28: repository inspection no longer imports a mutable host
   profile on macOS. Its compiler-generated default-deny Seatbelt policy admits
