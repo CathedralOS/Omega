@@ -90,26 +90,29 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 64,881 lines; the checker ROOT is 82,314 bytes. Shape, control, data, and
+  and 64,605 lines; Checker A is 1,045,557 source bytes and the checker ROOT is
+  82,314 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [ ] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
-  word-size optimization still shifts 81 semantic modules. The checked
+  word-size optimization still shifts many semantic consumers. The checked
   stable-row memory resolver has landed with the complete `gen_stmts` and
-  `gen_expr` memory families plus a same-block swapped-PC tooth; 31 further
+  `gen_expr` memory families plus a same-block swapped-PC tooth; 28 further
   modules must consume it.
   Synthetic `__write_str`, the sole missing shared owner found by the
   internal-site audit, now resolves from the checked prelude successor; effect
   custody owns its one exhaustive body check and the duplicate summary scan is
-  gone. All shared owners therefore exist. Thirty-one memory consumers and 24
-  internal-site consumers remain, spanning 44 modules. Next migrate the direct
-  identity/table group (`bc-counter-transfer`,
-  `bc-expression-call-data-shape`, `bc-expression-factor-rules`, and
-  `bc-name-eq-data-shape`), then the existing procedure/epilogue consumers and
-  relative emit-layout consumers. Source rows `259` and `391` are not artifact
-  PCs. Add a same-complete-key emit-occurrence swap tooth before applying r13.
+  gone. All shared owners therefore exist. The direct identity/table group and
+  the `bc-cursor-leaf-summary`/`bc-skip-ws-summary`/`bc-slurp-summary`
+  procedure subgroup now consume existing owners, removing 290 raw artifact-PC
+  literals. Twenty-eight memory consumers and 17 internal-site consumers
+  remain, spanning 39 modules. Continue with the existing procedure/epilogue
+  consumers and relative emit-layout consumers. Source rows `259` and `391`
+  are not artifact PCs. `gen_emit`'s three identical newline events now use
+  exact-cardinality occurrence identity; an eighth tooth swaps two witness PCs
+  and rejects before r13.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated

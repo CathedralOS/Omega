@@ -105,6 +105,10 @@ summary consumers use its returned relative sites. The final ROOT tape is
 82,314 bytes for the current
 exact subjects, SHA-256
 `e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`.
+`gen_emit`'s three identical newline events now use checker-owned exact
+cardinality and lexical occurrence rather than source rows. An eighth control
+swaps the first two valid witness PCs and is rejected by the label-emitter
+owner's artifact-order rejoin.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
