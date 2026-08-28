@@ -11,6 +11,11 @@ mod aarch64_cbnz_compute;
 mod aarch64_cbnz_identity;
 mod aarch64_cbnz_model;
 mod aarch64_cbnz_validate;
+mod aarch64_movn_codec;
+mod aarch64_movn_compute;
+mod aarch64_movn_identity;
+mod aarch64_movn_model;
+mod aarch64_movn_validate;
 mod alternative_codec;
 mod alternative_compute;
 mod alternative_identity;
@@ -26,6 +31,10 @@ pub use aarch64_cbnz_codec::Aarch64CbnzFusionDecodeError;
 pub use aarch64_cbnz_identity::aarch64_cbnz_fusion_identity;
 pub use aarch64_cbnz_model::*;
 pub use aarch64_cbnz_validate::validate_aarch64_cbnz_fusion;
+pub use aarch64_movn_codec::Aarch64MovnMaterializationDecodeError;
+pub use aarch64_movn_identity::aarch64_movn_materialization_identity;
+pub use aarch64_movn_model::*;
+pub use aarch64_movn_validate::validate_aarch64_movn_materialization;
 pub use alternative_codec::PostAllocationMachineDecodeError;
 pub use alternative_identity::post_allocation_machine_identity;
 pub use alternative_model::*;
@@ -131,4 +140,19 @@ pub fn optimize_aarch64_compare_i64_zero_branch_nonzero_to_cbnz<
 ) -> Result<ValidatedAarch64CbnzFusion, Aarch64CbnzFusionError> {
     let plan = aarch64_cbnz_compute::compute(selected, liveness, source, physical, budget)?;
     validate_aarch64_cbnz_fusion(selected, liveness, source, physical, plan)
+}
+
+/// Select the exact shortest MOVN-seeded AArch64 symbolic sequence for each
+/// post-allocation i64 materialization, but only when it strictly reduces the
+/// declared zero-seeded instruction count. This owns no encoded bytes.
+pub fn optimize_aarch64_materialize_i64_with_shortest_movn_seed<
+    S: omega_regalloc::ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    source: &ValidatedPostAllocationMachinePlan,
+    physical: &omega_register_model::ValidatedPhysicalRegisterModel,
+    budget: omega_optimization_core::OptimizationWorkBudget,
+) -> Result<ValidatedAarch64MovnMaterialization, Aarch64MovnMaterializationError> {
+    let plan = aarch64_movn_compute::compute(selected, source, physical, budget)?;
+    validate_aarch64_movn_materialization(selected, source, physical, plan)
 }

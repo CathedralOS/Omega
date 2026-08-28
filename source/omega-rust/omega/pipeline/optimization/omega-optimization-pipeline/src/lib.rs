@@ -277,20 +277,28 @@ pub use post_allocation_machine_effects::{
 };
 pub use post_allocation_machine_optimizations::{
     OptimizedPostAllocationMachineOptimizationError, StagedOptimizedAarch64CbnzFusion,
-    StagedOptimizedAarch64CbnzFusionCustodyReceipt, stage_optimized_aarch64_cbnz_fusion,
+    StagedOptimizedAarch64CbnzFusionCustodyReceipt, StagedOptimizedAarch64MovnMaterialization,
+    StagedOptimizedAarch64MovnMaterializationCustodyReceipt, stage_optimized_aarch64_cbnz_fusion,
     stage_optimized_aarch64_cbnz_fusion_after_selected_lowering,
+    stage_optimized_aarch64_movn_materialization,
+    stage_optimized_aarch64_movn_materialization_after_selected_lowering,
     validate_optimized_aarch64_cbnz_fusion_after_selected_lowering_custody,
     validate_optimized_aarch64_cbnz_fusion_custody,
+    validate_optimized_aarch64_movn_materialization_after_selected_lowering_custody,
+    validate_optimized_aarch64_movn_materialization_custody,
 };
 pub use post_allocation_selected_form_encoding::{
     DeferredControlEncodingReason, OptimizedSelectedFormEncodingError,
     SelectedFormDecodedFootprint, SelectedFormEncodingCounts, SelectedFormEncodingIdentity,
     SelectedFormEncodingRow, SelectedFormEncodingState, SelectedFormMachineOptimizationCustody,
-    SelectedStructuralUnitCallEncodingRow, SelectedStructuralUnitFunctionEncoding,
-    StagedOptimizedSelectedFormEncoding, stage_optimized_layout_independent_selected_form_encoding,
+    SelectedFormMovnOptimizationCustody, SelectedStructuralUnitCallEncodingRow,
+    SelectedStructuralUnitFunctionEncoding, StagedOptimizedSelectedFormEncoding,
+    stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
+    stage_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization,
     validate_optimized_layout_independent_selected_form_encoding,
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization,
 };
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,

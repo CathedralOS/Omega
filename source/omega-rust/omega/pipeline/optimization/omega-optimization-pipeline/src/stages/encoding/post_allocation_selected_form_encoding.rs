@@ -1,5 +1,8 @@
 use omega_calling_conventions::MachineRegister;
-use omega_isa_aarch64::{Aarch64SelectedFormEncodingError, encode_aarch64_selected_form};
+use omega_isa_aarch64::{
+    Aarch64SelectedFormEncodingError, aarch64_shortest_movn_materialization_recipe,
+    encode_aarch64_selected_form, encode_aarch64_shortest_movn_materialization,
+};
 use omega_isa_x86_64::{
     ValidatedX86_64SelectedStructuralUnitCallTemplate, X86_64SelectedFormEncodingError,
     X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitCallTemplateError,
@@ -8,9 +11,11 @@ use omega_isa_x86_64::{
     validate_x86_64_register_constraint_catalog, x86_64_register_constraint_catalog,
 };
 use omega_machine_optimizer::{
-    Aarch64CbnzFusionIdentity, Aarch64CbnzInstructionDisposition, PostAllocationMachineIdentity,
-    PostAllocationMachineInstruction, PostAllocationStructuralUnitFunction,
-    StructuralUnitCallMachineEffects, StructuralUnitFunctionMachineEffects,
+    Aarch64CbnzFusionIdentity, Aarch64CbnzInstructionDisposition,
+    Aarch64MovnInstructionDisposition, Aarch64MovnMaterializationIdentity,
+    PostAllocationMachineIdentity, PostAllocationMachineInstruction,
+    PostAllocationStructuralUnitFunction, StructuralUnitCallMachineEffects,
+    StructuralUnitFunctionMachineEffects,
 };
 use omega_optimization_core::OptimizationSelectionIdentity;
 use omega_regalloc::ValidatedSelectedAnalysis;
@@ -27,9 +32,12 @@ use omega_target::{Architecture, NativeTarget};
 use psi_core::{MachineId, OperationId};
 use sha2::{Digest, Sha256};
 
-use crate::{StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan};
+use crate::{
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedAarch64MovnMaterialization,
+    StagedOptimizedPostAllocationMachinePlan,
+};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v5";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v6";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SelectedFormEncodingIdentity([u8; 32]);
@@ -112,6 +120,27 @@ pub struct SelectedFormMachineOptimizationCustody {
     fusion: Aarch64CbnzFusionIdentity,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct SelectedFormMovnOptimizationCustody {
+    selections: OptimizationSelectionIdentity,
+    post_allocation_machine_selections: OptimizationSelectionIdentity,
+    materialization: Aarch64MovnMaterializationIdentity,
+}
+
+impl SelectedFormMovnOptimizationCustody {
+    pub const fn selections(self) -> OptimizationSelectionIdentity {
+        self.selections
+    }
+
+    pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
+        self.post_allocation_machine_selections
+    }
+
+    pub const fn materialization(self) -> Aarch64MovnMaterializationIdentity {
+        self.materialization
+    }
+}
+
 impl SelectedFormMachineOptimizationCustody {
     pub const fn selections(self) -> OptimizationSelectionIdentity {
         self.selections
@@ -131,6 +160,7 @@ pub struct StagedOptimizedSelectedFormEncoding {
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
     machine: PostAllocationMachineIdentity,
     machine_optimization: Option<SelectedFormMachineOptimizationCustody>,
+    movn_optimization: Option<SelectedFormMovnOptimizationCustody>,
     identity: SelectedFormEncodingIdentity,
     rows: Vec<SelectedFormEncodingRow>,
     structural_unit_functions: Vec<SelectedStructuralUnitFunctionEncoding>,
@@ -148,6 +178,10 @@ impl StagedOptimizedSelectedFormEncoding {
 
     pub const fn machine_optimization(&self) -> Option<SelectedFormMachineOptimizationCustody> {
         self.machine_optimization
+    }
+
+    pub const fn movn_optimization(&self) -> Option<SelectedFormMovnOptimizationCustody> {
+        self.movn_optimization
     }
 
     pub const fn identity(&self) -> SelectedFormEncodingIdentity {
@@ -223,7 +257,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<S: ValidatedSel
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let artifact = compute(selected, machine, physical, None)?;
+    let artifact = compute(selected, machine, physical, None, None)?;
     validate_optimized_layout_independent_selected_form_encoding(
         selected, machine, physical, &artifact,
     )?;
@@ -238,7 +272,7 @@ pub fn validate_optimized_layout_independent_selected_form_encoding<
     physical: &ValidatedPhysicalRegisterModel,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let replayed = compute(selected, machine, physical, None)?;
+    let replayed = compute(selected, machine, physical, None, None)?;
     if artifact != &replayed {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
@@ -257,7 +291,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_c
     physical: &ValidatedPhysicalRegisterModel,
     fusion: &StagedOptimizedAarch64CbnzFusion,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let artifact = compute(selected, machine, physical, Some(fusion))?;
+    let artifact = compute(selected, machine, physical, Some(fusion), None)?;
     validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
         selected, machine, physical, fusion, &artifact,
     )?;
@@ -274,7 +308,45 @@ pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch6
     fusion: &StagedOptimizedAarch64CbnzFusion,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let replayed = compute(selected, machine, physical, Some(fusion))?;
+    let replayed = compute(selected, machine, physical, Some(fusion), None)?;
+    if artifact != &replayed {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Apply an independently validated shortest-MOVN recipe to pre-layout scalar
+/// bytes. The artifact still grants no layout, emission, or publication
+/// authority.
+pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    materialization: &StagedOptimizedAarch64MovnMaterialization,
+) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let artifact = compute(selected, machine, physical, None, Some(materialization))?;
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization(
+        selected,
+        machine,
+        physical,
+        materialization,
+        &artifact,
+    )?;
+    Ok(artifact)
+}
+
+pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch64_movn_materialization<
+    S: ValidatedSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    materialization: &StagedOptimizedAarch64MovnMaterialization,
+    artifact: &StagedOptimizedSelectedFormEncoding,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let replayed = compute(selected, machine, physical, None, Some(materialization))?;
     if artifact != &replayed {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
@@ -286,7 +358,11 @@ fn compute<S: ValidatedSelectedAnalysis>(
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
     fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
+    movn: Option<&StagedOptimizedAarch64MovnMaterialization>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    if fusion.is_some() && movn.is_some() {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
     let machine = staged.machine().plan();
     if machine.selected != selected.selected_identity() {
         return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
@@ -296,6 +372,9 @@ fn compute<S: ValidatedSelectedAnalysis>(
     }
     let machine_optimization = fusion
         .map(|fusion| validate_fusion_roots(selected, staged, physical, fusion))
+        .transpose()?;
+    let movn_optimization = movn
+        .map(|materialization| validate_movn_roots(selected, staged, physical, materialization))
         .transpose()?;
     let selected_plan = selected.selected_plan();
     if selected_plan.functions.len() != machine.functions.len() {
@@ -323,7 +402,20 @@ fn compute<S: ValidatedSelectedAnalysis>(
                     .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
             })
             .transpose()?;
+        let movn_function = movn
+            .map(|materialization| {
+                materialization
+                    .materialization()
+                    .plan()
+                    .functions
+                    .get(function_index)
+                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
+            })
+            .transpose()?;
         if fusion_function.is_some_and(|row| row.machine != selected_function.machine) {
+            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
+        }
+        if movn_function.is_some_and(|row| row.machine != selected_function.machine) {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
         for (block_index, (selected_block, machine_block)) in selected_function
@@ -345,7 +437,21 @@ fn compute<S: ValidatedSelectedAnalysis>(
                         .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
                 })
                 .transpose()?;
+            let movn_block = movn_function
+                .map(|function| {
+                    function
+                        .blocks
+                        .get(block_index)
+                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
+                })
+                .transpose()?;
             if fusion_block.is_some_and(|row| {
+                row.block != selected_block.id
+                    || row.instructions.len() != machine_block.instructions.len()
+            }) {
+                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
+            }
+            if movn_block.is_some_and(|row| {
                 row.block != selected_block.id
                     || row.instructions.len() != machine_block.instructions.len()
             }) {
@@ -371,6 +477,17 @@ fn compute<S: ValidatedSelectedAnalysis>(
                 if disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
+                let movn_disposition = movn_block
+                    .map(|block| {
+                        block
+                            .instructions
+                            .get(index)
+                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
+                    })
+                    .transpose()?;
+                if movn_disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
+                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
+                }
                 rows.push(encode_row(
                     selected_plan.target.architecture,
                     selected_instruction,
@@ -379,6 +496,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
                     disposition
                         .map(|row| row.disposition.clone())
                         .unwrap_or(Aarch64CbnzInstructionDisposition::RetainedV1),
+                    movn_disposition.map(|row| &row.disposition),
                 )?);
             }
         }
@@ -435,6 +553,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
         selected_root,
         machine_root,
         machine_optimization,
+        movn_optimization,
         &rows,
         &structural_unit_functions,
         counts,
@@ -443,6 +562,7 @@ fn compute<S: ValidatedSelectedAnalysis>(
         selected: selected_root,
         machine: machine_root,
         machine_optimization,
+        movn_optimization,
         identity,
         rows,
         structural_unit_functions,
@@ -520,6 +640,7 @@ fn encode_structural_function(
         &machine.return_instruction,
         physical,
         Aarch64CbnzInstructionDisposition::RetainedV1,
+        None,
     )?;
     if !matches!(
         return_instruction.state,
@@ -643,6 +764,7 @@ fn encode_row(
     machine: &PostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
     machine_disposition: Aarch64CbnzInstructionDisposition,
+    movn_disposition: Option<&Aarch64MovnInstructionDisposition>,
 ) -> Result<SelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
     validate_machine_disposition(
         architecture,
@@ -652,20 +774,28 @@ fn encode_row(
         &machine_disposition,
     )?;
     let alternative = machine.alternative.key;
-    let state = match selected.kind {
-        SelectedInstructionKind::ConditionalBranchNonZero => {
+    let state = match (selected.kind, movn_disposition) {
+        (kind @ SelectedInstructionKind::MaterializeI64 { .. }, Some(disposition)) => {
+            encode_aarch64_movn_row(architecture, selected, kind, machine, physical, disposition)?
+        }
+        (SelectedInstructionKind::ConditionalBranchNonZero, _) => {
             SelectedFormEncodingState::DeferredControl {
                 reason: DeferredControlEncodingReason::RequiresResolvedBranchLayout,
             }
         }
-        kind => encode_scalar(
-            architecture,
-            selected.id,
-            kind,
-            alternative,
-            machine,
-            physical,
-        )?,
+        (kind, Some(Aarch64MovnInstructionDisposition::RetainedV1)) | (kind, None) => {
+            encode_scalar(
+                architecture,
+                selected.id,
+                kind,
+                alternative,
+                machine,
+                physical,
+            )?
+        }
+        (_, Some(Aarch64MovnInstructionDisposition::MovnSeededMaterializationV1 { .. })) => {
+            return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
+        }
     };
     Ok(SelectedFormEncodingRow {
         instruction: selected.id,
@@ -673,6 +803,102 @@ fn encode_row(
         machine_disposition,
         state,
     })
+}
+
+fn encode_aarch64_movn_row(
+    architecture: Architecture,
+    selected: &SelectedInstruction,
+    kind: SelectedInstructionKind,
+    machine: &PostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    disposition: &Aarch64MovnInstructionDisposition,
+) -> Result<SelectedFormEncodingState, OptimizedSelectedFormEncodingError> {
+    let Aarch64MovnInstructionDisposition::MovnSeededMaterializationV1 {
+        literal_bits,
+        destination,
+        baseline_word_count,
+        recipe,
+    } = disposition
+    else {
+        return encode_scalar(
+            architecture,
+            selected.id,
+            kind,
+            machine.alternative.key,
+            machine,
+            physical,
+        );
+    };
+    let SelectedInstructionKind::MaterializeI64 { value } = kind else {
+        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
+    };
+    let operand = machine
+        .operands
+        .first()
+        .filter(|_| machine.operands.len() == 1);
+    let valid_destination = operand.is_some_and(|operand| {
+        architecture == Architecture::Aarch64
+            && destination.instruction == selected.id
+            && destination.operand == operand.operand
+            && destination.virtual_register == operand.virtual_register
+            && destination.class == operand.class
+            && destination.view == operand.view
+            && destination.storage_units == operand.storage_units
+            && destination.write_units == operand.write_units
+            && Some(destination.write_semantics) == operand.write_semantics
+    });
+    if !valid_destination || integer_bits(value) != Some(*literal_bits) {
+        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
+    }
+    let isa_recipe = aarch64_shortest_movn_materialization_recipe(value)
+        .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+    let recipe_matches = usize::from(*baseline_word_count) * 4 == isa_recipe.baseline_byte_count()
+        && recipe.seed_halfword == isa_recipe.seed().halfword()
+        && recipe.seed_immediate == isa_recipe.seed().immediate()
+        && recipe.patches.len() == isa_recipe.patches().len()
+        && recipe
+            .patches
+            .iter()
+            .zip(isa_recipe.patches())
+            .all(|(left, right)| {
+                left.halfword == right.halfword() && left.immediate == right.immediate()
+            });
+    if !recipe_matches {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    let encoded = encode_aarch64_shortest_movn_materialization(physical, destination.view, value)
+        .map_err(OptimizedSelectedFormEncodingError::Aarch64)?;
+    let footprint = encoded.footprint();
+    validate_operand_footprint(
+        selected.id,
+        machine,
+        &footprint.encoded,
+        &footprint.register_reads,
+        &footprint.register_writes,
+    )?;
+    if footprint.encoded != machine.alternative.encoded {
+        return Err(OptimizedSelectedFormEncodingError::ImplicitFootprintMismatch(selected.id));
+    }
+    validate_size(selected.id, machine.alternative.size, encoded.bytes().len())?;
+    Ok(SelectedFormEncodingState::Encoded {
+        bytes: encoded.bytes().to_vec(),
+        footprint: Box::new(SelectedFormDecodedFootprint {
+            register_reads: footprint.register_reads.clone(),
+            register_writes: footprint.register_writes.clone(),
+            implicit_defs: footprint.encoded.implicit_unit_defs.clone(),
+            implicit_clobbers: footprint.encoded.implicit_unit_clobbers.clone(),
+            encoded: footprint.encoded.clone(),
+        }),
+    })
+}
+
+fn integer_bits(value: psi_core::IntegerValue) -> Option<u64> {
+    match value {
+        psi_core::IntegerValue::Signed(value) => {
+            i64::try_from(value).ok().map(|value| value as u64)
+        }
+        psi_core::IntegerValue::Unsigned(value) => u64::try_from(value).ok(),
+    }
 }
 
 fn validate_machine_disposition(
@@ -828,6 +1054,7 @@ fn encoding_identity(
     selected: omega_selected_instructions::SelectedInstructionPlanIdentity,
     machine: PostAllocationMachineIdentity,
     machine_optimization: Option<SelectedFormMachineOptimizationCustody>,
+    movn_optimization: Option<SelectedFormMovnOptimizationCustody>,
     rows: &[SelectedFormEncodingRow],
     structural_unit_functions: &[SelectedStructuralUnitFunctionEncoding],
     counts: SelectedFormEncodingCounts,
@@ -843,6 +1070,15 @@ fn encoding_identity(
             hasher.update(custody.selections.bytes());
             hasher.update(custody.post_allocation_machine_selections.bytes());
             hasher.update(custody.fusion.bytes());
+        }
+    }
+    match movn_optimization {
+        None => hasher.update([0]),
+        Some(custody) => {
+            hasher.update([1]);
+            hasher.update(custody.selections.bytes());
+            hasher.update(custody.post_allocation_machine_selections.bytes());
+            hasher.update(custody.materialization.bytes());
         }
     }
     hasher.update((rows.len() as u64).to_le_bytes());
@@ -990,6 +1226,34 @@ fn validate_fusion_roots<S: ValidatedSelectedAnalysis>(
         selections: custody.selections(),
         post_allocation_machine_selections: custody.post_allocation_machine_selections(),
         fusion: custody.fusion(),
+    })
+}
+
+fn validate_movn_roots<S: ValidatedSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    materialization: &StagedOptimizedAarch64MovnMaterialization,
+) -> Result<SelectedFormMovnOptimizationCustody, OptimizedSelectedFormEncodingError> {
+    let receipt = materialization.materialization().receipt();
+    let plan = materialization.materialization().plan();
+    let custody = materialization.custody();
+    if selected.selected_plan().target.architecture != Architecture::Aarch64
+        || receipt.selected() != selected.selected_identity()
+        || receipt.source() != machine.machine().receipt().identity()
+        || receipt.identity() != custody.materialization()
+        || receipt.action_count() != custody.action_count()
+        || receipt.baseline_words() != custody.baseline_words()
+        || receipt.selected_words() != custody.selected_words()
+        || plan.target != selected.selected_plan().target
+        || plan.physical_register_model != physical.identity()
+    {
+        return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
+    }
+    Ok(SelectedFormMovnOptimizationCustody {
+        selections: custody.selections(),
+        post_allocation_machine_selections: custody.post_allocation_machine_selections(),
+        materialization: custody.materialization(),
     })
 }
 

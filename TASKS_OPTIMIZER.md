@@ -195,7 +195,7 @@ These facts constrain the work below.
   opaque report on all four supported target/format combinations. The fresh
   rematerialization span, transformed selected root and homes, sole typed
   post-allocation row, and exact singleton selection survive every join. The
-  selection codec/identity is v7. The function-relative v6 manifest records the
+  selection codec/identity is v8. The function-relative v6 manifest records the
   exact allocation-recovery phase projection; the downstream object/artifact/
   callable schemas remain v1 because their generic parent-root vocabularies did
   not change. The two
@@ -239,6 +239,21 @@ These facts constrain the work below.
   bridging, native image construction, installation, and publication remain
   closed and install no output.
 
+  A second exact, default-off `PostAllocationMachine` rule is now admitted as
+  `Aarch64SelectShortestMovnSeededI64MaterializationV1`. It scans allocated
+  AArch64 `MaterializeI64` rows without changing the selected plan, chooses the
+  canonical lowest-halfword `MOVN` seed plus ascending `MOVK` patches only when
+  that sequence is strictly shorter than the unchanged zero-seeded baseline,
+  and binds the literal bits and complete qualified physical write. Its strict
+  v1 machine-artifact codec, separately implemented machine replay, and
+  target-owned independent MOVN/MOVK decoder reject stale roots, recipes,
+  destinations, bytes, and non-shrinking substitutions. Layout-independent
+  selected-form encoding v6 can consume that custody and emit the shorter
+  validated bytes. The explicit stage currently stops before layout, emission,
+  object, callable, installation, and publication authority. Combining it with
+  another post-allocation rule fails closed until an ordered composition is
+  specified.
+
   The first Unit backend vocabulary is now admitted without claiming an entry
   bridge. Independent legalization replay accepts exactly one receiver-free,
   zero-VReg, one-block function ending in `ReturnUnit`; selection produces the
@@ -253,7 +268,7 @@ These facts constrain the work below.
   and their codec to v6, postallocation manifest and codec to v6,
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
-  selected-form encoding v5, resolved-layout v5,
+  selected-form encoding v6, resolved-layout v5,
   whole-function exit v6, function-relative manifest v7, fragment manifest
   v5, text manifest v5, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
@@ -2630,8 +2645,10 @@ alternate semantic handoff.
   reserved, or non-GPR64 views, emit only one versioned canonical byte form,
   and decode those bytes independently before returning a validated fragment.
   AArch64 variant 0 materialization remains the explicit zero-seeded `MOVZ`
-  plus ascending nonzero `MOVK` sequence; a shortest-`MOVN` policy must receive
-  a new named/versioned rule rather than silently changing this alternative.
+  plus ascending nonzero `MOVK` sequence. The separately named
+  `Aarch64SelectShortestMovnSeededI64MaterializationV1` policy may replace only
+  a strictly longer instance with the canonical lowest-halfword `MOVN` seed
+  and ascending `MOVK` patches; it does not silently change the baseline.
   x86 retains exact 10-byte materialization, deterministic LEA base/index
   orientation, all four subtraction alias forms, and the admitted U12-only
   immediate boundary.
@@ -3017,9 +3034,26 @@ alternate semantic handoff.
   allocation selection. The root build vocabulary remains explicit and
   default-off, and the compiler still rejects selected native output because
   this carrier grants no emission, relocation, installation, or publication
-  authority. Remaining here includes consuming the completed realization at
-  that later boundary, general redundant move/spill/reload rules, and
-  additional independently validated target combines.
+  authority.
+
+  The separately selected
+  `Aarch64SelectShortestMovnSeededI64MaterializationV1` rule now recognizes
+  allocated AArch64 `MaterializeI64` rows with one canonical 64-bit `X` write.
+  It publishes a bounded, content-addressed symbolic plan with ordered
+  attempts/actions, exact literal bits, full VReg/class/view/unit/write-
+  semantics custody, baseline word count, and a canonical lowest-halfword
+  `MOVN` seed followed by ascending `MOVK` patches. A rewrite is admitted only
+  for a strict word-count reduction. An independently coded machine validator
+  derives the recipe again, while the ISA owner separately decodes exact bytes
+  and reconstructs the destination and 64-bit value. Selected-form encoding v6
+  consumes that custody and proves the byte/footprint/size result; it grants no
+  layout or later authority. The root build vocabulary remains an exact named
+  opt-in and the zero-seeded baseline is unchanged. Other post-allocation
+  selections or combinations fail closed.
+
+  Remaining here includes carrying MOVN custody through layout and later
+  boundaries, general redundant move/spill/reload rules, and additional
+  independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

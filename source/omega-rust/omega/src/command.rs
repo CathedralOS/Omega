@@ -695,7 +695,7 @@ fn terminal_summary(
             .expect("writing to a String cannot fail");
         }
     }
-    let identity = fixed_fuel.psi();
+    let identity = fixed_fuel.terminal_psi();
     writeln!(
         output,
         "fixed_fuel terminal_vocabulary={} terminal_fingerprint={} schedule={} entry=machine:{} ceiling_units={} relevant_preconditions={}",

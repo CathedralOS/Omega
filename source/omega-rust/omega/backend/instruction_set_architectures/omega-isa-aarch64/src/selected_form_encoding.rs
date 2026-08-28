@@ -32,6 +32,71 @@ impl ValidatedAarch64SelectedFormEncoding {
     }
 }
 
+/// Canonical 64-bit `MOVN` seed for a shortest complement-seeded immediate
+/// materialization. `halfword` is the architectural `hw` field, in `0..=3`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Aarch64MovnSeed {
+    halfword: u8,
+    immediate: u16,
+}
+
+impl Aarch64MovnSeed {
+    pub const fn halfword(&self) -> u8 {
+        self.halfword
+    }
+
+    pub const fn immediate(&self) -> u16 {
+        self.immediate
+    }
+}
+
+/// One canonical 64-bit `MOVK` patch following a complement-seeded `MOVN`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct Aarch64MovkPatch {
+    halfword: u8,
+    immediate: u16,
+}
+
+impl Aarch64MovkPatch {
+    pub const fn halfword(&self) -> u8 {
+        self.halfword
+    }
+
+    pub const fn immediate(&self) -> u16 {
+        self.immediate
+    }
+}
+
+/// The unique shortest `MOVN`-seeded recipe that is strictly smaller than the
+/// baseline zero-seeded `MOVZ`/`MOVK` materialization.
+///
+/// Equal-length recipes choose the lowest possible seed halfword. Patches are
+/// then ordered by strictly ascending halfword index.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct Aarch64ShortestMovnMaterializationRecipe {
+    seed: Aarch64MovnSeed,
+    patches: Vec<Aarch64MovkPatch>,
+    baseline_byte_count: usize,
+}
+
+impl Aarch64ShortestMovnMaterializationRecipe {
+    pub const fn seed(&self) -> Aarch64MovnSeed {
+        self.seed
+    }
+
+    pub fn patches(&self) -> &[Aarch64MovkPatch] {
+        &self.patches
+    }
+
+    pub const fn baseline_byte_count(&self) -> usize {
+        self.baseline_byte_count
+    }
+
+    pub fn encoded_byte_count(&self) -> usize {
+        (1 + self.patches.len()) * 4
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Aarch64SelectedFormEncodingError {
     NonCanonicalPhysicalModel,
@@ -43,6 +108,7 @@ pub enum Aarch64SelectedFormEncodingError {
     ImmediateOutsideU12,
     BranchDisplacementMisaligned,
     BranchDisplacementOutsideImm19,
+    MovnMaterializationDoesNotShrink,
     MalformedEncoding,
     EncodedFormMismatch,
 }
@@ -219,6 +285,76 @@ fn cbnz_footprint(source: RegisterViewId) -> Aarch64SelectedFormFootprint {
             control: MachineEncodedControlEffect::ConditionalRelativeBranchV1,
         },
     }
+}
+
+/// Derive the unique shortest 64-bit `MOVN` seed plus ascending `MOVK`
+/// patches. The recipe is available only when it is strictly smaller than the
+/// existing zero-seeded selected-form materialization.
+pub fn aarch64_shortest_movn_materialization_recipe(
+    value: IntegerValue,
+) -> Result<Aarch64ShortestMovnMaterializationRecipe, Aarch64SelectedFormEncodingError> {
+    shortest_movn_materialization_recipe(integer_bits(value)?)
+}
+
+/// Encode the ISA-owned shortest complement-seeded realization of one exact
+/// selected `i64` bit pattern. This does not change the baseline selected-form
+/// encoder, which remains zero-seeded.
+pub fn encode_aarch64_shortest_movn_materialization(
+    physical: &ValidatedPhysicalRegisterModel,
+    destination: RegisterViewId,
+    value: IntegerValue,
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let register = validate_materialization_destination(physical, destination)?;
+    let recipe = aarch64_shortest_movn_materialization_recipe(value)?;
+    let bytes = encode_movn_materialization_recipe(register, &recipe);
+    validate_aarch64_shortest_movn_materialization(physical, destination, value, &bytes)
+}
+
+/// Independently decode and validate one exact complement-seeded
+/// materialization. The decoder reconstructs both destination and full 64-bit
+/// value, then requires the canonical lowest seed, ascending patches, and a
+/// strict byte reduction against the unchanged baseline encoding.
+pub fn validate_aarch64_shortest_movn_materialization(
+    physical: &ValidatedPhysicalRegisterModel,
+    destination: RegisterViewId,
+    value: IntegerValue,
+    bytes: &[u8],
+) -> Result<ValidatedAarch64SelectedFormEncoding, Aarch64SelectedFormEncodingError> {
+    let register = validate_materialization_destination(physical, destination)?;
+    let value_bits = integer_bits(value)?;
+    let expected = shortest_movn_materialization_recipe(value_bits)?;
+    let decoded = decode_words(bytes)?;
+    let (decoded_value, decoded_recipe) = decode_movn_materialization(&decoded, register)
+        .ok_or(Aarch64SelectedFormEncodingError::EncodedFormMismatch)?;
+    if decoded_value != value_bits
+        || decoded_recipe.seed != expected.seed
+        || decoded_recipe.patches != expected.patches
+        || decoded_recipe.baseline_byte_count != expected.baseline_byte_count
+        || bytes.len() >= expected.baseline_byte_count
+        || bytes != encode_movn_materialization_recipe(register, &expected)
+    {
+        return Err(Aarch64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedAarch64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(
+            SelectedInstructionKind::MaterializeI64 { value },
+            &[destination],
+        ),
+    })
+}
+
+fn validate_materialization_destination(
+    physical: &ValidatedPhysicalRegisterModel,
+    destination: RegisterViewId,
+) -> Result<u8, Aarch64SelectedFormEncodingError> {
+    if physical.model() != &aarch64_physical_register_model() {
+        return Err(Aarch64SelectedFormEncodingError::NonCanonicalPhysicalModel);
+    }
+    resolve_registers(physical, &[destination])?
+        .first()
+        .copied()
+        .ok_or(Aarch64SelectedFormEncodingError::OperandCountMismatch)
 }
 
 pub fn encode_aarch64_selected_form(
@@ -430,8 +566,71 @@ fn append_canonical_materialization(words: &mut Vec<u32>, register: u8, value: u
     }
 }
 
+fn shortest_movn_materialization_recipe(
+    value: u64,
+) -> Result<Aarch64ShortestMovnMaterializationRecipe, Aarch64SelectedFormEncodingError> {
+    let chunks = std::array::from_fn::<_, 4, _>(|index| ((value >> (index * 16)) & 0xffff) as u16);
+    let seed_halfword = chunks
+        .iter()
+        .position(|chunk| *chunk != u16::MAX)
+        .unwrap_or(0) as u8;
+    let seed = Aarch64MovnSeed {
+        halfword: seed_halfword,
+        immediate: !chunks[usize::from(seed_halfword)],
+    };
+    let patches = chunks
+        .into_iter()
+        .enumerate()
+        .filter_map(|(halfword, immediate)| {
+            (halfword != usize::from(seed_halfword) && immediate != u16::MAX).then_some(
+                Aarch64MovkPatch {
+                    halfword: halfword as u8,
+                    immediate,
+                },
+            )
+        })
+        .collect::<Vec<_>>();
+    let mut baseline_words = Vec::new();
+    append_canonical_materialization(&mut baseline_words, 0, value);
+    let baseline_byte_count = baseline_words.len() * 4;
+    let recipe = Aarch64ShortestMovnMaterializationRecipe {
+        seed,
+        patches,
+        baseline_byte_count,
+    };
+    if recipe.encoded_byte_count() >= baseline_byte_count {
+        return Err(Aarch64SelectedFormEncodingError::MovnMaterializationDoesNotShrink);
+    }
+    Ok(recipe)
+}
+
+fn encode_movn_materialization_recipe(
+    register: u8,
+    recipe: &Aarch64ShortestMovnMaterializationRecipe,
+) -> Vec<u8> {
+    let mut words = Vec::with_capacity(1 + recipe.patches.len());
+    words.push(
+        0x9280_0000
+            | (u32::from(recipe.seed.halfword) << 21)
+            | (u32::from(recipe.seed.immediate) << 5)
+            | u32::from(register),
+    );
+    words.extend(recipe.patches.iter().map(|patch| {
+        0xf280_0000
+            | (u32::from(patch.halfword) << 21)
+            | (u32::from(patch.immediate) << 5)
+            | u32::from(register)
+    }));
+    words.into_iter().flat_map(u32::to_le_bytes).collect()
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedWord {
+    MovN {
+        register: u8,
+        shift: u8,
+        immediate: u16,
+    },
     MovZ {
         register: u8,
         shift: u8,
@@ -488,6 +687,13 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
     let register = (word & 0x1f) as u8;
     let shift = ((word >> 21) & 0x3) as u8;
     let immediate = ((word >> 5) & 0xffff) as u16;
+    if word & 0xff80_0000 == 0x9280_0000 {
+        return Ok(DecodedWord::MovN {
+            register,
+            shift,
+            immediate,
+        });
+    }
     if word & 0xffe0_0000 == 0xd280_0000 {
         return Ok(DecodedWord::MovZ {
             register,
@@ -642,6 +848,66 @@ fn decode_materialization(decoded: &[DecodedWord], register: u8) -> Option<u64> 
     Some(value)
 }
 
+fn decode_movn_materialization(
+    decoded: &[DecodedWord],
+    register: u8,
+) -> Option<(u64, Aarch64ShortestMovnMaterializationRecipe)> {
+    let DecodedWord::MovN {
+        register: actual,
+        shift,
+        immediate,
+    } = *decoded.first()?
+    else {
+        return None;
+    };
+    if actual != register || shift > 3 {
+        return None;
+    }
+    let seed_shift = u64::from(shift) * 16;
+    let mut value = u64::MAX;
+    value = (value & !(0xffff_u64 << seed_shift)) | (u64::from(!immediate) << seed_shift);
+    let mut patches = Vec::with_capacity(decoded.len().saturating_sub(1));
+    let mut previous_halfword = None;
+    for word in &decoded[1..] {
+        let DecodedWord::MovK {
+            register: actual,
+            shift,
+            immediate,
+        } = *word
+        else {
+            return None;
+        };
+        if actual != register
+            || shift > 3
+            || previous_halfword.is_some_and(|previous| shift <= previous)
+        {
+            return None;
+        }
+        previous_halfword = Some(shift);
+        let patch_shift = u64::from(shift) * 16;
+        value = (value & !(0xffff_u64 << patch_shift)) | (u64::from(immediate) << patch_shift);
+        patches.push(Aarch64MovkPatch {
+            halfword: shift,
+            immediate,
+        });
+    }
+    Some((
+        value,
+        Aarch64ShortestMovnMaterializationRecipe {
+            seed: Aarch64MovnSeed {
+                halfword: shift,
+                immediate,
+            },
+            patches,
+            baseline_byte_count: {
+                let mut baseline = Vec::new();
+                append_canonical_materialization(&mut baseline, register, value);
+                baseline.len() * 4
+            },
+        },
+    ))
+}
+
 fn footprint(
     kind: SelectedInstructionKind,
     operands: &[RegisterViewId],
@@ -746,6 +1012,22 @@ mod tests {
         MachineAlternativeKey { family, variant: 0 }
     }
 
+    fn movn(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {
+        (0x9280_0000
+            | (u32::from(halfword) << 21)
+            | (u32::from(immediate) << 5)
+            | u32::from(register))
+        .to_le_bytes()
+    }
+
+    fn movk(register: u8, halfword: u8, immediate: u16) -> [u8; 4] {
+        (0xf280_0000
+            | (u32::from(halfword) << 21)
+            | (u32::from(immediate) << 5)
+            | u32::from(register))
+        .to_le_bytes()
+    }
+
     #[test]
     fn zero_seeded_materialization_is_canonical_and_decoded_independently() {
         let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
@@ -778,6 +1060,220 @@ mod tests {
                 .is_err()
             );
         }
+    }
+
+    #[test]
+    fn shortest_movn_materialization_shrinks_all_ones_and_high_ones() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        for (value, baseline_bytes, movn_bytes, seed, patches) in [
+            (
+                IntegerValue::Unsigned(u64::MAX as u128),
+                16,
+                4,
+                Aarch64MovnSeed {
+                    halfword: 0,
+                    immediate: 0,
+                },
+                vec![],
+            ),
+            (
+                IntegerValue::Unsigned(0xffff_ffff_0000_0000),
+                12,
+                8,
+                Aarch64MovnSeed {
+                    halfword: 0,
+                    immediate: u16::MAX,
+                },
+                vec![Aarch64MovkPatch {
+                    halfword: 1,
+                    immediate: 0,
+                }],
+            ),
+        ] {
+            let recipe = aarch64_shortest_movn_materialization_recipe(value).unwrap();
+            assert_eq!(recipe.seed(), seed);
+            assert_eq!(recipe.patches(), patches);
+            assert_eq!(recipe.baseline_byte_count(), baseline_bytes);
+            assert_eq!(recipe.encoded_byte_count(), movn_bytes);
+
+            let baseline = encode_aarch64_selected_form(
+                &physical,
+                SelectedInstructionKind::MaterializeI64 { value },
+                alternative(MachineAlternativeFamily::MaterializeI64),
+                &[x9],
+            )
+            .unwrap();
+            let encoded =
+                encode_aarch64_shortest_movn_materialization(&physical, x9, value).unwrap();
+            assert_eq!(baseline.bytes().len(), baseline_bytes);
+            assert_eq!(encoded.bytes().len(), movn_bytes);
+            assert!(encoded.bytes().len() < baseline.bytes().len());
+            assert_eq!(encoded.footprint().register_writes, [x9]);
+            validate_aarch64_shortest_movn_materialization(&physical, x9, value, encoded.bytes())
+                .unwrap();
+        }
+    }
+
+    #[test]
+    fn movn_recipe_rejects_zero_small_and_equal_length_baselines() {
+        for value in [
+            IntegerValue::Unsigned(0),
+            IntegerValue::Unsigned(1),
+            IntegerValue::Unsigned(0x5678_ffff_0000_1234),
+        ] {
+            assert_eq!(
+                aarch64_shortest_movn_materialization_recipe(value),
+                Err(Aarch64SelectedFormEncodingError::MovnMaterializationDoesNotShrink)
+            );
+        }
+
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        let zero_movn = [
+            movn(9, 0, u16::MAX),
+            movk(9, 1, 0),
+            movk(9, 2, 0),
+            movk(9, 3, 0),
+        ]
+        .concat();
+        assert_eq!(
+            validate_aarch64_shortest_movn_materialization(
+                &physical,
+                x9,
+                IntegerValue::Unsigned(0),
+                &zero_movn,
+            ),
+            Err(Aarch64SelectedFormEncodingError::MovnMaterializationDoesNotShrink)
+        );
+    }
+
+    #[test]
+    fn movn_recipe_chooses_the_lowest_seed_among_minimum_count_recipes() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        let value = IntegerValue::Unsigned(0xffff_ffff_0000_0000);
+        let recipe = aarch64_shortest_movn_materialization_recipe(value).unwrap();
+        assert_eq!(recipe.seed().halfword(), 0);
+
+        // Seeding halfword one has the same instruction count and reconstructs
+        // the same bits, but it is not the canonical lowest seed.
+        let noncanonical = [movn(9, 1, u16::MAX), movk(9, 0, 0)].concat();
+        assert!(
+            validate_aarch64_shortest_movn_materialization(&physical, x9, value, &noncanonical,)
+                .is_err()
+        );
+    }
+
+    #[test]
+    fn movn_recipe_is_bit_pattern_canonical_across_signedness() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        for (signed, unsigned) in [
+            (
+                IntegerValue::Signed(-1),
+                IntegerValue::Unsigned(u64::MAX as u128),
+            ),
+            (
+                IntegerValue::Signed(-4_294_967_296),
+                IntegerValue::Unsigned(0xffff_ffff_0000_0000),
+            ),
+        ] {
+            assert_eq!(
+                aarch64_shortest_movn_materialization_recipe(signed).unwrap(),
+                aarch64_shortest_movn_materialization_recipe(unsigned).unwrap()
+            );
+            assert_eq!(
+                encode_aarch64_shortest_movn_materialization(&physical, x9, signed)
+                    .unwrap()
+                    .bytes(),
+                encode_aarch64_shortest_movn_materialization(&physical, x9, unsigned)
+                    .unwrap()
+                    .bytes()
+            );
+        }
+    }
+
+    #[test]
+    fn movn_validation_rejects_opcode_destination_value_recipe_and_order_corruption() {
+        let physical = validate_physical_register_model(aarch64_physical_register_model()).unwrap();
+        let x9 = physical.model().view_named("x9").unwrap().id;
+        let x10 = physical.model().view_named("x10").unwrap().id;
+        let value = IntegerValue::Unsigned(0xffff_0003_0002_0001);
+        let encoded = encode_aarch64_shortest_movn_materialization(&physical, x9, value).unwrap();
+        assert_eq!(encoded.bytes().len(), 12);
+
+        let rejects = |bytes: &[u8]| {
+            assert!(
+                validate_aarch64_shortest_movn_materialization(&physical, x9, value, bytes,)
+                    .is_err()
+            );
+        };
+
+        let mut wrong_opcode = encoded.bytes().to_vec();
+        wrong_opcode[..4].copy_from_slice(&0xd280_0009_u32.to_le_bytes());
+        rejects(&wrong_opcode);
+
+        let mut wrong_destination = encoded.bytes().to_vec();
+        wrong_destination[0] = (wrong_destination[0] & !0x1f) | 10;
+        rejects(&wrong_destination);
+        assert!(
+            validate_aarch64_shortest_movn_materialization(&physical, x10, value, encoded.bytes(),)
+                .is_err()
+        );
+
+        let all_ones = IntegerValue::Unsigned(u64::MAX as u128);
+        for corrupted in [movn(9, 1, 0).to_vec(), movn(9, 0, 1).to_vec()] {
+            assert!(
+                validate_aarch64_shortest_movn_materialization(
+                    &physical,
+                    x9,
+                    all_ones,
+                    &corrupted,
+                )
+                .is_err()
+            );
+        }
+
+        let mut reversed_patches = encoded.bytes().to_vec();
+        let first_patch = reversed_patches[4..8].to_vec();
+        let second_patch = reversed_patches[8..12].to_vec();
+        reversed_patches[4..8].copy_from_slice(&second_patch);
+        reversed_patches[8..12].copy_from_slice(&first_patch);
+        rejects(&reversed_patches);
+
+        let mut wrong_immediate = encoded.bytes().to_vec();
+        wrong_immediate[4] ^= 0x20;
+        rejects(&wrong_immediate);
+
+        let mut redundant_patch = encode_aarch64_shortest_movn_materialization(
+            &physical,
+            x9,
+            IntegerValue::Unsigned(u64::MAX as u128),
+        )
+        .unwrap()
+        .bytes()
+        .to_vec();
+        redundant_patch.extend_from_slice(&movk(9, 1, u16::MAX));
+        assert!(
+            validate_aarch64_shortest_movn_materialization(
+                &physical,
+                x9,
+                IntegerValue::Unsigned(u64::MAX as u128),
+                &redundant_patch,
+            )
+            .is_err()
+        );
+
+        assert!(
+            validate_aarch64_shortest_movn_materialization(
+                &physical,
+                x9,
+                IntegerValue::Unsigned(0xffff_0003_0002_0000),
+                encoded.bytes(),
+            )
+            .is_err()
+        );
     }
 
     #[test]
