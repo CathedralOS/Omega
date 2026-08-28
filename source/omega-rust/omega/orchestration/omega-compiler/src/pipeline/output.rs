@@ -1,6 +1,6 @@
-use crate::pipeline::compile_options::CompileOptions;
+use crate::compiler::CompileOptions;
 use crate::pipeline::compile_policy::ExecutableTcbInstallationAuthorization;
-use crate::pipeline::compile_report::EmittedProgram;
+use crate::pipeline::emitted_program::EmittedProgram;
 use omega_artifacts::ArtifactWriter;
 use omega_image_emission::{
     ExecutableImageInput, can_emit_executable_image, emit_checked_executable_image,
@@ -359,7 +359,7 @@ pub enum SuppliedTerminalComponentDeploymentError {
         build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
         build_observation_summary: Option<super::build_config::BuildObservationSummary>,
     },
-    Report(Box<super::compile_report::TerminalComponentDeploymentReportError>),
+    Report(Box<crate::compiler::TerminalComponentDeploymentReportError>),
 }
 
 impl SuppliedTerminalComponentDeploymentError {
@@ -393,7 +393,7 @@ pub fn deploy_supplied_terminal_component_output(
     supply: TerminalComponentDeploymentSupply,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
     build_observation_summary: Option<super::build_config::BuildObservationSummary>,
-) -> Result<super::compile_report::CompileReport, Box<SuppliedTerminalComponentDeploymentError>> {
+) -> Result<crate::compiler::CompileReport, Box<SuppliedTerminalComponentDeploymentError>> {
     let deployment =
         match deploy_and_write_terminal_component_output(options, supply.bind_candidate(candidate))
         {
@@ -409,7 +409,7 @@ pub fn deploy_supplied_terminal_component_output(
                 ));
             }
         };
-    super::compile_report::CompileReport::from_terminal_component_deployment(
+    crate::compiler::CompileReport::from_terminal_component_deployment(
         options.root_path.clone(),
         source_file_count,
         deployment,
@@ -478,7 +478,7 @@ pub fn acquire_and_deploy_terminal_component_output<Owner>(
     owner: Owner,
     build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
     build_observation_summary: Option<super::build_config::BuildObservationSummary>,
-) -> Result<super::compile_report::CompileReport, Box<OwnedTerminalComponentDeploymentError<Owner>>>
+) -> Result<crate::compiler::CompileReport, Box<OwnedTerminalComponentDeploymentError<Owner>>>
 where
     Owner: TerminalComponentDeploymentInputOwner,
 {
@@ -683,7 +683,7 @@ impl InstalledExecutablePublicationEvidence {
     }
 
     fn recomputed_fingerprint(&self) -> u64 {
-        super::compile_report::executable_installation_evidence_fingerprint(
+        crate::compiler::report::executable_installation_evidence_fingerprint(
             self.destination,
             self.publication_evidence_fingerprint,
             self.callback_placement_identity_fingerprint,
@@ -750,7 +750,7 @@ impl WrittenOutput {
                     receipt.destination() == super::ExecutablePublicationDestination::FlatOutput
                         && receipt.output_path() == path
                         && receipt.has_consistent_installation_identity()
-                        && super::compile_report::executable_publication_pair_matches(
+                        && crate::compiler::report::executable_publication_pair_matches(
                             root_path,
                             receipt,
                             app_bundle_publication.as_ref(),
@@ -1287,7 +1287,7 @@ fn write_macos_app_bundle(
     let executable_name = publication.file_name();
     // Keep the plist honest without an XML escaper: path characters that are
     // XML-significant or exotic collapse to '-' in the shared canonical name.
-    let app_name = super::compile_report::macos_app_bundle_name(&options.root_path);
+    let app_name = crate::compiler::report::macos_app_bundle_name(&options.root_path);
     let bundle_identifier: String = app_name
         .chars()
         .map(|character| {
@@ -1299,7 +1299,7 @@ fn write_macos_app_bundle(
         })
         .collect();
 
-    let executable_path = super::compile_report::expected_macos_app_bundle_executable_path(
+    let executable_path = crate::compiler::report::expected_macos_app_bundle_executable_path(
         &options.root_path,
         flat_output_path,
     )

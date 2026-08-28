@@ -225,6 +225,13 @@ impl CheckedCompilation {
     pub fn into_program(self) -> CheckedTrees {
         self.program
     }
+
+    /// Internal scratch access for projections that clone the checked carrier
+    /// before materializing temporary references. The public checked result is
+    /// immutable and must not act as a mutation facade over `CheckedTrees`.
+    pub(crate) fn program_mut(&mut self) -> &mut CheckedTrees {
+        &mut self.program
+    }
 }
 
 impl std::ops::Deref for CheckedCompilation {
@@ -235,6 +242,9 @@ impl std::ops::Deref for CheckedCompilation {
     }
 }
 
+// Compatibility for corruption-oriented integration tests. Production
+// projection code must use the explicit scratch seam above. Remove this once
+// validator tests construct malformed `CheckedTrees` directly.
 impl std::ops::DerefMut for CheckedCompilation {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.program
@@ -255,7 +265,7 @@ pub fn compile_to_checked(
     // thread's smaller default stack can overflow.
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(&root_path, target_name.as_deref(), None, None, None)
     })
 }
@@ -270,7 +280,7 @@ pub fn compile_to_checked_with_packages(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -291,7 +301,7 @@ pub fn compile_to_checked_with_replay_record(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner_with_replay(
             &root_path,
             target_name.as_deref(),
@@ -313,7 +323,7 @@ pub fn compile_to_checked_with_packages_and_replay_record(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner_with_replay(
             &root_path,
             target_name.as_deref(),
@@ -337,7 +347,7 @@ pub fn compile_to_checked_with_packages_in_build_dir(
     let root_path = root_path.to_owned();
     let build_dir = build_dir.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -360,7 +370,7 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     let root_path = root_path.to_owned();
     let build_dir = build_dir.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -373,7 +383,7 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
 
 /// Run the ordinary checked frontend for the typed terminal-component handoff
 /// without consuming its caller-owned request or deployment authority.
-pub(super) fn compile_to_checked_for_terminal(
+pub(crate) fn compile_to_checked_for_terminal(
     options: &super::CompileOptions,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
@@ -622,6 +632,13 @@ fn compile_to_checked_inner_with_replay(
     let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
     let optimization_selection_identity = optimization_selections.identity();
+    // Compatibility demands are semantic checks, not report-mode behavior.
+    // Validate them on the canonical checked route even when no auxiliary
+    // artifact writer is requested by the outer compiler coordinator.
+    crate::pipeline::wire_report::validate_wire_protocol(
+        &typed,
+        &build_config.wire_compatibility_demands,
+    )?;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one

@@ -16,7 +16,7 @@
 //! complete package-level admission. Re-approval remains legacy standalone
 //! behavior: delete the stale row (or file); the error names it.
 
-use crate::pipeline::compile_options::CompileOptions;
+use crate::compiler::CompileOptions;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use std::collections::BTreeMap;

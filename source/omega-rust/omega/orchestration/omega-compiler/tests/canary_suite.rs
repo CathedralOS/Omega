@@ -58,6 +58,19 @@ fn compile_with_auxiliary_artifacts(
         ArtifactEmissionPolicy::Full,
     )
 }
+
+/// Exercise reports that still observe the quarantined StateGraph backend.
+/// Production `Check` now stops at checked Psi; these tests remain explicit
+/// until each observer is moved onto the canonical checked/Terminal route.
+fn compile_legacy_with_auxiliary_artifacts(
+    options: CompileOptions,
+) -> Result<CompileReport, Vec<Diagnostic>> {
+    compile_with_worker_count_and_artifact_policy(
+        options,
+        canary_backend_worker_count(),
+        ArtifactEmissionPolicy::Full,
+    )
+}
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
@@ -2543,7 +2556,9 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .to_path_buf()
 }
 

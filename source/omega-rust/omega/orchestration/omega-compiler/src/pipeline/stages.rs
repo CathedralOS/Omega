@@ -1504,7 +1504,7 @@ pub(super) fn backend_plan_to_native_image_payload(
 ) -> Result<
     (
         omega_artifacts::EmissionPlan,
-        super::compile_report::EmittedProgram,
+        crate::pipeline::emitted_program::EmittedProgram,
     ),
     Vec<Diagnostic>,
 > {
@@ -1519,7 +1519,7 @@ pub(super) fn backend_plan_to_native_image_payload(
             ))]
         })?;
         let text_bytes = plan.encoded_machine.code.bytes.storage_slice().to_vec();
-        let emitted = super::compile_report::EmittedProgram {
+        let emitted = crate::pipeline::emitted_program::EmittedProgram {
             target: plan.target,
             subsystem,
             planned_text_bytes: object_text_size(&plan.object),

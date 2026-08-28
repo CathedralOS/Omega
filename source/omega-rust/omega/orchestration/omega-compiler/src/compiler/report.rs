@@ -14,31 +14,13 @@ pub enum CompileOutputKind {
     ObjectContainer,
 }
 
-#[derive(Debug)]
-pub(super) struct EmittedProgram {
-    pub(super) target: omega_target::NativeTarget,
-    /// PE optional-header Subsystem resolved from the selected target's
-    /// `subsystem <word>` (console 3 by default). The PE writer stamps it into
-    /// the image; the Mach-O output path translates gui (2) into an `.app`
-    /// bundle beside the flat binary; other formats ignore it.
-    pub(super) subsystem: u16,
-    pub(super) planned_text_bytes: usize,
-    pub(super) callback_placement_identity_fingerprint: u64,
-    pub(super) object: omega_object_file::ObjectPlan,
-    pub(super) relocations: omega_object_file::RelocationPlan,
-    pub(super) encoded_machine_code: omega_machine_bytes::EncodedMachineCode,
-    pub(super) encoded_machine_semantics: omega_machine_bytes::EncodedMachineSemanticSummary,
-    pub(super) text_bytes: Vec<u8>,
-    pub(super) data_bytes: Vec<u8>,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExecutablePublicationDestination {
     FlatOutput,
     MacOsAppBundle,
 }
 
-pub(super) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
+pub(crate) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
     root_path
         .parent()
         .and_then(|parent| parent.file_name())
@@ -55,7 +37,7 @@ pub(super) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
         .collect()
 }
 
-pub(super) fn expected_macos_app_bundle_executable_path(
+pub(crate) fn expected_macos_app_bundle_executable_path(
     root_path: &std::path::Path,
     flat_output_path: &std::path::Path,
 ) -> Option<PathBuf> {
@@ -70,7 +52,7 @@ pub(super) fn expected_macos_app_bundle_executable_path(
     )
 }
 
-pub(super) fn executable_installation_evidence_fingerprint(
+pub(crate) fn executable_installation_evidence_fingerprint(
     destination: ExecutablePublicationDestination,
     publication_evidence_fingerprint: u64,
     callback_placement_identity_fingerprint: u64,
@@ -103,7 +85,7 @@ pub(super) fn executable_installation_evidence_fingerprint(
     hash
 }
 
-pub(super) fn executable_publication_pair_matches(
+pub(crate) fn executable_publication_pair_matches(
     root_path: &std::path::Path,
     flat: &ExecutablePublicationReceipt,
     bundle: Option<&ExecutablePublicationReceipt>,
@@ -257,8 +239,8 @@ pub struct TerminalComponentDeploymentReportError {
     root_path: PathBuf,
     source_file_count: usize,
     deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
-    build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
-    build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+    build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
     diagnostic: String,
 }
 
@@ -280,8 +262,8 @@ impl TerminalComponentDeploymentReportError {
         PathBuf,
         usize,
         omega_component_deployment::PublishedTerminalComponentFlatOutput,
-        Option<super::build_config::BuildEvaluationUsage>,
-        Option<super::build_config::BuildObservationSummary>,
+        Option<crate::pipeline::BuildEvaluationUsage>,
+        Option<crate::pipeline::BuildObservationSummary>,
     ) {
         (
             self.root_path,
@@ -331,17 +313,17 @@ pub struct CompileReport {
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
-    program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
+    program_storage_entry: Option<crate::pipeline::ProgramStorageEntryPlanBinding>,
     /// Emitted object-entry handoff awaiting concrete environment supply and
     /// runtime installation. This is not an installation receipt.
-    program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
+    program_storage_entry_bridge: Option<crate::pipeline::ProgramStorageEntryNativeBridgePlan>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
-    pub build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
+    pub build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
     /// Exact build-host observation ceiling and realized class for the
     /// selected build-machine run. This does not claim replayability or source
     /// rebuildability.
-    pub build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+    pub build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
 }
 
 impl CompileReport {
@@ -353,10 +335,10 @@ impl CompileReport {
         output_kind: CompileOutputKind,
         executable_publication: Option<ExecutablePublicationReceipt>,
         app_bundle_publication: Option<ExecutablePublicationReceipt>,
-        program_storage_entry: Option<super::ProgramStorageEntryPlanBinding>,
-        program_storage_entry_bridge: Option<super::ProgramStorageEntryNativeBridgePlan>,
-        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
-        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+        program_storage_entry: Option<crate::pipeline::ProgramStorageEntryPlanBinding>,
+        program_storage_entry_bridge: Option<crate::pipeline::ProgramStorageEntryNativeBridgePlan>,
+        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         let report = Self {
             root_path,
@@ -394,8 +376,8 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
-        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
-        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
     ) -> Result<Self, Box<TerminalComponentDeploymentReportError>> {
         if let Err(error) = deployment.validate() {
             return Err(Box::new(TerminalComponentDeploymentReportError {
@@ -431,8 +413,8 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
-        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
-        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -478,8 +460,8 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-        build_evaluation_usage: Option<super::build_config::BuildEvaluationUsage>,
-        build_observation_summary: Option<super::build_config::BuildObservationSummary>,
+        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -563,13 +545,15 @@ impl CompileReport {
             })
     }
 
-    pub fn program_storage_entry(&self) -> Option<&super::ProgramStorageEntryPlanBinding> {
+    pub fn program_storage_entry(
+        &self,
+    ) -> Option<&crate::pipeline::ProgramStorageEntryPlanBinding> {
         self.program_storage_entry.as_ref()
     }
 
     pub fn program_storage_entry_bridge(
         &self,
-    ) -> Option<&super::ProgramStorageEntryNativeBridgePlan> {
+    ) -> Option<&crate::pipeline::ProgramStorageEntryNativeBridgePlan> {
         self.program_storage_entry_bridge.as_ref()
     }
 
@@ -578,7 +562,7 @@ impl CompileReport {
             self.program_storage_entry.as_ref(),
             self.program_storage_entry_bridge
                 .as_ref()
-                .map(super::ProgramStorageEntryNativeBridgePlan::binding),
+                .map(crate::pipeline::ProgramStorageEntryNativeBridgePlan::binding),
         ) && program_storage_emission_matches_output_kind(
             self.output_kind,
             self.program_storage_entry_bridge.as_ref().map(|bridge| {
@@ -593,16 +577,18 @@ impl CompileReport {
             self.executable_publication
                 .as_ref()
                 .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
-            self.program_storage_entry
-                .as_ref()
-                .map(super::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint),
+            self.program_storage_entry.as_ref().map(
+                crate::pipeline::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint,
+            ),
         ) && emitted_inventory_matches_publication(
             self.executable_publication
                 .as_ref()
                 .map(ExecutablePublicationReceipt::inventory_fingerprint),
             self.program_storage_entry_bridge
                 .as_ref()
-                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .and_then(
+                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                )
                 .map(|evidence| evidence.executable_inventory_fingerprint()),
         ) && emitted_validation_matches_publication(
             self.executable_publication.as_ref().map(|receipt| {
@@ -613,7 +599,9 @@ impl CompileReport {
             }),
             self.program_storage_entry_bridge
                 .as_ref()
-                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .and_then(
+                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                )
                 .map(|evidence| {
                     (
                         evidence.compiler_text_validation().derivation_fingerprint,
@@ -628,7 +616,9 @@ impl CompileReport {
                 .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
             self.program_storage_entry_bridge
                 .as_ref()
-                .and_then(super::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence)
+                .and_then(
+                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                )
                 .map(|evidence| evidence.arrival().boundary_contract_fingerprint()),
         )
     }

@@ -378,7 +378,7 @@ fn boundary_trait_canary_reports_capability_use() {
     let _ = fs::remove_dir_all(&scratch);
     let checked_dir = scratch.join("checked");
 
-    let checked_compilation = production_compile(CompileOptions {
+    let checked_compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path.clone(),
         build_dir: Some(checked_dir.clone()),
         target_name: None,
@@ -405,7 +405,7 @@ fn boundary_trait_canary_reports_capability_use() {
     )
     .expect("write exact macOS AArch64 ProgramEntry binding");
     let lowered_dir = scratch.join("lowered");
-    let lowered_compilation = production_compile(CompileOptions {
+    let lowered_compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
         root_path: source_dir.join("main.omg"),
         build_dir: Some(lowered_dir.clone()),
         target_name: Some("macos_arm64".into()),
@@ -529,7 +529,7 @@ fn wire_cross_era_type_change_reports_requires_migration_verdict() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = production_compile(CompileOptions {
+    let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
         root_path: main_path,
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -572,7 +572,7 @@ fn wire_compatibility_demand_reports_directional_facts_and_migration_route() {
     ));
     let _ = fs::remove_dir_all(&build_dir);
 
-    let compilation = production_compile(CompileOptions {
+    let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
         root_path: canary.join("main.omg"),
         build_dir: Some(build_dir.clone()),
         target_name: None,
@@ -1297,7 +1297,7 @@ fn capability_manifest_reports_authority_flow_verbs() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = production_compile(CompileOptions {
+        let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
@@ -1376,7 +1376,7 @@ fn capability_flows_retain_exact_direct_and_propagated_sites() {
         ));
         let _ = fs::remove_dir_all(&build_dir);
 
-        let compilation = production_compile(CompileOptions {
+        let compilation = compile_legacy_with_auxiliary_artifacts(CompileOptions {
             root_path: canary.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,

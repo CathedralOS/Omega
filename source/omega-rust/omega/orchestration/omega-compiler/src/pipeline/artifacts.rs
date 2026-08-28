@@ -1,4 +1,4 @@
-use crate::pipeline::compile_options::{ArtifactEmissionPolicy, CompileOptions};
+use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::stages::AssembledSyntax;
 use omega_artifacts::{ArtifactWriter, PhaseTiming};
 use omega_backend_report::{BackendReportInput, BackendReportPhaseTiming, backend_report_text};

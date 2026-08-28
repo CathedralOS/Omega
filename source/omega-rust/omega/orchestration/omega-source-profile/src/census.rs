@@ -1,5 +1,5 @@
 use super::catalog::{SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS};
-use crate::pipeline::source_inspection::SourceClosureSnapshot;
+use crate::SourceClosureSnapshot;
 use psi_syntax_trees::snapshot::{
     CapabilityContractKindSnapshot, CapabilityContractSnapshot, CapabilityMemberSnapshot,
     ConformanceBodySnapshot, ConformanceMemberSnapshot, DataMemberSnapshot, DataPropertiesSnapshot,

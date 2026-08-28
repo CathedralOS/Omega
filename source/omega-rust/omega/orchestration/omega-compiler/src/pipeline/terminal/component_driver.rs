@@ -2,8 +2,6 @@ use psi_diagnostics::Diagnostic;
 
 use super::CheckedCompilation;
 use super::build_config::{BuildEvaluationUsage, BuildObservationSummary};
-use super::compile_options::CompileOptions;
-use super::compile_report::CompileReport;
 use super::output::{
     OwnedTerminalComponentDeploymentError, TerminalComponentDeploymentInputOwner,
     acquire_and_deploy_terminal_component_output,
@@ -11,6 +9,8 @@ use super::output::{
 use super::terminal_component_candidate::{
     TerminalComponentProviderSettlement, stage_terminal_component,
 };
+use crate::compiler::CompileOptions;
+use crate::compiler::CompileReport;
 
 /// Concrete compiler-owned inputs for staging one authority-free terminal
 /// component candidate.
