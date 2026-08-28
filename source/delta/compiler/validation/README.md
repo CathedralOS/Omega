@@ -14,7 +14,10 @@ rung or a generic assurance layer.
   driver does not privately select or execute a compiler command.
 - `lower-rooted-assembly-publication-v1.sh` only verifies supplied evidence.
 - `DELTA_LOWER_ROOTED_ARTIFACT_CUSTODY_V1.md` defines bounded native-artifact
-  realization and custody after assembly publication.
+  realization and custody after assembly publication. Its terminal receipt
+  surfaces the exact source, assembly, target, replayed-executable,
+  reconstruction-obligation, and scoped host/target-admission bindings while
+  leaving source-to-artifact refinement explicitly open.
 - The colocated `*-test.sh` entrypoints exercise each boundary directly.
 
 These tools may coordinate or reconstruct evidence, but they do not parse or
