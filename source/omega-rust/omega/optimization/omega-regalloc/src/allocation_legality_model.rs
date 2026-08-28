@@ -1,5 +1,7 @@
 use omega_register_model::{RegisterClassId, RegisterViewId, TargetRegisterEnvironmentIdentity};
-use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirtualRegisterId};
+use omega_terminal_selected_instructions::{
+    TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalVirtualRegisterId,
+};
 use psi_core::MachineId;
 
 use crate::{
@@ -42,6 +44,7 @@ pub struct TerminalVirtualRegisterAllocationLegality {
     pub virtual_register: TerminalVirtualRegisterId,
     pub class: RegisterClassId,
     pub points: Vec<TerminalVirtualPointLegality>,
+    pub early_clobber_points: Vec<TerminalVirtualEarlyClobberPointLegality>,
     pub entry_transitions: Vec<TerminalEntryFixedViewTransition>,
 }
 
@@ -50,6 +53,17 @@ pub struct TerminalVirtualPointLegality {
     pub block: TerminalSelectedBlockId,
     pub point: TerminalLiveRangePoint,
     /// Canonical view-ID-sorted candidates legal at this exact phase.
+    pub candidates: Vec<RegisterViewId>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalVirtualEarlyClobberPointLegality {
+    pub block: TerminalSelectedBlockId,
+    pub position: crate::TerminalLivenessPosition,
+    pub instruction: TerminalSelectedInstructionId,
+    pub operand: u16,
+    pub point: TerminalLiveRangePoint,
+    /// Canonical candidates whose write footprint is legal at the early phase.
     pub candidates: Vec<RegisterViewId>,
 }
 
@@ -70,6 +84,8 @@ pub struct TerminalAllocationLegalityValidationReceipt {
     pub(crate) virtual_register_count: usize,
     pub(crate) point_count: usize,
     pub(crate) candidate_count: usize,
+    pub(crate) early_clobber_point_count: usize,
+    pub(crate) early_clobber_candidate_count: usize,
     pub(crate) entry_transition_count: usize,
 }
 
@@ -97,6 +113,12 @@ impl TerminalAllocationLegalityValidationReceipt {
     }
     pub const fn candidate_count(self) -> usize {
         self.candidate_count
+    }
+    pub const fn early_clobber_point_count(self) -> usize {
+        self.early_clobber_point_count
+    }
+    pub const fn early_clobber_candidate_count(self) -> usize {
+        self.early_clobber_candidate_count
     }
     pub const fn entry_transition_count(self) -> usize {
         self.entry_transition_count

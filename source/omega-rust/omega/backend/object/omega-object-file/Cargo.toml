@@ -11,5 +11,10 @@ path = "src/lib.rs"
 [dependencies]
 omega-core = { path = "../../../foundation/omega-core" }
 omega-function-identity = { path = "../../../foundation/omega-function-identity" }
+omega-optimization-core = { path = "../../../foundation/omega-optimization-core" }
+omega-terminal-selected-instructions = { path = "../../../representations/omega-terminal-selected-instructions" }
 psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+psi-core = { path = "../../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
 omega-target = { path = "../../../foundation/omega-target" }
+sha2 = "0.10.9"
