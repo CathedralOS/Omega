@@ -9,8 +9,9 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_optimization_core::{
-    AnalysisKind, OptimizationCandidateIdentity, OptimizationRuleIdentity, OptimizationSafetyClass,
-    OptimizationUnitIdentity, OptimizationValidatorIdentity,
+    AnalysisInvalidationSet, AnalysisKind, AnalysisSet, OptimizationCandidateIdentity,
+    OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
+    OptimizationValidatorIdentity,
 };
 use omega_optimization_unit::{
     AdjacentBlockMergeRewrite, BlockParameterIncomingBinding, BooleanConstantRewrite,
@@ -20,12 +21,12 @@ use omega_optimization_unit::{
     OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, PsiNodeObservation,
-    PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite, ScalarConstantValue,
-    ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState, SccpMachineSnapshot,
-    SccpValueRow, SccpValueState, SharedTerminalJumpFusionRewrite, ValueDefinition,
-    ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
+    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
+    PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
+    ScalarConstantValue, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
+    SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedTerminalJumpFusionRewrite,
+    ValueDefinition, ValueDefinitionSite, ValueUse, canonical_ownership_frontier_snapshot,
     derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
     recompute_psi_optimization_unit_identity, reconstruct_psi_closed_region_observation,
     reconstruct_psi_observation_model,
@@ -1408,11 +1409,185 @@ pub fn validate_integer_evaluation_candidate(
     })
 }
 
+/// Independently validate and materialize the exact symbolic law `x - x = 0`.
+/// The producer supplies no operand constant facts and cannot construct the
+/// accepted output. The original proof-bearing operation remains the source
+/// occurrence of the in-place constant node, while its active obligation
+/// reference is replaced by the reconstructed literal fact.
+pub fn validate_proof_certified_exact_integer_self_subtract_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_psi_optimization_unit(input)?;
+    if candidate.input() != input.identity {
+        return Err(OptimizationUnitValidationError::CandidateInputMismatch);
+    }
+    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+    );
+    if candidate.rule() != expected_rule
+        || candidate.required_analyses()
+            != AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries])
+        || candidate.invalidated_analyses()
+            != AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ])
+        || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
+        || !candidate.substitutions().is_empty()
+    {
+        return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+    }
+    let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if candidate.node_decision_point() != Some(patch.location)
+        || candidate.affected_blocks() != [patch.location.block]
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let function = input
+        .functions
+        .iter()
+        .find(|function| function.machine == patch.location.machine)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let block = function
+        .blocks
+        .iter()
+        .find(|block| block.id == patch.location.block)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let node = block
+        .nodes
+        .get(
+            usize::try_from(patch.location.node)
+                .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
+        )
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let O::ExactIntegerSubtract {
+        psi_operation,
+        obligation,
+        result,
+        scalar_type,
+        left,
+        right,
+    } = &node.operation
+    else {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    };
+    if left != right
+        || patch.source_operation != *psi_operation
+        || patch.result != *result
+        || patch.scalar_type != *scalar_type
+        || patch.constant != independent_integer_zero(*scalar_type)
+        || node.definitions
+            != [ValueDefinition {
+                value: *result,
+                scalar_type: ScalarType::Integer(*scalar_type),
+                site: ValueDefinitionSite::Node {
+                    block: patch.location.block,
+                    node: patch.location.node,
+                },
+            }]
+    {
+        return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+    }
+    let input_observation = observation_at(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    let input_live = reconstruct_closed_scalar_node_boundary(input, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !input_live.live_out.contains(result) {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let expected_fact =
+        independently_accepted_operation_fact(input, function, *psi_operation, *obligation)
+            .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+    if candidate.accepted_obligation_witness() != Some(expected_fact) {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+    let site = PsiRealizationSite::Node(patch.location);
+    let expected_provenance = [ProvenanceRewrite {
+        input: site,
+        disposition: ProvenanceDisposition::RealizedAt(site),
+        sources: node.provenance.clone(),
+        fuel: node.fuel.clone(),
+    }];
+    if candidate.provenance() != expected_provenance {
+        return Err(OptimizationUnitValidationError::CandidateProvenanceMismatch);
+    }
+
+    let accepted_catalog = input.accepted_obligation_facts.clone();
+    let mut output = input.clone();
+    let output_function = output
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == patch.location.machine)
+        .expect("candidate source function exists");
+    let output_block = output_function
+        .blocks
+        .iter_mut()
+        .find(|block| block.id == patch.location.block)
+        .expect("candidate source block exists");
+    let output_node = &mut output_block.nodes[patch.location.node as usize];
+    output_node.operation = O::IntegerConstant {
+        psi_operation: *psi_operation,
+        result: *result,
+        scalar_type: ScalarType::Integer(*scalar_type),
+        value: patch.constant,
+    };
+    output_node.definitions = vec![ValueDefinition {
+        value: *result,
+        scalar_type: ScalarType::Integer(*scalar_type),
+        site: ValueDefinitionSite::Node {
+            block: patch.location.block,
+            node: patch.location.node,
+        },
+    }];
+    output_node.uses.clear();
+    output_node.successors.clear();
+    output_node.ownership.clear();
+    output_function.facts = reconstruct_fact_index(output_function);
+    output.identity = recompute_psi_optimization_unit_identity(&output);
+    if output.accepted_obligation_facts != accepted_catalog {
+        return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+    }
+    validate_psi_optimization_unit(&output)?;
+    let output_observation = observation_at(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if !same_closed_scalar_observation(&input_observation, &output_observation) {
+        return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
+    }
+    let output_live = reconstruct_closed_scalar_node_boundary(&output, patch.location)
+        .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
+    if input_live.live_out != output_live.live_out
+        || output_live
+            .live_in
+            .iter()
+            .any(|value| !input_live.live_in.contains(value))
+    {
+        return Err(OptimizationUnitValidationError::CandidateLiveBoundaryMismatch);
+    }
+    Ok(ValidatedPsiRewrite {
+        unit: output,
+        candidate: candidate.identity(),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            b"omega.validator.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+        ),
+        provenance: expected_provenance.into(),
+    })
+}
+
 /// Dispatch one typed scalar-constant candidate to its independent validator.
 pub fn validate_scalar_evaluation_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-exact-integer-self-subtract-elimination.v1",
+        )
+    {
+        return validate_proof_certified_exact_integer_self_subtract_candidate(input, candidate);
+    }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
             validate_integer_evaluation_candidate(input, candidate)

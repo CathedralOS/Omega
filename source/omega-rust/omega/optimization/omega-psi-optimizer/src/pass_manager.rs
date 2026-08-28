@@ -1183,8 +1183,9 @@ mod tests {
             boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
             dead_wrapping_add_unit, dependent_exact_chain_unit, diamond_dominator_gvn_unit,
             dominator_gvn_unit, exact_add_unit, linear_empty_block_unit, live_divide_by_one_unit,
-            live_exact_multiply_by_zero_unit, live_exact_zero_value_shift_unit, local_cse_unit,
-            non_adjacent_merge_unit, phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
+            live_exact_multiply_by_zero_unit, live_exact_self_subtract_unit,
+            live_exact_zero_value_shift_unit, local_cse_unit, non_adjacent_merge_unit,
+            phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
             proof_certified_local_cse_unit, proof_certified_phi_translated_gvn_unit,
             propagated_block_parameter_unit, randomized_built_in_registries,
             redundant_block_parameter_unit, wrapping_add_unit,
@@ -1802,11 +1803,51 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 6);
+        assert_eq!(manifest.ordered_rules().len(), 7);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
         );
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
+    fn named_proof_check_elision_materializes_self_subtract_zero_at_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let integer = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap();
+        let unit = live_exact_self_subtract_unit(integer);
+        let accepted_fact = unit.accepted_obligation_facts[0].identity;
+        let original_provenance = unit.functions[0].blocks[0].nodes[0].provenance.clone();
+        let original_fuel = unit.functions[0].blocks[0].nodes[0].fuel.clone();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(ledger.records().len(), 1);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 7);
+        assert_eq!(
+            commits[0].declaration.consumed_facts(),
+            [OptimizationFactReference::AcceptedObligation(accepted_fact),]
+        );
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[0].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(0),
+                ..
+            }
+        ));
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[0].provenance,
+            original_provenance
+        );
+        assert_eq!(output.functions[0].blocks[0].nodes[0].fuel, original_fuel);
 
         let (second, second_commits, second_usage, _, _, second_ledger) =
             run_unit(output.clone(), &registry, budget(8)).unwrap();
@@ -2810,7 +2851,7 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.pass_manifests.len(), 1);
-        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 6);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 7);
         assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
             run.pass_manifests[0].decisions()[0].consumed_facts().len(),
