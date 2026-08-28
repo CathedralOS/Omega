@@ -1,0 +1,313 @@
+use psi::parse::data;
+use psi::parse::input;
+use psi::parse::owner;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Whole-file sequencing and use-item grammar. Data declarations are delegated
+// to data.omg; input.omg remains the only token/cursor behavior owner.
+machine Parser::parse_roots(&mut self) {
+    self.output.clear(self.source);
+    self.initialize_cursor();
+    transition { _ -> next_root() }
+
+    state next_root(&mut self) {
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> classify_root()
+            _ -> done()
+        }
+    }
+
+    state classify_root(&mut self) {
+        self.load_current();
+        transition { _ -> classify_root_loaded() }
+    }
+
+    state classify_root_loaded(&mut self) {
+        self.item_start = self.current_start;
+        transition self.current_tag == 5 && self.current_first == 27 {
+            true -> prepare_use()
+            _ -> classify_data_root()
+        }
+    }
+
+    state classify_data_root(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 4 {
+            true -> dispatch_data(false)
+            _ -> classify_public_data_root()
+        }
+    }
+
+    state classify_public_data_root(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 18 {
+            true -> public_data_root()
+            _ -> unsupported_root(self.current_start, self.current_end)
+        }
+    }
+
+    state public_data_root(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> public_data_keyword()
+            _ -> expected_data_after_public_at_end()
+        }
+    }
+
+    state public_data_keyword(&mut self) {
+        self.load_current();
+        transition { _ -> public_data_keyword_loaded() }
+    }
+
+    state public_data_keyword_loaded(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 4 {
+            true -> dispatch_data(true)
+            _ -> expected_data_after_public(self.current_start, self.current_end)
+        }
+    }
+
+    state dispatch_data(&mut self, is_public: bool) {
+        self.parse_data(self.item_start, is_public);
+        transition self.output.accepted {
+            true -> next_root()
+            _ -> done()
+        }
+    }
+
+    state unsupported_root(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::UnsupportedRootItem, self.source, start, end);
+    }
+
+    state prepare_use(&mut self) {
+        transition self.output.root_count < 256 {
+            true -> use_capacity()
+            _ -> root_full()
+        }
+    }
+
+    state root_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::RootCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state use_capacity(&mut self) {
+        transition self.output.use_count < 256 {
+            true -> use_start()
+            _ -> use_full()
+        }
+    }
+
+    state use_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::UseCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state use_start(&mut self) {
+        self.use_first_member = self.output.member_count;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> first_member()
+            _ -> expected_member_at_end()
+        }
+    }
+
+    state first_member(&mut self) {
+        self.load_current();
+        transition { _ -> first_member_loaded() }
+    }
+
+    state first_member_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_member(self.current_start, self.current_end)
+            _ -> expected_member(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_member(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition self.output.member_count < 1024 {
+            true -> retain_member_bounded(start, end)
+            _ -> member_full(start, end)
+        }
+    }
+
+    state retain_member_bounded(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.members[self.output.member_count] = IdentifierSpan {
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: start, end: end }
+            }
+        };
+        self.output.member_count = self.output.member_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> path_tail()
+            _ -> expected_separator_at_end()
+        }
+    }
+
+    state path_tail(&mut self) {
+        self.load_current();
+        transition { _ -> path_tail_loaded() }
+    }
+
+    state path_tail_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 7 {
+            true -> separator()
+            _ -> semicolon(
+                self.current_tag,
+                self.current_first,
+                self.current_start,
+                self.current_end
+            )
+        }
+    }
+
+    state separator(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> next_member()
+            _ -> expected_member_at_end()
+        }
+    }
+
+    state next_member(&mut self) {
+        self.load_current();
+        transition { _ -> next_member_loaded() }
+    }
+
+    state next_member_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_member(self.current_start, self.current_end)
+            _ -> expected_member(self.current_start, self.current_end)
+        }
+    }
+
+    state semicolon(
+        &mut self,
+        tag: u8,
+        first: u8,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        transition tag == 6 && first == 39 {
+            true -> retain_use(end)
+            _ -> expected_separator(start, end)
+        }
+    }
+
+    state retain_use(&mut self, item_end: u64 in Trapping) {
+        transition self.output.use_count < 256 {
+            true -> retain_use_bounded(item_end)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_use_bounded(&mut self, item_end: u64 in Trapping) {
+        let use_index: u64 in Trapping = self.output.use_count;
+        self.output.uses[self.output.use_count] = UseItem {
+            first_member: self.use_first_member,
+            member_count: self.output.member_count - self.use_first_member,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.use_count = self.output.use_count + 1;
+        transition { _ -> retain_root(item_end, use_index) }
+    }
+
+    state retain_root(
+        &mut self,
+        item_end: u64 in Trapping,
+        use_index: u64 in Trapping
+    ) {
+        transition self.output.root_count < 256 {
+            true -> retain_root_bounded(item_end, use_index)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_root_bounded(
+        &mut self,
+        item_end: u64 in Trapping,
+        use_index: u64 in Trapping
+    ) {
+        self.output.roots[self.output.root_count] = RootItem {
+            kind: RootItemKind::Use,
+            item_index: use_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.item_start, end: item_end }
+            }
+        };
+        self.output.root_count = self.output.root_count + 1;
+        self.cursor = self.cursor + 1;
+        transition { _ -> next_root() }
+    }
+
+    state expected_data_after_public_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataAfterPub, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_after_public(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataAfterPub, self.source, start, end);
+    }
+
+    state retained_capacity_lost(&mut self) {
+        self.output.reject(ParseDiagnosticCode::RootCapacityExceeded, self.source, self.item_start, self.item_start);
+    }
+
+    state expected_member_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedPathMember, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_member(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedPathMember, self.source, start, end);
+    }
+
+    state expected_separator_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_separator(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon, self.source, start, end);
+    }
+
+    state member_full(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::PathMemberCapacityExceeded, self.source, start, end);
+    }
+
+    state done(&mut self) { }
+}

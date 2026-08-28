@@ -1,0 +1,697 @@
+use psi::parse::input;
+use psi::parse::owner;
+use psi::source::source;
+use psi::syntax::syntax;
+
+// Data-declaration grammar attached to the parser owner. Token traversal stays
+// in input.omg; this module uses only declaration-local spans, table bases, and
+// multiplicity/visibility scratch.
+machine Parser::parse_data(
+    &mut self,
+    item_start: u64 in Trapping,
+    is_public: bool
+) {
+    self.data_item_start = item_start;
+    self.data_is_public = is_public;
+    transition self.output.root_count < 256 {
+        true -> data_capacity()
+        _ -> root_full()
+    }
+
+    state root_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::RootCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state data_capacity(&mut self) {
+        transition self.output.data_count < 256 {
+            true -> data_start()
+            _ -> data_full()
+        }
+    }
+
+    state data_start(&mut self) {
+        self.data_first_member = self.output.data_member_count;
+        self.data_first_field = self.output.field_count;
+        self.data_first_case = self.output.case_count;
+        self.data_multiplicity = DataMultiplicity::Affine;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_name()
+            _ -> expected_data_name_at_end()
+        }
+    }
+
+    state data_name(&mut self) {
+        self.load_current();
+        transition { _ -> data_name_loaded() }
+    }
+
+    state data_name_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_data_name(self.current_start, self.current_end)
+            _ -> expected_data_name(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_data_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.data_name_start = start;
+        self.data_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_body()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state data_body(&mut self) {
+        self.load_current();
+        transition { _ -> data_body_loaded() }
+    }
+
+    state data_body_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 21 {
+            true -> data_property_start()
+            _ -> data_body_brace()
+        }
+    }
+
+    state data_body_brace(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 20 {
+            true -> data_body_start()
+            _ -> expected_data_body(self.current_start, self.current_end)
+        }
+    }
+
+    state data_property_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_property()
+            _ -> expected_data_property_at_end()
+        }
+    }
+
+    state data_property(&mut self) {
+        self.load_current();
+        transition { _ -> data_property_loaded() }
+    }
+
+    state data_property_loaded(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 31 {
+            true -> retain_copy_property()
+            _ -> expected_data_property(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_copy_property(&mut self) {
+        self.data_multiplicity = DataMultiplicity::Unrestricted;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_property_end()
+            _ -> expected_data_property_end_at_end()
+        }
+    }
+
+    state data_property_end(&mut self) {
+        self.load_current();
+        transition { _ -> data_property_end_loaded() }
+    }
+
+    state data_property_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 37 {
+            true -> after_data_property()
+            _ -> expected_data_property_end(self.current_start, self.current_end)
+        }
+    }
+
+    state after_data_property(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_body()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state data_body_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state data_member(&mut self) {
+        self.load_current();
+        transition { _ -> data_member_loaded() }
+    }
+
+    state data_member_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 36 {
+            true -> retain_data(self.current_end)
+            _ -> classify_case_member()
+        }
+    }
+
+    state classify_case_member(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 30 {
+            true -> case_marker()
+            _ -> field_capacity()
+        }
+    }
+
+    // `case` is contextual. `case Name;` is an alternative, while
+    // `case: Type;` remains an ordinary field named `case`.
+    state case_marker(&mut self) {
+        self.case_start = self.current_start;
+        self.case_keyword_end = self.current_end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> case_marker_tail()
+            _ -> expected_data_case_name_at_end()
+        }
+    }
+
+    state case_marker_tail(&mut self) {
+        self.load_current();
+        transition { _ -> case_marker_tail_loaded() }
+    }
+
+    state case_marker_tail_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 6 {
+            true -> contextual_case_field_capacity()
+            _ -> case_name_kind()
+        }
+    }
+
+    state contextual_case_field_capacity(&mut self) {
+        transition self.output.field_count < 1024 {
+            true -> contextual_case_field_member_capacity()
+            _ -> field_full()
+        }
+    }
+
+    state contextual_case_field_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_contextual_case_field_name()
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_contextual_case_field_name(&mut self) {
+        self.field_start = self.case_start;
+        self.field_name_start = self.case_start;
+        self.field_name_end = self.case_keyword_end;
+        transition { _ -> field_type_start() }
+    }
+
+    state case_name_kind(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> case_capacity()
+            _ -> expected_data_case_name(self.current_start, self.current_end)
+        }
+    }
+
+    state case_capacity(&mut self) {
+        transition self.output.case_count < 512 {
+            true -> case_member_capacity()
+            _ -> case_full()
+        }
+    }
+
+    state case_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_case_name(self.current_start, self.current_end)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_case_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.case_name_start = start;
+        self.case_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> case_end()
+            _ -> expected_data_case_end_at_end()
+        }
+    }
+
+    state case_end(&mut self) {
+        self.load_current();
+        transition { _ -> case_end_loaded() }
+    }
+
+    state case_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 39 {
+            true -> retain_case(self.current_end)
+            _ -> expected_data_case_end(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_case(&mut self, case_end: u64 in Trapping) {
+        transition self.output.case_count < 512 {
+            true -> retain_case_bounded(case_end)
+            _ -> case_full()
+        }
+    }
+
+    state retain_case_bounded(&mut self, case_end: u64 in Trapping) {
+        let case_index: u64 in Trapping = self.output.case_count;
+        self.output.cases[self.output.case_count] = DataCase {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.case_name_start, end: self.case_name_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.case_start, end: case_end }
+            }
+        };
+        self.output.case_count = self.output.case_count + 1;
+        transition { _ -> retain_case_member(case_end, case_index) }
+    }
+
+    state retain_case_member(
+        &mut self,
+        case_end: u64 in Trapping,
+        case_index: u64 in Trapping
+    ) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_case_member_bounded(case_end, case_index)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_case_member_bounded(
+        &mut self,
+        case_end: u64 in Trapping,
+        case_index: u64 in Trapping
+    ) {
+        self.output.data_members[self.output.data_member_count] = DataMember {
+            kind: DataMemberKind::Case,
+            item_index: case_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.case_start, end: case_end }
+            }
+        };
+        self.output.data_member_count = self.output.data_member_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state field_capacity(&mut self) {
+        transition self.output.field_count < 1024 {
+            true -> field_member_capacity()
+            _ -> field_full()
+        }
+    }
+
+    state field_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> field_name()
+            _ -> data_member_full()
+        }
+    }
+
+    state field_name(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> retain_field_name(self.current_start, self.current_end)
+            _ -> expected_field_colon(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_field_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.field_start = start;
+        self.field_name_start = start;
+        self.field_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_colon()
+            _ -> expected_field_colon_at_end()
+        }
+    }
+
+    state field_colon(&mut self) {
+        self.load_current();
+        transition { _ -> field_colon_loaded() }
+    }
+
+    state field_colon_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 6 {
+            true -> field_type_start()
+            _ -> expected_field_colon(self.current_start, self.current_end)
+        }
+    }
+
+    state field_type_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_type()
+            _ -> expected_field_type_at_end()
+        }
+    }
+
+    state field_type(&mut self) {
+        self.load_current();
+        transition { _ -> field_type_loaded() }
+    }
+
+    state field_type_loaded(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> type_reference_capacity()
+            _ -> expected_field_type(self.current_start, self.current_end)
+        }
+    }
+
+    state type_reference_capacity(&mut self) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_type_name(self.current_start, self.current_end)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_type_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.type_name_start = start;
+        self.type_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> field_end()
+            _ -> expected_field_end_at_end()
+        }
+    }
+
+    state field_end(&mut self) {
+        self.load_current();
+        transition { _ -> field_end_loaded() }
+    }
+
+    state field_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 39 {
+            true -> retain_type_reference(self.current_end)
+            _ -> expected_field_end(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_type_reference(&mut self, field_end: u64 in Trapping) {
+        transition self.output.type_reference_count < 1024 {
+            true -> retain_type_reference_bounded(field_end)
+            _ -> type_reference_full()
+        }
+    }
+
+    state retain_type_reference_bounded(&mut self, field_end: u64 in Trapping) {
+        let type_index: u64 in Trapping = self.output.type_reference_count;
+        self.output.type_references[self.output.type_reference_count] = TypeReference {
+            kind: TypeReferenceKind::Named,
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.type_name_start, end: self.type_name_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.type_name_start, end: self.type_name_end }
+            }
+        };
+        self.output.type_reference_count = self.output.type_reference_count + 1;
+        transition { _ -> retain_field(field_end, type_index) }
+    }
+
+    state retain_field(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping
+    ) {
+        transition self.output.field_count < 1024 {
+            true -> retain_field_bounded(field_end, type_index)
+            _ -> field_full()
+        }
+    }
+
+    state retain_field_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        type_index: u64 in Trapping
+    ) {
+        let field_index: u64 in Trapping = self.output.field_count;
+        self.output.fields[self.output.field_count] = DataField {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.field_name_start, end: self.field_name_end }
+                }
+            },
+            type_reference: type_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.field_start, end: field_end }
+            }
+        };
+        self.output.field_count = self.output.field_count + 1;
+        transition { _ -> retain_field_member(field_end, field_index) }
+    }
+
+    state retain_field_member(
+        &mut self,
+        field_end: u64 in Trapping,
+        field_index: u64 in Trapping
+    ) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_field_member_bounded(field_end, field_index)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_field_member_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        field_index: u64 in Trapping
+    ) {
+        self.output.data_members[self.output.data_member_count] = DataMember {
+            kind: DataMemberKind::Field,
+            item_index: field_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.field_start, end: field_end }
+            }
+        };
+        self.output.data_member_count = self.output.data_member_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
+        }
+    }
+
+    state retain_data(&mut self, item_end: u64 in Trapping) {
+        transition self.output.data_count < 256 {
+            true -> retain_data_bounded(item_end)
+            _ -> data_full()
+        }
+    }
+
+    state retain_data_bounded(&mut self, item_end: u64 in Trapping) {
+        let data_index: u64 in Trapping = self.output.data_count;
+        self.output.data_items[self.output.data_count] = DataItem {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.data_name_start, end: self.data_name_end }
+                }
+            },
+            first_member: self.data_first_member,
+            member_count: self.output.data_member_count - self.data_first_member,
+            first_field: self.data_first_field,
+            field_count: self.output.field_count - self.data_first_field,
+            first_case: self.data_first_case,
+            case_count: self.output.case_count - self.data_first_case,
+            multiplicity: self.data_multiplicity,
+            is_public: self.data_is_public,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.data_item_start, end: item_end }
+            }
+        };
+        self.output.data_count = self.output.data_count + 1;
+        transition { _ -> retain_data_root(item_end, data_index) }
+    }
+
+    state retain_data_root(
+        &mut self,
+        item_end: u64 in Trapping,
+        data_index: u64 in Trapping
+    ) {
+        transition self.output.root_count < 256 {
+            true -> retain_data_root_bounded(item_end, data_index)
+            _ -> retained_capacity_lost()
+        }
+    }
+
+    state retain_data_root_bounded(
+        &mut self,
+        item_end: u64 in Trapping,
+        data_index: u64 in Trapping
+    ) {
+        self.output.roots[self.output.root_count] = RootItem {
+            kind: RootItemKind::Data,
+            item_index: data_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.data_item_start, end: item_end }
+            }
+        };
+        self.output.root_count = self.output.root_count + 1;
+        self.cursor = self.cursor + 1;
+    }
+
+    state data_full(&mut self) {
+        self.output.reject(ParseDiagnosticCode::DataCapacityExceeded, self.source, self.current_start, self.current_end);
+    }
+
+    state field_full(&mut self) {
+        self.output.reject(ParseDiagnosticCode::DataFieldCapacityExceeded, self.source, self.current_start, self.current_end);
+    }
+
+    state type_reference_full(&mut self) {
+        self.output.reject(ParseDiagnosticCode::TypeReferenceCapacityExceeded, self.source, self.current_start, self.current_end);
+    }
+
+    state data_member_full(&mut self) {
+        self.output.reject(ParseDiagnosticCode::DataMemberCapacityExceeded, self.source, self.current_start, self.current_end);
+    }
+
+    state case_full(&mut self) {
+        self.output.reject(ParseDiagnosticCode::DataCaseCapacityExceeded, self.source, self.current_start, self.current_end);
+    }
+
+    state expected_data_property_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataProperty, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_property(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataProperty, self.source, start, end);
+    }
+
+    state expected_data_property_end_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataPropertyEnd, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_property_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataPropertyEnd, self.source, start, end);
+    }
+
+    state expected_data_case_name_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseName, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_case_name(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseName, self.source, start, end);
+    }
+
+    state expected_data_case_end_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseEnd, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_case_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseEnd, self.source, start, end);
+    }
+
+    state expected_data_name_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataName, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_name(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataName, self.source, start, end);
+    }
+
+    state expected_data_body_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataBody, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_data_body(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataBody, self.source, start, end);
+    }
+
+    state expected_field_colon_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldColon, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_field_colon(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldColon, self.source, start, end);
+    }
+
+    state expected_field_type_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldType, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_field_type(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldType, self.source, start, end);
+    }
+
+    state expected_field_end_at_end(&mut self) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldEnd, self.source, self.source_length, self.source_length);
+    }
+
+    state expected_field_end(&mut self, start: u64 in Trapping, end: u64 in Trapping) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataFieldEnd, self.source, start, end);
+    }
+
+    state retained_capacity_lost(&mut self) {
+        self.output.reject(ParseDiagnosticCode::RootCapacityExceeded, self.source, self.data_item_start, self.data_item_start);
+    }
+}

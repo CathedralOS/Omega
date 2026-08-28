@@ -1,0 +1,69 @@
+use psi::parse::owner;
+
+machine Parser::initialize_cursor(&mut self) {
+    self.cursor = 0;
+    self.current_tag = 0;
+    self.current_first = 0;
+    self.current_start = 0;
+    self.current_end = 0;
+}
+
+// One checked dynamic-selection boundary feeds scalar lookahead fields. This
+// keeps root/data machines independent of physical token storage and avoids a
+// generated family of tag/start/end accessor permutations.
+machine Parser::load_current(&mut self) {
+    transition self.cursor < self.token_count {
+        true -> array_bound(self.cursor as u64)
+        _ -> absent()
+    }
+
+    state array_bound(&mut self, candidate: u64) {
+        transition candidate < 16384 {
+            true -> present(candidate)
+            _ -> absent()
+        }
+    }
+
+    state present(&mut self, retained: u64 [0..=16383]) {
+        self.current_tag = self.token_tags[retained];
+        self.current_first = self.token_first[retained];
+        self.current_start = self.token_starts[retained];
+        self.current_end = self.token_ends[retained];
+    }
+
+    state absent(&mut self) {
+        self.current_tag = 0;
+        self.current_first = 0;
+        self.current_start = 0;
+        self.current_end = 0;
+    }
+}
+
+machine Parser::skip_trivia(&mut self) {
+    transition self.cursor < self.token_count {
+        true -> classify()
+        _ -> done()
+    }
+
+    state classify(&mut self) {
+        self.load_current();
+        transition { _ -> classify_loaded() }
+    }
+
+    state classify_loaded(&mut self) {
+        transition self.current_tag == 7 || self.current_tag == 8 || self.current_tag == 9 {
+            true -> advance()
+            _ -> done()
+        }
+    }
+
+    state advance(&mut self) {
+        self.cursor = self.cursor + 1;
+        transition self.cursor < self.token_count {
+            true -> classify()
+            _ -> done()
+        }
+    }
+
+    state done(&mut self) { }
+}
