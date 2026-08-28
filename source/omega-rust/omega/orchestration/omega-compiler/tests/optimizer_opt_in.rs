@@ -125,6 +125,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
     builder.optimizations.enable(Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1);
+    builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
 }
 "#,
         ),
@@ -141,6 +142,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactSubtractImmediate,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
         ]
     );
     assert_eq!(
@@ -387,6 +389,57 @@ fn aarch64_cbnz_fusion_selection_round_trips_but_remains_default_off() {
         diagnostics[0]
             .message
             .contains("`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1`")
+    );
+    assert!(diagnostics[0].message.contains("no output was installed"));
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
+fn shared_entry_fixed_view_copy_selection_round_trips_but_remains_default_off() {
+    let absent = project("shared-entry-copy-default-off", None);
+    let checked = compile_to_checked(&absent.join("main.omg"), None)
+        .expect("an absent build must leave shared-entry copy insertion disabled");
+    assert!(
+        !checked
+            .optimization_selections()
+            .contains(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1)
+    );
+
+    let selected = project(
+        "shared-entry-copy-selected",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-shared-entry-copy-selected");
+    builder.optimizations.enable(Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1);
+}
+"#,
+        ),
+    );
+    let checked = compile_to_checked(&selected.join("main.omg"), None)
+        .expect("the named allocation-recovery selection should evaluate");
+    assert_eq!(
+        checked.optimization_selections().as_slice(),
+        &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+    );
+    assert_eq!(
+        checked.optimization_selection_identity(),
+        checked.optimization_selections().identity()
+    );
+
+    let build_dir = selected.join("build");
+    let diagnostics = compile(CompileOptions {
+        root_path: selected.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("the build-visible allocation recovery must remain publication-gated");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1`")
     );
     assert!(diagnostics[0].message.contains("no output was installed"));
     assert!(!build_dir.join("omega-program").exists());

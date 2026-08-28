@@ -1294,6 +1294,7 @@ mod tests {
                             when_zero_block: zero,
                             when_zero_offset: zero_offset,
                             byte_displacement: displacement,
+                            decoded_register_reads: vec![],
                             decoded_effects: near.footprint().encoded.clone(),
                         })),
                     }],

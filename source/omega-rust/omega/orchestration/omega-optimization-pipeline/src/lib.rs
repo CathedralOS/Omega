@@ -142,8 +142,11 @@ pub use post_allocation_selected_form_encoding::{
     DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
     StagedOptimizedSelectedFormEncoding, TerminalSelectedFormDecodedFootprint,
     TerminalSelectedFormEncodingIdentity, TerminalSelectedFormEncodingRow,
-    TerminalSelectedFormEncodingState, stage_optimized_layout_independent_selected_form_encoding,
+    TerminalSelectedFormEncodingState, TerminalSelectedFormMachineOptimizationCustody,
+    stage_optimized_layout_independent_selected_form_encoding,
+    stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     validate_optimized_layout_independent_selected_form_encoding,
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
 };
 pub use register_environment::{
     TargetRegisterEnvironmentValidationError, ValidatedTargetRegisterEnvironment,
@@ -167,7 +170,9 @@ pub use resolved_selected_form_layout::{
     TerminalResolvedSelectedFormLayoutIdentity, TerminalResolvedSelectedFormRow,
     TerminalResolvedSelectedFunctionLayout, TerminalSelectedFunctionLayoutPolicy,
     stage_optimized_resolved_selected_form_layout,
+    stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
 };
 pub use selected_reanalysis::{
     OptimizedSelectedReanalysisError, StagedOptimizedSelectedReanalysis,
@@ -6625,6 +6630,63 @@ mod tests {
     }
 
     #[test]
+    fn compiler_facing_physical_pipeline_runs_only_the_named_shared_entry_copy() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = conditional_forwarded_parameter_artifact();
+            let selections = OptimizationSelections::new([
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            ])
+            .unwrap();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                    .unwrap(),
+            )
+            .unwrap();
+            let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                target,
+                &[],
+            )
+            .unwrap();
+            let StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine } =
+                &staged
+            else {
+                panic!("the exact allocation-recovery phase must use its fixed-copy route")
+            };
+            let reanalysis = homes.reanalysis_stage();
+            let copies = reanalysis.transformation_stage();
+            let plan = copies.copies().plan();
+            assert_eq!(staged.selections(), selections.identity());
+            assert_eq!(staged.selected_lowering_completion(), None);
+            assert!(staged.function_relative_manifest().is_none());
+            assert!(staged.post_allocation_machine_optimization().is_none());
+            assert_eq!(
+                copies.custody().policy(),
+                TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1
+            );
+            assert_eq!(copies.custody().copy_count(), 1);
+            assert_eq!(plan.copies.len(), 1);
+            assert_eq!(plan.copies[0].destinations.len(), 2);
+            assert_eq!(reanalysis.custody().entry_transition_count(), 0);
+            assert_eq!(reanalysis.legality().receipt().entry_transition_count(), 0);
+            assert_eq!(
+                machine.machine().receipt().post_allocation_manifest(),
+                homes.post_allocation_manifest().record().identity
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody(
+                    homes, machine,
+                )
+                .unwrap(),
+                machine.custody()
+            );
+        }
+    }
+
+    #[test]
     fn compiler_facing_physical_pipeline_runs_only_the_named_aarch64_cbnz_fusion() {
         let target = NativeTarget::linux_arm64();
         let (semantic, proof) = conditional_exact_binary_artifact(false);
@@ -6670,6 +6732,151 @@ mod tests {
         let ranges = homes.legality_stage().live_range_stage();
         let selected_stage = ranges.liveness_stage().selected_stage();
         let physical = selected_stage.register_environment().physical();
+        let baseline_encoding = stage_optimized_layout_independent_selected_form_encoding(
+            selected_stage.selected(),
+            machine,
+            physical,
+        )
+        .unwrap();
+        let baseline_layout = stage_optimized_resolved_selected_form_layout(
+            selected_stage.selected(),
+            machine,
+            physical,
+            &baseline_encoding,
+        )
+        .unwrap();
+        let fused_encoding =
+            stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+                selected_stage.selected(),
+                machine,
+                physical,
+                optimization,
+            )
+            .unwrap();
+        let fused_layout = stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+            selected_stage.selected(),
+            machine,
+            physical,
+            &fused_encoding,
+            optimization,
+        )
+        .unwrap();
+        let action = &optimization.fusion().plan().actions[0];
+        assert_eq!(
+            fused_encoding.machine_optimization().unwrap().fusion(),
+            optimization.fusion().receipt().identity()
+        );
+        assert_eq!(
+            fused_layout.machine_optimization(),
+            fused_encoding.machine_optimization()
+        );
+        assert_ne!(baseline_encoding.identity(), fused_encoding.identity());
+        assert_ne!(baseline_layout.identity(), fused_layout.identity());
+        assert_eq!(
+            baseline_layout.functions()[0].byte_count,
+            fused_layout.functions()[0].byte_count + 4
+        );
+        let fused_rows = fused_layout.functions()[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .map(|row| (row.instruction, row))
+            .collect::<std::collections::BTreeMap<_, _>>();
+        assert!(fused_rows[&action.compare].bytes.is_empty());
+        assert!(fused_rows[&action.compare].branch.is_none());
+        let branch = fused_rows[&action.branch];
+        assert_eq!(branch.bytes.len(), 4);
+        let source_register = physical
+            .model()
+            .views
+            .iter()
+            .find(|view| view.id == action.source_read.view)
+            .unwrap()
+            .name
+            .strip_prefix('x')
+            .unwrap()
+            .parse::<u32>()
+            .unwrap();
+        assert_eq!(
+            u32::from_le_bytes(branch.bytes.as_slice().try_into().unwrap()) & 0xff00_001f,
+            0xb500_0000 | source_register
+        );
+        assert_eq!(
+            branch.branch.as_ref().unwrap().decoded_register_reads,
+            [action.source_read.view]
+        );
+        assert!(
+            branch
+                .branch
+                .as_ref()
+                .unwrap()
+                .decoded_effects
+                .implicit_unit_uses
+                .iter()
+                .all(|unit| !action.nzcv_units.contains(unit))
+        );
+        validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+            selected_stage.selected(),
+            machine,
+            physical,
+            optimization,
+            &fused_encoding,
+        )
+        .unwrap();
+        validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+            selected_stage.selected(),
+            machine,
+            physical,
+            &fused_encoding,
+            optimization,
+            &fused_layout,
+        )
+        .unwrap();
+
+        let mut corrupt_encoding = fused_encoding.clone();
+        let branch_disposition = &mut corrupt_encoding
+            .rows_mut()
+            .iter_mut()
+            .find(|row| row.instruction == action.branch)
+            .unwrap()
+            .machine_disposition;
+        let omega_machine_optimizer::TerminalAarch64CbnzInstructionDisposition::
+            FusedBranchNonZeroToCbnzV1 { source_read, .. } = branch_disposition
+        else {
+            panic!("expected fused branch disposition")
+        };
+        source_read.view = physical.model().view_named("x2").unwrap().id;
+        assert_eq!(
+            validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+                selected_stage.selected(),
+                machine,
+                physical,
+                optimization,
+                &corrupt_encoding,
+            ),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        );
+
+        let mut corrupt_layout = fused_layout.clone();
+        corrupt_layout.functions_mut()[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| row.instruction == action.branch)
+            .unwrap()
+            .bytes[0] ^= 0x20;
+        assert_eq!(
+            validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+                selected_stage.selected(),
+                machine,
+                physical,
+                &fused_encoding,
+                optimization,
+                &corrupt_layout,
+            ),
+            Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+        );
+
         let mut rehashed_corruption = optimization.fusion().plan().clone();
         rehashed_corruption.actions[0].source_read.view =
             physical.model().view_named("x2").unwrap().id;

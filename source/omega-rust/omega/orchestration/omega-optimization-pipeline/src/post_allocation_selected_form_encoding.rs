@@ -1,6 +1,8 @@
 use omega_machine_optimizer::{
+    TerminalAarch64CbnzFusionIdentity, TerminalAarch64CbnzInstructionDisposition,
     TerminalPostAllocationMachineIdentity, TerminalPostAllocationMachineInstruction,
 };
+use omega_optimization_core::OptimizationSelectionIdentity;
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
 use omega_register_model::{RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel};
 use omega_target::Architecture;
@@ -17,9 +19,9 @@ use omega_terminal_selected_instructions::{
 };
 use sha2::{Digest, Sha256};
 
-use crate::StagedOptimizedPostAllocationMachinePlan;
+use crate::{StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan};
 
-const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v2";
+const ENCODER_SCHEMA: &[u8] = b"omega.terminal.layout-independent-selected-form-encoding.v3";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalSelectedFormEncodingIdentity([u8; 32]);
@@ -63,13 +65,36 @@ pub enum TerminalSelectedFormEncodingState {
 pub struct TerminalSelectedFormEncodingRow {
     pub instruction: TerminalSelectedInstructionId,
     pub alternative: TerminalMachineAlternativeKey,
+    pub machine_disposition: TerminalAarch64CbnzInstructionDisposition,
     pub state: TerminalSelectedFormEncodingState,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct TerminalSelectedFormMachineOptimizationCustody {
+    selections: OptimizationSelectionIdentity,
+    post_allocation_machine_selections: OptimizationSelectionIdentity,
+    fusion: TerminalAarch64CbnzFusionIdentity,
+}
+
+impl TerminalSelectedFormMachineOptimizationCustody {
+    pub const fn selections(self) -> OptimizationSelectionIdentity {
+        self.selections
+    }
+
+    pub const fn post_allocation_machine_selections(self) -> OptimizationSelectionIdentity {
+        self.post_allocation_machine_selections
+    }
+
+    pub const fn fusion(self) -> TerminalAarch64CbnzFusionIdentity {
+        self.fusion
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StagedOptimizedSelectedFormEncoding {
     selected: omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity,
     machine: TerminalPostAllocationMachineIdentity,
+    machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     identity: TerminalSelectedFormEncodingIdentity,
     rows: Vec<TerminalSelectedFormEncodingRow>,
 }
@@ -85,12 +110,23 @@ impl StagedOptimizedSelectedFormEncoding {
         self.machine
     }
 
+    pub const fn machine_optimization(
+        &self,
+    ) -> Option<TerminalSelectedFormMachineOptimizationCustody> {
+        self.machine_optimization
+    }
+
     pub const fn identity(&self) -> TerminalSelectedFormEncodingIdentity {
         self.identity
     }
 
     pub fn rows(&self) -> &[TerminalSelectedFormEncodingRow] {
         &self.rows
+    }
+
+    #[cfg(test)]
+    pub(crate) fn rows_mut(&mut self) -> &mut [TerminalSelectedFormEncodingRow] {
+        &mut self.rows
     }
 }
 
@@ -127,7 +163,7 @@ pub fn stage_optimized_layout_independent_selected_form_encoding<
     machine: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
-    let artifact = compute(selected, machine, physical)?;
+    let artifact = compute(selected, machine, physical, None)?;
     validate_optimized_layout_independent_selected_form_encoding(
         selected, machine, physical, &artifact,
     )?;
@@ -142,7 +178,43 @@ pub fn validate_optimized_layout_independent_selected_form_encoding<
     physical: &ValidatedPhysicalRegisterModel,
     artifact: &StagedOptimizedSelectedFormEncoding,
 ) -> Result<(), OptimizedSelectedFormEncodingError> {
-    let replayed = compute(selected, machine, physical)?;
+    let replayed = compute(selected, machine, physical, None)?;
+    if artifact != &replayed {
+        return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Bind an independently validated symbolic CBNZ disposition into pre-layout
+/// custody. Scalar bytes still validate the source forms; the disposition, not
+/// this artifact, authorizes the resolved layout to omit or replace them.
+/// This grants no layout, emission, section, or publication authority.
+pub fn stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
+    let artifact = compute(selected, machine, physical, Some(fusion))?;
+    validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion(
+        selected, machine, physical, fusion, &artifact,
+    )?;
+    Ok(artifact)
+}
+
+/// Replay the complete pre-layout roster and machine-optimization custody.
+pub fn validate_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    artifact: &StagedOptimizedSelectedFormEncoding,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let replayed = compute(selected, machine, physical, Some(fusion))?;
     if artifact != &replayed {
         return Err(OptimizedSelectedFormEncodingError::ArtifactMismatch);
     }
@@ -153,6 +225,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     selected: &S,
     staged: &StagedOptimizedPostAllocationMachinePlan,
     physical: &ValidatedPhysicalRegisterModel,
+    fusion: Option<&StagedOptimizedAarch64CbnzFusion>,
 ) -> Result<StagedOptimizedSelectedFormEncoding, OptimizedSelectedFormEncodingError> {
     let machine = staged.machine().plan();
     if machine.selected != selected.selected_identity() {
@@ -161,27 +234,61 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     if machine.physical_register_model != physical.identity() {
         return Err(OptimizedSelectedFormEncodingError::PhysicalModelMismatch);
     }
+    let machine_optimization = fusion
+        .map(|fusion| validate_fusion_roots(selected, staged, physical, fusion))
+        .transpose()?;
     let selected_plan = selected.selected_plan();
     if selected_plan.functions.len() != machine.functions.len() {
         return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
     }
     let mut rows = Vec::new();
-    for (selected_function, machine_function) in
-        selected_plan.functions.iter().zip(&machine.functions)
+    for (function_index, (selected_function, machine_function)) in selected_plan
+        .functions
+        .iter()
+        .zip(&machine.functions)
+        .enumerate()
     {
         if selected_function.machine != machine_function.machine
             || selected_function.blocks.len() != machine_function.blocks.len()
         {
             return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
         }
-        for (selected_block, machine_block) in selected_function
+        let fusion_function = fusion
+            .map(|fusion| {
+                fusion
+                    .fusion()
+                    .plan()
+                    .functions
+                    .get(function_index)
+                    .ok_or(OptimizedSelectedFormEncodingError::FunctionRosterMismatch)
+            })
+            .transpose()?;
+        if fusion_function.is_some_and(|row| row.machine != selected_function.machine) {
+            return Err(OptimizedSelectedFormEncodingError::FunctionRosterMismatch);
+        }
+        for (block_index, (selected_block, machine_block)) in selected_function
             .blocks
             .iter()
             .zip(&machine_function.blocks)
+            .enumerate()
         {
             if selected_block.id != machine_block.block
                 || selected_block.instructions.len() + 1 != machine_block.instructions.len()
             {
+                return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
+            }
+            let fusion_block = fusion_function
+                .map(|function| {
+                    function
+                        .blocks
+                        .get(block_index)
+                        .ok_or(OptimizedSelectedFormEncodingError::BlockRosterMismatch)
+                })
+                .transpose()?;
+            if fusion_block.is_some_and(|row| {
+                row.block != selected_block.id
+                    || row.instructions.len() != machine_block.instructions.len()
+            }) {
                 return Err(OptimizedSelectedFormEncodingError::BlockRosterMismatch);
             }
             for (index, machine_instruction) in machine_block.instructions.iter().enumerate() {
@@ -193,21 +300,36 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
                 if selected_instruction.id != machine_instruction.instruction {
                     return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
                 }
+                let disposition = fusion_block
+                    .map(|block| {
+                        block
+                            .instructions
+                            .get(index)
+                            .ok_or(OptimizedSelectedFormEncodingError::InstructionRosterMismatch)
+                    })
+                    .transpose()?;
+                if disposition.is_some_and(|row| row.instruction != selected_instruction.id) {
+                    return Err(OptimizedSelectedFormEncodingError::InstructionRosterMismatch);
+                }
                 rows.push(encode_row(
                     selected_plan.target.architecture,
                     selected_instruction,
                     machine_instruction,
                     physical,
+                    disposition
+                        .map(|row| row.disposition.clone())
+                        .unwrap_or(TerminalAarch64CbnzInstructionDisposition::RetainedV1),
                 )?);
             }
         }
     }
     let selected_root = selected.selected_identity();
     let machine_root = staged.machine().receipt().identity();
-    let identity = encoding_identity(selected_root, machine_root, &rows);
+    let identity = encoding_identity(selected_root, machine_root, machine_optimization, &rows);
     Ok(StagedOptimizedSelectedFormEncoding {
         selected: selected_root,
         machine: machine_root,
+        machine_optimization,
         identity,
         rows,
     })
@@ -225,7 +347,15 @@ fn encode_row(
     selected: &TerminalSelectedInstruction,
     machine: &TerminalPostAllocationMachineInstruction,
     physical: &ValidatedPhysicalRegisterModel,
+    machine_disposition: TerminalAarch64CbnzInstructionDisposition,
 ) -> Result<TerminalSelectedFormEncodingRow, OptimizedSelectedFormEncodingError> {
+    validate_machine_disposition(
+        architecture,
+        selected,
+        machine,
+        physical,
+        &machine_disposition,
+    )?;
     let alternative = machine.alternative.key;
     let state = match selected.kind {
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
@@ -245,8 +375,55 @@ fn encode_row(
     Ok(TerminalSelectedFormEncodingRow {
         instruction: selected.id,
         alternative,
+        machine_disposition,
         state,
     })
+}
+
+fn validate_machine_disposition(
+    architecture: Architecture,
+    selected: &TerminalSelectedInstruction,
+    machine: &TerminalPostAllocationMachineInstruction,
+    physical: &ValidatedPhysicalRegisterModel,
+    disposition: &TerminalAarch64CbnzInstructionDisposition,
+) -> Result<(), OptimizedSelectedFormEncodingError> {
+    let valid = match disposition {
+        TerminalAarch64CbnzInstructionDisposition::RetainedV1 => true,
+        TerminalAarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+            architecture == Architecture::Aarch64
+                && matches!(
+                    selected.kind,
+                    TerminalSelectedInstructionKind::CompareI64Zero
+                )
+                && *consumer != selected.id
+        }
+        TerminalAarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+            compare,
+            source_read,
+        } => {
+            let view = physical
+                .model()
+                .views
+                .iter()
+                .find(|view| view.id == source_read.view);
+            architecture == Architecture::Aarch64
+                && matches!(
+                    selected.kind,
+                    TerminalSelectedInstructionKind::ConditionalBranchNonZero
+                )
+                && machine.operands.is_empty()
+                && *compare == source_read.source_instruction
+                && *compare != selected.id
+                && source_read.operand == 0
+                && view.is_some_and(|view| {
+                    view.class == source_read.class && view.units == source_read.units
+                })
+        }
+    };
+    if !valid {
+        return Err(OptimizedSelectedFormEncodingError::OperandFootprintMismatch(selected.id));
+    }
+    Ok(())
 }
 
 fn encode_scalar(
@@ -359,16 +536,27 @@ fn validate_size(
 fn encoding_identity(
     selected: omega_terminal_selected_instructions::TerminalSelectedInstructionPlanIdentity,
     machine: TerminalPostAllocationMachineIdentity,
+    machine_optimization: Option<TerminalSelectedFormMachineOptimizationCustody>,
     rows: &[TerminalSelectedFormEncodingRow],
 ) -> TerminalSelectedFormEncodingIdentity {
     let mut hasher = Sha256::new();
     hasher.update(ENCODER_SCHEMA);
     hasher.update(selected.bytes());
     hasher.update(machine.bytes());
+    match machine_optimization {
+        None => hasher.update([0]),
+        Some(custody) => {
+            hasher.update([1]);
+            hasher.update(custody.selections.bytes());
+            hasher.update(custody.post_allocation_machine_selections.bytes());
+            hasher.update(custody.fusion.bytes());
+        }
+    }
     hasher.update((rows.len() as u64).to_le_bytes());
     for row in rows {
         hasher.update(row.instruction.0.to_le_bytes());
         encode_alternative(&mut hasher, row.alternative);
+        encode_machine_disposition(&mut hasher, &row.machine_disposition);
         match &row.state {
             TerminalSelectedFormEncodingState::Encoded { bytes, footprint } => {
                 hasher.update([0]);
@@ -389,6 +577,68 @@ fn encoding_identity(
         }
     }
     TerminalSelectedFormEncodingIdentity(hasher.finalize().into())
+}
+
+fn validate_fusion_roots<S: ValidatedTerminalSelectedAnalysis>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+) -> Result<TerminalSelectedFormMachineOptimizationCustody, OptimizedSelectedFormEncodingError> {
+    let receipt = fusion.fusion().receipt();
+    let plan = fusion.fusion().plan();
+    let custody = fusion.custody();
+    if selected.selected_plan().target.architecture != Architecture::Aarch64
+        || receipt.selected() != selected.selected_identity()
+        || receipt.source() != machine.machine().receipt().identity()
+        || receipt.identity() != custody.fusion()
+        || receipt.action_count() != custody.action_count()
+        || plan.target != selected.selected_plan().target
+        || plan.physical_register_model != physical.identity()
+    {
+        return Err(OptimizedSelectedFormEncodingError::SelectedRootMismatch);
+    }
+    Ok(TerminalSelectedFormMachineOptimizationCustody {
+        selections: custody.selections(),
+        post_allocation_machine_selections: custody.post_allocation_machine_selections(),
+        fusion: custody.fusion(),
+    })
+}
+
+pub(crate) fn machine_optimization_custody(
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+) -> TerminalSelectedFormMachineOptimizationCustody {
+    TerminalSelectedFormMachineOptimizationCustody {
+        selections: fusion.custody().selections(),
+        post_allocation_machine_selections: fusion.custody().post_allocation_machine_selections(),
+        fusion: fusion.custody().fusion(),
+    }
+}
+
+fn encode_machine_disposition(
+    hasher: &mut Sha256,
+    disposition: &TerminalAarch64CbnzInstructionDisposition,
+) {
+    match disposition {
+        TerminalAarch64CbnzInstructionDisposition::RetainedV1 => hasher.update([0]),
+        TerminalAarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { consumer } => {
+            hasher.update([1]);
+            hasher.update(consumer.0.to_le_bytes());
+        }
+        TerminalAarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+            compare,
+            source_read,
+        } => {
+            hasher.update([2]);
+            hasher.update(compare.0.to_le_bytes());
+            hasher.update(source_read.source_instruction.0.to_le_bytes());
+            hasher.update(source_read.operand.to_le_bytes());
+            hasher.update(source_read.virtual_register.0.to_le_bytes());
+            hasher.update(source_read.class.0.to_le_bytes());
+            hasher.update(source_read.view.0.to_le_bytes());
+            encode_units(hasher, &source_read.units);
+        }
+    }
 }
 
 fn encode_effects(hasher: &mut Sha256, effects: &TerminalMachineEncodedEffects) {
