@@ -14,8 +14,8 @@ source/
     compiler/            compiler source, artifact, cold start, and validation
   gamma/                 Gamma language, interpreter, and type checker
   delta/                 Delta language, compiler, meaning, and artifacts
-  psi/                   Omega-written target-neutral compiler half
-  omega/                 Omega-written target realization and product entry
+  omega/                 complete Omega-written product compiler
+    psi/                 target-neutral phases through terminal Psi
   library/               core, allocation, and standard-library source
   omega-rust/             temporary Rust product implementation/comparator
 
@@ -29,9 +29,10 @@ tools/bootstrap/          replaceable convenience orchestration
   meaning, and artifacts.
 - `source/delta/meaning/` owns the lower-rung elaboration needed to publish the
   Delta compiler. It is not a separate compiler stage.
-- `source/psi/` and `source/omega/` are the two halves of the Omega-written
-  product compiler. Psi ends at terminal Psi; Omega consumes terminal Psi and
-  owns target realization.
+- `source/omega/` owns the complete Omega-written product compiler. Its
+  `psi/` subtree ends at terminal Psi; the rest consumes terminal Psi and owns
+  target realization. Psi is a compiler phase boundary, not a repository-level
+  language rung.
 - `source/omega-rust/` is a maintained implementation and migration aid. Its
   location grants no bootstrap or semantic authority.
 - `source/alpha/checker/` owns the universal derivation checker. It is part of
@@ -69,7 +70,7 @@ a rebuild of one compiler, not an untracked generation change.
 | --- | --- |
 | language rungs | `source/{alpha,beta,gamma,delta}/` |
 | Delta lower-rung meaning | `source/delta/meaning/` |
-| Omega-written compiler | `source/{psi,omega}/` |
+| Omega-written compiler | `source/omega/` |
 | current Rust comparator | `source/omega-rust/` |
 | root proof checking | `source/alpha/checker/` |
 | Beta compiler and its admission | `source/beta/compiler/` |

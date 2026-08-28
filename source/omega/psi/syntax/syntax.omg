@@ -1,6 +1,6 @@
 use psi::source::source;
 
-// Bounded source-shaped storage for the first product parser slice. Handles
+// Bounded source-shaped storage for the live product parser slices. Handles
 // are dense indices into owner-local tables; no symbol or package meaning is
 // assigned here.
 
@@ -14,8 +14,33 @@ pub data UseItem [copy] {
     source_span: SourceSpan;
 }
 
+pub data TypeReferenceKind [copy] {
+    case Named;
+}
+
+pub data TypeReference [copy] {
+    kind: TypeReferenceKind;
+    name: IdentifierSpan;
+    source_span: SourceSpan;
+}
+
+pub data DataField [copy] {
+    name: IdentifierSpan;
+    type_reference: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data DataItem [copy] {
+    name: IdentifierSpan;
+    first_field: u64 in Trapping;
+    field_count: u64 in Trapping;
+    is_public: bool;
+    source_span: SourceSpan;
+}
+
 pub data RootItemKind [copy] {
     case Use;
+    case Data;
 }
 
 pub data RootItem [copy] {
@@ -34,6 +59,15 @@ pub data ParseDiagnosticCode [copy] {
     case UseCapacityExceeded;
     case PathMemberCapacityExceeded;
     case TokenInputCapacityExceeded;
+    case ExpectedDataAfterPub;
+    case ExpectedDataName;
+    case ExpectedDataBody;
+    case ExpectedDataFieldColon;
+    case ExpectedDataFieldType;
+    case ExpectedDataFieldEnd;
+    case DataCapacityExceeded;
+    case DataFieldCapacityExceeded;
+    case TypeReferenceCapacityExceeded;
 }
 
 pub data ParseDiagnostic [copy] {
@@ -48,6 +82,12 @@ pub data SyntaxTrees {
     use_count: u64 [0..=256];
     members: [IdentifierSpan; 1024] in Trapping;
     member_count: u64 [0..=1024];
+    data_items: [DataItem; 256] in Trapping;
+    data_count: u64 [0..=256];
+    fields: [DataField; 1024] in Trapping;
+    field_count: u64 [0..=1024];
+    type_references: [TypeReference; 1024] in Trapping;
+    type_reference_count: u64 [0..=1024];
     diagnostic: ParseDiagnostic;
     accepted: bool;
 }
@@ -56,6 +96,9 @@ pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
     self.root_count = 0;
     self.use_count = 0;
     self.member_count = 0;
+    self.data_count = 0;
+    self.field_count = 0;
+    self.type_reference_count = 0;
     self.accepted = true;
     self.diagnostic.code = ParseDiagnosticCode::None;
     self.diagnostic.source_span.source = source;

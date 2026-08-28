@@ -117,9 +117,10 @@ machine Main::main(&mut self) {
 }
 
 // Versioned canonical structural parse observation. Every scalar coordinate
-// and count is little-endian u64. The stream begins with `OMGPAR1\0`, version
-// 1, acceptance and diagnostic fields, followed by ordered root, use-item, and
-// path-member tables. This is hosted development tooling, not an Omega ABI.
+// and count is little-endian u64. The stream begins with `OMGPAR2\0`, version
+// 2, acceptance and diagnostic fields, followed by ordered root, use-item,
+// path-member, data-item, data-field, and type-reference tables. This is hosted
+// development tooling, not an Omega ABI.
 machine Main::write_parse_observation(&mut self) {
     self.write_byte(79);
     self.write_byte(77);
@@ -127,9 +128,9 @@ machine Main::write_parse_observation(&mut self) {
     self.write_byte(80);
     self.write_byte(65);
     self.write_byte(82);
-    self.write_byte(49);
+    self.write_byte(50);
     self.write_byte(0);
-    self.write_u64(1);
+    self.write_u64(2);
     transition self.parser.output.accepted {
         true -> parse_accepted_header()
         _ -> parse_rejected_header()
@@ -152,6 +153,15 @@ machine Main::write_parse_observation(&mut self) {
             ParseDiagnosticCode::UseCapacityExceeded -> parse_diagnostic(6)
             ParseDiagnosticCode::PathMemberCapacityExceeded -> parse_diagnostic(7)
             ParseDiagnosticCode::TokenInputCapacityExceeded -> parse_diagnostic(8)
+            ParseDiagnosticCode::ExpectedDataAfterPub -> parse_diagnostic(9)
+            ParseDiagnosticCode::ExpectedDataName -> parse_diagnostic(10)
+            ParseDiagnosticCode::ExpectedDataBody -> parse_diagnostic(11)
+            ParseDiagnosticCode::ExpectedDataFieldColon -> parse_diagnostic(12)
+            ParseDiagnosticCode::ExpectedDataFieldType -> parse_diagnostic(13)
+            ParseDiagnosticCode::ExpectedDataFieldEnd -> parse_diagnostic(14)
+            ParseDiagnosticCode::DataCapacityExceeded -> parse_diagnostic(15)
+            ParseDiagnosticCode::DataFieldCapacityExceeded -> parse_diagnostic(16)
+            ParseDiagnosticCode::TypeReferenceCapacityExceeded -> parse_diagnostic(17)
         }
     }
 
@@ -180,6 +190,7 @@ machine Main::write_parse_observation(&mut self) {
         let root: RootItem = self.parser.output.roots[index];
         transition root.kind {
             RootItemKind::Use -> parse_root_use(root, index)
+            RootItemKind::Data -> parse_root_data(root, index)
         }
     }
 
@@ -189,6 +200,23 @@ machine Main::write_parse_observation(&mut self) {
         index: u64 [0..=255]
     ) {
         self.write_byte(1);
+        self.write_u64(root.item_index);
+        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.span.start);
+        self.write_u64(root.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.root_count {
+            true -> parse_root_bound(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root_data(
+        &mut self,
+        root: RootItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(2);
         self.write_u64(root.item_index);
         self.write_u64(root.source_span.source.value as u64);
         self.write_u64(root.source_span.span.start);
@@ -240,7 +268,7 @@ machine Main::write_parse_observation(&mut self) {
         self.write_u64(self.parser.output.member_count);
         transition self.parser.output.member_count > 0 {
             true -> parse_member(0)
-            _ -> parse_done()
+            _ -> parse_data_count()
         }
     }
 
@@ -252,13 +280,147 @@ machine Main::write_parse_observation(&mut self) {
         let next: u64 = index + 1;
         transition next < self.parser.output.member_count {
             true -> parse_member_bound(next)
-            _ -> parse_done()
+            _ -> parse_data_count()
         }
     }
 
     state parse_member_bound(&mut self, next: u64) {
         transition next < 1024 {
             true -> parse_member(next)
+            _ -> parse_data_count()
+        }
+    }
+
+    state parse_data_count(&mut self) {
+        self.write_u64(self.parser.output.data_count);
+        transition self.parser.output.data_count > 0 {
+            true -> parse_data_item(0)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_data_item(&mut self, index: u64 [0..=255]) {
+        let item: DataItem = self.parser.output.data_items[index];
+        self.write_u64(item.name.source_span.source.value as u64);
+        self.write_u64(item.name.source_span.span.start);
+        self.write_u64(item.name.source_span.span.end);
+        self.write_u64(item.first_field);
+        self.write_u64(item.field_count);
+        transition item.is_public {
+            true -> parse_data_public(item, index)
+            _ -> parse_data_private(item, index)
+        }
+    }
+
+    state parse_data_public(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(1);
+        transition { _ -> parse_data_span(item, index) }
+    }
+
+    state parse_data_private(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(0);
+        transition { _ -> parse_data_span(item, index) }
+    }
+
+    state parse_data_span(
+        &mut self,
+        item: DataItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.source_span.span.start);
+        self.write_u64(item.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.data_count {
+            true -> parse_data_bound(next)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_data_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_data_item(next)
+            _ -> parse_field_count()
+        }
+    }
+
+    state parse_field_count(&mut self) {
+        self.write_u64(self.parser.output.field_count);
+        transition self.parser.output.field_count > 0 {
+            true -> parse_field(0)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_field(&mut self, index: u64 [0..=1023]) {
+        let field: DataField = self.parser.output.fields[index];
+        self.write_u64(field.name.source_span.source.value as u64);
+        self.write_u64(field.name.source_span.span.start);
+        self.write_u64(field.name.source_span.span.end);
+        self.write_u64(field.type_reference);
+        self.write_u64(field.source_span.source.value as u64);
+        self.write_u64(field.source_span.span.start);
+        self.write_u64(field.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.field_count {
+            true -> parse_field_bound(next)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_field_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_field(next)
+            _ -> parse_type_reference_count()
+        }
+    }
+
+    state parse_type_reference_count(&mut self) {
+        self.write_u64(self.parser.output.type_reference_count);
+        transition self.parser.output.type_reference_count > 0 {
+            true -> parse_type_reference(0)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_type_reference(&mut self, index: u64 [0..=1023]) {
+        let type_reference: TypeReference =
+            self.parser.output.type_references[index];
+        transition type_reference.kind {
+            TypeReferenceKind::Named -> parse_named_type_reference(type_reference, index)
+        }
+    }
+
+    state parse_named_type_reference(
+        &mut self,
+        type_reference: TypeReference,
+        index: u64 [0..=1023]
+    ) {
+        self.write_byte(1);
+        self.write_u64(type_reference.name.source_span.source.value as u64);
+        self.write_u64(type_reference.name.source_span.span.start);
+        self.write_u64(type_reference.name.source_span.span.end);
+        self.write_u64(type_reference.source_span.source.value as u64);
+        self.write_u64(type_reference.source_span.span.start);
+        self.write_u64(type_reference.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.type_reference_count {
+            true -> parse_type_reference_bound(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_type_reference_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_type_reference(next)
             _ -> parse_done()
         }
     }
