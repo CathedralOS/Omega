@@ -50,10 +50,10 @@ establish a required guarantee, strict resolution rejects; it never degrades to
 "best effort."
 
 The current macOS engineering floor now selects a fixed Seatbelt launcher and
-closed resolver phase; it is described below. Transport discovery, repository
-initialization, and inspection have no host-profile import and confine writes
-and executable paths; the nonnetwork phases also deny network. Reads remain
-broad, and discovery does not bind outbound authority to an endpoint. Linux and
+closed resolver phase; it is described below. Every phase uses a self-contained
+compiler-generated policy with no host-profile import and confines writes and
+executable paths; the nonnetwork phases also deny network. Reads remain broad,
+and the network phases do not bind outbound authority to an endpoint. Linux and
 Windows do not yet have equivalent strict backends.
 
 Network destination authority should eventually be brokered. SSH additionally
@@ -112,29 +112,15 @@ package layer's exact executable content observations, environment/protocol
 sealing, endpoint and credential trust, bounded command result, object
 authentication, snapshot identity, and final publication verdict.
 
-The macOS fetch profile imports Apple's mutable
-`system.sb`, which itself imports `dyld-support.sb` and currently grants
-special-file writes plus local syslog socket access. The backend opens both
-exact root-owned regular files,
-checks mode/ancestry/ACL custody, hashes their bounded bytes, and revalidates all
-facts around command construction. A bounded syntax scanner balances every
-list, ignores strings plus line and nested block comments, rejects ambiguous
-escaped/case-folded identifiers, nonliteral imports, and known first-class or
-reflective routes to `import`, and finds direct imports independent of line
-layout. It accepts exactly the direct edge `system.sb -> dyld-support.sb` and no
-direct import in `dyld-support.sb`; noncanonical direct imports and known
-indirect routes reject, and both content identities enter canonical backend
-observation. This is not a complete parser or semantic proof that no dynamically
-constructed import exists. Transport discovery, repository initialization, and
-inspection import neither profile. Their compiler-generated default-deny
-policies grant broad reads, exact selected executables, and write-data to
-`/dev/null`; initialization also grants writes only beneath its mutable
-quarantine root. Discovery grants outbound network plus the exact OpenDirectory
-libinfo lookup and `kern.hostname` read needed by the pinned SSH client. Its
-endpoint-confinement row remains `Unavailable`; its filesystem-write and
-executable-path rows are `Enforced`. Initialization and inspection additionally
-enforce network denial. The corresponding fetch rows remain `Unavailable`; the
-exact compiler-owned rlimit rows are `Enforced` throughout macOS.
+Every macOS phase uses a compiler-generated default-deny profile with no import.
+All grant broad reads, exact selected executables, and write-data to `/dev/null`.
+Initialization and fetch additionally grant writes only beneath the exact
+mutable quarantine root. Discovery and fetch grant outbound network plus the
+exact OpenDirectory libinfo lookup and `kern.hostname` read needed by the pinned
+SSH client; their endpoint-confinement rows remain `Unavailable`. Initialization
+and inspection deny network. Filesystem-write and executable-path rows are
+`Enforced` for every phase, network denial is `Enforced` where applicable, and
+the exact compiler-owned rlimit rows are `Enforced` throughout macOS.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
@@ -431,15 +417,11 @@ extended-ACL allow entries, binds its content hash and file identity, and
 rechecks that identity before constructing each command. Compiler-fixed policy
 adds outbound network only during discovery and fetch, quarantine mutation
 during initialization and fetch, and exact process-exec paths for the verified
-Git/helper chain. Discovery, initialization, and inspection import no host profile;
-initialization confines mutation to its quarantine root while inspection admits
-write-data only to `/dev/null`. Real Git resolution and native canaries exercise
-those policies. Fetch imports `system.sb`, which permits broad
-reads, special-file writes, and local syslog socket access. The accepted
-direct-import subset and exact two-file content identities are custody-bound,
-but this does not turn
-those imported semantics into strict confinement. Network phases also permit
-all outbound destinations rather than brokering the requested endpoint.
+  Git/helper chain. No phase imports a host profile; initialization and fetch
+  confine mutation to the exact quarantine root while discovery and inspection
+  admit write-data only to `/dev/null`. Real Git resolution and native canaries
+  exercise those policies. Network phases still permit all outbound
+  destinations rather than brokering the requested endpoint.
 `/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
 not a durable macOS backend promise. Failure to establish or revalidate the
 launcher rejects on macOS.
