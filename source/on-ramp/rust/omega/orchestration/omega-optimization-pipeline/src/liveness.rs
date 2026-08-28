@@ -149,6 +149,7 @@ pub fn stage_optimized_liveness(
     let upstream = validate_optimized_selection_custody(
         selected.optimized_target(),
         selected.register_environment(),
+        selected.legalized(),
         selected.selected(),
     )
     .map_err(OptimizedLivenessCustodyError::UpstreamSelection)?;
@@ -192,6 +193,7 @@ pub fn validate_optimized_liveness_custody(
     let upstream = validate_optimized_selection_custody(
         selected.optimized_target(),
         selected.register_environment(),
+        selected.legalized(),
         selected.selected(),
     )
     .map_err(OptimizedLivenessCustodyError::UpstreamSelection)?;

@@ -3,16 +3,16 @@ use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizationUnitIdentity,
     OptimizedAbstractPlanProjectionIdentity, PrePhysicalOptimizationManifestIdentity,
 };
+use omega_terminal_legalized_operations::TerminalLegalizedLeafValue;
 use omega_terminal_selected_instructions::{
     TerminalSelectedFixedInputConstraint, TerminalSelectedInstructionPlanIdentity,
     TerminalSelectedSelectionConstraints,
 };
-use omega_terminal_target_operations::{
-    MachineRegister, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
-    TerminalTargetIntegerExpression, TerminalTargetOperation,
-};
+use omega_terminal_target_operations::MachineRegister;
 use omega_terminal_target_operations_to_selected_instructions::{
-    SelectedInstructionError, ValidatedTerminalSelectedInstructions, select_terminal_instructions,
+    SelectedInstructionError, TerminalLegalizationError, ValidatedTerminalLegalizedOperations,
+    ValidatedTerminalSelectedInstructions, legalize_terminal_target_operations,
+    select_terminal_instructions, validate_terminal_legalized_operations,
     validate_terminal_selected_instructions,
 };
 use psi_core::{FuelScheduleIdentity, MachineId};
@@ -30,6 +30,7 @@ use crate::{
 pub struct StagedOptimizedSelectedInstructions {
     optimized_target: ValidatedOptimizedTargetOperations,
     register_environment: ValidatedTargetRegisterEnvironment,
+    legalized: ValidatedTerminalLegalizedOperations,
     selected: ValidatedTerminalSelectedInstructions,
     custody: StagedOptimizedSelectionCustodyReceipt,
 }
@@ -41,6 +42,10 @@ impl StagedOptimizedSelectedInstructions {
 
     pub const fn register_environment(&self) -> &ValidatedTargetRegisterEnvironment {
         &self.register_environment
+    }
+
+    pub const fn legalized(&self) -> &ValidatedTerminalLegalizedOperations {
+        &self.legalized
     }
 
     pub const fn selected(&self) -> &ValidatedTerminalSelectedInstructions {
@@ -63,6 +68,7 @@ pub struct StagedOptimizedSelectionCustodyReceipt {
     optimization_unit: OptimizationUnitIdentity,
     fuel_schedule: FuelScheduleIdentity,
     register_environment: omega_register_model::TargetRegisterEnvironmentIdentity,
+    legalized: omega_terminal_legalized_operations::TerminalLegalizedOperationPlanIdentity,
     selected: TerminalSelectedInstructionPlanIdentity,
     function_count: usize,
 }
@@ -104,6 +110,12 @@ impl StagedOptimizedSelectionCustodyReceipt {
         self.selected
     }
 
+    pub const fn legalized(
+        self,
+    ) -> omega_terminal_legalized_operations::TerminalLegalizedOperationPlanIdentity {
+        self.legalized
+    }
+
     pub const fn register_environment(
         self,
     ) -> omega_register_model::TargetRegisterEnvironmentIdentity {
@@ -122,6 +134,8 @@ pub enum OptimizedSelectionCustodyError {
     UnitIdentityMismatch,
     FuelScheduleMismatch,
     FunctionRosterMismatch,
+    LegalizedPlanRevalidationFailed,
+    LegalizedReceiptMismatch,
     SelectedPlanRevalidationFailed,
     SelectedReceiptMismatch,
 }
@@ -129,6 +143,7 @@ pub enum OptimizedSelectionCustodyError {
 #[derive(Debug)]
 pub enum OptimizedSelectionPipelineError {
     RegisterEnvironment(TargetRegisterEnvironmentValidationError),
+    Legalization(TerminalLegalizationError),
     Selection(SelectedInstructionError),
     Custody(OptimizedSelectionCustodyError),
 }
@@ -149,22 +164,31 @@ pub fn stage_optimized_instruction_selection(
 ) -> Result<StagedOptimizedSelectedInstructions, OptimizedSelectionPipelineError> {
     let register_environment = baseline_target_register_environment(optimized_target.target())
         .map_err(OptimizedSelectionPipelineError::RegisterEnvironment)?;
-    let selection_constraints = selection_constraints(&optimized_target, &register_environment);
-    let selected = select_terminal_instructions(
+    let legalized = legalize_terminal_target_operations(
         optimized_target.target_operations(),
         optimized_target.optimized().plan(),
         optimized_target.optimized().unit(),
+    )
+    .map_err(OptimizedSelectionPipelineError::Legalization)?;
+    let selection_constraints = selection_constraints(&legalized, &register_environment);
+    let selected = select_terminal_instructions(
+        &legalized,
         &selection_constraints,
         register_environment.physical(),
         register_environment.constraints(),
     )
     .map_err(OptimizedSelectionPipelineError::Selection)?;
-    let custody =
-        validate_optimized_selection_custody(&optimized_target, &register_environment, &selected)
-            .map_err(OptimizedSelectionPipelineError::Custody)?;
+    let custody = validate_optimized_selection_custody(
+        &optimized_target,
+        &register_environment,
+        &legalized,
+        &selected,
+    )
+    .map_err(OptimizedSelectionPipelineError::Custody)?;
     Ok(StagedOptimizedSelectedInstructions {
         optimized_target,
         register_environment,
+        legalized,
         selected,
         custody,
     })
@@ -173,6 +197,7 @@ pub fn stage_optimized_instruction_selection(
 pub fn validate_optimized_selection_custody(
     optimized_target: &ValidatedOptimizedTargetOperations,
     register_environment: &ValidatedTargetRegisterEnvironment,
+    legalized: &ValidatedTerminalLegalizedOperations,
     selected: &ValidatedTerminalSelectedInstructions,
 ) -> Result<StagedOptimizedSelectionCustodyReceipt, OptimizedSelectionCustodyError> {
     let target = optimized_target.target_operations();
@@ -187,11 +212,19 @@ pub fn validate_optimized_selection_custody(
     if register_environment.target() != target.target {
         return Err(OptimizedSelectionCustodyError::RegisterEnvironmentTargetMismatch);
     }
-    let selection_constraints = selection_constraints(optimized_target, register_environment);
-    let revalidated = validate_terminal_selected_instructions(
+    let relegalized = validate_terminal_legalized_operations(
         target,
         optimized_target.optimized().plan(),
         optimized_target.optimized().unit(),
+        legalized.plan().clone(),
+    )
+    .map_err(|_| OptimizedSelectionCustodyError::LegalizedPlanRevalidationFailed)?;
+    if relegalized.receipt() != legalized.receipt() {
+        return Err(OptimizedSelectionCustodyError::LegalizedReceiptMismatch);
+    }
+    let selection_constraints = selection_constraints(legalized, register_environment);
+    let revalidated = validate_terminal_selected_instructions(
+        legalized,
         &selection_constraints,
         register_environment.physical(),
         register_environment.constraints(),
@@ -204,6 +237,9 @@ pub fn validate_optimized_selection_custody(
     let unit = optimized_target.optimized().unit();
     if selected.receipt().optimization_unit() != unit.identity {
         return Err(OptimizedSelectionCustodyError::UnitIdentityMismatch);
+    }
+    if selected.receipt().legalized() != legalized.receipt().identity() {
+        return Err(OptimizedSelectionCustodyError::LegalizedReceiptMismatch);
     }
     if selected.receipt().fuel_schedule() != unit.fuel_schedule
         || plan.fuel_schedule != unit.fuel_schedule
@@ -237,46 +273,32 @@ pub fn validate_optimized_selection_custody(
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         register_environment: register_environment.identity(),
+        legalized: legalized.receipt().identity(),
         selected: selected.receipt().identity(),
         function_count: plan.functions.len(),
     })
 }
 
 pub(crate) fn selection_constraints(
-    optimized_target: &ValidatedOptimizedTargetOperations,
+    legalized: &ValidatedTerminalLegalizedOperations,
     environment: &ValidatedTargetRegisterEnvironment,
 ) -> TerminalSelectedSelectionConstraints {
     let mut fixed_inputs = Vec::new();
-    for function in &optimized_target.target_operations().functions {
-        let TerminalTargetOperation::ReturnIntegerConditionalControl {
-            condition_source,
-            condition_parameter_index,
-            condition_location: TerminalScalarParameterLocation::Register(register),
-            when_true,
-            when_false,
-            ..
-        } = &function.operation
-        else {
-            continue;
-        };
+    for function in &legalized.plan().functions {
         push_fixed_input(
             &mut fixed_inputs,
             environment,
             function.machine,
-            *condition_source,
-            *condition_parameter_index,
-            *register,
+            function.condition_source,
+            function.condition_parameter_index,
+            function.condition_register,
         );
-        for arm in [when_true, when_false] {
-            let TerminalTargetIntegerControl::Return {
-                expression:
-                    TerminalTargetIntegerExpression::Parameter {
-                        source_value,
-                        parameter_index,
-                        location: TerminalScalarParameterLocation::Register(register),
-                    },
+        for arm in [&function.when_true, &function.when_false] {
+            let TerminalLegalizedLeafValue::EntryParameter {
+                parameter_index,
+                register,
                 ..
-            } = arm.control.as_ref()
+            } = &arm.value
             else {
                 continue;
             };
@@ -284,7 +306,7 @@ pub(crate) fn selection_constraints(
                 &mut fixed_inputs,
                 environment,
                 function.machine,
-                *source_value,
+                arm.source_value,
                 *parameter_index,
                 *register,
             );

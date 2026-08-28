@@ -15,6 +15,7 @@ omega-optimization-unit = { path = "../../representations/omega-optimization-uni
 omega-register-model = { path = "../../representations/omega-register-model" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-legalized-operations = { path = "../../representations/omega-terminal-legalized-operations" }
 omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
