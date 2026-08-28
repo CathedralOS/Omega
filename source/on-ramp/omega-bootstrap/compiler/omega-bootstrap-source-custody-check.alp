@@ -59,7 +59,7 @@ data Main {
     input: [u8; 131161];
 
     source: [u8; 131072];
-    words: [u8; 65];
+    words: [u8; 71];
 
     data_name_starts: [i32; 128]; data_name_lengths: [i32; 128];
     data_copy: [i32; 128]; data_field_starts: [i32; 128];
@@ -88,7 +88,8 @@ data Main {
     param_owners: [i32; 32768]; param_name_starts: [i32; 32768];
     param_name_lengths: [i32; 32768]; param_types: [i32; 32768];
 
-    // Type rows: kind 1=u8, 2=u32, 3=bool, 4=nominal, 5=fixed array.
+    // Type rows: kind 1=u8, 2=u32, 3=bool, 4=nominal, 5=fixed array,
+    // 6=source-level u64 with an i32-representable symbolic interval.
     // Nominal rows resolve after all roots are known.
     type_kinds: [i32; 32768]; type_name_starts: [i32; 32768];
     type_name_lengths: [i32; 32768]; type_nominals: [i32; 32768];
@@ -160,7 +161,7 @@ data Main {
 }
 
 machine Main::init_words(&mut self) {
-    // datacopymachinemutselfstatetransitiontruefalseu8u32boolinTrapping
+    // datacopymachinemutselfstatetransitiontruefalseu8u32boolinTrappingpubu64
     self.words[0]=100; self.words[1]=97; self.words[2]=116; self.words[3]=97;
     self.words[4]=99; self.words[5]=111; self.words[6]=112; self.words[7]=121;
     self.words[8]=109; self.words[9]=97; self.words[10]=99; self.words[11]=104;
@@ -178,6 +179,8 @@ machine Main::init_words(&mut self) {
     self.words[55]=105; self.words[56]=110;
     self.words[57]=84; self.words[58]=114; self.words[59]=97; self.words[60]=112;
     self.words[61]=112; self.words[62]=105; self.words[63]=110; self.words[64]=103;
+    self.words[65]=112; self.words[66]=117; self.words[67]=98;
+    self.words[68]=117; self.words[69]=54; self.words[70]=52;
 }
 
 machine Main::decode_input_u32(&mut self, at: i32) {
@@ -321,8 +324,10 @@ machine Main::skip_block_comment(&mut self) {
     state done() { }
 }
 
-// Token kinds: 0 EOF, 256 identifier, 257 nonnegative integer. Punctuation is
-// represented by its ASCII byte. Multi-byte operators are checked as sequences.
+// Token kinds: 0 EOF, 256 identifier, 257 nonnegative integer, 258 `pub`.
+// Punctuation is represented by its ASCII byte. Multi-byte operators are
+// checked as sequences. Reserving `pub` here makes a misplaced qualifier fail
+// anywhere the grammar requires an ordinary identifier.
 machine Main::next_token(&mut self) {
     self.tok = 0; self.tok_len = 0;
     transition self.status == 0 { true -> skip() _ -> done() }
@@ -353,7 +358,11 @@ machine Main::next_token(&mut self) {
     }
     state ident_capacity() { transition self.pos - self.tok_start < 64 { true -> ident_next() _ -> exhausted() } }
     state ident_next() { self.pos = self.pos + 1; transition 0 { _ -> ident_loop() } }
-    state ident_done() { self.tok = 256; self.tok_len = self.pos - self.tok_start; transition 0 { _ -> done() } }
+    state ident_done() {
+        self.tok = 256; self.tok_len = self.pos - self.tok_start;
+        self.token_word(65, 3); transition self.match_ok == 1 { true -> pub_token() _ -> done() }
+    }
+    state pub_token() { self.tok = 258; transition 0 { _ -> done() } }
     state digit0() { transition self.c >= 48 { true -> digit1() _ -> ascii() } }
     state digit1() { transition self.c < 58 { true -> integer_begin() _ -> ascii() } }
     state integer_begin() { self.int_value = 0; transition 0 { _ -> integer_loop() } }
@@ -485,9 +494,14 @@ machine Main::parse_base_type(&mut self) {
         self.type_kinds[self.expr_type] = 1; self.type_range_his[self.expr_type] = 255;
         self.next_token(); transition 0 { _ -> done() }
     }
-    state u32_check() { self.token_word(48, 3); transition self.match_ok == 1 { true -> u32_type() _ -> bool_check() } }
+    state u32_check() { self.token_word(48, 3); transition self.match_ok == 1 { true -> u32_type() _ -> u64_check() } }
     state u32_type() {
         self.type_kinds[self.expr_type] = 2; self.type_range_his[self.expr_type] = 2147483647;
+        self.next_token(); transition 0 { _ -> done() }
+    }
+    state u64_check() { self.token_word(68, 3); transition self.match_ok == 1 { true -> u64_type() _ -> bool_check() } }
+    state u64_type() {
+        self.type_kinds[self.expr_type] = 6; self.type_range_his[self.expr_type] = 2147483647;
         self.next_token(); transition 0 { _ -> done() }
     }
     state bool_check() { self.token_word(51, 4); transition self.match_ok == 1 { true -> bool_type() _ -> nominal() } }
@@ -521,7 +535,8 @@ machine Main::parse_type_constraints(&mut self) {
     state trapping_save() { self.type_trapping[self.expr_type] = 1; transition 0 { _ -> range_check() } }
     state range_check() { transition self.tok == 91 { true -> range_open() _ -> done() } }
     state range_open() { transition self.type_kinds[self.expr_type] == 5 { true -> done() _ -> range_base() } }
-    state range_base() { transition self.type_kinds[self.expr_type] == 2 { true -> range_begin() _ -> bad() } }
+    state range_base() { transition self.type_kinds[self.expr_type] == 2 { true -> range_begin() _ -> range_u64() } }
+    state range_u64() { transition self.type_kinds[self.expr_type] == 6 { true -> range_begin() _ -> bad() } }
     state range_begin() { self.next_token(); transition self.tok == 257 { true -> range_low() _ -> bad() } }
     state range_low() { self.type_range_los[self.expr_type] = self.int_value; self.next_token(); self.expect_token(46); transition self.status == 0 { true -> range_dot() _ -> done() } }
     state range_dot() { self.expect_token(46); transition self.status == 0 { true -> range_equal() _ -> done() } }
@@ -543,7 +558,11 @@ machine Main::parse_type(&mut self) {
     state scalar() { self.parse_base_type(); transition self.status == 0 { true -> scalar_constraints() _ -> done() } }
     state scalar_constraints() { self.parse_type_constraints(); transition 0 { _ -> done() } }
     state array_open() { self.next_token(); self.parse_base_type(); transition self.status == 0 { true -> array_element_save() _ -> done() } }
-    state array_element_save() { self.saved_int_value = self.expr_type; transition self.type_count < 32768 { true -> array_allocate() _ -> exhausted() } }
+    state array_element_save() {
+        self.saved_int_value = self.expr_type;
+        transition self.type_kinds[self.saved_int_value] == 6 { true -> bad() _ -> array_capacity() }
+    }
+    state array_capacity() { transition self.type_count < 32768 { true -> array_allocate() _ -> exhausted() } }
     state array_allocate() {
         self.expr_type = self.type_count; self.type_count = self.type_count + 1;
         self.type_kinds[self.expr_type] = 5;
@@ -758,7 +777,11 @@ machine Main::collect_roots(&mut self) {
     self.machine_count = 0; self.state_count = 0; self.param_count = 0; self.type_count = 0;
     transition 0 { _ -> loop() }
     state loop() { transition self.tok == 0 { true -> done() _ -> root_limit() } }
-    state root_limit() { transition self.root_count < 128 { true -> classify() _ -> exhausted() } }
+    state root_limit() { transition self.root_count < 128 { true -> qualifier() _ -> exhausted() } }
+    state qualifier() { transition self.tok == 258 { true -> qualifier_advance() _ -> classify() } }
+    state qualifier_advance() {
+        self.next_token(); transition self.status == 0 { true -> classify() _ -> done() }
+    }
     state classify() {
         self.token_word(0, 4);
         transition self.match_ok == 1 { true -> data_root() _ -> machine_check() }
@@ -1498,7 +1521,8 @@ machine Main::expression_assignable(&mut self, expected: i32, actual: i32) {
     self.match_ok = 0;
     transition actual == 0 - 2 { true -> integer_literal() _ -> bool_literal() }
     state integer_literal() { transition self.type_kinds[expected] == 1 { true -> numeric_range() _ -> integer_u32() } }
-    state integer_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> done() } }
+    state integer_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> integer_u64() } }
+    state integer_u64() { transition self.type_kinds[expected] == 6 { true -> numeric_range() _ -> done() } }
     state bool_literal() { transition actual == 0 - 3 { true -> bool_expected() _ -> typed() } }
     state bool_expected() { transition self.type_kinds[expected] == 3 { true -> yes() _ -> done() } }
     state typed() {
@@ -1506,7 +1530,8 @@ machine Main::expression_assignable(&mut self, expected: i32, actual: i32) {
         transition self.match_ok == 1 { true -> typed_range() _ -> done() }
     }
     state typed_range() { transition self.type_kinds[expected] == 1 { true -> numeric_range() _ -> typed_u32() } }
-    state typed_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> yes() } }
+    state typed_u32() { transition self.type_kinds[expected] == 2 { true -> numeric_range() _ -> typed_u64() } }
+    state typed_u64() { transition self.type_kinds[expected] == 6 { true -> numeric_range() _ -> yes() } }
     state numeric_range() { transition self.expr_lo >= self.type_range_los[expected] { true -> numeric_high() _ -> done() } }
     state numeric_high() { transition self.expr_hi <= self.type_range_his[expected] { true -> yes() _ -> done() } }
     state yes() { self.match_ok = 1; }
@@ -1610,7 +1635,8 @@ machine Main::parse_postfix(&mut self) {
     state index_numeric() { transition self.expr_type == 0 - 2 { true -> index_lower() _ -> index_typed() } }
     state index_typed() { transition self.expr_type >= 0 { true -> index_typed_kind() _ -> bad() } }
     state index_typed_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> index_lower() _ -> index_u32() } }
-    state index_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> index_lower() _ -> bad() } }
+    state index_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> index_lower() _ -> index_u64() } }
+    state index_u64() { transition self.type_kinds[self.expr_type] == 6 { true -> index_lower() _ -> bad() } }
     state index_lower() { transition self.expr_lo >= 0 { true -> index_materialize() _ -> bad() } }
     state index_materialize() {
         transition self.bundle_mode == 1 { true -> index_materialize_type() _ -> index_pop() }
@@ -1656,11 +1682,13 @@ machine Main::combine_add(&mut self) {
     state choose_literal() { self.target_type = 0 - 2; transition 0 { _ -> bounds() } }
     state right_numeric() { transition self.expr_type >= 0 { true -> right_kind() _ -> bad() } }
     state right_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> choose_right() _ -> right_u32() } }
-    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> choose_right() _ -> bad() } }
+    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> choose_right() _ -> right_u64() } }
+    state right_u64() { transition self.type_kinds[self.expr_type] == 6 { true -> choose_right() _ -> bad() } }
     state choose_right() { self.target_type = self.expr_type; transition 0 { _ -> bounds() } }
     state left_typed() { transition self.left_type >= 0 { true -> left_kind() _ -> bad() } }
     state left_kind() { transition self.type_kinds[self.left_type] == 1 { true -> right_check() _ -> left_u32() } }
-    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_check() _ -> bad() } }
+    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_check() _ -> left_u64() } }
+    state left_u64() { transition self.type_kinds[self.left_type] == 6 { true -> right_check() _ -> bad() } }
     state right_check() { transition self.expr_type == 0 - 2 { true -> choose_left() _ -> typed_same() } }
     state typed_same() { self.types_same(self.left_type, self.expr_type); transition self.match_ok == 1 { true -> choose_left() _ -> bad() } }
     state choose_left() { self.target_type = self.left_type; transition 0 { _ -> bounds() } }
@@ -1716,11 +1744,19 @@ machine Main::parse_expression(&mut self) {
     state numeric() { transition self.left_type == 0 - 2 { true -> right_numeric() _ -> left_typed() } }
     state left_typed() { transition self.left_type >= 0 { true -> left_kind() _ -> bad() } }
     state left_kind() { transition self.type_kinds[self.left_type] == 1 { true -> right_numeric() _ -> left_u32() } }
-    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_numeric() _ -> bad() } }
+    state left_u32() { transition self.type_kinds[self.left_type] == 2 { true -> right_numeric() _ -> left_u64() } }
+    state left_u64() { transition self.type_kinds[self.left_type] == 6 { true -> right_numeric() _ -> bad() } }
     state right_numeric() { transition self.expr_type == 0 - 2 { true -> operand_type() _ -> right_typed() } }
     state right_typed() { transition self.expr_type >= 0 { true -> right_kind() _ -> bad() } }
-    state right_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> operand_type() _ -> right_u32() } }
-    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> operand_type() _ -> bad() } }
+    state right_kind() { transition self.type_kinds[self.expr_type] == 1 { true -> carriers() _ -> right_u32() } }
+    state right_u32() { transition self.type_kinds[self.expr_type] == 2 { true -> carriers() _ -> right_u64() } }
+    state right_u64() { transition self.type_kinds[self.expr_type] == 6 { true -> carriers() _ -> bad() } }
+    state carriers() { transition self.left_type >= 0 { true -> carriers_right() _ -> operand_type() } }
+    state carriers_right() { transition self.expr_type >= 0 { true -> carriers_same() _ -> operand_type() } }
+    state carriers_same() {
+        self.types_same(self.left_type, self.expr_type);
+        transition self.match_ok == 1 { true -> operand_type() _ -> bad() }
+    }
     state operand_type() { transition self.left_type >= 0 { true -> operand_left() _ -> operand_right_check() } }
     state operand_left() { self.target_type = self.left_type; transition 0 { _ -> comparison_emit_check() } }
     state operand_right_check() { transition self.expr_type >= 0 { true -> operand_right() _ -> operand_literal() } }
@@ -2409,7 +2445,15 @@ machine Main::main(&mut self) {
     state resolve() { self.resolve_types(); transition self.status == 0 { true -> parameters_save() _ -> finish() } }
     state parameters_save() { self.machine_parameter_count = self.param_count; transition 0 { _ -> states() } }
     state states() { self.collect_all_states(); transition self.status == 0 { true -> bundle_prepare_check() _ -> finish() } }
-    state bundle_prepare_check() { transition self.bundle_mode == 1 { true -> layout() _ -> bodies() } }
+    state bundle_prepare_check() { transition self.bundle_mode == 1 { true -> bundle_type_begin() _ -> bodies() } }
+    // CKIR1 has no u64 type row. Raw-unit source checking carries the bounded
+    // identity above, while a bundled u64 unit must use the separately gated
+    // OMGRSWA10 -> CKIR18 publication relation rather than minting invalid CKIR1.
+    state bundle_type_begin() { self.i = 0; transition 0 { _ -> bundle_types() } }
+    state bundle_types() { transition self.i < self.type_count { true -> bundle_type() _ -> layout() } }
+    state bundle_type() { transition self.type_kinds[self.i] == 6 { true -> bundle_u64_bad() _ -> bundle_type_next() } }
+    state bundle_type_next() { self.i = self.i + 1; transition 0 { _ -> bundle_types() } }
+    state bundle_u64_bad() { self.reject(); transition 0 { _ -> finish() } }
     state layout() { self.layout_all_data(); transition self.status == 0 { true -> types() _ -> finish() } }
     state types() { self.prepare_ck_types(); transition self.status == 0 { true -> blocks() _ -> finish() } }
     state blocks() { self.prepare_ck_blocks(); transition self.status == 0 { true -> operations() _ -> finish() } }
