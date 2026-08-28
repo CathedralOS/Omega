@@ -473,9 +473,14 @@ requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
 otherwise contract-supplied machines, the checked operational fact is the
 published may-ceiling, not a claim that the current body exercised it. Review
-v74/row v32, recovery v7, conflict fingerprint v10, and renderer V9 bind the
-current source schema. Coordinates remain explanatory rather than semantic
-identity. Remaining per-fact spans are later rungs;
+v74/row v32, recovery v8, conflict fingerprint v11, and renderer V10 bind the
+current source schema. External executable leaves retain the exact authored
+`via` keyword on the same conformance as the normalized binding identity.
+Projection requires binding/span parity and carries that occurrence under
+`external_binding` for public and private trait or operator supply. Semantic
+row bytes remain unchanged; missing, source-free, or contradictory custody
+rejects. Coordinates remain explanatory rather than semantic identity.
+Remaining per-fact spans are later rungs;
 missing spans must be retained before they are erased, never recovered by
 parsing source text in package orchestration.
 

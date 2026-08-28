@@ -707,6 +707,9 @@ pub struct SatisfiesClause {
     /// symbol. Only legal on a BODYLESS machine (a composite lowering is an
     /// ordinary checked body).
     pub via: Option<ExternalBinding>,
+    /// Exact authored `via` keyword occurrence. This is explanatory custody
+    /// for package review, independent from the interned binding identity.
+    pub via_keyword_source_span: Option<psi_source::SourceSpan>,
 }
 
 /// A generic `where T satisfies Trait<Args>` test of an already-declared

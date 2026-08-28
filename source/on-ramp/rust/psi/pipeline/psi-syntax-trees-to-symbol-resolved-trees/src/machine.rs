@@ -501,6 +501,7 @@ fn lower_machine_trait_conformances(
                     requirement: clause.requirement.as_ref().map(crate::name::lower_name),
                     alias: clause.alias.as_ref().map(crate::name::lower_name),
                     external_binding,
+                    external_binding_source_span: clause.via_keyword_source_span,
                 },
             );
     }

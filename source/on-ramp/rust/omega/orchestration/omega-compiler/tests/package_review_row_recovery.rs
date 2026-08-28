@@ -1,9 +1,9 @@
 use omega_compiler::{
-    PackageCompilationInputs, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRecoveryLimits, PackageSourceBinding,
-    compile_to_checked_with_packages, decode_package_review_canonical_row,
-    decode_package_review_canonical_row_with_limits, encode_package_review_canonical_row,
-    project_checked_package_review,
+    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PackageCompilationInputs,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
+    PackageReviewSourceLocationRole, PackageSourceBinding, compile_to_checked_with_packages,
+    decode_package_review_canonical_row, decode_package_review_canonical_row_with_limits,
+    encode_package_review_canonical_row, project_checked_package_review,
 };
 use psi_core::PackageKeyIdentity;
 use std::fs;
@@ -126,6 +126,15 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply),
         "the external executable-supply row kind must survive canonical recovery"
     );
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::ExternalExecutableSupply
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::ExternalBinding
+                })
+            })
+    }));
+    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 8);
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");
@@ -162,6 +171,10 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
     let mut malformed = envelope.clone();
     malformed[RECOVERY_MAGIC.len()] = 0xff;
     assert!(decode_package_review_canonical_row(&malformed).is_err());
+
+    let mut stale = envelope.clone();
+    stale[RECOVERY_MAGIC.len()..RECOVERY_MAGIC.len() + 2].copy_from_slice(&7u16.to_le_bytes());
+    assert!(decode_package_review_canonical_row(&stale).is_err());
 
     let canonical = canonical_range(&envelope);
     let offsets = canonical_offsets(&envelope[canonical.clone()]);

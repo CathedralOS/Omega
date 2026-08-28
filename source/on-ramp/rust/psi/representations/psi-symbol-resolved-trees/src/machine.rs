@@ -124,6 +124,9 @@ pub struct TraitConformance {
     /// Exact interned identity of the external leaf's structured `via`
     /// binding. Absence means this is an ordinary checked satisfier.
     pub external_binding: Option<psi_language_semantics::ExternalBindingId>,
+    /// Exact authored `via` keyword occurrence retained separately from the
+    /// semantic binding identity for package-review source custody.
+    pub external_binding_source_span: Option<psi_source::SourceSpan>,
 }
 
 impl Default for TraitConformance {
@@ -135,6 +138,7 @@ impl Default for TraitConformance {
             requirement: None,
             alias: None,
             external_binding: None,
+            external_binding_source_span: None,
         }
     }
 }
