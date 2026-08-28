@@ -489,6 +489,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-build-evaluation"
+version = "0.1.0"
+dependencies = [
+ "omega-build-output",
+ "omega-calling-conventions",
+ "omega-effects",
+ "omega-optimization-core",
+ "omega-optimization-pipeline",
+ "omega-program-storage",
+ "omega-provider-planning",
+ "omega-target",
+ "psi-build-time-evaluation",
+ "psi-checked-interpreter",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+ "sha2",
+]
+
+[[package]]
 name = "omega-build-output"
 version = "0.1.0"
 dependencies = [
@@ -542,6 +567,7 @@ dependencies = [
  "omega-backend-plan",
  "omega-backend-report",
  "omega-build-declarations",
+ "omega-build-evaluation",
  "omega-build-output",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",

@@ -2,10 +2,8 @@
 mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
-#[path = "build/config.rs"]
-mod build_config;
-#[path = "build/replay_record.rs"]
-mod build_replay_record;
+pub(crate) use omega_build_evaluation as build_config;
+pub(crate) use omega_build_evaluation as build_replay_record;
 pub(crate) use omega_provider_planning::calling_policy_plans;
 mod checked_entry;
 mod compile_policy;

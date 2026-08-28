@@ -33,6 +33,15 @@
 //!   declaration harvested from the same authoritative build machine. It
 //!   selects the exact source entry and performs no name-based discovery.
 
+mod replay_record;
+
+pub use replay_record::{
+    BuildFilesystemReplayRecordError, BuildFilesystemReplayRecordLimits,
+    ReviewOnlyBuildFilesystemReplayRecord, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+    rehydrate_review_only_build_filesystem_replay_record,
+};
+
 use psi_build_time_evaluation::{
     BuildMachineExecutionMode, BuildMachineFilesystemAccess, BuildMachineFilesystemGrantRoot,
     BuildMachineFilesystemGrantRootIdentity, BuildMachineFilesystemGrants,
@@ -56,12 +65,12 @@ use omega_build_output::{
 };
 
 const BUILD_MACHINE: &str = "build";
-pub(crate) const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+pub const BUILD_SOURCE_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
     match BuildMachineFilesystemGrantRootIdentity::new(1) {
         Some(identity) => identity,
         None => panic!("build source root identity must be nonzero"),
     };
-pub(crate) const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
+pub const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIdentity =
     match BuildMachineFilesystemGrantRootIdentity::new(2) {
         Some(identity) => identity,
         None => panic!("build output root identity must be nonzero"),
@@ -73,7 +82,7 @@ pub(crate) const BUILD_OUTPUT_ROOT_IDENTITY: BuildMachineFilesystemGrantRootIden
 /// also permits read-back through the checked interpreter's `RealScoped`
 /// contract.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct BuildMachineFilesystemScope {
+pub struct BuildMachineFilesystemScope {
     source_root: PathBuf,
     build_dir: PathBuf,
     sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -81,7 +90,7 @@ pub(crate) struct BuildMachineFilesystemScope {
 }
 
 impl BuildMachineFilesystemScope {
-    pub(crate) fn for_root(
+    pub fn for_root(
         root_path: &Path,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -99,7 +108,7 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    pub(crate) fn with_replay(mut self, replay: psi_checked_interpreter::FilesystemReplay) -> Self {
+    pub fn with_replay(mut self, replay: psi_checked_interpreter::FilesystemReplay) -> Self {
         self.replay = Some(replay);
         self
     }
@@ -309,7 +318,7 @@ impl BuildFilesystemGrantRefusal {
     }
 }
 
-/// Stable compiler-owned identity for a package build filesystem root.
+/// Stable build-evaluation identity for a package filesystem root.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuildFilesystemRoot {
     Source,
@@ -676,7 +685,7 @@ const fn project_scalar_operand_value(
     }
 }
 
-/// Stable compiler-owned identity for one descriptor/handle lifetime in a
+/// Stable build-evaluation identity for one descriptor/handle lifetime in a
 /// package build evaluation. Provider token values never define this identity.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BuildFilesystemLogicalHandleIdentity(u64);
@@ -1017,7 +1026,7 @@ impl BuildObservationSummary {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ComputedBuildConfig {
+pub struct ComputedBuildConfig {
     pub config: BuildConfig,
     pub optimization_report_request: omega_optimization_pipeline::OptimizationReportRequest,
     pub evaluation_usage: Option<BuildEvaluationUsage>,
@@ -1026,7 +1035,7 @@ pub(crate) struct ComputedBuildConfig {
     pub generated_sources: Vec<PackageGeneratedSource>,
 }
 
-pub(crate) fn reject_uncompiled_generated_sources(
+pub fn reject_uncompiled_generated_sources(
     computed: &ComputedBuildConfig,
 ) -> Result<(), Vec<Diagnostic>> {
     let Some(first) = computed.generated_sources.first() else {
@@ -1052,7 +1061,7 @@ pub struct RootBinding {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct SelectedProgramEntry<'config> {
+pub struct SelectedProgramEntry<'config> {
     pub machine_name: &'config str,
     pub slot: omega_target::ProgramEntrySlotDeclaration,
 }
@@ -1064,7 +1073,7 @@ pub(crate) struct SelectedProgramEntry<'config> {
 /// those profiles, while this selection consumes only the chosen profile's
 /// exact row. With no root declarations at all the caller may still enter the
 /// explicit migration fallback for the remaining corpus.
-pub(crate) fn selected_program_entry_machine<'config>(
+pub fn selected_program_entry_machine<'config>(
     config: &'config BuildConfig,
     target_name: Option<&str>,
 ) -> Result<Option<SelectedProgramEntry<'config>>, Vec<Diagnostic>> {
@@ -1173,10 +1182,10 @@ pub(crate) fn selected_program_entry_machine<'config>(
 /// is either free or has exactly one mutable `self` receiver for later bridge
 /// provisioning. Freestanding parameters must exactly match the canonical
 /// typed positions on the target-selected arrival requirement.
-pub(crate) fn validate_selected_program_entry_shape(
+pub fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<super::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+) -> Result<omega_program_storage::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
@@ -1304,8 +1313,8 @@ pub(crate) fn validate_selected_program_entry_shape(
         return Err(diagnostics);
     }
     let receiver = self_parameters.first().map_or(
-        super::ProgramEntrySourceReceiverSignature::Free,
-        |receiver| super::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+        omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
+        |receiver| omega_program_storage::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
             normalized_type_identity: typed
                 .normalized_type_identity(receiver.type_reference)
                 .into_string(),
@@ -1316,12 +1325,12 @@ pub(crate) fn validate_selected_program_entry_shape(
         .enumerate()
         .map(|(index, parameter)| -> Result<_, Diagnostic> {
             let role = match index {
-                0 => super::ProgramStorageEntryRootRole::Image,
-                1 => super::ProgramStorageEntryRootRole::InitialStorage,
+                0 => omega_program_storage::ProgramStorageEntryRootRole::Image,
+                1 => omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
             let extent_value_layout =
-                super::calling_policy_plans::selected_program_storage_source_extent_value_layout(
+                omega_provider_planning::calling_policy_plans::selected_program_storage_source_extent_value_layout(
                     typed,
                     selected.slot,
                     parameter.type_reference,
@@ -1332,7 +1341,7 @@ pub(crate) fn validate_selected_program_entry_shape(
                 ))
             })?;
             let value_shape = extent_value_layout.shape();
-            Ok(super::SelectedProgramEntrySourceSignature::visible_parameter(
+            Ok(omega_program_storage::SelectedProgramEntrySourceSignature::visible_parameter(
                 role,
                 index,
                 typed
@@ -1346,7 +1355,7 @@ pub(crate) fn validate_selected_program_entry_shape(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|diagnostic| vec![diagnostic])?;
-    super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+    omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
         selected.slot,
         machine.symbol,
         entry.symbol,
@@ -1362,26 +1371,26 @@ pub(crate) fn validate_selected_program_entry_shape(
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
 }
 
-pub(crate) struct SelectedProgramEntryCallingPlans {
-    pub(crate) semantic_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
-    pub(crate) storage_entry: super::program_storage_entry::SelectedProgramStorageEntryPlan,
+pub struct SelectedProgramEntryCallingPlans {
+    pub semantic_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
+    pub storage_entry: omega_program_storage::SelectedProgramStorageEntryPlan,
 }
 
-/// Complete compiler-owned settlement for one target-selected `ProgramEntry`.
+/// Complete build-owned settlement for one target-selected `ProgramEntry`.
 ///
 /// The source signature and optional two-surface calling plans are validated
 /// while typed declarations are still available, then travel together instead
 /// of becoming independent driver couriers. A test-harness entry-name override
 /// is deliberately absent: it cannot acquire source, calling-plan, or storage
 /// authority through this carrier.
-pub(crate) struct SelectedCompilerProgramEntry {
-    source_signature: super::SelectedProgramEntrySourceSignature,
+pub struct SelectedCompilerProgramEntry {
+    source_signature: omega_program_storage::SelectedProgramEntrySourceSignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
 }
 
 impl SelectedCompilerProgramEntry {
     fn new(
-        source_signature: super::SelectedProgramEntrySourceSignature,
+        source_signature: omega_program_storage::SelectedProgramEntrySourceSignature,
         calling_plans: Option<SelectedProgramEntryCallingPlans>,
     ) -> Self {
         Self {
@@ -1390,37 +1399,39 @@ impl SelectedCompilerProgramEntry {
         }
     }
 
-    pub(crate) fn machine_name(&self) -> &str {
+    pub fn machine_name(&self) -> &str {
         self.source_signature.machine_name()
     }
 
-    pub(crate) const fn source_signature(&self) -> &super::SelectedProgramEntrySourceSignature {
+    pub const fn source_signature(
+        &self,
+    ) -> &omega_program_storage::SelectedProgramEntrySourceSignature {
         &self.source_signature
     }
 
-    pub(crate) const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
+    pub const fn calling_plans(&self) -> Option<&SelectedProgramEntryCallingPlans> {
         self.calling_plans.as_ref()
     }
 
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
-        super::SelectedProgramEntrySourceSignature,
+        omega_program_storage::SelectedProgramEntrySourceSignature,
         Option<SelectedProgramEntryCallingPlans>,
     ) {
         (self.source_signature, self.calling_plans)
     }
 }
 
-/// Resolve and validate the complete compiler-owned `ProgramEntry` input.
+/// Resolve and validate the complete build-owned `ProgramEntry` input.
 /// Diagnostic order is intentional: exact target-slot selection precedes
 /// source-shape validation, which precedes optional physical/semantic calling-
 /// plan validation.
-pub(crate) fn select_compiler_program_entry(
+pub fn select_compiler_program_entry(
     typed: &TypedTrees,
     config: &BuildConfig,
     target_name: Option<&str>,
-    realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
+    realizations: &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
 ) -> Result<Option<SelectedCompilerProgramEntry>, Vec<Diagnostic>> {
     let Some(selected) = selected_program_entry_machine(config, target_name)? else {
         return Ok(None);
@@ -1434,10 +1445,10 @@ pub(crate) fn select_compiler_program_entry(
     )))
 }
 
-pub(crate) fn validate_selected_program_entry_calling_plan(
+pub fn validate_selected_program_entry_calling_plan(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-    realizations: &[super::calling_policy_plans::BoundaryCallingPlanRealization],
+    realizations: &[omega_provider_planning::calling_policy_plans::BoundaryCallingPlanRealization],
 ) -> Result<Option<SelectedProgramEntryCallingPlans>, Vec<Diagnostic>> {
     let (
         Some(schema_name),
@@ -1556,19 +1567,18 @@ pub(crate) fn validate_selected_program_entry_calling_plan(
                 "target entry schema `{schema_name}` is not a boundary service schema"
             ))]
         })?;
-    let storage_entry =
-        super::program_storage_entry::SelectedProgramStorageEntryPlan::from_target_slot(
-            selected.slot,
-            service_schema,
-            semantic.requirement_identity,
-        )
-        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    let storage_entry = omega_program_storage::SelectedProgramStorageEntryPlan::from_target_slot(
+        selected.slot,
+        service_schema,
+        semantic.requirement_identity,
+    )
+    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     let result_type_identity = physical.result_type_identity.ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "physical entry requirement `{physical_requirement}` has no result"
         ))]
     })?;
-    let physical_contract = super::ProgramEntryPhysicalContractPlan::new(
+    let physical_contract = omega_program_storage::ProgramEntryPhysicalContractPlan::new(
         selected.slot,
         physical.requirement_identity,
         physical_source.package,
@@ -1775,7 +1785,7 @@ impl Default for BuildConfig {
 /// filename scan nor a machine-name handoff is authority.
 /// A wrong-arity build machine still refuses at evaluation with the arity
 /// error (pinned by fail/build/build_machine_wrong_arity).
-pub(crate) fn is_build_machine(
+pub fn is_build_machine(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
     build_source_id: Option<psi_source::SourceId>,
@@ -2313,7 +2323,7 @@ fn source_read_chain_close_is_exact(
 
 /// Evaluate the program's `build` machine (if any) and extract the config.
 /// No `build` machine -> the default. Every failure names the machine.
-pub(crate) fn compute_build_config(
+pub fn compute_build_config(
     typed: &TypedTrees,
     build_source_id: Option<psi_source::SourceId>,
     filesystem_scope: &BuildMachineFilesystemScope,
@@ -3189,7 +3199,7 @@ fn harvest_wire_compatibility_demands(
 /// PRV4c: collect `b.select_provider<BoundaryTrait, ProviderType>();` from
 /// the one authoritative build machine. Merely spelling either type elsewhere
 /// grants nothing; selection authority comes from this file-scoped root.
-pub(super) fn harvest_provider_selections(
+pub fn harvest_provider_selections(
     typed: &TypedTrees,
     machine: &psi_typed_trees::machine::Machine,
 ) -> Result<Vec<ProviderSelection>, Vec<Diagnostic>> {
@@ -3514,14 +3524,14 @@ mod tests {
 
     fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
         let source_signature =
-            super::super::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
                 omega_target::TargetProfile::WindowsX64.program_entry_slot(),
                 psi_symbols::SymbolHandle::from_arena_index(1),
                 psi_symbols::SymbolHandle::from_arena_index(2),
                 "Application::start".into(),
                 "entry".into(),
                 "Application::start::entry() -> Unit".into(),
-                super::super::ProgramEntrySourceReceiverSignature::Free,
+                omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
                 Vec::new(),
             )
             .expect("exact source-only ProgramEntry fixture");
