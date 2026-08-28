@@ -1168,7 +1168,7 @@ and every scalar definition's lattice state. The validation crate owns a second
 fixed-point implementation and reconstructs this snapshot without depending on
 the optimizer crate. A digest supplied by the optimizer is therefore only a
 claim; it becomes rewrite evidence only when the validator independently
-derives the identical snapshot and fact identity. The current thirty-six exact
+derives the identical snapshot and fact identity. The current thirty-nine exact
 rules cover every evaluable Boolean and integer operation in the admitted
 verified-unit vocabulary. Structural-field and call results stay overdefined
 without immutable structural-version or call-summary facts. This is a
@@ -1188,10 +1188,24 @@ contract to `range == literal` and `literal == range`. They produce true only
 for a matching singleton interval, false only when the literal is outside the
 closed interval, and no candidate for an interior overlap. Producer and
 independent validator implement the equality decision separately and retain
-the exact authored operand orientation. This advances the SCCP pass identity
-to v4, prephysical manifest identity to v30, and projection validator to v31
-without introducing a hidden optimization level or broadening the explicit
-build selection.
+the exact authored operand orientation.
+
+Rules 37–39 consume two proof-derived interval facts for `range == range`,
+`range < range`, and `range <= range`. Equality is proven true only when both
+intervals are the same singleton and false only when they are disjoint.
+Less-than is true only when the left maximum is below the right minimum and
+false only when the left minimum is at least the right maximum. Less-than-or-
+equal is true only when the left maximum is at most the right minimum and false
+only when the left minimum is above the right maximum. An overlapping or
+crossing case that does not force one result produces no candidate. Each
+witness retains both exact `ValueRangeFactIdentity` values. The producer and
+independent validator separately reconstruct both accepted proof facts, check
+their fixed-integer types and operation-entry applicability, bind the authored
+operand order, and replay the corresponding interval law. This advances the
+SCCP pass identity to v5, prephysical manifest identity to v31, and projection
+validator to v32 without changing candidate v24 or optimization-unit identity
+v16, introducing a hidden optimization level, broadening the admitted range
+extractor, or broadening the explicit build selection.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.
@@ -1356,8 +1370,8 @@ forged node, fanout, and ownership-fact realization sites, and full artifact
 tests replay the ledger to exact one-block and three-block prephysical
 projections. Candidate v20 and optimization-unit content identity v16 bind its
 rewrite shape; the v5 rule contract consumes the three exact ownership-frontier
-facts under `ControlFlowCleanup` v12. Current prephysical manifest v30 and
-optimized-plan projection validation v31 bind the resulting admission meaning;
+facts under `ControlFlowCleanup` v12. Current prephysical manifest v31 and
+optimized-plan projection validation v32 bind the resulting admission meaning;
 ledger v4 expresses both the many-to-one move and one-to-many fanout. Direct
 terminal fusion retains the terminal edge and removed jump edge
 at the fused node, so return, cleanup, structural-return, crash, and fuel work
