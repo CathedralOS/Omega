@@ -90,8 +90,8 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 190 Alpha modules
-  and 60,563 lines; Checker A is 1,002,576 source bytes and the checker ROOT is
-  80,986 bytes. Shape, control, data, and
+  and 60,188 lines; Checker A is 997,796 source bytes and the checker ROOT is
+  80,869 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations. The first
   procedure-custody tranche centralizes the canonical parameter/slot/frame
@@ -109,10 +109,14 @@ admission, and optional stress evidence stay under the same compiler owner.
   Procedure-entry and inclusive block-range queries consume it in constant time
   without adding a witness or semantic token. Next remove census-only block
   listings family by family while retaining every PC-producing identity call.
-  The first twenty-eight low-risk consumers now rely on that owner, deleting
-  162 unused block lookups, 36 redundant span scans, nineteen dead listing
-  helpers/labels, and 832 source lines without changing the exact artifact
-  subject. Four effect censuses and two fixed-emitter summaries also consume
+  Forty-seven consumers now rely on that owner, deleting 286 unused block
+  lookups and 1,198 source lines without changing the exact
+  artifact subject. All 53 explicit per-procedure endpoint binders remain, but
+  each is now an O(1) inventory query instead of a private whole-table scan.
+  The remaining 44 block identities are irreducible at this boundary: 34 return
+  PCs consumed by control/data theorems, four bind cross-procedure declaration
+  custody, and six retain slurp's exact relational cutpoints.
+  Four effect censuses and two fixed-emitter summaries also consume
   their validated live table counts instead of stale
   242/95/291/355/613-row ceilings.
   Once the source census migration closes, evaluate a separate four-family

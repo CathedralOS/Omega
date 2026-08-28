@@ -1,4 +1,5 @@
 ; Exact source/artifact shape for emit_str_body().
+; The canonical procedure inventory owns its total block span and partition.
 ;
 ; Procedure 27 blindly advances over one byte, then owns a six-block string
 ; scan with quote, zero, ordinary, and escape outcomes.  This module binds all
@@ -16,36 +17,11 @@ emit_str_body_require_shape:
         imm r22, 1                    ; local len only
         imm r23, 16
         call exact_require_proc_frame_identity
-
-emit_str_body_shape_blocks:
-        imm r20, 140
-        imm r21, 27
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 141
-        imm r21, 27
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 142
-        imm r21, 27
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 143
-        imm r21, 27
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 144
-        imm r21, 27
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 145
-        imm r21, 27
-        imm r22, 1
-        call exact_block_identity_pc
         imm r20, 140
         imm r21, 145
         imm r22, 27
         call exact_require_proc_blocks
+
         call emit_str_body_require_transitions
         call emit_str_body_require_events
         call emit_str_body_require_locals

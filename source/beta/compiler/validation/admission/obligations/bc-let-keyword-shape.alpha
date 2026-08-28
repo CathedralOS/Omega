@@ -20,6 +20,14 @@ let_keyword_shape_is_let_frame:
         imm r23, 8
         call exact_require_proc_frame_identity
 
+        imm r20, 47
+        imm r21, 47
+        imm r22, 13
+        call exact_require_proc_blocks
+        imm r20, 48
+        imm r21, 53
+        imm r22, 14
+        call exact_require_proc_blocks
         call let_keyword_require_transitions
         call let_keyword_require_events
         call let_keyword_require_data

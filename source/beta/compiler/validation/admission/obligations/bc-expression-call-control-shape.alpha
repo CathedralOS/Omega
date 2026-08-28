@@ -1,10 +1,11 @@
 ; Exact control/effect shape for gen_call() procedure32.
 ;
 ; This module has no initialization edge and publishes no semantic token.  Its
-; single public entry fixes procedure metadata, all seventeen blocks, all
-; eighteen transitions, all twenty-six source effects and call handoffs, every
-; explicit/synthetic epilogue, and the complete decoded region.  The adjacent
-; data-shape module owns local/raw-memory/expression rows and table censuses.
+; single public entry fixes procedure metadata, all eighteen transitions, all
+; twenty-six source effects and call handoffs, every explicit/synthetic
+; epilogue, and the complete decoded region. The canonical procedure inventory
+; owns the total block span and partition. The adjacent data-shape module owns
+; local/raw-memory/expression rows and table censuses.
 
 expression_call_require_shape:
         call expression_call_require_control_shape
@@ -13,7 +14,6 @@ expression_call_require_shape:
 
 expression_call_require_control_shape:
         call expression_call_control_require_proc
-        call expression_call_control_require_blocks
         call expression_call_control_require_transitions
         call expression_call_control_require_events
         call expression_call_control_require_region
@@ -25,82 +25,11 @@ expression_call_control_require_proc:
         imm r22, 4
         imm r23, 40
         call exact_require_proc_frame_identity
-        jmp exact_shape_ok
-
-expression_call_control_require_blocks:
-        imm r20, 150
-        imm r21, 32                    ; gen_call procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 151
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 152
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 153
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 154
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 155
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 156
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 157
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 158
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 159
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 160
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 161
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 162
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 163
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 164
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 165
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 166
-        imm r21, 32
-        imm r22, 1
-        call exact_block_identity_pc
         imm r20, 150
         imm r21, 166
         imm r22, 32
         call exact_require_proc_blocks
-        ret
+        jmp exact_shape_ok
 
 ; Transition row/source block/guarded/target in r20..r23.
 expression_call_control_require_transitions:

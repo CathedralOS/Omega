@@ -3,31 +3,17 @@
 ; This region calls EIDS, one fixed WSTR event, EPRO, and EPAR, initializes k,
 ; tests k<nparams, increments k, and exits at genbody. The adjacent summary
 ; owns the carried values, output concatenation, and bounded-loop induction.
+; The canonical procedure inventory owns the block partition; the effect census
+; and PC-producing decoded endpoints below bind blocks345..348 explicitly.
 
 parse_output_prefix_require_shape:
         imm r20, 68
         call call_bounds_frame_bytes
         imm r1, 48
-        jeq r0, r1, parse_output_prefix_blocks
+        jeq r0, r1, parse_output_prefix_control
         jmp reject
 
-parse_output_prefix_blocks:
-        imm r20, 345
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 346
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 347
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 348
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
+parse_output_prefix_control:
         call parse_output_prefix_transitions
         call parse_output_prefix_events
         call parse_output_prefix_locals

@@ -31,14 +31,8 @@ root_observation_require_main_shape:
         call exact_require_proc_blocks
         jmp root_observation_require_body_blocks
 root_observation_require_body_blocks:
-        imm r20, 353
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 354
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
+        ; The canonical main span above and PC-producing quiet scans below bind
+        ; body353/resource354; these cells retain their semantic custody joins.
         imm r20, 3145728
         imm r21, 353
         imm r22, 69

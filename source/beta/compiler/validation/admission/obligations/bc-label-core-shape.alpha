@@ -9,6 +9,14 @@
 
 label_core_require_shape:
         call label_core_require_proc_meta
+        imm r20, 5
+        imm r21, 5
+        imm r22, 1
+        call exact_require_proc_blocks
+        imm r20, 6
+        imm r21, 6
+        imm r22, 2
+        call exact_require_proc_blocks
         call label_core_require_events
         call label_core_require_locals
         call label_core_require_memory

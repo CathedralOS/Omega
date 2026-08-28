@@ -68,19 +68,9 @@ main_slurp_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
-        ; Exact main entry/storage/ready blocks and source ownership.
-        imm r20, 349
-        imm r21, 69
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 350
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 351
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
+        ; Canonical inventory owns main's partition. The exact main entry,
+        ; transition/effect joins, and PC-producing ready boundary below bind
+        ; entry349, storage350, and ready351 without a second census listing.
         imm r20, 3145728
         imm r21, 349
         imm r22, 69

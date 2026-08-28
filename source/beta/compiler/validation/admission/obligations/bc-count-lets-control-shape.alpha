@@ -13,6 +13,10 @@ count_lets_require_control_shape:
         imm r23, 40
         call exact_require_proc_frame_identity
 
+        imm r20, 193
+        imm r21, 203
+        imm r22, 39
+        call exact_require_proc_blocks
         call count_lets_require_transitions
         call count_lets_require_events
         call count_lets_require_control_census

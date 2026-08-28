@@ -14,6 +14,10 @@ declare_require_shape:
         call exact_require_proc_frame_identity
 
 declare_shape_graph:
+        imm r20, 170
+        imm r21, 172
+        imm r22, 34
+        call exact_require_proc_blocks
         imm r20, 128
         imm r21, 171
         imm r22, 1

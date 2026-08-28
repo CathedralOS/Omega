@@ -3,6 +3,10 @@
 
 expression_gen_expr_require_shape:
         call expression_gen_expr_require_proc_meta
+        imm r20, 303
+        imm r21, 307
+        imm r22, 61
+        call exact_require_proc_blocks
         call expression_gen_expr_require_transitions
         call expression_gen_expr_require_events
         call expression_gen_expr_require_data

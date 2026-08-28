@@ -2,10 +2,11 @@
 ; Earlier blocks are owned by Checker A's PCAP/PFXS relation. This module binds
 ; the two unconditional child calls, literal source return, both epilogues,
 ; exhaustive empty data families, and the decoded quiet region.
+; The decoded scan's PC-producing block identity binds block348; the canonical
+; procedure inventory owns its procedure/state partition.
 
 parse_body_shape_init:
         call parse_body_require_proc
-        call parse_body_require_block
         call parse_body_require_events
         call parse_body_require_data
         call parse_body_require_censuses
@@ -22,13 +23,6 @@ parse_body_require_proc:
         imm r23, 48
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-parse_body_require_block:
-        imm r20, 348
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        ret
 
 ; r22=target procedure identity.
 parse_body_require_call:

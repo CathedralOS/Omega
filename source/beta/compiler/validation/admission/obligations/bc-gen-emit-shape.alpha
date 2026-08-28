@@ -16,6 +16,10 @@
 
 gen_emit_require_shape:
         call gen_emit_require_proc
+        imm r20, 146
+        imm r21, 146
+        imm r22, 28
+        call exact_require_proc_blocks
         call gen_emit_require_events
         call gen_emit_require_locals
         call gen_emit_require_primitives

@@ -11,6 +11,11 @@ expression_id_char_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
+        imm r20, 47
+        imm r21, 47
+        imm r22, 13
+        call exact_require_proc_blocks
+
         imm r20, 13
         imm r21, 47
         call exact_require_event_epilogue

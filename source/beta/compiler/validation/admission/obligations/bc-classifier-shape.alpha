@@ -14,6 +14,18 @@ classifier_require_shape:
         imm r20, 8
         call classifier_require_proc_frame
 
+        imm r20, 12
+        imm r21, 15
+        imm r22, 6
+        call exact_require_proc_blocks
+        imm r20, 16
+        imm r21, 23
+        imm r22, 7
+        call exact_require_proc_blocks
+        imm r20, 24
+        imm r21, 26
+        imm r22, 8
+        call exact_require_proc_blocks
         call classifier_require_transitions
         call classifier_require_events
         call classifier_require_locals

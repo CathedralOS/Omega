@@ -39,14 +39,8 @@ main_loop_entry_summary_init:
 ; ---- Exact source/artifact joins -------------------------------------
 
 main_loop_require_shape:
-        imm r20, 352
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 353
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
+        ; Canonical inventory owns main's block partition. The PC-producing
+        ; transition/scan/trace joins below bind loop352 and body353 directly.
         imm r20, 3145728
         imm r21, 352
         imm r22, 69

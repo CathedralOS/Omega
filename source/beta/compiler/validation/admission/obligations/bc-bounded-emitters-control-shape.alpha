@@ -1,10 +1,11 @@
 ; Exact control/effect shape for the bounded emitter leaf family.
 ;
 ; Procedures 30,44,47..52 are deliberately noncontiguous in the artifact.
-; This module pins their procedure metadata, blocks, emit_mnemonic branch
-; graph, every source effect, ordinary call handoff/target/continuation, and
-; explicit plus synthetic epilogues.  The adjacent data-shape module owns
-; local/expression rows and exhaustive source/decoded censuses.
+; The canonical procedure inventory owns their total block spans and partitions.
+; This module pins their procedure metadata, emit_mnemonic branch graph, every
+; source effect, ordinary call handoff/target/continuation, and explicit plus
+; synthetic epilogues. The adjacent data-shape module owns local/expression rows
+; and exhaustive source/decoded censuses.
 
 bounded_emitters_require_shape:
         call bounded_emitters_require_control_shape
@@ -13,7 +14,7 @@ bounded_emitters_require_shape:
 
 bounded_emitters_require_control_shape:
         call bounded_emitters_require_proc_meta
-        call bounded_emitters_require_blocks
+        call bounded_emitters_require_proc_spans
         call bounded_emitters_require_transitions
         call bounded_emitters_require_events
         ret
@@ -66,90 +67,39 @@ bounded_emitters_require_proc_meta:
         call bounded_emitters_require_one_proc
         ret
 
-; r20=row, r21=procedure. These procedures have one entry block.
-bounded_emitters_require_single_block:
-        mov r30, r20
-        mov r31, r21
-        imm r22, 0
-        call exact_block_identity_pc
-        mov r20, r30
-        mov r21, r30
-        mov r22, r31
+; r20=the sole block, r21=procedure.
+bounded_emitters_require_single_block_span:
+        mov r22, r21
+        mov r21, r20
         call exact_require_proc_blocks
         ret
 
-bounded_emitters_require_blocks:
+bounded_emitters_require_proc_spans:
         imm r20, 148
         imm r21, 30
-        call bounded_emitters_require_single_block
+        call bounded_emitters_require_single_block_span
         imm r20, 213
-        imm r21, 44                    ; emit_pop_into procedure identity
-        call bounded_emitters_require_single_block
+        imm r21, 44
+        call bounded_emitters_require_single_block_span
         imm r20, 218
-        imm r21, 47                    ; emit_push procedure identity
-        call bounded_emitters_require_single_block
-
-        imm r20, 219
-        imm r21, 48
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 220
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 221
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 222
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 223
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 224
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 225
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 226
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 227
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 228
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 229
-        imm r21, 48
-        imm r22, 1
-        call exact_block_identity_pc
+        imm r21, 47
+        call bounded_emitters_require_single_block_span
         imm r20, 219
         imm r21, 229
         imm r22, 48
         call exact_require_proc_blocks
-
         imm r20, 230
         imm r21, 49
-        call bounded_emitters_require_single_block
+        call bounded_emitters_require_single_block_span
         imm r20, 231
         imm r21, 50
-        call bounded_emitters_require_single_block
+        call bounded_emitters_require_single_block_span
         imm r20, 232
         imm r21, 51
-        call bounded_emitters_require_single_block
+        call bounded_emitters_require_single_block_span
         imm r20, 233
         imm r21, 52
-        call bounded_emitters_require_single_block
+        call bounded_emitters_require_single_block_span
         ret
 
 ; row/source block/guarded/target in r20..r23.

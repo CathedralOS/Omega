@@ -10,6 +10,14 @@
 
 expression_leaf_require_shape:
         call expression_leaf_require_proc_meta
+        imm r20, 132
+        imm r21, 135
+        imm r22, 25
+        call exact_require_proc_blocks
+        imm r20, 149
+        imm r21, 149
+        imm r22, 31
+        call exact_require_proc_blocks
         call expression_leaf_require_transitions
         call expression_leaf_require_events
         call expression_leaf_require_data

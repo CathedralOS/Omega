@@ -62,10 +62,8 @@ root_resource_join_require_imports:
 
 ; Reconstruct the zero-output cleanup rather than naming it with a Boolean.
 root_resource_join_build_cleanup:
-        imm r20, 354
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc    ; exact main.resource start
+        ; Canonical main span plus the PC-producing quiet-scan/start joins below
+        ; bind resource354; retain the ownership/effect cells, not a dead census.
         imm r20, 3145728
         imm r21, 354
         imm r22, 69                     ; exact owner procedure main

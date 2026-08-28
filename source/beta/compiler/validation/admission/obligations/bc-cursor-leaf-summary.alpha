@@ -12,6 +12,8 @@
 ; cbyte's signed `< LEN` hit edge.  These are reusable conditional clauses; the
 ; following skip_ws_step phase supplies their selected call-site premises.
 ; Scratch registers and reclaimed private-frame bytes are outside preservation.
+; The canonical procedure inventory owns each leaf's total block span and
+; entry/state partition; these summaries retain their semantic edges/effects.
 ;
 ; Fresh cells:
 ;   public cbyte/adv/space tokens      525960/525968/525976
@@ -42,22 +44,6 @@ cursor_require_cbyte_shape:
         imm r22, 1
         imm r23, 16
         call exact_require_proc_frame_identity
-        imm r20, 8
-        imm r21, 4                    ; cbyte procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 9
-        imm r21, 4
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 10
-        imm r21, 4
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 11
-        imm r21, 5                    ; adv procedure identity / end
-        imm r22, 0
-        call exact_block_identity_pc
         imm r20, 8
         imm r21, 10
         imm r22, 4
@@ -288,14 +274,6 @@ cursor_require_adv_shape:
         imm r23, 8
         call exact_require_proc_frame_identity
         imm r20, 11
-        imm r21, 5                    ; adv procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 12
-        imm r21, 6                    ; is_digit procedure identity / end
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 11
         imm r21, 11
         imm r22, 5
         call exact_require_proc_blocks
@@ -411,34 +389,6 @@ cursor_require_space_shape:
         imm r22, 1
         imm r23, 16
         call exact_require_proc_frame_identity
-        imm r20, 27
-        imm r21, 9                    ; is_space procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 28
-        imm r21, 9
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 29
-        imm r21, 9
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 30
-        imm r21, 9
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 31
-        imm r21, 9
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 32
-        imm r21, 9
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 33
-        imm r21, 10                   ; skip_ws procedure identity / end
-        imm r22, 0
-        call exact_block_identity_pc
         imm r20, 27
         imm r21, 32
         imm r22, 9

@@ -3,6 +3,14 @@
 
 expression_levels_require_shape:
         call expression_levels_require_proc_meta
+        imm r20, 267
+        imm r21, 269
+        imm r22, 57
+        call exact_require_proc_blocks
+        imm r20, 270
+        imm r21, 272
+        imm r22, 58
+        call exact_require_proc_blocks
         call expression_levels_require_transitions
         call expression_levels_require_events
         call expression_levels_require_data

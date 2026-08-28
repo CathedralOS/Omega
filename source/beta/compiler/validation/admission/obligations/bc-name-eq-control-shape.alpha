@@ -9,6 +9,10 @@ name_eq_require_shape:
         call exact_require_proc_frame_identity
 
 name_eq_shape_graph:
+        imm r20, 173
+        imm r21, 178
+        imm r22, 35
+        call exact_require_proc_blocks
         ; The canonical procedure inventory owns proc35's total block span and
         ; entry/state partition. The identities below retain its semantic graph.
         call name_eq_require_transitions

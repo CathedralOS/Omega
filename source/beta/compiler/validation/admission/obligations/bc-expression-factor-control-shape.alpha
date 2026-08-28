@@ -3,6 +3,10 @@
 
 expression_factor_control_require_shape:
         call expression_factor_require_proc_meta
+        imm r20, 243
+        imm r21, 255
+        imm r22, 55
+        call exact_require_proc_blocks
         call expression_factor_require_transitions
         call expression_factor_require_events
         ret
