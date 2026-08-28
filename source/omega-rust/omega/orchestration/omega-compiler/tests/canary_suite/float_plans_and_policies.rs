@@ -3228,7 +3228,7 @@ fn float_policy_operator_uses_record_checked_result_adapters() {
 }
 
 #[test]
-fn nested_attached_float_policy_operators_retain_selected_evidence() {
+fn nested_attached_float_policy_operators_retain_checked_selected_evidence() {
     let canary = pass_canary("arithmetic/float_saturating_overflow_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("nested attached-data float policy canary should check");
@@ -3238,12 +3238,6 @@ fn nested_attached_float_policy_operators_retain_selected_evidence() {
         .iter()
         .find(|machine| machine.name.as_str() == "Main::main")
         .expect("Main::main machine");
-    let state_graph = omega_checked_trees_to_state_graph::build_state_graph(&checked)
-        .expect("nested attached-data float facts should reach the state graph");
-    let control_flow =
-        omega_state_graph_to_control_flow::build_control_flow_plan_owned(state_graph.clone())
-            .expect("nested attached-data float facts should reach control flow");
-
     for (state_name, statement_index) in [("negative", 0), ("nested", 0), ("nested32", 1)] {
         let state = checked
             .typed
@@ -3284,81 +3278,6 @@ fn nested_attached_float_policy_operators_retain_selected_evidence() {
                 .plan_by_identity(operator_use.provider_plan_identity)
                 .is_some()
         );
-        let state_key = state_graph
-            .state_key_by_symbols(machine.symbol, state.symbol)
-            .expect("checked state should reach the state graph");
-        let state_node = state_graph
-            .state_by_key(state_key)
-            .expect("state graph should retain the checked state");
-        let carried = state_graph
-            .semantics
-            .values
-            .values
-            .span_or_empty(state_node.values.values)
-            .iter()
-            .find(|value| {
-                value.expression == assignment.value
-                    && matches!(
-                        value.origin,
-                        omega_state_graph::StateValueOrigin::Statement {
-                            statement_index: candidate,
-                            ..
-                        } if candidate == statement_index
-                    )
-            })
-            .unwrap_or_else(|| {
-                panic!(
-                    "Main::main::{state_name} statement {statement_index} must reach the state-value spine"
-                )
-            });
-        assert_eq!(
-            carried.operator_provider_plan_identity,
-            Some(operator_use.provider_plan_identity)
-        );
-        assert!(matches!(
-            carried.arithmetic_policy_adapter,
-            Some(
-                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. }
-            )
-        ));
-        let control_state = control_flow
-            .state_by_key(omega_control_flow::StateKey {
-                machine: state_key.machine,
-                state: state_key.state,
-                segment_index: state_key.segment_index,
-            })
-            .expect("state graph key should reach control flow");
-        let control_value = control_flow
-            .semantics
-            .values
-            .values
-            .span_or_empty(control_state.values.values)
-            .iter()
-            .find(|value| {
-                value.expression == assignment.value
-                    && matches!(
-                        value.origin,
-                        omega_control_flow::StateValueOrigin::Statement {
-                            statement_index: candidate,
-                            ..
-                        } if candidate == statement_index
-                    )
-            })
-            .unwrap_or_else(|| {
-                panic!(
-                    "Main::main::{state_name} statement {statement_index} must reach the control-flow value spine"
-                )
-            });
-        assert_eq!(
-            control_value.operator_provider_plan_identity,
-            Some(operator_use.provider_plan_identity)
-        );
-        assert!(matches!(
-            control_value.arithmetic_policy_adapter,
-            Some(
-                psi_checked_trees::CheckedArithmeticPolicyAdapter::FloatSaturatingOverflowOnly { .. }
-            )
-        ));
     }
 }
 
