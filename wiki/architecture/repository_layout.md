@@ -60,9 +60,6 @@ Omega/
 |-- Cargo.toml
 |-- README.md
 |-- source/on-ramp/rust/
-|   |-- apps/
-|   |   `-- [CRATE] omega-cli/                            # Current Rust `omega` development command.
-|   |
 |   |-- psi/                                         # Psi owns target-neutral semantics through terminal Psi.
 |   |   |-- foundation/
 |   |   |   |-- [CRATE] psi-access-plans/               # Normalized placed-view access semantics.
@@ -104,7 +101,7 @@ Omega/
 |   |       |-- [CRATE] psi-terminal-verifier/          # Module validation and reconstructed-obligation checking.
 |   |       `-- [CRATE] psi-terminal-interpreter/       # Fuel-bounded reference execution of verified terminal artifacts.
 |   |
-|   `-- omega/                                           # Omega owns target realization and native emission.
+|   `-- [CRATE] omega/                                   # Current Rust `omega` product command; owns target realization and native emission.
 |       |-- foundation/
 |       |   `-- [CRATE] omega-core/                         # Omega execution/build utilities.
 |       |
@@ -256,10 +253,10 @@ move; the final implementation resolves std through the package graph.
 
 ### Front Door
 
-- Product entrypoints stay thin. `source/omega/{build.omg,main.omg}`
-  owns the hosted product entrypoint; the current Rust `omega-cli` stays with
-  its producer under `source/on-ramp/rust/apps/`. The language-server and
-  docs-generator are not yet separate applications.
+- Product entrypoints stay thin. `source/omega/{build.omg,main.omg}` owns the
+  hosted product entrypoint; the current Rust product package and command are
+  rooted directly at `source/on-ramp/rust/omega/`. The language-server and
+  docs-generator are not separate products.
 - `orchestration/` sequences phases, owns artifacts and the top-level
   check/build API (`omega-compiler`, `omega-backend-pipeline`, `omega-artifacts`,
   `omega-visualizations`), and keeps source loading coherent. Session/options and

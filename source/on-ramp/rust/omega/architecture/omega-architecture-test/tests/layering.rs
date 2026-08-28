@@ -2,7 +2,7 @@
 //!
 //! Omega/Psi is a nanopass compiler workspace. The crates are organised on disk
 //! into architectural *layers* (foundation, representations, semantics,
-//! pipeline, isa, object, images, backend, orchestration, app). This test
+//! pipeline, isa, object, images, backend, orchestration, product). This test
 //! reads the *actual* workspace dependency graph from `cargo metadata` and
 //! asserts that the inter-layer dependency edges respect a declared
 //! "depend downward" policy.
@@ -49,7 +49,7 @@ const LAYER_RANK: &[(&str, u32)] = &[
     ("images", 6),
     ("backend", 7),
     ("orchestration", 8),
-    ("app", 9),
+    ("product", 9),
 ];
 
 /// Upward (`rank(from) < rank(to)`) layer-pairs that exist in the current
@@ -106,8 +106,8 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
 
     // Order matters: the most specific backend sub-groups are checked before
     // the generic Omega on-ramp `backend/` catch-all.
-    if m("/apps/") {
-        Some("app")
+    if p.ends_with("/source/on-ramp/rust/omega/Cargo.toml") {
+        Some("product")
     } else if m("/source/on-ramp/rust/omega/foundation/")
         || m("/source/on-ramp/rust/psi/foundation/")
     {
@@ -116,8 +116,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
         || m("/source/on-ramp/rust/psi/representations/")
     {
         Some("representations")
-    } else if m("/source/on-ramp/rust/omega/semantics/")
-        || m("/source/on-ramp/rust/psi/semantics/")
+    } else if m("/source/on-ramp/rust/omega/semantics/") || m("/source/on-ramp/rust/psi/semantics/")
     {
         Some("semantics")
     } else if m("/source/on-ramp/rust/omega/pipeline/")
@@ -421,7 +420,7 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
     );
 
     let omega_approval = root.join(
-        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/provider_approval.rs",
+        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/provider/approval.rs",
     );
     let omega_source = std::fs::read_to_string(&omega_approval)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
@@ -449,8 +448,9 @@ fn target_neutral_effect_inference_is_psi_owned() {
         );
     }
 
-    let providers = root
-        .join("source/on-ramp/rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs");
+    let providers = root.join(
+        "source/on-ramp/rust/omega/representations/omega-effects/src/capabilities/provider_plan.rs",
+    );
     assert!(
         providers.exists(),
         "provider bindings and installation policy must remain Omega-owned"
@@ -705,7 +705,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
 
     let realization_path = root.join(
-        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_native_artifact.rs",
+        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/terminal/native_artifact.rs",
     );
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
@@ -728,7 +728,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         );
     }
     let component_path = root.join(
-        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_component_candidate.rs",
+        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/terminal/component_candidate.rs",
     );
     let component = std::fs::read_to_string(&component_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
@@ -814,7 +814,7 @@ fn retained_native_product_enters_only_terminal_realization() {
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
     let path = root.join(
-        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/provider_plans.rs",
+        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/provider/plans.rs",
     );
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
@@ -839,7 +839,7 @@ fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
 fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
     let root = workspace_root();
     let path = root.join(
-        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/program_storage_entry.rs",
+        "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/program_storage/entry.rs",
     );
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
@@ -1054,8 +1054,8 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         );
     }
 
-    let pipeline_manifest = root
-        .join("source/on-ramp/rust/omega/orchestration/omega-optimization-pipeline/Cargo.toml");
+    let pipeline_manifest =
+        root.join("source/on-ramp/rust/omega/orchestration/omega-optimization-pipeline/Cargo.toml");
     let manifest_source = std::fs::read_to_string(&pipeline_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
     for dependency in ["omega-terminal-isa-x86_64", "omega-terminal-isa-aarch64"] {
