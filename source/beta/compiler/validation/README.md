@@ -133,6 +133,11 @@ fixed-keyword, `gen_emit` summary, and the main-loop/slurp bridge now consume th
 same identities. In particular, source emit keys use verifier-owned literal
 bytes—not artifact runtime string pointers—and root callers share the canonical
 program-prelude owner.
+Expression call-control/factor-data/leaf/levels/`gen_expr` and the
+classifier/`cmp_op`/`count_lets` families are localized as well. Their repeated
+calls use explicit occurrence cardinality, fixed emits are selected by
+verifier-owned literal keys, and decoded scan bounds derive from procedure or
+block identities.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
