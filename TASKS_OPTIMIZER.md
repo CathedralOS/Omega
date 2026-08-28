@@ -544,15 +544,20 @@ These facts constrain the work below.
   carriers remain legal, first-class byte sequences are borrowed views, and
   fixed arrays are nonempty. Full provider-attachment specialization replay
   and structural-domain content-projection validation remain separate validator
-  layers. The verified builder additionally attaches
+  layers. Structural returns now locate their exact `CallStructural` result
+  producer in current executable nodes and require strict same-block ordering
+  or CFG dominance without trusting block storage order or immutable source
+  frontiers; a source-derived content-bearing call/return passes verified
+  optimizer admission. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
   proof/range evidence, full provider-attachment specialization replay, and
-  structural-domain content-projection validation; path-sensitive availability
-  of operation-result and local roots, exact payloadless-callee classification,
-  and the crash/requirement/effect vocabulary also remain across the Terminal-
-  Psi lowering boundary.
+  structural-domain content-projection validation; remaining root-kind
+  legality, byte-literal and affine-local availability, provider and full
+  ownership/custody replay, exact payloadless-callee classification, and the
+  crash/requirement/effect vocabulary also remain across the Terminal-Psi
+  lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1211,9 +1216,14 @@ dependency.
   type/domain rosters additionally require canonical IDs, unique identities,
   borrowed-view first-class byte carriers, nonempty arrays, independently
   unique domain semantic identities, and known domain carriers. Full provider-
-  attachment specialization replay, structural-domain content-projection
-  validation, path-sensitive availability of operation-result and local roots,
-  exact payloadless-callee classification, and the remaining
+  attachment specialization replay and structural-domain content-projection
+  validation remain open. A structural return that names a `CallStructural`
+  operation result now requires that exact producer to occur strictly earlier
+  in the same block or in a CFG-dominating block, independent of block storage
+  order and immutable source-frontier rows. A source-derived content-bearing
+  structural call/return canary passes verified optimizer admission. Remaining
+  root-kind legality, byte-literal and affine-local availability, provider and
+  ownership/custody replay, exact payloadless-callee classification, and the
   crash/requirement/effect vocabulary remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
