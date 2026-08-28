@@ -50,4 +50,23 @@ if [ -n "$retired_delta_violations" ]; then
   exit 1
 fi
 
+# The universal checker is Alpha-owned. Keep the path role named by that owner
+# instead of recreating a repository-level proof-kernel abstraction.
+retired_checker_pattern='OMEGA_PATH_PROOF''_KERNEL'
+if command -v rg >/dev/null 2>&1; then
+  retired_checker_violations=$(rg -n "$retired_checker_pattern" \
+    "$OMEGA_REPO_ROOT/source" \
+    "$OMEGA_REPO_ROOT/tools/lattice" || true)
+else
+  retired_checker_violations=$(grep -R -En "$retired_checker_pattern" \
+    "$OMEGA_REPO_ROOT/source" \
+    "$OMEGA_REPO_ROOT/tools/lattice" || true)
+fi
+
+if [ -n "$retired_checker_violations" ]; then
+  echo "lattice path hygiene FAIL — checker path is not Alpha-owned:" >&2
+  printf '%s\n' "$retired_checker_violations" >&2
+  exit 1
+fi
+
 echo "lattice path hygiene OK"
