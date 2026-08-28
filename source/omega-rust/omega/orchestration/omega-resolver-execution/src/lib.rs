@@ -31,7 +31,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 11;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 12;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -955,6 +955,28 @@ impl ResolverExecutionBackend {
                     )?,
                 ))
             }
+            (ResolverExecutionPhase::Fetch, Some(ResolverExecutionNetworkTransport::Https)) => {
+                let mutable_root = roots.mutable_root.ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "HTTPS fetch requires its compiler-owned mutable root",
+                    )
+                })?;
+                Some((
+                    "MUTABLE_ROOT",
+                    true,
+                    macos_helper_metadata_roots(additional_executables)?,
+                    macos_confined_metadata_paths(
+                        executable,
+                        additional_executables,
+                        &[
+                            mutable_root,
+                            Path::new(MACOS_TLS_CONFIGURATION_ROOT),
+                            Path::new(MACOS_TLS_CONFIGURATION_ALIAS_ROOT),
+                        ],
+                    )?,
+                ))
+            }
             (ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch, _) => None,
         };
         if confines_content_reads {
@@ -1177,7 +1199,10 @@ fn guarantee_disposition(
                     ResolverExecutionPhase::RepositoryInitialization
                         | ResolverExecutionPhase::RepositoryInspection
                 ) || (phase == ResolverExecutionPhase::TransportDiscovery
-                    && network_transport == Some(ResolverExecutionNetworkTransport::Https))) =>
+                    && network_transport == Some(ResolverExecutionNetworkTransport::Https))
+                    || (phase == ResolverExecutionPhase::Fetch
+                        && network_transport
+                            == Some(ResolverExecutionNetworkTransport::Https))) =>
         {
             Enforced
         }
@@ -2061,7 +2086,7 @@ mod tests {
         let (https_fetch_command, https_fetch) = backend
             .command_with_endpoint_route_observation(
                 executable,
-                &[],
+                &[PathBuf::from("/usr/bin/stat")],
                 ResolverExecutionPhase::Fetch,
                 Some(ResolverExecutionNetworkTransport::Https),
                 Some(&https_fetch_route),
@@ -2199,7 +2224,15 @@ mod tests {
         assert!(fetch_profile.contains("(allow file-read*)"));
         let https_fetch_profile = profile(&https_fetch_command);
         assert!(!https_fetch_profile.contains("(allow file-read*)"));
-        assert!(https_fetch_profile.contains("(allow file-read-metadata)"));
+        assert!(!https_fetch_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            https_fetch_profile.contains(
+                "file-read-metadata file-test-existence (subpath (param \"MUTABLE_ROOT\"))"
+            )
+        );
+        assert!(https_fetch_profile.contains("(literal (param \"METADATA_PATH_0\"))"));
+        assert!(https_fetch_profile.contains("(subpath (param \"METADATA_SUBPATH_0\"))"));
+        assert!(https_fetch_profile.contains("(subpath \"/etc/ssl\")"));
         assert!(
             https_fetch_profile
                 .contains("(allow file-read-data (subpath (param \"MUTABLE_ROOT\"))")
@@ -2276,6 +2309,17 @@ mod tests {
         assert_eq!(
             disposition(
                 &https_discovery,
+                ResolverExecutionGuarantee::FilesystemReadsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(&fetch, ResolverExecutionGuarantee::FilesystemReadsConfined),
+            ResolverExecutionGuaranteeDisposition::Unavailable
+        );
+        assert_eq!(
+            disposition(
+                &https_fetch,
                 ResolverExecutionGuarantee::FilesystemReadsConfined
             ),
             ResolverExecutionGuaranteeDisposition::Enforced
@@ -2695,6 +2739,98 @@ mod tests {
         std::fs::remove_file(sibling).expect("remove sibling canary");
         std::fs::remove_dir(mutable_root).expect("remove HTTPS fetch mutable root");
         std::fs::remove_dir(parent).expect("remove HTTPS fetch parent");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_https_fetch_confines_metadata_to_mutable_and_tls_roots() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-https-fetch-metadata-{}-{sequence}",
+            std::process::id()
+        ));
+        let raw_mutable_root = parent.join("mutable");
+        let raw_inside = raw_mutable_root.join("inside");
+        let raw_sibling = parent.join("sibling");
+        let raw_escaped_link = raw_mutable_root.join("escaped-link");
+        std::fs::create_dir_all(&raw_inside).expect("create HTTPS fetch metadata root");
+        std::fs::create_dir(&raw_sibling).expect("create HTTPS fetch metadata sibling");
+        symlink(&raw_sibling, &raw_escaped_link)
+            .expect("create HTTPS fetch escaping metadata symlink");
+        let mutable_root = raw_mutable_root
+            .canonicalize()
+            .expect("canonicalize HTTPS fetch metadata root");
+        let inside = mutable_root.join("inside");
+        let sibling = raw_sibling
+            .canonicalize()
+            .expect("canonicalize HTTPS fetch metadata sibling");
+        let escaped_link = mutable_root.join("escaped-link");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let route = loopback_route(&backend);
+        let run_stat = |arguments: &[&std::ffi::OsStr]| {
+            let (mut command, _observation) = backend
+                .command_with_endpoint_route_observation(
+                    Path::new("/usr/bin/stat"),
+                    &[],
+                    ResolverExecutionPhase::Fetch,
+                    Some(ResolverExecutionNetworkTransport::Https),
+                    Some(&route),
+                    Some(&mutable_root),
+                )
+                .expect("build HTTPS fetch-metadata sandbox");
+            command.current_dir(&mutable_root);
+            command
+                .args(arguments)
+                .output()
+                .expect("run HTTPS fetch metadata canary")
+        };
+
+        for allowed_path in [
+            inside.as_path(),
+            Path::new("/private/etc/ssl/openssl.cnf"),
+            Path::new("/etc/ssl/cert.pem"),
+        ] {
+            let output = run_stat(&[
+                std::ffi::OsStr::new("-f"),
+                std::ffi::OsStr::new("%N"),
+                allowed_path.as_os_str(),
+            ]);
+            assert!(
+                output.status.success(),
+                "allowed metadata failed for {}: {}",
+                allowed_path.display(),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        let link_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            escaped_link.as_os_str(),
+        ]);
+        assert!(
+            link_output.status.success(),
+            "reading the in-root symlink entry must remain allowed"
+        );
+        let sibling_output = run_stat(&[
+            std::ffi::OsStr::new("-f"),
+            std::ffi::OsStr::new("%N"),
+            sibling.as_os_str(),
+        ]);
+        assert!(!sibling_output.status.success());
+        let escaped_output = run_stat(&[std::ffi::OsStr::new("-L"), escaped_link.as_os_str()]);
+        assert!(!escaped_output.status.success());
+        route.finish().expect("finish HTTPS fetch metadata route");
+
+        std::fs::remove_file(escaped_link).expect("remove HTTPS fetch metadata symlink");
+        std::fs::remove_dir(inside).expect("remove HTTPS fetch inside metadata canary");
+        std::fs::remove_dir(sibling).expect("remove HTTPS fetch sibling metadata canary");
+        std::fs::remove_dir(mutable_root).expect("remove HTTPS fetch metadata root");
+        std::fs::remove_dir(parent).expect("remove HTTPS fetch metadata parent");
     }
 
     #[cfg(target_os = "macos")]

@@ -980,6 +980,18 @@ complete.
   v24 prevent reuse of state discovered under broad metadata authority. HTTPS
   fetch metadata and all SSH reads remain broad.
 
+  Follow-up 2026-08-28: macOS HTTPS fetch now uses the same bounded metadata
+  policy, rooted at its exact mutable quarantine and the same compiler-selected
+  helper/TLS paths. Writes remain confined beneath that mutable root, and the
+  endpoint remains confined to its broker route. Native canaries prove mutable-
+  root and both fixed TLS metadata spellings succeed while adjacent metadata and
+  following an escaping symlink fail. All 158 source-resolver tests and a fresh
+  exact-revision public GitHub audit pass with discovery and fetch both narrowed.
+  `FilesystemReadsConfined` is now `Enforced` for every non-SSH macOS resolver
+  phase; SSH discovery/fetch deliberately remain `Unavailable` and broad pending
+  OWNER Q16. Native policy schema 12 and Git cache policy v25 prevent reuse of
+  HTTPS state fetched under broad metadata authority.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
