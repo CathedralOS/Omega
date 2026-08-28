@@ -1435,11 +1435,18 @@ in-place contract for signed/unsigned exact, wrapping, and saturating `x % x`.
 In both cases the exact accepted obligation proves the authored operation
 defined; the active operation-reference fact is removed, the historical
 accepted catalog remains immutable, and independent replay reconstructs the
-new literal-zero fact. Candidate schema remains v24, so extending the closed
-identity-kind tags does not rehash or change tie breaks for existing candidates.
-Optimization-unit identity remains v10; the named v8 pass, prephysical manifest
-v21, and optimized-plan projection validation v22 bind the expanded eight-rule
-schedule.
+new literal-zero fact. The ninth rule,
+`live-proof-certified-integer-self-divide-elimination.v1`, uses the same
+in-place custody contract to replace fixed-width signed/unsigned exact,
+wrapping, or saturating `x / x` with typed one. Its exact accepted obligation
+proves the authored divisor nonzero. Signed one-bit and address carriers decline
+because positive one is not representable in those domains. Independent replay
+reconstructs the operands, policy, representable-one domain, fact, constant,
+accounting, and output while removing only the active operation reference.
+Candidate schema remains v24, so extending the closed identity-kind tags does
+not rehash or change tie breaks for existing candidates. Optimization-unit
+identity remains v10; the named v9 pass, prephysical manifest identity v24, and
+optimized-plan projection validation v25 bind the expanded nine-rule schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
@@ -2190,18 +2197,23 @@ contract. Whole-function exit identity v2 names either the required near-layout
 custody or the exact independently replayed relaxation receipt. Baseline exit
 validation remains strict and cannot admit short bytes by accident.
 
-A later relocation-free boundary now consumes only completed x86 rel8 or
-AArch64 CBNZ realization carriers and materializes dense bytes independently
-per function. Its immutable function-fragment artifact retains the function,
-block, and instruction spans—including the CBNZ route's zero-byte compare—plus
+A later relocation-free boundary now consumes completed x86 rel8, AArch64 CBNZ,
+or active-resident rematerialization realization carriers and materializes dense
+bytes independently per function. Its immutable function-fragment artifact
+retains the function, block, and instruction spans—including the CBNZ route's
+zero-byte compare and the rematerializer's fresh nonempty `MaterializeI64`—plus
 the chosen alternatives, decoded branch evidence, full Psi/selected provenance,
-successor bindings, and path-specific fuel settlements. It never concatenates
-functions into a globally placed section. Production and an independently
-coded replay reconstruct source custody, offsets, row bytes, aggregate bytes,
-statistics, receipt, and the content identity. The strict `OMGFFE` v1 manifest
-binds the source realization and every selected, post-allocation, layout, exit,
-target, and fragment root while explicitly marking section placement, symbols,
-object relocations, executable image, installation, and publication unavailable.
+successor bindings, and path-specific fuel settlements. The architecture-
+neutral rematerialization source kind replays the complete owning carrier,
+requires its exact singleton allocation-recovery projection, and retains the
+baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8 or CBNZ.
+It never concatenates functions into a globally placed section. Production and
+an independently coded replay reconstruct source custody, offsets, row bytes,
+aggregate bytes, statistics, receipt, and the content identity. The strict
+`OMGFFE` v2 manifest binds the closed three-kind source vocabulary, source
+realization, and every selected, post-allocation, layout, exit, target, and
+fragment root while explicitly marking section placement, symbols, object
+relocations, executable image, installation, and publication unavailable.
 
 The following required boundary places those fragments into one immutable
 relocation-free text section under
@@ -2216,8 +2228,9 @@ return forms contain no address-bearing target and every relative conditional
 branch is already resolved to blocks in its owned function. Production and a
 separately coded replay reconstruct the byte concatenation, coordinates,
 alignment, entry, statistics, and closed no-relocation conclusion. The strict
-`OMGTSP` v1 manifest binds all upstream roots while marking symbols, object
-container and serialization, external entry bridge, executable image,
+`OMGTSP` v2 manifest binds the three-kind source vocabulary and all upstream
+roots while marking symbols, object container and serialization, external entry
+bridge, executable image,
 installation, and publication unavailable.
 
 The next object-owned boundary consumes that validated text section by value.
@@ -2537,12 +2550,13 @@ post-allocation machine, canonical encoding, baseline/final layout roots,
 optional layout-transform receipt, named layout policy, final code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
-unavailable. The separate strict v1 function-fragment manifest additionally
-binds completed x86 rel8 or AArch64 CBNZ realization custody to relocation-free
-per-function bytes and exact span/provenance/fuel statistics while retaining the
-same later-boundary unavailability. The strict v1 text-section manifest then
-binds deterministic no-padding placement, section coordinates, aggregate
-bytes, the semantic-entry coordinate, and the independently proved absence of
+unavailable. The separate strict v2 function-fragment manifest additionally
+binds completed x86 rel8, AArch64 CBNZ, or active-resident rematerialization
+realization custody to relocation-free per-function bytes and exact span/
+provenance/fuel statistics while retaining the same later-boundary
+unavailability. The strict v2 text-section manifest then binds deterministic
+no-padding placement, section coordinates, aggregate bytes, the semantic-entry
+coordinate, and the independently proved absence of
 relocation requirements for the current inventory. It still declares symbols,
 object container/serialization, external entry bridge, image, installation,
 and publication unavailable. The pre-physical, post-allocation, and function-

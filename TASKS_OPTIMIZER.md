@@ -876,12 +876,13 @@ dependency.
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
   code-size statistics; its v5 form binds the allocation-recovery projection
-  and the v3 validated frameless-leaf exit contract. A separate strict v1
-  function-fragment manifest now joins either
-  the completed x86 rel8 or AArch64 CBNZ realization to relocation-free bytes
-  and a strict v1 text-section manifest binds deterministic placement and a
-  closed no-relocation proof. A strict v1 object-container manifest then binds
-  private symbols, the object-local semantic entry, canonical container bytes,
+  and the v3 validated frameless-leaf exit contract. A separate strict v2
+  function-fragment manifest now joins completed x86 rel8, AArch64 CBNZ, or
+  active-resident rematerialization realization to relocation-free bytes, and
+  a strict v2 text-section manifest binds deterministic placement and a closed
+  no-relocation proof for all three source kinds. A strict v1 object-container
+  manifest then binds private symbols, the object-local semantic entry,
+  canonical container bytes,
   and the independently replayed absence of relocation records while declaring
   the external entry bridge, image, installation, and publication unavailable.
   `ValidatedOptimizedTerminalObjectArtifactV1` now joins that clean object to
@@ -1326,10 +1327,21 @@ dependency.
   operation reference disappears, the accepted catalog remains immutable, and
   independent replay reconstructs the literal-zero fact and rejects mismatched
   operands, policy, type, proof, or custody.
+  The ninth rule,
+  `live-proof-certified-integer-self-divide-elimination.v1`, replaces a live
+  fixed-width signed/unsigned `x / x` node in place with typed one for exact,
+  wrapping, and saturating division. The accepted obligation proves the
+  authored divisor is nonzero; signed one-bit and address carriers decline
+  because positive one is not a valid result in those domains. The rule keeps
+  the result `ValueId`, location, operation/provenance/fuel custody, and empty
+  substitution set. Independent replay reconstructs the operands, policy,
+  representable-one domain, accepted fact, constant, accounting, and output;
+  only the active operation reference leaves while the accepted catalog stays
+  byte-identical.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v10. The named v8 pass, prephysical manifest v21, and projection validator
-  v22 bind the expanded eight-rule schedule;
+  v10. The named v9 pass, prephysical manifest identity v24, and projection
+  validator v25 bind the expanded nine-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.
@@ -2197,12 +2209,17 @@ dependency.
   branch-only and combined routing, detached final-layout corruption, and
   non-x86 rejection.
 
-  A subsequent relocation-free emission boundary consumes only those completed
-  x86 rel8 or AArch64 CBNZ realization carriers. Its immutable function-fragment
-  plan concatenates dense bytes independently per function, retains every
-  block/instruction span (including a zero-byte elided CBNZ compare), complete
-  provenance, successor bindings, branch evidence, and path-specific fuel. A
-  separate strict `OMGFFE` v1 manifest binds the source realization, selections,
+  A subsequent relocation-free emission boundary consumes completed x86 rel8,
+  AArch64 CBNZ, or active-resident rematerialization realization carriers. Its
+  immutable function-fragment plan concatenates dense bytes independently per
+  function and retains every block/instruction span (including a zero-byte
+  elided CBNZ compare and the rematerializer's fresh nonempty `MaterializeI64`),
+  complete provenance, successor bindings, branch evidence, and path-specific
+  fuel. The architecture-neutral rematerialization source kind replays its
+  complete owning carrier and requires the exact singleton allocation-recovery
+  projection. It retains baseline `JNE rel32` or `B.NE imm19` branch evidence;
+  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v2 manifest binds
+  the closed three-kind source vocabulary, source realization, selections,
   selected/post-allocation/layout/exit roots, target, fragment identity, and
   exact statistics. Independent replay reconstructs source custody, offsets,
   rows, aggregate bytes, statistics, receipt, and manifest. This boundary owns
@@ -2218,8 +2235,9 @@ dependency.
   without inventing an object/process entry symbol. An exhaustive current-
   alternative check proves that fallthrough/scalar/return forms embed no target
   and every relative conditional branch is already resolved within its owned
-  function. The strict `OMGTSP` v1 manifest and independent replay bind every
-  source/layout/exit/fragment root, aggregate byte, statistic, placement
+  function. The strict `OMGTSP` v2 manifest includes the rematerialization
+  source-kind tag, and independent replay binds every source/layout/exit/
+  fragment root, aggregate byte, statistic, placement
   coordinate, and the closed no-relocation conclusion. Symbols, object
   container/serialization, external entry bridge, executable image,
   installation, and publication remain unavailable.
