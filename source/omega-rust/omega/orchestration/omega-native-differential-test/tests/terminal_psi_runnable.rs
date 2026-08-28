@@ -21,7 +21,7 @@ use omega_terminal_target_operations::{
     TerminalLinuxExitGroupI32Realization, TerminalLinuxWriteLineRealization,
 };
 use omega_terminal_target_operations_to_assigned_target_operations::assign_registers;
-use psi_core::{BoundaryMachineId, IntegerValue, ProfileDecisionId};
+use psi_core::{BoundaryMachineId, IntegerValue, ProfileDecisionId, StructuralPlaceKind};
 use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
@@ -164,6 +164,71 @@ fn source_byte_sequence_literal_reaches_verified_optimizer_admission() {
         })
         .expect("source lowering retains the literal boundary use");
     assert!(producer_index < use_index);
+}
+
+#[test]
+fn source_provider_attachment_specialization_reaches_verified_optimizer_admission() {
+    let (semantic, proof) = project_source(&straight_line_console_source(2, 0));
+    let input =
+        lower_artifact_sections_for_optimization(&semantic, &proof, &AdmissionProfile::default())
+            .expect("source provider attachment verifies for optimizer admission");
+    let verified =
+        build_verified_psi_optimization_unit(input, TerminalFuelSchedule::CURRENT.identity())
+            .expect("source provider attachment retains its optimizer unit");
+    validate_verified_psi_optimization_unit(&verified)
+        .expect("source provider attachment satisfies exact specialization replay");
+
+    let function = verified
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == verified.unit().entry)
+        .expect("optimizer unit retains the provider-backed source entry");
+    let provider_roots = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::ProviderAttachment { boundary, .. } => Some((place.id, boundary)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(provider_roots.len(), 2);
+    assert!(provider_roots.windows(2).all(|pair| pair[0].1 < pair[1].1));
+    let provider_places = provider_roots
+        .iter()
+        .map(|(place, _)| *place)
+        .collect::<std::collections::BTreeSet<_>>();
+    let rooted_boundaries = provider_roots
+        .iter()
+        .map(|(_, boundary)| *boundary)
+        .collect::<std::collections::BTreeSet<_>>();
+    let boundary_calls = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.nodes)
+        .filter_map(|node| match &node.operation {
+            TerminalAbstractOperation::BoundaryCall {
+                boundary,
+                structural_arguments,
+                ..
+            } => {
+                assert!(
+                    structural_arguments
+                        .iter()
+                        .all(|argument| !provider_places.contains(&argument.place))
+                );
+                Some(*boundary)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(boundary_calls.len(), 3);
+    assert_eq!(
+        boundary_calls
+            .into_iter()
+            .collect::<std::collections::BTreeSet<_>>(),
+        rooted_boundaries
+    );
 }
 
 #[test]
