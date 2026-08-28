@@ -280,6 +280,12 @@ lookalike package acquire authority. Initial review also needs to classify and
 sandbox a candidate before that candidate has accepted lock evidence, without
 pretending candidate designation is admission.
 
+The post-relocation `generated-table -> generated-consumer` canary now exposes
+the same boundary from build execution: dependency generated-source custody is
+ready, but the producer cannot receive `FilesystemHost` until its exact
+ordinary-package role is authenticated. A package name, trait spelling, or old
+physical std path must not make that test pass.
+
 ### Proposed direction
 
 Have package orchestration pass an explicit, exact role-binding set into the

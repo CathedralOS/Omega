@@ -179,6 +179,26 @@ commitment includes those bytes and verifies them against retained staged-tree
 custody rather than rereading an output path. Resolving a path, writing output,
 and publishing generated source remain three separate operations.
 
+Dependency compilation consumes the same output through an opaque, compiler-
+issued bundle rather than executing the dependency build again. Review
+orchestration compiles dependency-first and requires one bundle for every
+package in the consumer's transitive closure, including an explicit empty
+bundle for a build with no handoff. Each bundle binds the producer package,
+selected target, producer dependency closure, producer source-consumption
+commitment, canonical generated paths, and retained bytes/digests. The initial
+consumer frontend loads those bytes under the producer package identity and
+compiler-owned logical path; generated imports can therefore resolve without a
+physical output tree. The consumer's own source-consumption commitment includes
+the injected bytes. Missing, duplicate, foreign, root-self, target/closure, and
+same-review custody mismatches reject. This carrier is neither canonical
+admission evidence nor a package instance and has no decoder or public
+constructor.
+
+The post-relocation filesystem-producing two-package canary remains blocked on
+the exact ordinary-package staging-authority role in OWNER Q7. A physical-path
+or spelling exception would invalidate the authority model; the lower-level
+generated-source custody and import path is independently tested without one.
+
 The dependency's own `builder.package("canonical-name")` declaration supplies
 its name. Its default local import alias is derived mechanically from
 kebab-case to snake_case; only a real local collision uses the exceptional
