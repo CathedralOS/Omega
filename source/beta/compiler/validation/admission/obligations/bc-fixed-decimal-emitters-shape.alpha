@@ -115,7 +115,8 @@ fixed_decimal_shape_events:
         imm r22, 30449
         imm r23, 1
         imm r24, 0
-        imm r25, 29152
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
         imm r26, 30458              ; checked prologue decimal continuation
         call summary_require_call_site
         imm r20, 323
@@ -154,7 +155,8 @@ fixed_decimal_shape_events:
         imm r22, 30888
         imm r23, 1
         imm r24, 0
-        imm r25, 29152
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
         imm r26, 30897              ; checked offset-decimal continuation
         call summary_require_call_site
         imm r20, 329
@@ -174,7 +176,8 @@ fixed_decimal_shape_events:
         imm r22, 31083
         imm r23, 1
         imm r24, 0
-        imm r25, 29152
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
         imm r26, 31092              ; checked register-decimal continuation
         call summary_require_call_site
         imm r20, 333
@@ -362,7 +365,8 @@ fixed_decimal_shape_censuses:
         imm r24, 5                   ; frame/parameter/push stores
         call exact_quiet_scan_region
         imm r20, 30596
-        imm r21, 31151
+        imm r21, 44                    ; emit_pop_into procedure identity
+        call exact_proc_entry_r21
         imm r22, 8                   ; six WSTR + two DECS
         imm r23, 1                   ; synthetic return
         imm r24, 6                   ; frame/parameter/push stores

@@ -328,7 +328,8 @@ statement_gen_stmt_require_censuses:
 
 statement_gen_stmt_require_decoded:
         imm r20, 47192
-        imm r21, 48993
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
         imm r22, 27
         imm r23, 10
         imm r24, 18

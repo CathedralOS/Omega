@@ -61,7 +61,8 @@ statement_gen_block_require_events:
         imm r20, 509
         imm r21, 45345
         imm r22, 0
-        imm r23, 44066
+        imm r23, 62                    ; gen_stmts procedure identity
+        call exact_proc_entry_r23
         imm r24, 45354
         call statement_gen_block_require_call
         imm r20, 510

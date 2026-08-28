@@ -242,7 +242,8 @@ statement_gen_stmt_require_let_events:
         imm r21, 324
         imm r22, 47607
         imm r23, 0
-        imm r24, 43134
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
         imm r25, 47616
         call statement_gen_stmt_require_call
         imm r20, 549
@@ -274,7 +275,8 @@ statement_gen_stmt_require_keyword_events:
         imm r21, 327
         imm r22, 47858
         imm r23, 0
-        imm r24, 43134
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
         imm r25, 47867
         call statement_gen_stmt_require_call
         imm r20, 554
@@ -395,7 +397,8 @@ statement_gen_stmt_require_assign_events:
         imm r21, 336
         imm r22, 48835
         imm r23, 0
-        imm r24, 43134
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
         imm r25, 48844
         call statement_gen_stmt_require_call
         imm r20, 573

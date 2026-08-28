@@ -23,7 +23,8 @@ emit_dec_require_shape:
 
 emit_dec_shape_blocks:
         imm r20, 204
-        imm r21, 29152
+        imm r21, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 205
         imm r21, 29203
@@ -73,7 +74,8 @@ emit_dec_require_events:
         imm r22, 29434
         imm r23, 1                   ; q argument
         imm r24, 0                   ; no ambient temporary
-        imm r25, 29152               ; recursive emit_dec target
+        imm r25, 40                    ; recursive emit_dec identity
+        call exact_proc_entry_r25
         imm r26, 29443               ; checked child continuation
         call summary_require_call_site
         imm r20, 309
@@ -220,7 +222,8 @@ emit_dec_require_censuses:
         imm r29, 0
         call summary_require_expr_census
 
-        imm r20, 29152
+        imm r20, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r20
         imm r21, 29619
         imm r22, 1                   ; recursive call count
         imm r23, 2                   ; explicit and synthetic returns

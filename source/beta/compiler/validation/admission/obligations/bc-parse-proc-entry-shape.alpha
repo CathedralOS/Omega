@@ -33,7 +33,8 @@ parse_proc_require_proc:
 
 parse_proc_require_entry_block:
         imm r20, 338
-        imm r21, 48993                 ; exact p68 entry PC
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         ret
 
@@ -243,7 +244,8 @@ parse_proc_require_entry_censuses:
         ret
 
 parse_proc_require_entry_decoded:
-        imm r20, 48993
+        imm r20, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r20
         imm r21, 49368
         imm r22, 6
         imm r23, 0

@@ -100,11 +100,13 @@ bounded_emitters_require_blocks:
         imm r22, 30
         call bounded_emitters_require_single_block
         imm r20, 213
-        imm r21, 31151
+        imm r21, 44                    ; emit_pop_into procedure identity
+        call exact_proc_entry_r21
         imm r22, 44
         call bounded_emitters_require_single_block
         imm r20, 218
-        imm r21, 32248
+        imm r21, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r21
         imm r22, 47
         call bounded_emitters_require_single_block
 
@@ -309,7 +311,8 @@ bounded_emitters_require_events:
         imm r21, 213
         imm r22, 31297
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 31306
         call bounded_emitters_require_ordinary_call
         imm r20, 336
@@ -438,7 +441,8 @@ bounded_emitters_require_slot_events:
         imm r21, 231
         imm r22, 34075
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 34084
         call bounded_emitters_require_ordinary_call
         imm r20, 368
@@ -453,7 +457,8 @@ bounded_emitters_require_slot_events:
         imm r21, 231
         imm r22, 34319
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 34328
         call bounded_emitters_require_ordinary_call
         imm r20, 371
@@ -468,7 +473,8 @@ bounded_emitters_require_slot_events:
         imm r21, 231
         imm r22, 34461
         imm r23, 1
-        imm r24, 29152
+        imm r24, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r24
         imm r25, 34470
         call bounded_emitters_require_ordinary_call
         imm r20, 374

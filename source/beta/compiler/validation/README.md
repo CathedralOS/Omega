@@ -52,12 +52,14 @@ macros once. Frame, effect, memory, expression, and stack-table consumers pass
 their independently reconstructed PC/register/slot facts to those decoders
 instead of embedding another instruction-byte copy. A shared fail-closed
 procedure resolver likewise maps independently scanned source procedure IDs to
-the unique checked entry-block PC; the expression-family modules consume that
-identity for `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`, `gen_expr`,
-and their adjacent procedure boundary instead of pinning those entry PCs. The
-final ROOT tape is 78,206 bytes for the current
+the unique checked entry-block PC. All semantic consumers now use that identity
+for the selected `emit_dec`, `emit_pop_into`, `emit_push`, `gen_sum`,
+`gen_expr`, `gen_stmts`, and `parse_proc` entries and adjacent procedure
+boundaries instead of pinning those 79 entry PCs. Intra-procedure block, event,
+and call-site coordinates remain to be decoded by stable identities. The final
+ROOT tape is 78,247 bytes for the current
 exact subjects, SHA-256
-`be1198ed207cec4c94497f10e44e02f0c03acf84b97148f4d270224af1a48bf0`.
+`a397ec2503dc70077f7f617f9013ba5ea8395fac0512be15d23722f2aec25489`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

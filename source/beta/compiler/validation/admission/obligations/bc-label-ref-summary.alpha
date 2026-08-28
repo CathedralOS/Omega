@@ -183,7 +183,8 @@ label_ref_bind_child:
         imm r22, 1508
         imm r23, 1
         imm r24, 0
-        imm r25, 29152
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
         imm r26, 1517
         call summary_require_call_site
         imm r20, 535464

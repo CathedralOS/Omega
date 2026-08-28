@@ -137,7 +137,8 @@ statement_gen_to_require_guarded_events:
         imm r21, 320
         imm r22, 46384
         imm r23, 0
-        imm r24, 43134
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
         imm r25, 46393
         call statement_gen_to_require_call
         imm r20, 527

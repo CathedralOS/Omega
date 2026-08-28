@@ -69,7 +69,8 @@ root_observation_require_body_events:
         imm r22, 51405
         imm r23, 0
         imm r24, 0
-        imm r25, 48993                 ; exact parse_proc target
+        imm r25, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r25
         imm r26, 51414
         call summary_require_call_site
 
