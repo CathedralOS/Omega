@@ -66,7 +66,12 @@ explicit-return, synthetic-return, and region-boundary checks no longer repeat
 or the canonical nine-byte call fallthrough, and epilogues are reconstructed
 relative to an identified return event or next procedure entry. The
 `emit_prelude` and `main.ready` consumers likewise resolve the former procedure
-41 entry pins by identity. Other intra-procedure consumers remain to migrate. A fifth
+41 entry pins by identity. `gen_stmt` is the next complete control/effect
+consumer: its 16 blocks, 14 transitions, 27 calls, nine explicit returns, and
+synthetic return now remove another 126 artifact-coordinate occurrences in
+favor of source rows, procedure identities, canonical call fallthroughs, and
+return-relative epilogues. Its coupled data and meaning modules required no
+coordinate change. Other intra-procedure consumers remain to migrate. A fifth
 negative control mutates `emit_dec`'s witness event PC while retaining the exact
 source and artifact and proves that witness coordinates cannot select semantic
 identity. The final ROOT tape is 79,565 bytes for the current
