@@ -601,13 +601,19 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .source()
         .authored_locations()
         .expect("changed public data receives an authored source coordinate");
-    assert_eq!(first_locations.len(), 1);
-    assert_eq!(changed_locations.len(), 1);
-    assert_eq!(first_locations[0].relative_path(), "main.omg");
-    assert_eq!(changed_locations[0].relative_path(), "main.omg");
-    assert!(changed_locations[0].start_byte() > first_locations[0].start_byte());
+    let first_declaration = first_locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::Declaration)
+        .expect("public data declaration location");
+    let changed_declaration = changed_locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::Declaration)
+        .expect("changed public data declaration location");
+    assert_eq!(first_declaration.relative_path(), "main.omg");
+    assert_eq!(changed_declaration.relative_path(), "main.omg");
+    assert!(changed_declaration.start_byte() > first_declaration.start_byte());
     assert!(
-        !first_locations[0]
+        !first_declaration
             .relative_path()
             .contains(&first.0.display().to_string())
     );
@@ -11363,7 +11369,7 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
 }
 
 #[test]
-fn public_api_rows_retain_exact_authored_proof_fact_extents() {
+fn public_api_rows_retain_exact_nested_authored_extents() {
     let package = TempPackage::new();
     let source = r#"pub data Ledger
 where
@@ -11397,7 +11403,7 @@ pub trait Bounds {
         .canonical_rows()
         .expect("proof-fact canonical rows");
 
-    let fact_slices = |kind| {
+    let role_slices = |kind, role| {
         let row = rows
             .iter()
             .find(|row| row.kind() == kind)
@@ -11406,7 +11412,7 @@ pub trait Bounds {
             .authored_locations()
             .expect("authored row locations")
             .iter()
-            .filter(|location| location.role() == PackageReviewSourceLocationRole::ProofFact)
+            .filter(|location| location.role() == role)
             .map(|location| {
                 &source[usize::try_from(location.start_byte()).unwrap()
                     ..usize::try_from(location.end_byte()).unwrap()]
@@ -11414,16 +11420,39 @@ pub trait Bounds {
             .collect::<Vec<_>>()
     };
     assert_eq!(
-        fact_slices(PackageReviewCanonicalRowKind::PublicData),
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicData,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
         ["count <= len"]
     );
     assert_eq!(
-        fact_slices(PackageReviewCanonicalRowKind::PublicDomain),
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicDomain,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
         ["self.count <= self.len"]
     );
     assert_eq!(
-        fact_slices(PackageReviewCanonicalRowKind::PublicTrait),
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
         ["value >= 1", "result >= value"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicData,
+            PackageReviewSourceLocationRole::DataMember,
+        ),
+        ["len", "count"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::TraitRequirement,
+        ),
+        ["clamp"]
     );
 }
 

@@ -129,6 +129,22 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                     .any(|location| location.role() == PackageReviewSourceLocationRole::ProofFact)
             })
     }));
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::PublicTrait
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::TraitRequirement
+                })
+            })
+    }));
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::PublicData
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations
+                    .iter()
+                    .any(|location| location.role() == PackageReviewSourceLocationRole::DataMember)
+            })
+    }));
     assert!(
         rows.iter()
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst),
@@ -160,7 +176,7 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                 })
             })
     }));
-    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 11);
+    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 12);
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");
@@ -182,8 +198,8 @@ fn decoder_rejects_malformed_noncanonical_and_over_limit_recovery_rows() {
     };
     let authored = rows
         .iter()
-        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicData)
-        .expect("authored public-data row");
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance)
+        .expect("authored public-conformance row");
     let envelope = encode_package_review_canonical_row(authored).expect("encode authored row");
 
     let mut malformed = envelope.clone();

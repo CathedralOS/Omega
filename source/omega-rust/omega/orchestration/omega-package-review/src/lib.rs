@@ -2417,6 +2417,12 @@ pub enum PackageReviewSourceLocationRole {
     /// Exact semantic-token extent of one authored proof fact. The location
     /// remains explanatory custody outside normalized fact identity.
     ProofFact,
+    /// Exact declaration or derivation origin of one public trait machine
+    /// requirement nested beneath its owning trait row.
+    TraitRequirement,
+    /// Exact declaration or derivation origin of one public data field, sum
+    /// case, or sum payload field nested beneath its owning data row.
+    DataMember,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -3594,6 +3600,30 @@ fn canonical_source_location(
     canonical_source_span_location(compilation, span, role)
 }
 
+fn project_nested_declaration_source_location(
+    compilation: &CheckedCompilation,
+    symbol: SymbolHandle,
+    authored_role: PackageReviewSourceLocationRole,
+    subject: &str,
+) -> Result<ProjectedNestedSourceLocation, Vec<Diagnostic>> {
+    let (source_span, role) = match compilation.typed.symbols.symbol_source_span(symbol) {
+        Some(source_span) => (source_span, authored_role),
+        None => (
+            compilation
+                .typed
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "{subject} has neither an authored declaration span nor a derivation origin"
+                    ))]
+                })?,
+            PackageReviewSourceLocationRole::DerivationOrigin,
+        ),
+    };
+    Ok(ProjectedNestedSourceLocation { source_span, role })
+}
+
 fn canonical_source_span_location(
     compilation: &CheckedCompilation,
     span: psi_source::SourceSpan,
@@ -3835,6 +3865,12 @@ fn project_public_traits(
             },
         ));
         for requirement in compilation.trait_machine_signatures(definition) {
+            nested_source_locations.push(project_nested_declaration_source_location(
+                compilation,
+                requirement.symbol,
+                PackageReviewSourceLocationRole::TraitRequirement,
+                "public trait requirement",
+            )?);
             nested_source_locations.extend(project_contract_source_locations(
                 compilation,
                 compilation.state_signature_contracts(requirement),
@@ -5617,6 +5653,34 @@ fn project_public_data(
             nested_source_locations: {
                 let mut locations = Vec::new();
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
+                for member in compilation.data_members(definition) {
+                    match member {
+                        psi_typed_trees::data::DataMember::Field(field) => {
+                            locations.push(project_nested_declaration_source_location(
+                                compilation,
+                                field.symbol,
+                                PackageReviewSourceLocationRole::DataMember,
+                                "public data field",
+                            )?);
+                        }
+                        psi_typed_trees::data::DataMember::Variant(variant) => {
+                            locations.push(project_nested_declaration_source_location(
+                                compilation,
+                                variant.symbol,
+                                PackageReviewSourceLocationRole::DataMember,
+                                "public data case",
+                            )?);
+                            for field in compilation.data_payload_fields(variant) {
+                                locations.push(project_nested_declaration_source_location(
+                                    compilation,
+                                    field.symbol,
+                                    PackageReviewSourceLocationRole::DataMember,
+                                    "public data case payload field",
+                                )?);
+                            }
+                        }
+                    }
+                }
                 locations.extend(project_required_proof_fact_source_locations(
                     compilation,
                     definition.where_facts,
