@@ -109,23 +109,29 @@ h_imm:
     ldr  x10, [x21], #8
     str  x10, [x19, w9, uxtw #3]
     b    next
+// Hot two-register handlers read the adjacent operand bytes independently,
+// then advance pc once.  This is the same d,s decode and pc+2 transition as
+// two serial post-index loads, without a load-to-load writeback dependency.
 h_mov:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w10, uxtw #3]
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_add:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     add  x11, x11, x12
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_sub:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     sub  x11, x11, x12
@@ -187,15 +193,17 @@ h_storeb:
     strb w12, [x20, x11]
     b    next
 h_load:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x12, [x19, w10, uxtw #3]
     ldr  x11, [x20, x12]
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_store:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     str  x12, [x20, x11]
