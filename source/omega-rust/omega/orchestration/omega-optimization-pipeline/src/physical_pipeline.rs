@@ -29,8 +29,8 @@ use crate::{
     StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization, StagedOptimizedAarch64CbnzFusion,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedRegisterHomes,
-    StagedOptimizedRegisterHomesAfterFixedViewCopies,
+    StagedOptimizedLiveRanges, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedRegisterHomes, StagedOptimizedRegisterHomesAfterFixedViewCopies,
     StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization,
     ValidatedFunctionRelativeOptimizationRealizationManifest, run_selected_lowering_optimizations,
@@ -75,7 +75,7 @@ pub enum StagedOptimizedVerifiedPhysicalPipeline {
         machine: StagedOptimizedPostAllocationMachinePlan,
     },
     ActiveResidentRematerialization {
-        realization: StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
+        realization: Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
     },
     FunctionRelativeLayout {
         realization: StagedFunctionRelativeLayoutOptimizationRealization,
@@ -364,6 +364,50 @@ pub enum OptimizedVerifiedPhysicalPipelineError {
     FunctionRelativeRealization(FunctionRelativeOptimizationRealizationError),
 }
 
+#[inline(never)]
+fn stage_active_resident_rematerialization_pipeline(
+    ranges: StagedOptimizedLiveRanges,
+) -> Result<
+    Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
+    OptimizedVerifiedPhysicalPipelineError,
+> {
+    let budget = ranges
+        .liveness_stage()
+        .selected_stage()
+        .optimized_target()
+        .optimized()
+        .budget_per_pass();
+    let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
+    let rematerialization = stage_optimized_active_resident_rematerialization(
+        legality,
+        TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+        TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+        budget,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerialization)?;
+    let machine =
+        stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+            &rematerialization,
+        )
+        .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
+    let encoding = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+        rematerialization,
+        machine,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationEncoding)?;
+    let layout = stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+        encoding,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationLayout)?;
+    stage_optimized_active_resident_rematerialization_function_relative_realization(layout)
+        .map(Box::new)
+        .map_err(
+            OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationFunctionRelative,
+        )
+}
+
 impl std::fmt::Display for OptimizedVerifiedPhysicalPipelineError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
@@ -380,6 +424,67 @@ impl std::error::Error for OptimizedVerifiedPhysicalPipelineError {}
 /// retained build suite; callers cannot request or skip selected-lowering work
 /// independently.
 pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<StagedOptimizedVerifiedPhysicalPipeline, OptimizedVerifiedPhysicalPipelineError> {
+    let allocation_recovery = optimized
+        .selections()
+        .for_phase(OptimizationExecutionPhase::AllocationRecovery);
+    if allocation_recovery.as_slice()
+        == [Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1]
+    {
+        if !optimized
+            .selections()
+            .for_phase(OptimizationExecutionPhase::SelectedLowering)
+            .is_empty()
+            || !optimized
+                .selections()
+                .for_phase(OptimizationExecutionPhase::FunctionRelativeLayout)
+                .is_empty()
+            || !optimized
+                .selections()
+                .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
+                .is_empty()
+        {
+            return Err(
+                OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition,
+            );
+        }
+        let ranges =
+            stage_active_resident_rematerialization_live_ranges(optimized, target, settlements)?;
+        let realization = stage_active_resident_rematerialization_pipeline(ranges)?;
+        return Ok(
+            StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+                realization,
+            },
+        );
+    }
+    stage_non_active_resident_rematerialization_physical_pipeline(optimized, target, settlements)
+}
+
+#[inline(never)]
+fn stage_active_resident_rematerialization_live_ranges(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+) -> Result<StagedOptimizedLiveRanges, OptimizedVerifiedPhysicalPipelineError> {
+    let target = lower_optimized_to_target_operations_with_provider_executions(
+        optimized,
+        target,
+        settlements,
+    )
+    .map_err(OptimizedVerifiedPhysicalPipelineError::TargetLowering)?;
+    let selected = stage_optimized_instruction_selection(target)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Selection)?;
+    let liveness = stage_optimized_liveness(selected)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::Liveness)?;
+    stage_optimized_live_ranges(liveness)
+        .map_err(OptimizedVerifiedPhysicalPipelineError::LiveRanges)
+}
+
+#[inline(never)]
+fn stage_non_active_resident_rematerialization_physical_pipeline(
     optimized: ValidatedOptimizedAbstractPlan,
     target: NativeTarget,
     settlements: &[AdmittedTerminalBoundarySettlement<'_>],
@@ -459,31 +564,6 @@ pub fn stage_optimized_verified_physical_pipeline_with_provider_executions(
                         .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
                 return Ok(
                     StagedOptimizedVerifiedPhysicalPipeline::AllocationRecovery { homes, machine },
-                );
-            }
-            [Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1] => {
-                let legality = stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::AllocationLegality)?;
-                let rematerialization = stage_optimized_active_resident_rematerialization(
-                    legality,
-                    TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
-                    TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
-                    TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
-                    budget,
-                )
-                .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerialization)?;
-                let machine = stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(&rematerialization)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::PostAllocationMachine)?;
-                let encoding = stage_optimized_active_resident_rematerialization_selected_form_encoding(rematerialization, machine)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationEncoding)?;
-                let layout = stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(encoding)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationLayout)?;
-                let realization = stage_optimized_active_resident_rematerialization_function_relative_realization(layout)
-                    .map_err(OptimizedVerifiedPhysicalPipelineError::ActiveResidentRematerializationFunctionRelative)?;
-                return Ok(
-                    StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
-                        realization,
-                    },
                 );
             }
             _ => {
