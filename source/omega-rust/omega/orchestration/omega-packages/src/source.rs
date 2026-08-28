@@ -3082,8 +3082,43 @@ fn verify_git_cache_entry(
 }
 
 fn invalidate_git_cache_entry(entry_root: &Path) {
-    let metadata_path = entry_root.join(GIT_CACHE_METADATA);
-    let _ = std::fs::remove_file(metadata_path);
+    let _ = invalidate_git_cache_entry_from_retained_parent(entry_root);
+}
+
+fn invalidate_git_cache_entry_from_retained_parent(
+    entry_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let cache_root = entry_root
+        .parent()
+        .ok_or_else(|| cache_invalid(entry_root, "Git cache entry has no cache parent"))?;
+    verify_git_cache_root_custody(cache_root)?;
+    let cache_directory = open_absolute_directory_nofollow(cache_root)
+        .map_err(|error| cache_invalid(cache_root, error.to_string()))?;
+    let entry_name = direct_cache_child_name(CacheCustodyKind::Git, cache_root, entry_root)?;
+    let classified = cache_directory
+        .symlink_metadata(entry_name)
+        .map_err(|error| io_error(entry_root, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
+        return Err(cache_invalid(
+            entry_root,
+            "Git cache invalidation target is not a concrete directory",
+        ));
+    }
+    let entry_directory = cache_directory
+        .open_dir_nofollow(entry_name)
+        .map_err(|error| cache_invalid(entry_root, error.to_string()))?;
+    let opened = entry_directory
+        .dir_metadata()
+        .map_err(|error| io_error(entry_root, error))?;
+    if !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_invalid(
+            entry_root,
+            "Git cache entry changed while opening it for invalidation",
+        ));
+    }
+    entry_directory
+        .remove_file(GIT_CACHE_METADATA)
+        .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))
 }
 
 fn git_cache_identity(
@@ -8571,6 +8606,28 @@ mod tests {
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&substitute);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_invalidation_does_not_follow_a_substituted_entry_symlink() {
+        let cache = temp_root("git-invalidation-symlink");
+        let target = cache.join("target");
+        let entry = cache.join("git-substituted");
+        std::fs::create_dir_all(&target).expect("create invalidation target");
+        let target_metadata = target.join(GIT_CACHE_METADATA);
+        std::fs::write(&target_metadata, b"must remain").expect("write target metadata");
+        std::os::unix::fs::symlink(&target, &entry).expect("substitute Git cache entry");
+
+        let error = invalidate_git_cache_entry_from_retained_parent(&entry)
+            .expect_err("invalidation must reject a substituted entry symlink");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert_eq!(
+            std::fs::read(&target_metadata).expect("read retained target metadata"),
+            b"must remain"
+        );
         let _ = std::fs::remove_dir_all(&cache);
     }
 

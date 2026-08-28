@@ -178,8 +178,11 @@ publication locks likewise open a validated direct-child name no-follow through
 a retained parent capability. Lock acquisition confirms leaf identity relative
 to that parent after waiting and requires the canonical parent pathname still
 to identify the retained directory; the parent capability remains alive for
-the lock lifetime. Metadata reads, staging creation and cleanup, invalidation,
-and macOS ACL inspection are not yet fully handle-relative. Destination
+the lock lifetime. Git invalidation opens the entry as a stable direct child
+through the retained cache parent and removes resolver metadata relative to the
+retained entry directory; a substituted entry symlink cannot redirect that
+deletion. Metadata reads, staging creation and cleanup, and macOS ACL inspection
+are not yet fully handle-relative. Destination
 exclusion is cooperative rather than an atomic hostile-same-user no-replace
 primitive, so this still does not claim exclusion of an actively hostile
 same-user process.
