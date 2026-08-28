@@ -172,18 +172,20 @@ and are not blocked on this ruling.
   account for 90.2% of execution; the first five account for 81.7%. Reordering
   the existing ARM64 comparison rows by measured frequency preserved every
   handler and improved exact-workload progress by 8.7–11.2% and the
-  representative million-call Gamma loop by about 6.8% in temporary builds.
-  It passed Alpha conformance/assembler reproduction and the Gamma interpreter
-  gate, but has not been adopted or subjected to the full cross-check suite.
+  representative million-call Gamma loop by 8.11% across five alternating
+  runs. The reordered seed is now adopted: handler source and disassembled
+  handler tails remain byte-identical, Alpha provenance/conformance/assembler
+  reproduction, seed diamonds/fuzzing, eighteen representative checker gates,
+  and all six principal Gamma gates pass.
   A bounds-checked 21-row branch-table prototype
   passed all Alpha gates and improved a synthetic two-opcode loop from
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
   Gamma tail loop from 2.68–2.70 seconds to 3.18–3.19 seconds; it was therefore
-  rejected and the committed seed remains unchanged. Validate and, if it
-  survives the complete seed/checker/Gamma suite, land the simple row reorder;
-  then profile Beta-generated stack/register traffic before attempting another
-  dispatch mechanism or speculative Gamma rewrite. Reduce the cost without
-  changing Alpha or Gamma meaning, hiding a compiler stage, or weakening the
+  rejected. The simple row reorder is not enough to make the full publication
+  run practical by itself. Profile Beta-generated stack/register traffic
+  before attempting another dispatch mechanism or speculative Gamma rewrite.
+  Reduce the cost without changing Alpha or Gamma meaning, hiding a compiler
+  stage, or weakening the
   exact evidence join. The 12-hour safety ceiling is not an acceptable normal
   gate duration.
 - [x] Retire the unconsumed imperative Gamma compatibility compiler, its native

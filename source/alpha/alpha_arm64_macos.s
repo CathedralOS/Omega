@@ -61,48 +61,48 @@ Lcopied:
     movz x22, #0x0400, lsl #16
 next:
     ldrb w23, [x21], #1
-    cmp  w23, #0
-    b.eq h_halt
     cmp  w23, #1
     b.eq h_imm
-    cmp  w23, #2
-    b.eq h_mov
-    cmp  w23, #3
-    b.eq h_add
     cmp  w23, #4
     b.eq h_sub
-    cmp  w23, #5
-    b.eq h_mul
-    cmp  w23, #6
-    b.eq h_div
-    cmp  w23, #7
-    b.eq h_mod
-    cmp  w23, #8
-    b.eq h_loadb
-    cmp  w23, #9
-    b.eq h_storeb
     cmp  w23, #10
     b.eq h_load
+    cmp  w23, #2
+    b.eq h_mov
     cmp  w23, #11
     b.eq h_store
+    cmp  w23, #3
+    b.eq h_add
     cmp  w23, #12
     b.eq h_jmp
     cmp  w23, #13
     b.eq h_jz
-    cmp  w23, #14
-    b.eq h_jnz
-    cmp  w23, #15
-    b.eq h_jlt
     cmp  w23, #16
     b.eq h_jeq
-    cmp  w23, #17
-    b.eq h_read
-    cmp  w23, #18
-    b.eq h_write
     cmp  w23, #19
     b.eq h_call
     cmp  w23, #20
     b.eq h_ret
+    cmp  w23, #15
+    b.eq h_jlt
+    cmp  w23, #5
+    b.eq h_mul
+    cmp  w23, #8
+    b.eq h_loadb
+    cmp  w23, #6
+    b.eq h_div
+    cmp  w23, #9
+    b.eq h_storeb
+    cmp  w23, #7
+    b.eq h_mod
+    cmp  w23, #17
+    b.eq h_read
+    cmp  w23, #0
+    b.eq h_halt
+    cmp  w23, #14
+    b.eq h_jnz
+    cmp  w23, #18
+    b.eq h_write
     udf  #0
 h_imm:
     ldrb w9,  [x21], #1
