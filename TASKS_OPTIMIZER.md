@@ -1454,9 +1454,17 @@ dependency.
   legality eliminate both transition rows before the unchanged strict home
   assigner runs. The unmaterialized path still rejects.
 
+  A disconnected two-machine fixture now reaches selection, liveness, ranges,
+  legality, deterministic homes, and post-allocation machine reconstruction on
+  both supported ISAs. Each function independently restarts dense selected
+  block, VReg, and instruction-position domains; same-shaped local identities
+  therefore do not create cross-function interference or custody. Corrupting
+  only the second machine identity is rejected independently at every retained
+  analysis/allocation/machine replay boundary.
+
   Remaining to close: live-interval construction, loop weights, calls and call
-  crossings, crashes, cleanup and suspension frontiers, disconnected
-  functions, and dedicated tied/use-def/early-clobber handling. General
+  crossings, crashes, cleanup and suspension frontiers, and dedicated
+  tied/use-def/early-clobber handling. General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
   rest of the legalized instruction vocabulary.

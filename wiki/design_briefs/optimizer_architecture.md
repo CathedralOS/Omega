@@ -1566,6 +1566,15 @@ clobbers, and makes no claim about flattened intervals, allocation, spills,
 loops, calls, crashes, cleanup, or suspension. Those become admissible only
 with their explicit selected-IR frontiers and dedicated validation rules.
 
+A two-machine disconnected fixture exercises the complete current vertical on
+x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
+per function, liveness restarts dense positions, ranges remain block-domain and
+machine local, and the same-shaped functions receive the same deterministic
+local homes without cross-function interference. The fixture proceeds through
+legality and post-allocation machine reconstruction. Independent liveness,
+range, legality, home, and machine replays each reject a second-function machine
+identity substitution even though its local numeric IDs match the first.
+
 The next allocator-input artifact preserves that CFG meaning instead of
 collapsing every value to one global numeric interval. Each dense instruction
 position has a before and after point. A range is a canonical set of maximal
