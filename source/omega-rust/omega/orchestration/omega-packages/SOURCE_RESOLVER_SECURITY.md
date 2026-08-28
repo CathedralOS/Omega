@@ -10,11 +10,12 @@ code receives none of the resolver's transport, cache, credential, project, or
 acceptance authority. Compilation consumes a resolver-owned immutable snapshot,
 never a live local tree, Git working tree, or helper-produced claim.
 
-The production path has three custody stages:
+The intended strict production path has three custody stages. The current
+macOS floor does not yet enforce its read separation:
 
-1. A fetch helper resolves transport into a fresh quarantined object store. It
-   has the selected transport authority and no access to project state or final
-   snapshots.
+1. A fetch helper resolves transport into a fresh quarantined object store. In
+   the strict boundary it has the selected transport authority and no access to
+   project state or final snapshots.
 2. A no-network materializer reads only validated objects and writes ordinary
    files and symlinks into a fresh snapshot stage. It never runs checkout
    filters, hooks, submodules, or package executables.
@@ -30,7 +31,8 @@ a live local directory is diagnostic only.
 Every helper launch must use:
 
 - an absolute pre-resolved executable with retained content identity;
-- no shell interpolation, null standard input, bounded output, and a deadline;
+- no package-controlled shell interpolation, null standard input, bounded
+  output, and a deadline;
 - `env_clear` followed by an explicit adapter-specific environment;
 - an explicit working directory and exclusive staging roots;
 - adapter-specific protocols with no ambient protocol helper;
@@ -46,6 +48,11 @@ launcher plus resource/process controls, and Windows a restricted token or
 AppContainer plus a kill-on-close Job Object. If the selected backend cannot
 establish a required guarantee, strict resolution rejects; it never degrades to
 "best effort."
+
+The current macOS engineering floor now selects a fixed Seatbelt launcher and
+closed resolver phase; it is described below. It is deliberately narrower than
+the strict contract: reads remain broad and network authority is not yet bound
+to an endpoint. Linux and Windows do not yet have equivalent strict backends.
 
 Network destination authority should eventually be brokered. SSH additionally
 requires a pinned client, explicit known-host evidence, empty user
@@ -310,10 +317,12 @@ a closed install-relative candidate set, retain its invocation entry and
 canonical target, and apply the same observation and Unix custody checks to
 both identities. `GIT_EXEC_PATH` and `PATH` expose only that observed helper
 directory. SSH requests apply the same observation and Unix custody checks to
-one exact client. Both transports recheck their executable identity around
-every Git launch, re-hash the canonical target at completion, and retain it
-separately. Drift rejects. The Git cache policy is v12, so a cache fetched
-before these executable-custody floors
+one exact client. On macOS the fixed shell executables required to realize the
+sealed SSH command receive the same identity, hash, custody, and ACL treatment;
+they do not grant execution of any unlisted descendant. Both transports recheck
+their executable identity around every Git launch, re-hash the canonical target
+at completion, and retain it separately. Drift rejects. The Git cache policy is
+v12, so a cache fetched before these executable-custody floors
 or under a different transport-authority profile is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
@@ -336,10 +345,42 @@ Each launch clears the complete inherited environment, installs only the fixed
 Git/protocol/locale/helper-path variables, and uses an explicit absolute cache
 or repository working directory. It also receives resolver-owned stdin,
 concurrent bounded stdout/stderr capture, and a deadline. Stdin is null except
-for the exact object-ID request file supplied to `cat-file --batch`. Before
-initializing a cache for a symbolic selector, one bounded `ls-remote` request
-asks only for `HEAD` and that selector and rejects absent, malformed, or mixed
-object formats. The discovered SHA-1/SHA-256 format controls quarantine setup
+for the exact object-ID request file supplied to `cat-file --batch`.
+
+`omega-resolver-execution` derives native policy from one of four closed phases:
+transport discovery, repository initialization, fetch, or repository
+inspection. On macOS it verifies `/usr/bin/sandbox-exec` as a root-owned,
+non-writable, non-set-id executable beneath root-owned ancestry, rejects native
+extended-ACL allow entries, binds its content hash and file identity, and
+rechecks that identity before constructing each command. Compiler-fixed
+Seatbelt policy permits outbound network only during discovery and fetch;
+filesystem mutation only beneath the selected quarantine during initialization
+and fetch; and process execution only for the already verified Git, selected
+transport helper, and fixed platform chain. Inspection has neither network nor
+write authority. The profile currently permits `file-read*`, so it does not yet
+confine reads to quarantine plus trusted tool/runtime inputs. It also permits
+all outbound destinations in network phases rather than brokering the requested
+endpoint. `/usr/bin/sandbox-exec` is a deprecated host interface, so this is a
+concrete current-host enforcement floor rather than a durable macOS backend
+promise. Failure to establish or revalidate it rejects on macOS.
+
+Every Unix resolver child inherits at most 120 CPU seconds, a zero core-file
+limit, a 1 GiB file-size ceiling, and at most 256 descriptors. Linux/Android
+also receive an 8 GiB address-space limit; Darwin does not expose a usable
+equivalent through this rlimit path. Each compiler ceiling intersects the inherited soft
+and hard limits and therefore never loosens a stricter host limit. These limits
+are inherited per process, not an
+aggregate descendant/process-count/object-store/transfer budget. Linux still
+lacks filesystem, executable, and network confinement; Windows still has only
+the existing kill-on-close process container. Native canaries exercise denied
+writes, denied unlisted descendant execution, denied inspection networking,
+and admitted discovery networking. Hermetic loopback canaries also exercise the
+selected production HTTPS helper and fixed shell/SSH executable chains through
+the same allowlist. The full Git source suite runs through this boundary.
+
+Before initializing a cache for a symbolic selector, one bounded `ls-remote`
+request asks only for `HEAD` and that selector and rejects absent, malformed,
+or mixed object formats. The discovered SHA-1/SHA-256 format controls quarantine setup
 but is not evidence; parent-owned object authentication still decides whether
 the selected graph is coherent. Fetch requests only the selected revision at
 depth one, disables automatic maintenance and garbage collection, and requests
@@ -364,14 +405,16 @@ a separate two-second deadline and fails closed if portable process APIs do not
 finish within it. A descendant escaping its Unix session remains outside this
 portable guarantee, and the cleanup allowance means the per-command deadline
 is not a strict wall-clock guarantee. Overflow and timeout reject explicitly once
-cleanup returns, including for blob reads. This process container floor is not
-an OS sandbox: a hostile Unix descendant may deliberately escape into another
-session. Depth-one fetch limits history amplification but does not enforce a
-transferred-byte or object-store quota. The launch ceiling is not a CPU, memory,
-object-store, or transfer-work budget. Fetch and
-materialization still run in the parent process
-without filesystem/network confinement or CPU, memory, process-count, and
-transfer ceilings. A deliberately hostile same-user process can race
+cleanup returns, including for blob reads. On Linux this process container
+floor is not an OS sandbox: a hostile Unix descendant may deliberately escape
+into another session. The macOS Seatbelt floor adds phase-specific native
+confinement but not endpoint, read-scope, or aggregate-resource custody.
+Depth-one fetch limits history amplification but does not enforce a transferred-
+byte or object-store quota. The launch ceiling and inherited rlimits are not an
+aggregate CPU, memory, process-count, object-store, or transfer-work budget.
+Materialization remains trusted parent code rooted in retained filesystem
+capabilities rather than a separate sandboxed helper. A deliberately hostile
+same-user process can race
 cooperative locks and validation, including the local before/after observation.
 Git no longer stores a cache-local remote origin. Fetch receives the exact
 resolver request directly, and the parent overwrites local repository config
@@ -388,8 +431,8 @@ symlink logical lengths. Git entries reject above
 `min(3 * source-byte-limit + 64 MiB, 1 GiB)`; local publications reject above
 `min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
 ceilings for resident cache state, not during-write disk quotas or transferred-
-byte measurements: an unconfined helper may still exhaust storage before the
-parent can reject its output. Every Git or local publication lock opens
+byte measurements: a helper without an aggregate disk quota may still exhaust
+storage before the parent can reject its output. Every Git or local publication lock opens
 no-follow relative to a retained canonical-parent capability. After waiting,
 the resolver compares the locked handle with that parent's current leaf and
 compares the retained parent with the current canonical parent pathname using
@@ -414,20 +457,22 @@ interface is path-oriented.
 This closes ordinary cross-user
 ownership/configuration substitution on Unix. It does not prevent the owning
 user from replacing a path after an observation, establish Windows
-ownership/DACL policy, or
-replace native isolation. Git path and symlink preflight rejects Windows
+ownership/DACL policy, or establish strict native isolation on every platform.
+Git path and symlink preflight rejects Windows
 drive/alternate-stream colons, forbidden characters and controls, trailing
 dots/spaces, and reserved device names independently of the host path parser.
 HTTPS Git commands can select only the observed install-relative
 `git-remote-https` invocation entry and its retained canonical target. Other
-executable components beneath Git remain outside retained identity. SSH is
+executable components beneath Git remain outside retained identity and the
+macOS backend's execution allowlist. SSH is
 forced through its content-observed absolute client with user configuration
 disabled, `BatchMode`, zero password
 prompts, and strict host-key checking. It still
 consults the user's default known-host and key files, so host and credential
 custody remain ambient and unsuitable for strict admission. Those conditions
-keep the resolver diagnostic-only until native helper confinement, hostile-
-process custody, during-write resource ceilings, and opaque-receipt work land.
+keep the resolver diagnostic-only until strict native confinement on every
+supported platform, hostile-process custody, during-write resource ceilings,
+and opaque-receipt work land.
 
 Public requests admit only HTTPS and SSH transports. The validated request
 retains an execution profile distinct from transport-neutral hosted-repository
@@ -444,8 +489,9 @@ endpoint. It does not yet retain the effective socket endpoint, pin TLS trust,
 or confine DNS and network access to the requested host, so complete endpoint
 custody still belongs to the native resolver boundary and its receipt.
 
-Parent-owned selected-object-graph authentication supplies real evidence for a
-later strict receipt but does not itself make the resolver admissible. Native
-isolation, hostile same-user and Windows ACL cache custody, resource ceilings,
-explicit SSH trust/credential custody (OWNER Q16), and the opaque receipt remain
-open.
+Parent-owned selected-object-graph authentication and the current macOS native
+enforcement supply real evidence for a later strict receipt but do not by
+themselves make the resolver admissible. Linux/Windows strict isolation,
+hostile same-user and Windows ACL cache custody, aggregate/during-write resource
+ceilings, endpoint custody, explicit SSH trust/credential custody (OWNER Q16),
+and the opaque receipt remain open.

@@ -1357,6 +1357,7 @@ dependencies = [
  "omega-package-compilation",
  "omega-package-review",
  "omega-platform-custody",
+ "omega-resolver-execution",
  "psi-checked-interpreter",
  "psi-core",
  "psi-diagnostics",
@@ -1523,6 +1524,15 @@ dependencies = [
  "psi-language-semantics",
  "psi-layout-plans",
  "psi-symbols",
+]
+
+[[package]]
+name = "omega-resolver-execution"
+version = "0.1.0"
+dependencies = [
+ "omega-platform-custody",
+ "rustix",
+ "sha2",
 ]
 
 [[package]]

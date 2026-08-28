@@ -16,6 +16,7 @@ use cap_std::{
     },
 };
 use command_group::{CommandGroup, GroupChild};
+use omega_resolver_execution::{ResolverExecutionBackend, ResolverExecutionPhase};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
 use std::cell::Cell;
@@ -478,11 +479,13 @@ struct GitExecutor {
     identity: GitExecutableIdentity,
     metadata_identity: GitExecutableMetadataIdentity,
     transport_executable: Option<GitTransportExecutableObservation>,
+    execution_helpers: Vec<GitTransportExecutableObservation>,
     execution_transport: GitExecutionTransport,
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
     maximum_launches: usize,
+    execution_backend: ResolverExecutionBackend,
 }
 
 #[derive(Debug)]
@@ -558,6 +561,9 @@ pub enum SourceResolveError {
     },
     GitExecutableChanged {
         path: PathBuf,
+    },
+    GitExecutionBoundaryInvalid {
+        message: String,
     },
     GitResolutionCommandLimit {
         limit: usize,
@@ -694,6 +700,9 @@ impl fmt::Display for SourceResolveError {
                 "Git resolver executable `{}` changed during source resolution",
                 path.display()
             ),
+            Self::GitExecutionBoundaryInvalid { message } => {
+                write!(output, "Git native execution boundary is invalid: {message}")
+            }
             Self::GitResolutionCommandLimit { limit } => write!(
                 output,
                 "Git source resolution exceeded its {limit}-command launch ceiling"
@@ -2593,7 +2602,11 @@ fn execute_git_blob_batch(
     entries: &mut [GitTreeEntry],
     stdout_limit: usize,
 ) -> Result<(), SourceResolveError> {
-    let mut command = sealed_git_command(executor, repository)?;
+    let mut command = sealed_git_command(
+        executor,
+        repository,
+        ResolverExecutionPhase::RepositoryInspection,
+    )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
     let result = run_command_bounded_with_stdin(
@@ -3531,7 +3544,12 @@ fn create_git_cache_entry(
     init_arguments.push(empty_template.as_os_str().to_owned());
     init_arguments.push(repository.as_os_str().to_owned());
     pending.verify_ambient_path_identity(cache_dir)?;
-    let init_result = run_git(executor, &pending.root, init_arguments.iter());
+    let init_result = run_git(
+        executor,
+        &pending.root,
+        ResolverExecutionPhase::RepositoryInitialization,
+        init_arguments.iter(),
+    );
     reconcile_git_cache_operation_result(
         init_result,
         pending.verify_ambient_path_identity(cache_dir),
@@ -3642,6 +3660,7 @@ fn discover_git_object_format(
     let output = run_git_bytes_stdout(
         executor,
         working_directory,
+        ResolverExecutionPhase::TransportDiscovery,
         [
             OsStr::new("ls-remote"),
             OsStr::new("--symref"),
@@ -3864,7 +3883,12 @@ impl VerifiedGitRepository {
         S: AsRef<OsStr>,
     {
         self.verify_identity()?;
-        let result = run_git(executor, &self.repository_path, args);
+        let result = run_git(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::Fetch,
+            args,
+        );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
 
@@ -3878,7 +3902,12 @@ impl VerifiedGitRepository {
         S: AsRef<OsStr>,
     {
         self.verify_identity()?;
-        let result = run_git_stdout(executor, &self.repository_path, args);
+        let result = run_git_stdout(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::RepositoryInspection,
+            args,
+        );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
 
@@ -3892,7 +3921,12 @@ impl VerifiedGitRepository {
         S: AsRef<OsStr>,
     {
         self.verify_identity()?;
-        let result = run_git_bytes_stdout(executor, &self.repository_path, args);
+        let result = run_git_bytes_stdout(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::RepositoryInspection,
+            args,
+        );
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
 
@@ -6410,6 +6444,12 @@ impl GitExecutor {
             #[cfg(test)]
             GitExecutionTransport::File => None,
         };
+        let execution_helpers = open_resolver_execution_helpers(execution_transport)?;
+        let execution_backend = ResolverExecutionBackend::open().map_err(|error| {
+            SourceResolveError::GitExecutionBoundaryInvalid {
+                message: error.to_string(),
+            }
+        })?;
         Ok(Self {
             identity: GitExecutableIdentity {
                 path: canonical,
@@ -6417,11 +6457,13 @@ impl GitExecutor {
             },
             metadata_identity,
             transport_executable,
+            execution_helpers,
             execution_transport,
             started,
             timeout,
             launches: Cell::new(0),
             maximum_launches,
+            execution_backend,
         })
     }
 
@@ -6435,6 +6477,14 @@ impl GitExecutor {
         if let Some(transport_executable) = &self.transport_executable {
             verify_git_transport_executable(transport_executable)?;
         }
+        for helper in &self.execution_helpers {
+            verify_git_transport_executable(helper)?;
+        }
+        self.execution_backend.verify().map_err(|error| {
+            SourceResolveError::GitExecutionBoundaryInvalid {
+                message: error.to_string(),
+            }
+        })?;
         Ok(())
     }
 
@@ -6452,6 +6502,13 @@ impl GitExecutor {
             return Err(SourceResolveError::GitExecutableChanged {
                 path: transport_executable.identity.path.clone(),
             });
+        }
+        for helper in &self.execution_helpers {
+            if hash_git_executable(&helper.identity.path)? != helper.identity.content_identity {
+                return Err(SourceResolveError::GitExecutableChanged {
+                    path: helper.identity.path.clone(),
+                });
+            }
         }
         self.verify()?;
         self.verify_budget()
@@ -6483,6 +6540,35 @@ impl GitExecutor {
             Ok(self.timeout - elapsed)
         }
     }
+}
+
+#[cfg(target_os = "macos")]
+fn open_resolver_execution_helpers(
+    execution_transport: GitExecutionTransport,
+) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
+    let paths: &[&str] = match execution_transport {
+        GitExecutionTransport::Ssh => &["/bin/sh", "/bin/bash"],
+        GitExecutionTransport::Https => &[],
+        #[cfg(test)]
+        GitExecutionTransport::File => &[
+            "/bin/sh",
+            "/bin/bash",
+            "/bin/mv",
+            "/bin/sleep",
+            "/usr/bin/git-upload-pack",
+        ],
+    };
+    paths
+        .iter()
+        .map(|path| open_git_transport_executable(Path::new(path)))
+        .collect()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_resolver_execution_helpers(
+    _execution_transport: GitExecutionTransport,
+) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
+    Ok(Vec::new())
 }
 
 fn open_ssh_transport_executable(
@@ -7060,13 +7146,14 @@ fn observe_git_executable_metadata(
 fn run_git<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<(), SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(())
     } else {
@@ -7081,13 +7168,14 @@ where
 fn run_git_stdout<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<String, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
@@ -7102,13 +7190,14 @@ where
 fn run_git_bytes_stdout<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<Vec<u8>, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(output.stdout)
     } else {
@@ -7123,13 +7212,14 @@ where
 fn run_git_output<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<BoundedCommandOutput, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = sealed_git_command(executor, working_directory)?;
+    let mut command = sealed_git_command(executor, working_directory, phase)?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
     let result = run_command_bounded(
@@ -7496,6 +7586,7 @@ fn duration_millis(duration: Duration) -> u64 {
 fn sealed_git_command(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
 ) -> Result<Command, SourceResolveError> {
     executor.verify()?;
     if !working_directory.is_absolute() {
@@ -7516,7 +7607,43 @@ fn sealed_git_command(
         });
     }
 
-    let mut command = Command::new(&executor.identity.path);
+    let network_phase = matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    );
+    let mut helper_executables = Vec::new();
+    if network_phase && let Some(helper) = &executor.transport_executable {
+        helper_executables.push(helper.identity.invocation_path.clone());
+        if helper.identity.path != helper.identity.invocation_path {
+            helper_executables.push(helper.identity.path.clone());
+        }
+    }
+    if network_phase {
+        for helper in &executor.execution_helpers {
+            helper_executables.push(helper.identity.invocation_path.clone());
+            if helper.identity.path != helper.identity.invocation_path {
+                helper_executables.push(helper.identity.path.clone());
+            }
+        }
+    }
+    let mutable_root = match phase {
+        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
+            Some(working_directory)
+        }
+        ResolverExecutionPhase::TransportDiscovery
+        | ResolverExecutionPhase::RepositoryInspection => None,
+    };
+    let mut command = executor
+        .execution_backend
+        .command(
+            &executor.identity.path,
+            &helper_executables,
+            phase,
+            mutable_root,
+        )
+        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+            message: error.to_string(),
+        })?;
     command
         .env_clear()
         .current_dir(working_directory)
@@ -8260,12 +8387,14 @@ mod tests {
         let tree = run_git_stdout(
             &executor,
             &repo,
+            ResolverExecutionPhase::RepositoryInspection,
             [OsStr::new("rev-parse"), OsStr::new("HEAD^{tree}")],
         )
         .expect("resolve tree");
         let listing = run_git_bytes_stdout(
             &executor,
             &repo,
+            ResolverExecutionPhase::RepositoryInspection,
             [
                 OsStr::new("ls-tree"),
                 OsStr::new("--full-tree"),
@@ -11667,7 +11796,8 @@ mod tests {
             .canonicalize()
             .expect("canonical temporary directory");
         let command =
-            sealed_git_command(&executor, &working_directory).expect("sealed absolute Git command");
+            sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                .expect("sealed absolute Git command");
         let environment = command
             .get_envs()
             .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
@@ -11719,6 +11849,16 @@ mod tests {
             (OsString::from("PATH"), Some(git_helper_path(&executor))),
         ]);
         assert_eq!(environment, expected_environment);
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
+            assert!(
+                arguments
+                    .iter()
+                    .any(|argument| { Path::new(argument) == executor.identity.path.as_path() })
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(command.get_program(), executor.identity.path.as_os_str());
         assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
         assert!(
@@ -11790,8 +11930,9 @@ mod tests {
             (GitExecutionTransport::File, "file"),
         ] {
             let executor = GitExecutor::system(transport).expect("system Git executor");
-            let command = sealed_git_command(&executor, &working_directory)
-                .expect("sealed absolute Git command");
+            let command =
+                sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                    .expect("sealed absolute Git command");
             let environment = command
                 .get_envs()
                 .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
@@ -11869,6 +12010,91 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "macos")]
+    fn loopback_acceptance_canary() -> (u16, std::thread::JoinHandle<()>) {
+        use std::io::ErrorKind;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind helper-chain canary");
+        listener
+            .set_nonblocking(true)
+            .expect("make helper-chain canary nonblocking");
+        let port = listener.local_addr().expect("read canary address").port();
+        let acceptance = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(4);
+            loop {
+                match listener.accept() {
+                    Ok((_connection, _address)) => return,
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "resolver helper chain did not reach the loopback listener"
+                        );
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("helper-chain listener failed: {error}"),
+                }
+            }
+        });
+        (port, acceptance)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn bounded_system_executor(transport: GitExecutionTransport) -> GitExecutor {
+        let executable = system_git_candidates()
+            .iter()
+            .map(Path::new)
+            .find(|path| path.is_file())
+            .expect("find concrete system Git");
+        GitExecutor::open_with_budget_for_transport(
+            executable,
+            1,
+            Duration::from_secs(3),
+            transport,
+        )
+        .expect("open bounded system Git executor")
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_https_execution_chain_reaches_the_selected_endpoint() {
+        let (port, acceptance) = loopback_acceptance_canary();
+        let executor = bounded_system_executor(GitExecutionTransport::Https);
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        let locator = format!("https://127.0.0.1:{port}/repository");
+        let output = run_git_output(
+            &executor,
+            &working_directory,
+            ResolverExecutionPhase::TransportDiscovery,
+            [OsStr::new("ls-remote"), OsStr::new(&locator)],
+        )
+        .expect("launch the retained HTTPS executable chain");
+        assert!(!output.status.success());
+        acceptance.join().expect("observe HTTPS helper connection");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_ssh_execution_chain_reaches_the_selected_endpoint() {
+        let (port, acceptance) = loopback_acceptance_canary();
+        let executor = bounded_system_executor(GitExecutionTransport::Ssh);
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        let locator = format!("ssh://127.0.0.1:{port}/repository");
+        let output = run_git_output(
+            &executor,
+            &working_directory,
+            ResolverExecutionPhase::TransportDiscovery,
+            [OsStr::new("ls-remote"), OsStr::new(&locator)],
+        )
+        .expect("launch the retained SSH executable chain");
+        assert!(!output.status.success());
+        acceptance.join().expect("observe SSH helper connection");
+    }
+
     #[cfg(unix)]
     #[test]
     fn git_executor_uses_committed_absolute_program_cleared_environment_and_explicit_cwd() {
@@ -11893,6 +12119,7 @@ mod tests {
         let output = run_git_output(
             &executor,
             &working_directory,
+            ResolverExecutionPhase::Fetch,
             [OsStr::new("ignored-by-test-helper")],
         )
         .expect("run sealed fake Git");
@@ -11905,8 +12132,19 @@ mod tests {
         assert!(stdout.contains("home=unset\n"));
         assert!(stdout.contains("path=/usr/bin:/bin\n"));
 
-        let command = sealed_git_command(&executor, &working_directory)
-            .expect("construct sealed fake Git command");
+        let command =
+            sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                .expect("construct sealed fake Git command");
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
+            assert!(
+                command
+                    .get_args()
+                    .any(|argument| argument == fake_git.canonicalize().unwrap().as_os_str())
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(command.get_program(), fake_git.canonicalize().unwrap());
         assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
 
@@ -11940,7 +12178,7 @@ mod tests {
             Err(SourceResolveError::GitExecutableChanged { .. })
         ));
         assert!(matches!(
-            sealed_git_command(&executor, &root),
+            sealed_git_command(&executor, &root, ResolverExecutionPhase::Fetch),
             Err(SourceResolveError::GitExecutableChanged { .. })
         ));
 
@@ -12119,7 +12357,12 @@ mod tests {
             let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
 
             assert!(matches!(
-                run_git_output(&executor, &root, [OsStr::new("ignored")]),
+                run_git_output(
+                    &executor,
+                    &root,
+                    ResolverExecutionPhase::Fetch,
+                    [OsStr::new("ignored")],
+                ),
                 Err(SourceResolveError::GitExecutableChanged { .. })
             ));
 
@@ -12140,10 +12383,20 @@ mod tests {
             .expect("make fast fake Git executable");
         let launch_bounded = GitExecutor::open_with_budget(&fast_git, 1, Duration::from_secs(1))
             .expect("capture launch-bounded Git");
-        run_git_output(&launch_bounded, &root, [OsStr::new("first")])
-            .expect("first launch fits the budget");
+        run_git_output(
+            &launch_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("first")],
+        )
+        .expect("first launch fits the budget");
         assert!(matches!(
-            run_git_output(&launch_bounded, &root, [OsStr::new("second")]),
+            run_git_output(
+                &launch_bounded,
+                &root,
+                ResolverExecutionPhase::Fetch,
+                [OsStr::new("second")],
+            ),
             Err(SourceResolveError::GitResolutionCommandLimit { limit: 1 })
         ));
 
@@ -12154,7 +12407,12 @@ mod tests {
         let time_bounded = GitExecutor::open_with_budget(&slow_git, 1, Duration::from_millis(30))
             .expect("capture time-bounded Git");
         assert!(matches!(
-            run_git_output(&time_bounded, &root, [OsStr::new("slow")]),
+            run_git_output(
+                &time_bounded,
+                &root,
+                ResolverExecutionPhase::Fetch,
+                [OsStr::new("slow")],
+            ),
             Err(SourceResolveError::GitResolutionTimedOut { .. })
         ));
 
