@@ -102,9 +102,9 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-81,649 bytes for the current
+81,725 bytes for the current
 exact subjects, SHA-256
-`2d49e0409c1e8429ddccd9cb8bb9cf411ade2e6c168d2eab02de1bb46d3881b2`.
+`cfbd2226124851f58f777e624bf36370898e2b317a1f6d900446611d83ff6c28`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -138,6 +138,11 @@ classifier/`cmp_op`/`count_lets` families are localized as well. Their repeated
 calls use explicit occurrence cardinality, fixed emits are selected by
 verifier-owned literal keys, and decoded scan bounds derive from procedure or
 block identities.
+The final bounded-emitter, emit-cmp, string-body, `gen_stmts`, literal-skip, and
+whitespace tranche closes semantic identity localization. Same-key direct
+writes now have a shared occurrence/cardinality identity. The only remaining
+coordinate-taking calls are inside the three low-level owners or the two checks
+whose coordinates were already returned by an independent semantic identity.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

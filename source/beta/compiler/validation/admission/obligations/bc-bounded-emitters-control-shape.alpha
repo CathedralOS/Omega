@@ -80,266 +80,264 @@ bounded_emitters_require_proc_meta:
         call bounded_emitters_require_one_proc
         ret
 
-; r20=row, r21=PC, r22=procedure.  These procedures have one entry block.
+; r20=row, r21=procedure. These procedures have one entry block.
 bounded_emitters_require_single_block:
         mov r30, r20
         mov r31, r21
-        mov r32, r22
-        mov r20, r30
-        mov r21, r31
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         mov r20, r30
         mov r21, r30
-        mov r22, r32
+        mov r22, r31
         call exact_require_proc_blocks
         ret
 
 bounded_emitters_require_blocks:
         imm r20, 148
-        imm r21, 21226
-        imm r22, 30
+        imm r21, 30
         call bounded_emitters_require_single_block
         imm r20, 213
         imm r21, 44                    ; emit_pop_into procedure identity
-        call exact_proc_entry_r21
-        imm r22, 44
         call bounded_emitters_require_single_block
         imm r20, 218
         imm r21, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r21
-        imm r22, 47
         call bounded_emitters_require_single_block
 
         imm r20, 219
-        imm r21, 32434
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 220
-        imm r21, 32485
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 221
-        imm r21, 32617
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 222
-        imm r21, 32688
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 223
-        imm r21, 32820
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 224
-        imm r21, 32891
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 225
-        imm r21, 33023
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 226
-        imm r21, 33094
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 227
-        imm r21, 33226
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 228
-        imm r21, 33297
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 229
-        imm r21, 33450
-        call exact_require_block_pc
+        imm r21, 48
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 219
         imm r21, 229
         imm r22, 48
         call exact_require_proc_blocks
 
         imm r20, 230
-        imm r21, 33541
-        imm r22, 49
+        imm r21, 49
         call bounded_emitters_require_single_block
         imm r20, 231
-        imm r21, 33911
-        imm r22, 50
+        imm r21, 50
         call bounded_emitters_require_single_block
         imm r20, 232
-        imm r21, 34532
-        imm r22, 51
+        imm r21, 51
         call bounded_emitters_require_single_block
         imm r20, 233
-        imm r21, 34754
-        imm r22, 52
+        imm r21, 52
         call bounded_emitters_require_single_block
         ret
 
-; row/source block/guarded/target/control PC in r20..r24.
+; row/source block/guarded/target in r20..r23.
 bounded_emitters_require_transitions:
         imm r20, 169
         imm r21, 220
         imm r22, 1
         imm r23, 221
-        imm r24, 32589               ; add-guard control PC
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 170
         imm r21, 220
         imm r22, 0
         imm r23, 222
-        imm r24, 32608
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 171
         imm r21, 222
         imm r22, 1
         imm r23, 223
-        imm r24, 32792
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 172
         imm r21, 222
         imm r22, 0
         imm r23, 224
-        imm r24, 32811
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 173
         imm r21, 224
         imm r22, 1
         imm r23, 225
-        imm r24, 32995
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 174
         imm r21, 224
         imm r22, 0
         imm r23, 226
-        imm r24, 33014
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 175
         imm r21, 226
         imm r22, 1
         imm r23, 227
-        imm r24, 33198
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 176
         imm r21, 226
         imm r22, 0
         imm r23, 228
-        imm r24, 33217
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 177
         imm r21, 228
         imm r22, 1
         imm r23, 229
-        imm r24, 33401
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
-; r20=row, r21=block, r22=PC for one fixed-string event.
+; r20=semantic row, r21=procedure, r22=block, r23=literal, r24=length.
 bounded_emitters_require_fixed_event:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r20, r30
-        mov r21, r31
-        imm r22, 4
-        mov r23, r32
-        call exact_require_event
+        mov r50, r20
+        mov r20, r21
+        mov r21, r22
+        mov r22, r23
+        mov r23, r24
+        call exact_unique_emit_event_identity
+        jeq r1, r50, bounded_emitters_fixed_event_ok
+        jmp reject
+bounded_emitters_fixed_event_ok:
         ret
 
-; r20=row, r21=block, r22=call PC, r23=arity, r24=target,
-; r25=exact continuation.
-; All selected ordinary calls have zero ambient words and a nine-byte call.
+; r20=semantic row, r21=procedure, r22=block, r23=arity, r24=target.
 bounded_emitters_require_ordinary_call:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r20, r30
-        mov r21, r31
-        imm r22, 1
-        mov r23, r32
-        call exact_require_event
-        mov r2, r30
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7143424
-        add r1, r2
-        load r2, r1
-        jeq r2, r33, bounded_emitters_call_ambient
+        mov r50, r20
+        mov r20, r21
+        mov r21, r22
+        mov r22, r23
+        imm r23, 0
+        call exact_unique_call_event_identity
+        jeq r1, r50, bounded_emitters_call_ok
         jmp reject
-bounded_emitters_call_ambient:
-        mov r2, r30
-        imm r1, 8
-        mul r2, r1
-        imm r1, 10035200
-        add r1, r2
-        load r2, r1
-        imm r1, 0
-        jeq r2, r1, bounded_emitters_call_continuation
+bounded_emitters_call_ok:
+        call summary_require_selected_call_fallthrough
+        ret
+
+; As above, with occurrence/cardinality in r25/r26.
+bounded_emitters_require_nth_call:
+        mov r50, r20
+        mov r20, r21
+        mov r21, r22
+        mov r22, r23
+        imm r23, 0
+        call exact_nth_call_event_identity
+        jeq r1, r50, bounded_emitters_nth_call_ok
         jmp reject
-bounded_emitters_call_continuation:
-        mov r20, r32
-        mov r21, r34
-        mov r22, r35
-        call exact_require_call
+bounded_emitters_nth_call_ok:
+        call summary_require_selected_call_fallthrough
+        ret
+
+bounded_emitters_require_return:
+        call exact_require_event_epilogue
         ret
 
 bounded_emitters_require_events:
         ; gen_read_byte: two expect children, one fixed output, return zero.
         imm r20, 233
-        imm r21, 148
-        imm r22, 21287
+        imm r21, 30
+        imm r22, 148
         imm r23, 1
-        imm r24, 17441               ; first expect target
-        imm r25, 21296               ; exact first call continuation
-        call bounded_emitters_require_ordinary_call
+        imm r24, 24                 ; expect procedure identity
+        imm r25, 0
+        imm r26, 2
+        call bounded_emitters_require_nth_call
         imm r20, 234
-        imm r21, 148
-        imm r22, 21338
+        imm r21, 30
+        imm r22, 148
         imm r23, 1
-        imm r24, 17441               ; second expect target
-        imm r25, 21347               ; exact second call continuation
-        call bounded_emitters_require_ordinary_call
+        imm r24, 24                 ; expect procedure identity
+        imm r25, 1
+        imm r26, 2
+        call bounded_emitters_require_nth_call
         imm r20, 235
-        imm r21, 148
-        imm r22, 21384
+        imm r21, 30
+        imm r22, 148
+        imm r23, bounded_emitters_literal_read_r0
+        imm r24, 8
         call bounded_emitters_require_fixed_event
-        imm r20, 236
+        imm r20, 30
         imm r21, 148
-        imm r22, 5
-        imm r23, 21422
-        call exact_require_event
+        call bounded_emitters_require_return
 
         ; emit_pop_into.
         imm r20, 334
-        imm r21, 213
-        imm r22, 31237
+        imm r21, 44
+        imm r22, 213
+        imm r23, bounded_emitters_literal_load_r
+        imm r24, 6
         call bounded_emitters_require_fixed_event
         imm r20, 335
-        imm r21, 213
-        imm r22, 31297
+        imm r21, 44
+        imm r22, 213
         imm r23, 1
-        imm r24, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r24
-        imm r25, 31306
+        imm r24, 40                 ; emit_dec procedure identity
         call bounded_emitters_require_ordinary_call
         imm r20, 336
-        imm r21, 213
-        imm r22, 31340
+        imm r21, 44
+        imm r22, 213
+        imm r23, bounded_emitters_literal_comma_r15
+        imm r24, 5
         call bounded_emitters_require_fixed_event
         imm r20, 337
-        imm r21, 213
-        imm r22, 31387
+        imm r21, 44
+        imm r22, 213
+        imm r23, bounded_emitters_literal_imm_r5_8
+        imm r24, 9
         call bounded_emitters_require_fixed_event
         imm r20, 338
-        imm r21, 213
-        imm r22, 31436
+        imm r21, 44
+        imm r22, 213
+        imm r23, bounded_emitters_literal_add_r15_r5
+        imm r24, 11
         call bounded_emitters_require_fixed_event
 
         ; emit_push.
         imm r20, 346
-        imm r21, 218
-        imm r22, 32305
+        imm r21, 47
+        imm r22, 218
+        imm r23, bounded_emitters_literal_imm_r2_8
+        imm r24, 9
         call bounded_emitters_require_fixed_event
         imm r20, 347
-        imm r21, 218
-        imm r22, 32354
+        imm r21, 47
+        imm r22, 218
+        imm r23, bounded_emitters_literal_sub_r15_r2
+        imm r24, 11
         call bounded_emitters_require_fixed_event
         imm r20, 348
-        imm r21, 218
-        imm r22, 32405
+        imm r21, 47
+        imm r22, 218
+        imm r23, bounded_emitters_literal_store_r15_r0
+        imm r24, 13
         call bounded_emitters_require_fixed_event
 
         call bounded_emitters_require_mnemonic_events
@@ -351,207 +349,248 @@ bounded_emitters_require_events:
 
 bounded_emitters_require_mnemonic_events:
         imm r20, 349
-        imm r21, 221
-        imm r22, 32649
+        imm r21, 48
+        imm r22, 221
+        imm r23, bounded_emitters_literal_add
+        imm r24, 3
         call bounded_emitters_require_fixed_event
-        imm r20, 350
+        imm r20, 48
         imm r21, 221
-        imm r22, 5
-        imm r23, 32687
-        call exact_require_event
+        call bounded_emitters_require_return
         imm r20, 351
-        imm r21, 223
-        imm r22, 32852
+        imm r21, 48
+        imm r22, 223
+        imm r23, bounded_emitters_literal_sub
+        imm r24, 3
         call bounded_emitters_require_fixed_event
-        imm r20, 352
+        imm r20, 48
         imm r21, 223
-        imm r22, 5
-        imm r23, 32890
-        call exact_require_event
+        call bounded_emitters_require_return
         imm r20, 353
-        imm r21, 225
-        imm r22, 33055
+        imm r21, 48
+        imm r22, 225
+        imm r23, bounded_emitters_literal_mul
+        imm r24, 3
         call bounded_emitters_require_fixed_event
-        imm r20, 354
+        imm r20, 48
         imm r21, 225
-        imm r22, 5
-        imm r23, 33093
-        call exact_require_event
+        call bounded_emitters_require_return
         imm r20, 355
-        imm r21, 227
-        imm r22, 33258
+        imm r21, 48
+        imm r22, 227
+        imm r23, bounded_emitters_literal_div
+        imm r24, 3
         call bounded_emitters_require_fixed_event
-        imm r20, 356
+        imm r20, 48
         imm r21, 227
-        imm r22, 5
-        imm r23, 33296
-        call exact_require_event
-        imm r20, 357
+        call bounded_emitters_require_return
+        imm r20, 48
         imm r21, 228
-        imm r22, 5
-        imm r23, 33449
-        call exact_require_event
+        call bounded_emitters_require_return
         imm r20, 358
-        imm r21, 229
-        imm r22, 33482               ; mod mnemonic event PC
+        imm r21, 48
+        imm r22, 229
+        imm r23, bounded_emitters_literal_mod
+        imm r24, 3
         call bounded_emitters_require_fixed_event
-        imm r20, 359
+        imm r20, 48
         imm r21, 229
-        imm r22, 5
-        imm r23, 33520
-        call exact_require_event
+        call bounded_emitters_require_return
         ret
 
 bounded_emitters_require_combine_events:
         imm r20, 360
-        imm r21, 230
-        imm r22, 33631
+        imm r21, 49
+        imm r22, 230
+        imm r23, bounded_emitters_literal_mov_r1_r0
+        imm r24, 10
         call bounded_emitters_require_fixed_event
         imm r20, 361
-        imm r21, 230
-        imm r22, 33681
+        imm r21, 49
+        imm r22, 230
+        imm r23, bounded_emitters_literal_load_r0_r15
+        imm r24, 12
         call bounded_emitters_require_fixed_event
         imm r20, 362
-        imm r21, 230
-        imm r22, 33728
+        imm r21, 49
+        imm r22, 230
+        imm r23, bounded_emitters_literal_imm_r5_8
+        imm r24, 9
         call bounded_emitters_require_fixed_event
         imm r20, 363
-        imm r21, 230
-        imm r22, 33777
+        imm r21, 49
+        imm r22, 230
+        imm r23, bounded_emitters_literal_add_r15_r5
+        imm r24, 11
         call bounded_emitters_require_fixed_event
         imm r20, 364
-        imm r21, 230
-        imm r22, 33837
+        imm r21, 49
+        imm r22, 230
         imm r23, 1
-        imm r24, 32434
-        imm r25, 33846
+        imm r24, 48                 ; emit_mnemonic procedure identity
         call bounded_emitters_require_ordinary_call
         imm r20, 365
-        imm r21, 230
-        imm r22, 33882
+        imm r21, 49
+        imm r22, 230
+        imm r23, bounded_emitters_literal_space_r0_r1
+        imm r24, 7
         call bounded_emitters_require_fixed_event
         ret
 
 bounded_emitters_require_slot_events:
         imm r20, 366
-        imm r21, 231
-        imm r22, 34015
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_mov_r
+        imm r24, 5
         call bounded_emitters_require_fixed_event
         imm r20, 367
-        imm r21, 231
-        imm r22, 34075
+        imm r21, 50
+        imm r22, 231
         imm r23, 1
-        imm r24, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r24
-        imm r25, 34084
-        call bounded_emitters_require_ordinary_call
+        imm r24, 40                 ; emit_dec procedure identity
+        imm r25, 0
+        imm r26, 3
+        call bounded_emitters_require_nth_call
         imm r20, 368
-        imm r21, 231
-        imm r22, 34118
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_comma_r14
+        imm r24, 5
         call bounded_emitters_require_fixed_event
         imm r20, 369
-        imm r21, 231
-        imm r22, 34163
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_imm_r2
+        imm r24, 7
         call bounded_emitters_require_fixed_event
         imm r20, 370
-        imm r21, 231
-        imm r22, 34319
+        imm r21, 50
+        imm r22, 231
         imm r23, 1
-        imm r24, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r24
-        imm r25, 34328
-        call bounded_emitters_require_ordinary_call
+        imm r24, 40                 ; emit_dec procedure identity
+        imm r25, 1
+        imm r26, 3
+        call bounded_emitters_require_nth_call
         imm r20, 371
-        imm r21, 231
-        imm r22, 34358
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_newline
+        imm r24, 1
         call bounded_emitters_require_fixed_event
         imm r20, 372
-        imm r21, 231
-        imm r22, 34401
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_sub_r
+        imm r24, 5
         call bounded_emitters_require_fixed_event
         imm r20, 373
-        imm r21, 231
-        imm r22, 34461
+        imm r21, 50
+        imm r22, 231
         imm r23, 1
-        imm r24, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r24
-        imm r25, 34470
-        call bounded_emitters_require_ordinary_call
+        imm r24, 40                 ; emit_dec procedure identity
+        imm r25, 2
+        imm r26, 3
+        call bounded_emitters_require_nth_call
         imm r20, 374
-        imm r21, 231
-        imm r22, 34503
+        imm r21, 50
+        imm r22, 231
+        imm r23, bounded_emitters_literal_comma_r2
+        imm r24, 4
         call bounded_emitters_require_fixed_event
         ret
 
 bounded_emitters_require_slot_leaf_events:
         imm r20, 375
-        imm r21, 232
-        imm r22, 34676
+        imm r21, 51
+        imm r22, 232
         imm r23, 2
-        imm r24, 33911
-        imm r25, 34685
+        imm r24, 50                 ; emit_slot_addr procedure identity
         call bounded_emitters_require_ordinary_call
         imm r20, 376
-        imm r21, 232
-        imm r22, 34725
+        imm r21, 51
+        imm r22, 232
+        imm r23, bounded_emitters_literal_load_r0_r0
+        imm r24, 11
         call bounded_emitters_require_fixed_event
         imm r20, 377
-        imm r21, 233
-        imm r22, 34898
+        imm r21, 52
+        imm r22, 233
         imm r23, 2
-        imm r24, 33911
-        imm r25, 34907
+        imm r24, 50                 ; emit_slot_addr procedure identity
         call bounded_emitters_require_ordinary_call
         imm r20, 378
-        imm r21, 233
-        imm r22, 34948
+        imm r21, 52
+        imm r22, 233
+        imm r23, bounded_emitters_literal_store_r1_r0
+        imm r24, 12
         call bounded_emitters_require_fixed_event
         ret
 
 bounded_emitters_require_epilogues:
-        imm r20, 21403
-        imm r21, 21422
-        call exact_require_epilogue
-        imm r20, 21423
-        imm r21, 21442
-        call exact_require_epilogue
-        imm r20, 31445
-        imm r21, 31464
-        call exact_require_epilogue
-        imm r20, 32414
-        imm r21, 32433
-        call exact_require_epilogue
-        imm r20, 32668
-        imm r21, 32687
-        call exact_require_epilogue
-        imm r20, 32871
-        imm r21, 32890
-        call exact_require_epilogue
-        imm r20, 33074
-        imm r21, 33093
-        call exact_require_epilogue
-        imm r20, 33277
-        imm r21, 33296
-        call exact_require_epilogue
-        imm r20, 33430
-        imm r21, 33449
-        call exact_require_epilogue
-        imm r20, 33501
-        imm r21, 33520
-        call exact_require_epilogue
-        imm r20, 33521
-        imm r21, 33540
-        call exact_require_epilogue
-        imm r20, 33891
-        imm r21, 33910
-        call exact_require_epilogue
-        imm r20, 34512
-        imm r21, 34531
-        call exact_require_epilogue
-        imm r20, 34734
-        imm r21, 34753
-        call exact_require_epilogue
-        imm r20, 34957
-        imm r21, 34976
-        call exact_require_epilogue
+        imm r20, 31                  ; after gen_read_byte
+        call exact_require_preentry_epilogue
+        imm r20, 45                  ; after emit_pop_into
+        call exact_require_preentry_epilogue
+        imm r20, 48                  ; after emit_push
+        call exact_require_preentry_epilogue
+        imm r20, 49                  ; after emit_mnemonic
+        call exact_require_preentry_epilogue
+        imm r20, 50                  ; after emit_combine
+        call exact_require_preentry_epilogue
+        imm r20, 51                  ; after emit_slot_addr
+        call exact_require_preentry_epilogue
+        imm r20, 52                  ; after emit_load_slot
+        call exact_require_preentry_epilogue
+        imm r20, 53                  ; after emit_store_slot
+        call exact_require_preentry_epilogue
         ret
+
+bounded_emitters_literal_read_r0:
+        db "read r0\n"
+bounded_emitters_literal_load_r:
+        db "load r"
+bounded_emitters_literal_comma_r15:
+        db ",r15\n"
+bounded_emitters_literal_imm_r5_8:
+        db "imm r5,8\n"
+bounded_emitters_literal_add_r15_r5:
+        db "add r15,r5\n"
+bounded_emitters_literal_imm_r2_8:
+        db "imm r2,8\n"
+bounded_emitters_literal_sub_r15_r2:
+        db "sub r15,r2\n"
+bounded_emitters_literal_store_r15_r0:
+        db "store r15,r0\n"
+bounded_emitters_literal_add:
+        db "add"
+bounded_emitters_literal_sub:
+        db "sub"
+bounded_emitters_literal_mul:
+        db "mul"
+bounded_emitters_literal_div:
+        db "div"
+bounded_emitters_literal_mod:
+        db "mod"
+bounded_emitters_literal_mov_r1_r0:
+        db "mov r1,r0\n"
+bounded_emitters_literal_load_r0_r15:
+        db "load r0,r15\n"
+bounded_emitters_literal_space_r0_r1:
+        db " r0,r1\n"
+bounded_emitters_literal_mov_r:
+        db "mov r"
+bounded_emitters_literal_comma_r14:
+        db ",r14\n"
+bounded_emitters_literal_imm_r2:
+        db "imm r2,"
+bounded_emitters_literal_newline:
+        db "\n"
+bounded_emitters_literal_sub_r:
+        db "sub r"
+bounded_emitters_literal_comma_r2:
+        db ",r2\n"
+bounded_emitters_literal_load_r0_r0:
+        db "load r0,r0\n"
+bounded_emitters_literal_store_r1_r0:
+        db "store r1,r0\n"

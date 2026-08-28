@@ -27,23 +27,29 @@ emit_str_body_require_shape:
 
 emit_str_body_shape_blocks:
         imm r20, 140
-        imm r21, 18780
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 141
-        imm r21, 18850
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 142
-        imm r21, 18972
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 143
-        imm r21, 19313
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 144
-        imm r21, 19352
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 145
-        imm r21, 19488
-        call exact_require_block_pc
+        imm r21, 27
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 140
         imm r21, 145
         imm r22, 27
@@ -67,174 +73,125 @@ emit_str_body_require_transitions:
         imm r21, 141
         imm r22, 1
         imm r23, 142
-        imm r24, 18944                ; cbyte()!=34 -> body
-        call exact_require_transition
+        call exact_transition_identity_pc ; cbyte()!=34 -> body
         imm r20, 103
         imm r21, 141
         imm r22, 0
         imm r23, 145
-        imm r24, 18963                ; quote -> done
-        call exact_require_transition
+        call exact_transition_identity_pc ; quote -> done
         imm r20, 104
         imm r21, 142
         imm r22, 1
         imm r23, 143
-        imm r24, 19066                ; unescaped zero -> eof
-        call exact_require_transition
+        call exact_transition_identity_pc ; unescaped zero -> eof
         imm r20, 105
         imm r21, 142
         imm r22, 1
         imm r23, 144
-        imm r24, 19179                ; backslash -> esc
-        call exact_require_transition
+        call exact_transition_identity_pc ; backslash -> esc
         imm r20, 106
         imm r21, 142
         imm r22, 0
         imm r23, 141
-        imm r24, 19304                ; ordinary successor -> loop
-        call exact_require_transition
+        call exact_transition_identity_pc ; ordinary successor -> loop
         imm r20, 107
         imm r21, 144
         imm r22, 0
         imm r23, 141
-        imm r24, 19479                ; escape successor -> loop
-        call exact_require_transition
+        call exact_transition_identity_pc ; escape successor -> loop
+        ret
+
+; r20=block,r21=target procedure. All calls belong to emit_str_body, with zero
+; arity and empty ambient expression state.
+emit_str_body_require_call:
+        mov r24, r21
+        mov r21, r20
+        imm r20, 27
+        imm r22, 0
+        imm r23, 0
+        call summary_require_call_fallthrough_identity
+        ret
+
+; r20=block,r21=target,r22=occurrence,r23=cardinality.
+emit_str_body_require_nth_call:
+        mov r26, r23
+        mov r25, r22
+        mov r24, r21
+        mov r21, r20
+        imm r20, 27
+        imm r22, 0
+        imm r23, 0
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 emit_str_body_require_events:
         ; Opening and loop observations.
-        imm r20, 183
-        imm r21, 140
-        imm r22, 18812
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939                 ; adv
-        imm r26, 18821
-        call summary_require_call_site
-        imm r20, 184
-        imm r21, 141
-        imm r22, 18850
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609                 ; cbyte
-        imm r26, 18859
-        call summary_require_call_site
-        imm r20, 185
-        imm r21, 142
-        imm r22, 18972
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 18981
-        call summary_require_call_site
-        imm r20, 186
-        imm r21, 142
-        imm r22, 19085
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 19094
-        call summary_require_call_site
+        imm r20, 140
+        imm r21, 5                    ; adv
+        call emit_str_body_require_call
+        imm r20, 141
+        imm r21, 4                    ; cbyte
+        call emit_str_body_require_call
+        imm r20, 142
+        imm r21, 4                    ; first of three cbyte calls
+        imm r22, 0
+        imm r23, 3
+        call emit_str_body_require_nth_call
+        imm r20, 142
+        imm r21, 4
+        imm r22, 1
+        imm r23, 3
+        call emit_str_body_require_nth_call
 
-        ; Lexical row 187 is the write, but its cbyte argument at row 188
-        ; lowers first and continues directly at that write instruction.
-        imm r20, 188
+        ; Lexical write row187 lowers after its cbyte argument row188.
+        imm r20, 142
+        imm r21, 4
+        imm r22, 2
+        imm r23, 3
+        call emit_str_body_require_nth_call
+        imm r20, 27
         imm r21, 142
-        imm r22, 19198
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 19207
-        call summary_require_call_site
-        imm r20, 187
-        imm r21, 142
-        imm r22, 3
-        imm r23, 19207
-        call exact_require_event
-        imm r20, 187
-        imm r21, 1
-        call exact_require_event_arity
-        imm r20, 189
-        imm r21, 142
-        imm r22, 19209
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 19218
-        call summary_require_call_site
-
-        imm r20, 190
+        call exact_unique_write_event_identity
+        imm r20, 142
+        imm r21, 5                    ; ordinary adv
+        call emit_str_body_require_call
+        imm r20, 27
         imm r21, 143
-        imm r22, 5
-        imm r23, 19351
-        call exact_require_event
+        call exact_require_event_epilogue
 
-        ; Escape writes the literal backslash before observing/writing its
-        ; second byte.  Again the nested cbyte row lowers before write row 193.
-        imm r20, 191
+        ; Escape writes a literal backslash, advances, then writes cbyte().
+        imm r20, 27
         imm r21, 144
-        imm r22, 3
-        imm r23, 19362
-        call exact_require_event
-        imm r20, 191
-        imm r21, 1
-        call exact_require_event_arity
-        imm r20, 192
+        imm r22, 0
+        imm r23, 2
+        call exact_nth_write_event_identity
+        imm r20, 144
+        imm r21, 5                    ; first of two adv calls
+        imm r22, 0
+        imm r23, 2
+        call emit_str_body_require_nth_call
+        imm r20, 144
+        imm r21, 4                    ; cbyte
+        call emit_str_body_require_call
+        imm r20, 27
         imm r21, 144
-        imm r22, 19364
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 19373
-        call summary_require_call_site
-        imm r20, 194
-        imm r21, 144
-        imm r22, 19373
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 19382
-        call summary_require_call_site
-        imm r20, 193
-        imm r21, 144
-        imm r22, 3
-        imm r23, 19382
-        call exact_require_event
-        imm r20, 193
-        imm r21, 1
-        call exact_require_event_arity
-        imm r20, 195
-        imm r21, 144
-        imm r22, 19384
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 19393
-        call summary_require_call_site
+        imm r22, 1
+        imm r23, 2
+        call exact_nth_write_event_identity
+        imm r20, 144
+        imm r21, 5
+        imm r22, 1
+        imm r23, 2
+        call emit_str_body_require_nth_call
 
-        imm r20, 196
+        imm r20, 145
+        imm r21, 5                    ; closing quote adv
+        call emit_str_body_require_call
+        imm r20, 27
         imm r21, 145
-        imm r22, 19488
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 19497
-        call summary_require_call_site
-        imm r20, 197
-        imm r21, 145
-        imm r22, 5
-        imm r23, 19535
-        call exact_require_event
-
-        imm r20, 19332
-        imm r21, 19351
-        call exact_require_epilogue
-        imm r20, 19516
-        imm r21, 19535
-        call exact_require_epilogue
-        imm r20, 19536
-        imm r21, 19555
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 28                   ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 emit_str_body_require_locals:
@@ -242,44 +199,37 @@ emit_str_body_require_locals:
         imm r21, 140
         imm r22, 2
         imm r23, 0
-        imm r24, 18831                ; len=0
-        call transfer_require_local
+        call exact_local_identity_pc  ; len=0
         imm r20, 38
         imm r21, 142
         imm r22, 2
         imm r23, 0
-        imm r24, 19285                ; ordinary len successor
-        call transfer_require_local
+        call exact_local_identity_pc  ; ordinary len successor
         imm r20, 39
         imm r21, 142
         imm r22, 1
         imm r23, 0
-        imm r24, 19218
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 40
         imm r21, 143
         imm r22, 1
         imm r23, 0
-        imm r24, 19313                ; eof result
-        call transfer_require_local
+        call exact_local_identity_pc  ; eof result
         imm r20, 41
         imm r21, 144
         imm r22, 2
         imm r23, 0
-        imm r24, 19460                ; escape len successor
-        call transfer_require_local
+        call exact_local_identity_pc  ; escape len successor
         imm r20, 42
         imm r21, 144
         imm r22, 1
         imm r23, 0
-        imm r24, 19393
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 43
         imm r21, 145
         imm r22, 1
         imm r23, 0
-        imm r24, 19497                ; quote result
-        call transfer_require_local
+        call exact_local_identity_pc  ; quote result
         ret
 
 emit_str_body_require_primitives:
@@ -287,97 +237,80 @@ emit_str_body_require_primitives:
         imm r21, 140
         imm r22, 1
         imm r23, 0
-        imm r24, 18821
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 371
         imm r21, 141
         imm r22, 3
         imm r23, 11                  ; cbyte != 34
-        imm r24, 18885
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 372
         imm r21, 141
         imm r22, 1
         imm r23, 34
-        imm r24, 18875
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 373
         imm r21, 142
         imm r22, 3
         imm r23, 10                  ; cbyte == 0
-        imm r24, 19007
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 374
         imm r21, 142
         imm r22, 1
         imm r23, 0
-        imm r24, 18997
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 375
         imm r21, 142
         imm r22, 3
         imm r23, 10                  ; cbyte == 92
-        imm r24, 19120
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 376
         imm r21, 142
         imm r22, 1
         imm r23, 92
-        imm r24, 19110
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 377
         imm r21, 142
         imm r22, 2
         imm r23, 3                   ; len+1
-        imm r24, 19263
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 378
         imm r21, 142
         imm r22, 1
         imm r23, 1
-        imm r24, 19253
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 379
         imm r21, 144
         imm r22, 1
         imm r23, 92                  ; literal first escape byte
-        imm r24, 19352
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 380
         imm r21, 144
         imm r22, 2
         imm r23, 3                   ; len+1, not len+2
-        imm r24, 19438
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 381
         imm r21, 144
         imm r22, 1
         imm r23, 1
-        imm r24, 19428
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 emit_str_body_require_pushes:
         imm r20, 93
         imm r21, 141
-        imm r23, 18859
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 94
         imm r21, 142
-        imm r23, 18981
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 95
         imm r21, 142
-        imm r23, 19094
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 96
         imm r21, 142
-        imm r23, 19237
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 97
         imm r21, 144
-        imm r23, 19412
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 emit_str_body_require_censuses:
@@ -405,8 +338,10 @@ emit_str_body_require_censuses:
         imm r29, 383                 ; no store-address pushes
         call summary_require_expr_census
 
-        imm r20, 18780
-        imm r21, 19556
+        imm r20, 27                   ; emit_str_body procedure identity
+        call exact_proc_entry_r20
+        imm r21, 28                   ; gen_emit procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 10                  ; adv/cbyte calls
         imm r23, 3                   ; two explicit + synthetic returns
         imm r24, 3                   ; direct writes

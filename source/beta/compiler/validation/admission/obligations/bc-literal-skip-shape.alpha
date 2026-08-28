@@ -37,40 +37,50 @@ literal_skip_shape_string_frame:
 
 literal_skip_shape_blocks:
         imm r20, 183
-        imm r21, 26687
-        call exact_require_block_pc
+        imm r21, 37
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 184
-        imm r21, 26715
-        call exact_require_block_pc
+        imm r21, 37
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 185
-        imm r21, 26837
-        call exact_require_block_pc
+        imm r21, 37
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 186
-        imm r21, 26855
-        call exact_require_block_pc
+        imm r21, 37
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 183
         imm r21, 186
         imm r22, 37
         call exact_require_proc_blocks
 
         imm r20, 187
-        imm r21, 26923
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 188
-        imm r21, 26951
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 189
-        imm r21, 27073
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 190
-        imm r21, 27317
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 191
-        imm r21, 27347
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 192
-        imm r21, 27374
-        call exact_require_block_pc
+        imm r21, 38
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 187
         imm r21, 192
         imm r22, 38
@@ -86,287 +96,225 @@ literal_skip_require_transitions:
         imm r21, 184
         imm r22, 1
         imm r23, 185
-        imm r24, 26809              ; checked char backslash guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked char backslash guard
         imm r20, 138
         imm r21, 184
         imm r22, 0
         imm r23, 186
-        imm r24, 26828
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 139
         imm r21, 185
         imm r22, 0
         imm r23, 186
-        imm r24, 26846
-        call exact_require_transition
+        call exact_transition_identity_pc
 
         imm r20, 140
         imm r21, 188
         imm r22, 1
         imm r23, 189
-        imm r24, 27045              ; checked string nonquote guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked string nonquote guard
         imm r20, 141
         imm r21, 188
         imm r22, 0
         imm r23, 192
-        imm r24, 27064
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 142
         imm r21, 189
         imm r22, 1
         imm r23, 190
-        imm r24, 27167              ; checked string zero guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked string zero guard
         imm r20, 143
         imm r21, 189
         imm r22, 1
         imm r23, 191
-        imm r24, 27280              ; checked string escape guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked string escape guard
         imm r20, 144
         imm r21, 189
         imm r22, 0
         imm r23, 188
-        imm r24, 27308
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 145
         imm r21, 191
         imm r22, 0
         imm r23, 188
-        imm r24, 27365
-        call exact_require_transition
+        call exact_transition_identity_pc
+        ret
+
+; r20=procedure,r21=block,r22=target procedure; all calls are zero-arity with
+; empty ambient expression state.
+literal_skip_require_call:
+        mov r24, r22
+        imm r22, 0
+        imm r23, 0
+        call summary_require_call_fallthrough_identity
+        ret
+
+; As above, with occurrence/cardinality in r23/r24.
+literal_skip_require_nth_call:
+        mov r26, r24
+        mov r25, r23
+        mov r24, r22
+        imm r22, 0
+        imm r23, 0
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 literal_skip_require_events:
         ; skip_char_lit: opening adv, test cbyte, optional escape adv, two
         ; unconditional character/closing advances, and one source return.
-        imm r20, 281
+        imm r20, 37
         imm r21, 183
-        imm r22, 26706
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 26715
-        call summary_require_call_site
-        imm r20, 282
+        imm r22, 5                    ; adv
+        call literal_skip_require_call
+        imm r20, 37
         imm r21, 184
-        imm r22, 26715
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 26724
-        call summary_require_call_site
-        imm r20, 283
+        imm r22, 4                    ; cbyte
+        call literal_skip_require_call
+        imm r20, 37
         imm r21, 185
-        imm r22, 26837
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 26846
-        call summary_require_call_site
-        imm r20, 284
+        imm r22, 5                    ; adv
+        call literal_skip_require_call
+        imm r20, 37
         imm r21, 186
-        imm r22, 26855
+        imm r22, 5                    ; first of two adv calls
         imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 26864
-        call summary_require_call_site
-        imm r20, 285
-        imm r21, 186
-        imm r22, 26864
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 26873              ; checked final char advance continuation
-        call summary_require_call_site
-        imm r20, 286
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 37
         imm r21, 186
         imm r22, 5
-        imm r23, 26902
-        call exact_require_event
-        imm r20, 26883
-        imm r21, 26902
-        call exact_require_epilogue
-        imm r20, 26903
-        imm r21, 26922
-        call exact_require_epilogue
+        imm r23, 1
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 37
+        imm r21, 186
+        call exact_require_event_epilogue
+        imm r20, 38                   ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
 
         ; skip_str_lit: opening adv, three cbyte sites, ordinary/escape/done
         ; advances, and the eof/done source returns.
-        imm r20, 287
+        imm r20, 38
         imm r21, 187
-        imm r22, 26942
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 26951
-        call summary_require_call_site
-        imm r20, 288
+        imm r22, 5                    ; adv
+        call literal_skip_require_call
+        imm r20, 38
         imm r21, 188
-        imm r22, 26951
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 26960
-        call summary_require_call_site
-        imm r20, 289
+        imm r22, 4                    ; cbyte
+        call literal_skip_require_call
+        imm r20, 38
         imm r21, 189
-        imm r22, 27073
+        imm r22, 4                    ; first of two cbyte calls
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 27082
-        call summary_require_call_site
-        imm r20, 290
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 38
         imm r21, 189
-        imm r22, 27186
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 27195
-        call summary_require_call_site
-        imm r20, 291
+        imm r22, 4
+        imm r23, 1
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 38
         imm r21, 189
-        imm r22, 27299
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 27308
-        call summary_require_call_site
-        imm r20, 292
+        imm r22, 5                    ; ordinary adv
+        call literal_skip_require_call
+        imm r20, 38
         imm r21, 190
-        imm r22, 5
-        imm r23, 27346
-        call exact_require_event
-        imm r20, 293
+        call exact_require_event_epilogue
+        imm r20, 38
         imm r21, 191
-        imm r22, 27347
+        imm r22, 5                    ; first of two escape adv calls
         imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 27356
-        call summary_require_call_site
-        imm r20, 294
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 38
         imm r21, 191
-        imm r22, 27356
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 27365              ; checked escape tail continuation
-        call summary_require_call_site
-        imm r20, 295
-        imm r21, 192
-        imm r22, 27374
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 27383
-        call summary_require_call_site
-        imm r20, 296
-        imm r21, 192
         imm r22, 5
-        imm r23, 27412
-        call exact_require_event
-        imm r20, 27327
-        imm r21, 27346
-        call exact_require_epilogue
-        imm r20, 27393
-        imm r21, 27412
-        call exact_require_epilogue
-        imm r20, 27413
-        imm r21, 27432
-        call exact_require_epilogue
+        imm r23, 1
+        imm r24, 2
+        call literal_skip_require_nth_call
+        imm r20, 38
+        imm r21, 192
+        imm r22, 5                    ; closing quote adv
+        call literal_skip_require_call
+        imm r20, 38
+        imm r21, 192
+        call exact_require_event_epilogue
+        imm r20, 39                   ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 literal_skip_require_data:
-        ; row/block/kind/value-or-comparison/PC.
+        ; row/block/kind/value-or-comparison.
         imm r20, 485
         imm r21, 184
         imm r22, 3
         imm r23, 10                  ; cbyte == 92
-        imm r24, 26750
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 486
         imm r21, 184
         imm r22, 1
         imm r23, 92                  ; checked char escape byte
-        imm r24, 26740
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 487
         imm r21, 186
         imm r22, 1
         imm r23, 0
-        imm r24, 26873
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 488
         imm r21, 188
         imm r22, 3
         imm r23, 11                  ; cbyte != 34
-        imm r24, 26986
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 489
         imm r21, 188
         imm r22, 1
         imm r23, 34                  ; checked closing quote
-        imm r24, 26976
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 490
         imm r21, 189
         imm r22, 3
         imm r23, 10                  ; cbyte == 0
-        imm r24, 27108
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 491
         imm r21, 189
         imm r22, 1
         imm r23, 0
-        imm r24, 27098
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 492
         imm r21, 189
         imm r22, 3
         imm r23, 10                  ; cbyte == 92
-        imm r24, 27221
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 493
         imm r21, 189
         imm r22, 1
         imm r23, 92                  ; checked string escape byte
-        imm r24, 27211
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 494
         imm r21, 190
         imm r22, 1
         imm r23, 0
-        imm r24, 27317
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 495
         imm r21, 192
         imm r22, 1
         imm r23, 0
-        imm r24, 27383
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 133
         imm r21, 184
-        imm r23, 26724
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 134
         imm r21, 188
-        imm r23, 26960
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 135
         imm r21, 189
-        imm r23, 27082
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 136
         imm r21, 189
-        imm r23, 27195
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 literal_skip_require_censuses:
@@ -414,13 +362,17 @@ literal_skip_require_censuses:
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
-        imm r20, 26687
-        imm r21, 26923
+        imm r20, 37                   ; skip_char_lit procedure identity
+        call exact_proc_entry_r20
+        imm r21, 38                   ; skip_str_lit procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 5
         imm r23, 2
         call skip_scan_call_region
-        imm r20, 26923
-        imm r21, 27433
+        imm r20, 38                   ; skip_str_lit procedure identity
+        call exact_proc_entry_r20
+        imm r21, 39                   ; count_lets procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 8
         imm r23, 3
         call skip_scan_call_region

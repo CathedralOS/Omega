@@ -90,11 +90,11 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 62,366 lines; Checker A is 1,014,670 source bytes and the checker ROOT is
-  81,649 bytes. Shape, control, data, and
+  and 62,102 lines; Checker A is 1,010,867 source bytes and the checker ROOT is
+  81,725 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
-- [ ] Finish identity localization before changing the shared compiler frame
+- [x] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
   word-size optimization still shifts many semantic consumers. The checked
@@ -115,13 +115,13 @@ admission, and optional stress evidence stay under the same compiler owner.
   closed. The memory-consumer closure localized `cursor`, `label`, `slurp`,
   parse/data, ranged-store/resource, root-observation, and statement-label
   families while deleting 352 net lines. The broad compatibility-API census is
-  classified: after the compact expression-rule, declaration/expect,
+  classified. After the compact expression-rule, declaration/expect,
   summary/statement, main-ready/root-prelude, parse/control, classifier,
-  fixed-keyword, main-bridge, expression-shape, and classifier tranches it spans
-  13 modules.
-  Five are retained by design—the three low-level identity owners and the
-  identity-derived fixed-emitter/gen-emit checks—leaving eight literal semantic
-  consumers to migrate before r13. Source rows `259`
+  fixed-keyword, main-bridge, expression-shape, classifier, bounded-emitter,
+  emit-cmp, string-body, statement-boundary, literal-skip, and whitespace
+  tranches, the only compatibility callers are five retained by design: the
+  three low-level identity owners and the identity-derived fixed-emitter/gen-emit
+  checks. No literal semantic consumer remains. Source rows `259`
   and `391` are not artifact PCs. `gen_emit`'s three identical newline events
   use exact-cardinality occurrence identity; an eighth tooth swaps two witness
   PCs and rejects before r13.

@@ -363,6 +363,18 @@ exact_unique_write_event_identity:
         imm r27, 0
         call exact_unique_event_pc_by_key
         ret
+; Procedure/block in r20/r21 and occurrence/cardinality in r22/r23.
+exact_nth_write_event_identity:
+        mov r28, r22
+        mov r29, r23
+        imm r22, 3
+        imm r23, 0
+        imm r24, 1
+        imm r25, 0
+        imm r26, 0
+        imm r27, 0
+        call exact_nth_event_pc_by_key
+        ret
 exact_require_event_epilogue:
         imm r22, 5
         imm r23, 0
