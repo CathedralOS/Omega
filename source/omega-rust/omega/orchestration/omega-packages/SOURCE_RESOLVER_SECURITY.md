@@ -115,10 +115,12 @@ authentication, snapshot identity, and final publication verdict.
 Every macOS phase uses a compiler-generated default-deny profile with no import.
 All grant broad reads, exact selected executables, and write-data to `/dev/null`.
 Initialization and fetch additionally grant writes only beneath the exact
-mutable quarantine root. Discovery and fetch grant outbound network plus the
-exact OpenDirectory libinfo lookup and `kern.hostname` read needed by the pinned
-SSH client; their endpoint-confinement rows remain `Unavailable`. Initialization
-and inspection deny network. Filesystem-write and executable-path rows are
+mutable quarantine root. Discovery and fetch require the already-validated
+closed HTTPS or SSH transport authority and grant outbound network. Only SSH
+receives the exact OpenDirectory libinfo lookup and `kern.hostname` read needed
+by the pinned client; HTTPS receives neither. Their endpoint-confinement rows
+remain `Unavailable`. Initialization and inspection deny network and reject a
+transport authority. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
 the exact compiler-owned rlimit rows are `Enforced` throughout macOS.
 Before a successful Git result is issued, the package layer also requires the
@@ -392,8 +394,8 @@ sealed SSH command receive the same identity, hash, custody, and ACL treatment;
 they do not grant execution of any unlisted descendant. Both transports recheck
 their executable identity around every Git launch, re-hash the canonical target
 at completion, and retain it separately. Drift rejects. The Git cache policy is
-v13, so a cache fetched before these executable-custody and cumulative-output
-floors or under a different transport-authority profile is not silently reused.
+v14, so a cache fetched before these executable-custody, cumulative-output, and
+transport-authority floors is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
 ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
 other executable components, establish Windows ownership/DACL custody, protect

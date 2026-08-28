@@ -247,11 +247,13 @@ generated policy hash, exact numeric ceilings, normalized executable path set,
 and mutable root. Every macOS phase uses a host-profile-free default-deny policy
 with broad reads, exact selected executables, and write-data to `/dev/null`;
 initialization and fetch additionally confine writes to the exact mutable
-quarantine root. Discovery and fetch admit outbound network plus exact
-OpenDirectory libinfo and hostname reads for the pinned SSH client, but not an
-endpoint boundary. Initialization and inspection deny network. The applicable
-write/network/exec rows are enforced; strict checking still rejects the
-remaining unavailable guarantees.
+quarantine root. Discovery and fetch require one closed authority matching the
+already-validated HTTPS or SSH transport and admit outbound network. Only SSH
+receives exact OpenDirectory libinfo and hostname reads for the pinned client;
+HTTPS receives neither. Neither has an endpoint boundary. Initialization and
+inspection deny network and reject transport authority. The applicable write/
+network/exec rows are enforced; strict checking still rejects the remaining
+unavailable guarantees.
 Before returning a successful resolution, the package layer requires one observation
 per bounded launch and exact equality between every observed allowlist path and
 the verified content identities for Git, the selected transport, and fixed
@@ -359,7 +361,7 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v13 separates entries
+and an unreadable ACL fails closed. Cache policy v14 separates entries
 predating this transport-executable and cumulative-output floor. This does not
 certify any executable, bind other Git components, or establish TLS/endpoint custody. SSH
 is noninteractive and strict about host keys, but still consumes

@@ -807,6 +807,19 @@ complete.
   tests were removed; native policy-observation schema 2 records the smaller
   backend identity.
 
+  Follow-up 2026-08-28: native network policy now requires one closed transport
+  authority matching the package resolver's already-validated HTTPS or SSH
+  request. Network phases reject a missing authority and nonnetwork phases
+  reject an extraneous one. Both receive outbound network, but only SSH receives
+  the exact OpenDirectory libinfo and `kern.hostname` services required by the
+  pinned client; HTTPS receives neither. The selected authority enters schema-3
+  policy observations and package-layer reconciliation requires exact equality
+  with the validated source transport. Native policy-shape tests and all 154
+  source-resolver tests pass. Git cache policy v14 prevents reuse of entries
+  fetched under the broader network profile. This removes excess HTTPS host-
+  service authority and creates the typed seam for endpoint brokerage; outbound
+  destinations remain unconfined.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

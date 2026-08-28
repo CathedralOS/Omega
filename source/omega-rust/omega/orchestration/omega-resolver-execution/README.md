@@ -17,11 +17,12 @@ text or containment claims.
   profile imports. Every phase admits broad reads, the exact compiler-selected
   executable set, and write-data to the fixed `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
-  root. Discovery and fetch admit outbound network plus only the OpenDirectory
-  libinfo lookup and `kern.hostname` read required by the pinned SSH client;
-  their network endpoints remain unconfined. Initialization and inspection deny
-  network. The applicable filesystem-write, network-denial, and executable-path
-  rows are enforced.
+  root. Discovery and fetch require one explicit closed HTTPS or SSH authority
+  and admit outbound network. Only SSH receives the OpenDirectory libinfo lookup
+  and `kern.hostname` read required by the pinned client; HTTPS receives neither.
+  Their network endpoints remain unconfined. Initialization and inspection deny
+  network and reject any supplied transport authority. The applicable
+  filesystem-write, network-denial, and executable-path rows are enforced.
 - Unix children intersect compiler CPU, core-file, single-file, and descriptor
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.
@@ -29,7 +30,8 @@ text or containment claims.
   confinement. Windows retains the package layer's existing process-container
   floor but has no strict backend here yet.
 - Every command is constructed together with a bounded canonical policy
-  observation binding the backend, phase, generated policy hash, numeric
+  observation binding the backend, phase, closed network transport when
+  applicable, generated policy hash, numeric
   resource ceilings, primary executable path, normalized bounded descendant-
   executable path set, mutable root, and every closed native guarantee as
   `Enforced`, `Unavailable`, or `NotRequired`. There is no public constructor
