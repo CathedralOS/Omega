@@ -14,7 +14,7 @@ Committed native seeds:
 
 | target | artifact | bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `02c11a1114d52b809b14a6564f7548c10e3c94e4fb511e5097f4a64bc749f0e4` |
+| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `5d424055a6c2cbbcd627d011ed971fdc5e5dc0a1181be44bc5586ab37b84d845` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | 267264 | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
 
 The accepted input is one length-prefixed Alpha tape; the output is the exact
@@ -53,8 +53,8 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 78,206-byte ROOT Alpha tape; its exact digest is
-`be1198ed207cec4c94497f10e44e02f0c03acf84b97148f4d270224af1a48bf0`.
+reconstruction emits one 79,460-byte ROOT Alpha tape; its exact digest is
+`ce5199b2b48cb3a9f04ec4ba366f5c6f1efcffcc7c65f4591246d7b5b94c3fbf`.
 This is strong executable evidence, but it is not yet a derivation in the
 rooted checker calculus. Complete source/artifact admission remains open.
 

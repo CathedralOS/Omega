@@ -101,7 +101,7 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,432 lines after replacing nine private instruction
+  188 fragments total 64,739 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Push, pop,
   saved-frame prologue, optional frame allocation, parameter store, and
@@ -109,10 +109,16 @@ do not become additional lattice steps.
   frame, effect, memory, expression, and stack-table checks; this reduced the
   ROOT tape from 79,124 to 77,889 bytes without changing either admitted
   subject. A shared fail-closed resolver now maps independently reconstructed
-  source procedure IDs to unique checked entry-block PCs; the expression family
-  consumes it instead of embedding 31 copied procedure-entry offsets. That
-  structural decoupling brings the current ROOT to 78,206 bytes and leaves 48
-  selected entry-PC literals outside the migrated family. Continue replacing
+  source procedure IDs to unique checked entry-block PCs. Expression and the
+  remaining bounded-emitter, label, statement, procedure, and root-observation
+  consumers now resolve all 79 selected uses; the seven migrated entry values
+  have no remaining absolute immediate uses. Reusable fail-closed block,
+  transition, event, local-access, primitive, push, call-continuation, and
+  epilogue resolvers now join source-owned identities to checked artifact PCs;
+  `emit_dec` is the first complete consumer and no longer embeds its 32 raw PC
+  occurrences. A targeted fifth negative control proves a mutated witness event
+  PC cannot redefine that identity. This structural decoupling brings the
+  current ROOT to 79,460 bytes. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths. In
   particular, finish one canonical exact instruction table that gives stable
@@ -136,7 +142,10 @@ source closure and tools, reconstructs the packed Gamma program, independently
 decodes repeated executions, requires byte-identical assembly, and validates
 the bounded target dialect. It remains fail-closed until those observations
 come from the exact full-source execution; it does not manufacture the missing
-compiler artifact. The 2026-08-28 exact attempt was stopped after both parallel
+compiler artifact. Stage completion and retained-marker replay now apply the
+same explicit template, closed-Gamma, raw-observation, and diagnostic ceilings
+as final verification, reject size drift, and never retain a marker after
+resource rejection. The 2026-08-28 exact attempt was stopped after both parallel
 executions reached 9,660 seconds with zero output; it produced no receipt and
 grants no publication authority.
 
@@ -205,7 +214,12 @@ and are not blocked on this ruling.
   `load`, and `store` handlers before advancing the program counter once. Seven
   alternating million-call runs improved from a 2.497-second baseline mean to
   2.287 seconds, about 8.4%, with unchanged result and Alpha semantics; the full
-  Alpha, seed-diamond/fuzz, checker, and six Gamma gate set passes.
+  Alpha, seed-diamond/fuzz, checker, and six Gamma gate set passes. The hottest
+  remaining `imm` handler now likewise decodes its adjacent destination byte and
+  eight-byte immediate independently before one exact PC advance. Five
+  alternating two-million-call pairs averaged 4.708 seconds before and 4.658
+  seconds after (about 1.1%), all with status 42; the same complete gate set
+  passes.
   A bounds-checked 21-row branch-table prototype
   passed all Alpha gates and improved a synthetic two-opcode loop from
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
@@ -222,7 +236,11 @@ and are not blocked on this ruling.
   adopted because the semantic admission bundle duplicated old macro shapes
   and byte PCs throughout its 188 fragments; its first failure was the
   `emit_dec Word` canonical smoke. Shared macro-shape decoding has now landed,
-  but semantic modules still pin absolute procedure/event PCs. Finish the
+  all selected procedure-entry uses resolve by identity, and `emit_dec` now
+  resolves its r13-sensitive coordinates by source identity. Adjacent ready and
+  fixed-emitter summaries still contain three uses of the next procedure entry,
+  while the fixed-decimal shape retains fifty raw coordinates; broader macro,
+  call, block, transition, and event consumers remain coupled. Finish the
   canonical decoded identity-to-PC refactor above, then reapply and admit this
   compiler change without a mechanical obligation rewrite before attempting
   another dispatch mechanism or speculative Gamma rewrite.
@@ -261,10 +279,11 @@ build entry and final `C` closure can freeze. This does not block implementation
 of compiler modules that do not exercise target selection.
 
 - [ ] Finish the Omega-written Psi frontend, proof checking, optimizer, target
-  lowering, artifact emission, and command entrypoint required by production
-  `omega`.
-- [ ] Compute the exact transitive compiler executable closure `C` through the
-  package system.
+  lowering, artifact emission, and the command-entry modules that do not depend
+  on the unresolved target-selection rule.
+- [ ] **BLOCKED — OWNER Q8:** finalize the durable requested-target acceptance
+  entry and compute the exact transitive compiler executable closure `C`
+  through the package system.
 - [ ] Census the ordinary Omega forms used by `C` only after the complete
   compiler builds; record a tested input boundary without naming a new dialect.
 - [ ] Keep package acceptance, generated-source custody, target semantics, and
