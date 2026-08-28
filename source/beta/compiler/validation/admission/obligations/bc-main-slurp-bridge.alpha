@@ -170,20 +170,36 @@ main_slurp_require_shape:
         imm r22, 1
         imm r23, 351
         call exact_transition_identity_pc
-        imm r20, 51177
+        mov r30, r0                   ; checked guarded transition PC
+        imm r20, 351
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r31, r0                   ; checked main.ready PC
+        mov r20, r30
         imm r21, 13                    ; jz
         call require_tape_byte
-        imm r20, 51178
+        mov r20, r30
+        imm r1, 1
+        add r20, r1
         imm r21, 0                     ; equality result r0
         call require_tape_byte
-        imm r20, 51179
-        imm r21, 51196                 ; false continuation
+        mov r20, r30
+        imm r1, 2
+        add r20, r1
+        mov r21, r30
+        imm r1, 19
+        add r21, r1                    ; false continuation
         call require_tape_word
-        imm r20, 51187
+        mov r20, r30
+        imm r1, 10
+        add r20, r1
         imm r21, 12                    ; jmp
         call require_tape_byte
-        imm r20, 51188
-        imm r21, 51226                 ; main.ready
+        mov r20, r30
+        imm r1, 11
+        add r20, r1
+        mov r21, r31                   ; main.ready
         call require_tape_word
 
         ; The selected failure epilogue ends at its exact source return.
@@ -194,7 +210,7 @@ main_slurp_require_shape:
 
 ; The exact root is two stack immediates, call main, then halt r0.  main's
 ; straight-line prologue reaches the exact slurp call without an input/output
-; effect.  The helper bytes at [31,83) are not on this dynamic prefix.
+; effect.  The helper bytes at [41,93) are not on this dynamic prefix.
 main_slurp_require_root_prefix:
         call stack_lift_require_prelude
         imm r20, 69                   ; canonical root call to main
@@ -205,13 +221,14 @@ main_slurp_require_root_prefix:
         imm r23, 0
         imm r24, 0                    ; slurp procedure identity
         call summary_require_call_fallthrough_identity
-
-        imm r10, 51013
+        mov r40, r32                  ; checked slurp call / prefix end
+        imm r0, 69
+        call exact_proc_entry_pc
+        mov r10, r0                   ; checked main entry / prefix start
         imm r11, 0
 main_slurp_prefix_loop:
-        imm r1, 51045
-        jlt r10, r1, main_slurp_prefix_pc
-        imm r1, 6
+        jlt r10, r40, main_slurp_prefix_pc
+        imm r1, 5
         jeq r11, r1, main_slurp_root_relation
         jmp reject
 main_slurp_prefix_pc:
@@ -306,11 +323,21 @@ main_slurp_frame_safe:
 ; ret, the already checked failure return.  Local stack accesses and that ret
 ; inherit absolute safety from the frame/potential theorem.
 main_slurp_require_quiet_suffix:
-        imm r10, 51054
+        imm r20, 69
+        imm r21, 349
+        imm r22, 0
+        imm r23, 0
+        imm r24, 0                    ; slurp procedure identity
+        call summary_require_call_fallthrough_identity
+        mov r10, r36                  ; checked post-call successor
+        imm r20, 351
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r40, r0                   ; checked main.ready boundary
         imm r11, 0                    ; ret count
 main_slurp_suffix_loop:
-        imm r1, 51226
-        jlt r10, r1, main_slurp_suffix_pc
+        jlt r10, r40, main_slurp_suffix_pc
         imm r1, 1
         jeq r11, r1, main_slurp_suffix_done
         jmp reject

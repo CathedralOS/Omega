@@ -162,7 +162,7 @@ statement_gen_stmt_prove_let:
         ret
 
 ; RETURN composes GEXP followed by p46's exact five fixed fragments:
-;   mov r15,r14\n load r14,r15\n imm r2,8\n add r15,r2\n ret\n
+;   mov r15,r14\n load r14,r15\n add r15,r13\n ret\n
 ; The epilogue is unconditional for both status outcomes and does not clear or
 ; reclassify numeric252.  Every finite row returns source zero and restores p67.
 statement_gen_stmt_prove_return:

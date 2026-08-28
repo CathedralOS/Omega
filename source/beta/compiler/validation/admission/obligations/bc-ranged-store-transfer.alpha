@@ -779,42 +779,88 @@ transfer_value_require_hi:
 transfer_value_require_ok:
         ret
 
-; Analyze slurp [83,1131), then require both explicit returns and selected
-; local/store states before moving to declare.
+; Analyze slurp from its stable procedure identity to the next procedure entry,
+; then require both explicit returns and selected local/store identities.
 transfer_slurp_frame_init:
-        imm r20, 83
-        imm r21, 1131
+        imm r20, 0
+        call exact_proc_entry_r20
+        imm r21, 1
+        call exact_proc_entry_r21
         call transfer_frame_region
-        imm r20, 686
+        imm r20, 0
+        imm r21, 3
+        call exact_require_event_epilogue
+        mov r20, r4
         call transfer_require_visited
-        imm r20, 1110
+        imm r20, 0
+        imm r21, 4
+        call exact_require_event_epilogue
+        mov r20, r4
         call transfer_require_visited
-        imm r20, 538
+        imm r20, 0
+        imm r21, 2
+        imm r22, 2
+        imm r23, 1
+        call exact_memory_identity_pc
+        mov r20, r0
         imm r21, 24
         call transfer_require_depth
-        imm r20, 446
+        imm r20, 4
+        imm r21, 2
+        imm r22, 1
+        imm r23, 0
+        call exact_local_identity_pc
+        mov r20, r0
         imm r21, 32
         call transfer_require_depth
-        imm r20, 608
+        imm r20, 6
+        imm r21, 2
+        imm r22, 2
+        imm r23, 0
+        call exact_local_identity_pc
+        mov r20, r0
         imm r21, 24
         call transfer_require_depth
         jmp transfer_declare_frame_init
 
 transfer_declare_frame_init:
-        imm r20, 24145
-        imm r21, 24914
+        imm r20, 34
+        call exact_proc_entry_r20
+        imm r21, 35
+        call exact_proc_entry_r21
         call transfer_frame_region
-        imm r20, 24416
+        imm r20, 34
+        imm r21, 171
+        call exact_require_event_epilogue
+        mov r20, r4
         call transfer_require_visited
-        imm r20, 24893
+        imm r20, 34
+        imm r21, 172
+        call exact_require_event_epilogue
+        mov r20, r4
         call transfer_require_visited
-        imm r20, 24577
+        imm r20, 39
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r20, r0
         imm r21, 16
         call transfer_require_depth
-        imm r20, 24740
+        imm r20, 41
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r20, r0
         imm r21, 16
         call transfer_require_depth
-        imm r20, 24852
+        imm r20, 43
+        imm r21, 172
+        imm r22, 2
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r20, r0
         imm r21, 16
         call transfer_require_depth
         jmp counter_transfer_init
@@ -1163,8 +1209,11 @@ transfer_load_operands:
         loadb r2, r1
         ret
 
-; Require immediately preceding `imm r21,k`, returning positive aligned k.
+; Resolve a stack-adjustment operand. r13 is the ABI-owned word size; all
+; other registers still require an immediately preceding aligned immediate.
 transfer_require_setup:
+        imm r1, 13
+        jeq r21, r1, transfer_setup_word_size
         imm r1, 10
         jlt r20, r1, reject
         sub r20, r1
@@ -1194,6 +1243,9 @@ transfer_setup_aligned:
         jeq r2, r1, transfer_setup_ok
         jmp reject
 transfer_setup_ok:
+        ret
+transfer_setup_word_size:
+        imm r0, 8
         ret
 
 transfer_load_tape_word:

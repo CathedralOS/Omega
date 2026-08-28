@@ -5,7 +5,7 @@
 ; statements, so this phase joins those clauses along the exact Alpha control
 ; chain instead of expanding 187 byte writes:
 ;
-;   emit_prelude   five unique semantic emit keys -> 55 bytes
+;   emit_prelude   five unique semantic emit keys -> 65 bytes
 ;   emit_write_str rows 221..232 -> 132 bytes
 ;
 ; Each inline-literal jump begins at the preceding call continuation; the final
@@ -96,7 +96,7 @@ fixed_emit_prove_prelude:
         imm r20, 41
         imm r21, 208
         imm r22, fixed_emit_literal_fp
-        imm r23, 16
+        imm r23, 26
         call fixed_emit_append_identity
         imm r20, 41
         imm r21, 208
@@ -110,7 +110,7 @@ fixed_emit_prove_prelude:
         call fixed_emit_append_identity
 
         imm r20, 5                    ; exact semantic event count
-        imm r21, 55                   ; checked prelude byte total
+        imm r21, 65                   ; checked prelude byte total
         call fixed_emit_finish_identity
         imm r1, 525944
         imm r2, 1279607365            ; EMIP
@@ -159,10 +159,10 @@ fixed_emit_begin_unique_proc:
         mov r21, r26
         call fixed_emit_require_unique_block
 
-        ; The zero-slot checked prologue is 19 bytes before the first inline
+        ; The zero-slot checked prologue is 9 bytes before the first inline
         ; literal jump. Initialize an empty ordered trace at that continuation.
         mov r2, r27
-        imm r1, 19
+        imm r1, 9
         add r2, r1
         imm r1, 525888
         store r1, r2
@@ -320,7 +320,7 @@ fixed_emit_finish_epilogue:
         imm r1, 525936
         load r2, r1                  ; exclusive end
         mov r3, r2
-        imm r4, 20
+        imm r4, 10
         sub r3, r4                   ; epilogue start
         imm r1, 525888
         load r4, r1
@@ -461,7 +461,7 @@ fixed_emit_literal_comment:
 fixed_emit_literal_sp:
         db "imm r15,1048576\n"
 fixed_emit_literal_fp:
-        db "imm r14,1048576\n"
+        db "imm r14,1048576\nimm r13,8\n"
 fixed_emit_literal_call_main:
         db "call main\n"
 fixed_emit_literal_halt:

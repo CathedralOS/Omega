@@ -102,8 +102,10 @@ statement_gen_block_require_censuses:
         ret
 
 statement_gen_block_require_decoded:
-        imm r20, 45275
-        imm r21, 45404
+        imm r20, 63
+        call exact_proc_entry_r20
+        imm r21, 64
+        call exact_proc_entry_r21
         imm r22, 2
         imm r23, 2
         imm r24, 2

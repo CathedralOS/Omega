@@ -1,14 +1,14 @@
 ; Root-reachable main.ready composition through fixed output and whitespace.
 ;
-; The root/slurp bridge publishes the successful cutpoint at PC51226.  Three
+; The root/slurp bridge publishes the successful main.ready cutpoint.  Three
 ; exact zero-argument calls then compose already-proved procedure summaries:
 ;
-;   51226 emit_prelude   -> 51235, append 55 bytes
-;   51235 emit_write_str -> 51244, append 132 bytes
-;   51244 skip_ws        -> 51253, append nothing and normalize CUR
-;   51253 jmp main.loop  -> 51262
+;   main.ready emit_prelude   -> append 65 bytes
+;              emit_write_str -> append 132 bytes
+;              skip_ws        -> append nothing and normalize CUR
+;              jmp main.loop
 ;
-; Hence main.loop is reached with the exact ordered 187-byte compiler prefix,
+; Hence main.loop is reached with the exact ordered 197-byte compiler prefix,
 ; the successful slurp source segment and external input position unchanged,
 ; CUR at the first nontrivia byte/logical end/in-range NUL, and the active main
 ; frame restored across every callee. Scratch registers and reclaimed callee
@@ -124,9 +124,12 @@ main_ready_import_cutpoint:
         imm r20, 526440               ; checked imported ready clause
         imm r21, 1
         call exact_require_cell
+        imm r20, 351
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r1, 526456
-        imm r2, 51226
-        store r1, r2
+        store r1, r0
         imm r1, 526464
         imm r2, 0                     ; epsilon output
         store r1, r2
@@ -142,27 +145,40 @@ main_ready_import_cutpoint:
         ret
 
 main_ready_call_prelude:
-        imm r20, 51226
+        imm r20, 69
+        imm r21, 351
+        imm r22, 0
+        imm r23, 0
+        imm r24, 41
+        call summary_require_call_fallthrough_identity
+        mov r20, r32
         call main_ready_require_pc
+        imm r1, 526456
+        store r1, r36
         imm r20, 525944
         imm r21, 1279607365            ; EMIP
         call exact_require_cell
         call main_ready_require_relations
         imm r1, 526464
-        imm r2, 55                    ; checked first output length
+        imm r2, 65                    ; checked first output length
         store r1, r2
         imm r1, 526472
         imm r2, 1                     ; exact emit_prelude byte sequence
-        store r1, r2
-        imm r1, 526456
-        imm r2, 51235
         store r1, r2
         call main_ready_increment_calls
         ret
 
 main_ready_call_write_str:
-        imm r20, 51235
+        imm r20, 69
+        imm r21, 351
+        imm r22, 0
+        imm r23, 0
+        imm r24, 29
+        call summary_require_call_fallthrough_identity
+        mov r20, r32
         call main_ready_require_pc
+        imm r1, 526456
+        store r1, r36
         imm r20, 525952               ; checked second theorem import
         imm r21, 1465008983            ; WSTW
         call exact_require_cell
@@ -174,7 +190,7 @@ main_ready_call_write_str:
         load r2, r1
         imm r3, 132
         add r2, r3
-        imm r3, 187                   ; checked composed prefix length
+        imm r3, 197                   ; checked composed prefix length
         jeq r2, r3, main_ready_store_prefix
         jmp reject
 main_ready_store_prefix:
@@ -182,21 +198,26 @@ main_ready_store_prefix:
         imm r1, 526472
         imm r2, 2                     ; prelude ++ write_str exact sequence
         store r1, r2
-        imm r1, 526456
-        imm r2, 51244
-        store r1, r2
         call main_ready_increment_calls
         ret
 
 main_ready_call_skip_ws:
-        imm r20, 51244
+        imm r20, 69
+        imm r21, 351
+        imm r22, 0
+        imm r23, 0
+        imm r24, 10
+        call summary_require_call_fallthrough_identity
+        mov r20, r32
         call main_ready_require_pc
+        imm r1, 526456
+        store r1, r36
         imm r20, 526216
         imm r21, 1398231888            ; SWSQ
         call exact_require_cell
         call main_ready_require_relations
         imm r20, 526464
-        imm r21, 187
+        imm r21, 197
         call exact_require_cell
         imm r20, 526472
         imm r21, 2                     ; checked skip emits epsilon
@@ -204,29 +225,38 @@ main_ready_call_skip_ws:
         imm r1, 526480
         imm r2, 2                     ; whitespace-normalized CUR
         store r1, r2
-        imm r1, 526456
-        imm r2, 51253
-        store r1, r2
         call main_ready_increment_calls
         ret
 
 main_ready_take_loop_jump:
-        imm r20, 51253
+        imm r20, 287
+        imm r21, 351
+        imm r22, 0
+        imm r23, 352
+        call exact_transition_identity_pc
+        mov r20, r0
         call main_ready_require_pc
         imm r20, 526512
         imm r21, 3
         call exact_require_cell
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r1, 526456
-        imm r2, 51262                 ; checked ready->loop target
-        store r1, r2
+        store r1, r0                  ; checked ready->loop target
         ret
 
 main_ready_require_final:
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r21, r0
         imm r20, 526456
-        imm r21, 51262
         call exact_require_cell
         imm r20, 526464
-        imm r21, 187
+        imm r21, 197
         call exact_require_cell
         imm r20, 526472
         imm r21, 2

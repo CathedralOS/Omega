@@ -35,7 +35,8 @@ its return address is a fresh slot on the hidden stack. Neither clobbers the oth
 | `r0`–`r3` | the first four **arguments** (further args are pushed on the data stack — deferred). |
 | `r0` | the **return value**. |
 | `r0`–`r5` | **caller-saved** scratch. A caller that needs one of these to survive a `call` saves it in its own frame first. |
-| `r6`–`r13` | **callee-saved**. A callee that uses one must save it on entry and restore it before `ret`. |
+| `r6`–`r12` | **callee-saved**. A callee that uses one must save it on entry and restore it before `ret`. |
+| `r13` | **word-size constant**. Generated-program startup sets it to `8`; generated procedures preserve it and shared frame/stack macros consume it directly. |
 
 (This supersedes gamma's current "vars `a`–`j` live in fixed registers `r6`–`r15`"
 scheme: under a real convention, locals live in **frames**, not fixed registers,
@@ -50,7 +51,7 @@ The compiler brackets each procedure with an **fp-based** prologue and epilogue
 ```
 proc:
         ; prologue
-        sub   r15, 8                ; \  push the caller's fp
+        sub   r15, r13              ; \  push the caller's fp (`r13 == 8`)
         store r15, r14              ; /
         mov   r14, r15              ; fp = sp   (the frame base)
         sub   r15, framesize        ; allocate params + locals below fp
@@ -59,7 +60,7 @@ proc:
         ; epilogue
         mov   r15, r14              ; sp = fp   (discard locals + temporaries)
         load  r14, r15              ; \  pop the caller's fp
-        add   r15, 8                ; /
+        add   r15, r13              ; /
         ret
 ```
 

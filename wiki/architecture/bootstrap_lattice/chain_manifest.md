@@ -40,12 +40,12 @@ byte-for-byte by `source/alpha/assembler/selfhost.sh`:
 
 ## Beta compiler
 
-Exact input source: `source/beta/compiler/bc.beta`, 32565 bytes,
-SHA-256 `fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25`.
+Exact input source: `source/beta/compiler/bc.beta`, 32605 bytes,
+SHA-256 `b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`.
 
-Exact output artifact: `source/beta/compiler/artifacts/bc.tape`, 52141
+Exact output artifact: `source/beta/compiler/artifacts/bc.tape`, 40693
 bytes, SHA-256
-`1b32401c4c8fb60598e97178d415136227c9aa2231e28d9eb44b30e7a2818a2f`.
+`73a0087da97b0629617ba8ced637a7783b2cc6911be906d1b4df5801e65c2cdd`.
 The Alpha-written cold start reconstructs it and the Beta compiler reproduces
 its fixed point. The independently Alpha-written structural checker has source
 SHA-256 `df9f5696d7d5f6ac457d74d035ffc4db64f4f68a2f8201f7bb5ea0a28b471a2e`
@@ -53,8 +53,8 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 82,314-byte ROOT Alpha tape; its exact digest is
-`e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`.
+reconstruction emits one 81,747-byte ROOT Alpha tape; its exact digest is
+`43098b66b0f85416d67abc28f72cd68f557615a09e4934af201f9b5d3e045409`.
 This is strong executable evidence, but it is not yet a derivation in the
 rooted checker calculus. Complete source/artifact admission is blocked on
 [`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18's guarded-simulation

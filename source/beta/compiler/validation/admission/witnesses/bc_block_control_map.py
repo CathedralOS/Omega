@@ -836,27 +836,25 @@ def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
         comparison_ranges: list[tuple[int, int]] = []
         arithmetic: list[tuple[int, int]] = []
         comparisons: list[tuple[int, int]] = []
-        for index in range(len(ins) - 4):
-            a, b, c, d, e = ins[index:index + 5]
+        for index in range(len(ins) - 3):
+            a, b, c, d = ins[index:index + 4]
             base = (
                 a.name == "mov" and a.operands == ("r1", "r0")
                 and b.name == "load" and b.operands == ("r0", "r15")
-                and c.name == "imm" and c.operands == ("r5", "8")
-                and d.name == "add" and d.operands == ("r15", "r5")
+                and c.name == "add" and c.operands == ("r15", "r13")
                 and a.offset + 3 == b.offset
                 and b.offset + 3 == c.offset
-                and c.offset + 10 == d.offset
-                and d.offset + 3 == e.offset
+                and c.offset + 3 == d.offset
             )
             if not base:
                 continue
-            if e.name in {"add", "sub", "mul", "div", "mod"} \
-                    and e.operands == ("r0", "r1"):
-                arithmetic.append((a.offset, OPS[e.name][0]))
-            elif e.name in {"jlt", "jeq"}:
-                comparison_ranges.append((a.offset, a.offset + 59))
-                fall = ins_by_offset.get(a.offset + 30)
-                taken = ins_by_offset.get(a.offset + 49)
+            if d.name in {"add", "sub", "mul", "div", "mod"} \
+                    and d.operands == ("r0", "r1"):
+                arithmetic.append((a.offset, OPS[d.name][0]))
+            elif d.name in {"jlt", "jeq"}:
+                comparison_ranges.append((a.offset, a.offset + 49))
+                fall = ins_by_offset.get(a.offset + 20)
+                taken = ins_by_offset.get(a.offset + 39)
                 if not (fall and taken and fall.name == "imm"
                         and taken.name == "imm"
                         and fall.operands[0] == "r0"
@@ -864,7 +862,7 @@ def locate_expr_primitives(ast: list, lexical: list[ExprPrimitive],
                     raise ValueError(
                         f"{proc[1]} malformed comparison results at {a.offset}"
                     )
-                shape = (e.name, e.operands[0], e.operands[1],
+                shape = (d.name, d.operands[0], d.operands[1],
                          int(fall.operands[1]), int(taken.operands[1]))
                 code_by_shape = {
                     ("jlt", "r0", "r1", 0, 1): 8,
@@ -932,13 +930,10 @@ def locate_stack_pushes(ast: list, lexical: list[StackPush],
         ins_by_offset = {item.offset: item for item in ins}
         candidates: list[int] = []
         for item in ins:
-            if item.name != "imm" or item.operands != ("r2", "8"):
+            if item.name != "sub" or item.operands != ("r15", "r13"):
                 continue
-            sub = ins_by_offset.get(item.offset + 10)
-            store = ins_by_offset.get(item.offset + 13)
-            if (sub and sub.name == "sub"
-                    and sub.operands == ("r15", "r2")
-                    and store and store.name == "store"
+            store = ins_by_offset.get(item.offset + 3)
+            if (store and store.name == "store"
                     and store.operands == ("r15", "r0")):
                 candidates.append(item.offset)
         expected = lowering_by_proc[proc_index]

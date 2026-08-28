@@ -165,14 +165,30 @@ root_observation_require_body_censuses:
 root_observation_require_quiet_regions:
         ; Calls are semantically discharged by PPRC/SWSQ/SWSX.  Locally there
         ; is no direct output, halt, byte access, div/rem, or hidden store.
-        imm r20, 51405
-        imm r21, 51549
+        imm r20, 353
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 2                    ; parse_proc and success-only skip_ws
         imm r23, 0
         imm r24, 1                    ; exact guard-left stack push store
         call exact_quiet_scan_region
-        imm r20, 51549
-        imm r21, 51602
+        imm r20, 354
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        imm r0, 70
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 0
         imm r23, 2                    ; explicit and synthetic epilogues
         imm r24, 0

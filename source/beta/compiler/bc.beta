@@ -520,16 +520,17 @@ proc emit_dec(n) {
 proc emit_prelude() {            ; program entry: init sp/fp, call main, halt
     emit("; bc\n")
     emit("imm r15,1048576\n")
-    emit("imm r14,1048576\n")
+    emit("imm r14,1048576\nimm r13,8\n")
     emit("call main\n")
     emit("halt r0\n")
 }
 
 proc emit_proc_prologue(nslots) {
-    ; scratch is r5, NOT r2 — args arrive live in r0..r3 and r2 (arg 3) must
-    ; survive until stored to its slot below (else 3-arg calls corrupt arg 3).
-    emit("imm r5,8\n")
-    emit("sub r15,r5\n")
+    ; Keep one empty source event where the old word-size immediate lived.  It
+    ; emits no Alpha bytes, but preserves stable semantic event identities while
+    ; the shared macro shape changes from imm/sub to the reserved r13 word size.
+    emit("")
+    emit("sub r15,r13\n")
     emit("store r15,r14\n")
     emit("mov r14,r15\n")
     state chk { to slots when (nslots > 0)  return 0 }
@@ -557,8 +558,8 @@ proc emit_pop_into(k) {          ; pop the data stack top into r<k>
     emit("load r")
     emit_dec(k)
     emit(",r15\n")
-    emit("imm r5,8\n")
-    emit("add r15,r5\n")
+    emit("")
+    emit("add r15,r13\n")
 }
 
 proc emit_ident_at(off, len) {   ; write `len` source bytes starting at SRC[off]
@@ -570,14 +571,14 @@ proc emit_ident_at(off, len) {   ; write `len` source bytes starting at SRC[off]
 proc emit_epilogue() {
     emit("mov r15,r14\n")
     emit("load r14,r15\n")
-    emit("imm r2,8\n")
-    emit("add r15,r2\n")
+    emit("")
+    emit("add r15,r13\n")
     emit("ret\n")
 }
 
 proc emit_push() {
-    emit("imm r2,8\n")
-    emit("sub r15,r2\n")
+    emit("")
+    emit("sub r15,r13\n")
     emit("store r15,r0\n")
 }
 
@@ -597,8 +598,8 @@ proc emit_mnemonic(op) {
 proc emit_combine(op) {
     emit("mov r1,r0\n")
     emit("load r0,r15\n")
-    emit("imm r5,8\n")
-    emit("add r15,r5\n")
+    emit("")
+    emit("add r15,r13\n")
     emit_mnemonic(op)
     emit(" r0,r1\n")
 }
@@ -764,8 +765,8 @@ proc cmp_op() {
 proc emit_cmp(code) {
     emit("mov r1,r0\n")
     emit("load r0,r15\n")
-    emit("imm r5,8\n")
-    emit("add r15,r5\n")
+    emit("")
+    emit("add r15,r13\n")
     let set = new_label()
     let done = new_label()
     state c0 { to do_c0 when (code == 0)  to c1 }

@@ -95,8 +95,15 @@ parse_body_require_censuses:
         ret
 
 parse_body_require_decoded:
-        imm r20, 50945
-        imm r21, 51013
+        imm r20, 348
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r30, r0
+        imm r0, 69
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 2                    ; calls
         imm r23, 2                    ; returns
         imm r24, 0                    ; target stores

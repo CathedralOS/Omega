@@ -18,7 +18,7 @@
 ; conditional summary at every kind-four emit macro.  Earlier effect custody
 ; already proves each row's decoded source literal equals its jump-skipped tape
 ; slice; this phase rejoins its p/len/call equations, proves the interval is in
-; the exact tape, and requires exhaustive totals of 113 clauses / 829 bytes.
+; the exact tape, and requires exhaustive totals of 113 clauses / 791 bytes.
 ; It does not claim those events are reached or globally order their traces.
 ;
 ; Fresh symbolic cells:
@@ -365,7 +365,7 @@ write_str_emit_loop:
         jeq r11, r1, write_str_emit_byte_count
         jmp reject
 write_str_emit_byte_count:
-        imm r1, 829
+        imm r1, 791
         jeq r12, r1, write_str_emit_done
         jmp reject
 write_str_emit_row:

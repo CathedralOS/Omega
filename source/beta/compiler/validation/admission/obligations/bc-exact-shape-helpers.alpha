@@ -3,81 +3,65 @@
 ; consumers pass only their independently reconstructed PC/register/slot facts.
 ; This file has no initialization edge and publishes no theorem token.
 
-; Exact saved-fp prologue prefix at r20. Return its checked instruction starts
-; (imm/sub/store/mov) in r0..r3 and exclusive successor in r4:
-; `imm r5,8; sub r15,r5; store r15,r14; mov r14,r15`.
+; Exact saved-fp prologue prefix at r20. The root prelude establishes r13=8.
+; Preserve the historical five-result interface: r0/r1 both name the sub,
+; r2/r3 name store/mov, and r4 is the exclusive successor.
+; `sub r15,r13; store r15,r14; mov r14,r15`.
 exact_require_prologue:
         mov r25, r20
         mov r20, r25
-        imm r21, 1
+        imm r21, 4
         call require_tape_byte
         mov r20, r25
         imm r1, 1
         add r20, r1
-        imm r21, 5
+        imm r21, 15
         call require_tape_byte
         mov r20, r25
         imm r1, 2
         add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r25
-        imm r1, 10
-        add r20, r1
-        imm r21, 4
+        imm r21, 13
         call require_tape_byte
         mov r20, r25
-        imm r1, 11
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 12
-        add r20, r1
-        imm r21, 5
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 13
+        imm r1, 3
         add r20, r1
         imm r21, 11
         call require_tape_byte
         mov r20, r25
-        imm r1, 14
+        imm r1, 4
         add r20, r1
         imm r21, 15
         call require_tape_byte
         mov r20, r25
-        imm r1, 15
+        imm r1, 5
         add r20, r1
         imm r21, 14
         call require_tape_byte
         mov r20, r25
-        imm r1, 16
+        imm r1, 6
         add r20, r1
         imm r21, 2
         call require_tape_byte
         mov r20, r25
-        imm r1, 17
+        imm r1, 7
         add r20, r1
         imm r21, 14
         call require_tape_byte
         mov r20, r25
-        imm r1, 18
+        imm r1, 8
         add r20, r1
         imm r21, 15
         call require_tape_byte
         mov r0, r25
         mov r1, r25
-        imm r4, 10
-        add r1, r4
         mov r2, r25
-        imm r4, 13
+        imm r4, 3
         add r2, r4
         mov r3, r25
-        imm r4, 16
+        imm r4, 6
         add r3, r4
         mov r4, r25
-        imm r5, 19
+        imm r5, 9
         add r4, r5
         ret
 
@@ -207,9 +191,9 @@ exact_require_parameter_store:
         add r4, r5
         ret
 
-; Exact pop at r20 into register r21. Return load/imm/add starts in r0..r2 and
-; exclusive successor in r3:
-; `load rK,r15; imm r5,8; add r15,r5`.
+; Exact pop at r20 into register r21. Preserve the historical tuple: r0 is the
+; load, r1/r2 both name the add, and r3 is the exclusive successor.
+; `load rK,r15; add r15,r13`.
 exact_require_pop:
         call exact_match_pop
         imm r1, 1
@@ -221,10 +205,10 @@ exact_pop_extent:
         imm r3, 3
         add r1, r3
         mov r2, r25
-        imm r3, 13
+        imm r3, 3
         add r2, r3
         mov r3, r25
-        imm r4, 16
+        imm r4, 6
         add r3, r4
         ret
 
@@ -233,7 +217,7 @@ exact_pop_extent:
 exact_require_pop_before:
         mov r30, r20
         mov r31, r21
-        imm r1, 16
+        imm r1, 6
         jlt r30, r1, reject
         mov r20, r30
         sub r20, r1
@@ -251,7 +235,7 @@ exact_require_pop_sequence:
         mov r30, r20
         mov r31, r21
         mov r32, r31
-        imm r1, 16
+        imm r1, 6
         mul r32, r1
         jlt r30, r32, reject
         mov r33, r30
@@ -286,7 +270,7 @@ exact_match_pop:
         mov r25, r20
         mov r26, r21
         mov r2, r25
-        imm r1, 16
+        imm r1, 6
         add r2, r1
         imm r1, 524296
         load r3, r1
@@ -319,33 +303,6 @@ exact_match_pop_imm:
         mov r20, r25
         imm r1, 3
         add r20, r1
-        imm r21, 1
-        call exact_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_pop_step_register
-        jmp exact_match_pop_none
-exact_match_pop_step_register:
-        mov r20, r25
-        imm r1, 4
-        add r20, r1
-        imm r21, 5
-        call exact_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_pop_step
-        jmp exact_match_pop_none
-exact_match_pop_step:
-        mov r20, r25
-        imm r1, 5
-        add r20, r1
-        imm r21, 8
-        call exact_tape_word_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_pop_add
-        jmp exact_match_pop_none
-exact_match_pop_add:
-        mov r20, r25
-        imm r1, 13
-        add r20, r1
         imm r21, 3
         call exact_tape_byte_matches
         imm r1, 1
@@ -353,7 +310,7 @@ exact_match_pop_add:
         jmp exact_match_pop_none
 exact_match_pop_add_sp:
         mov r20, r25
-        imm r1, 14
+        imm r1, 4
         add r20, r1
         imm r21, 15
         call exact_tape_byte_matches
@@ -362,9 +319,9 @@ exact_match_pop_add_sp:
         jmp exact_match_pop_none
 exact_match_pop_add_step:
         mov r20, r25
-        imm r1, 15
+        imm r1, 5
         add r20, r1
-        imm r21, 5
+        imm r21, 13
         call exact_tape_byte_matches
         ret
 exact_match_pop_none:
@@ -379,7 +336,7 @@ exact_match_pop_successor:
         ret
 exact_match_pop_successor_found:
         mov r1, r25
-        imm r2, 16
+        imm r2, 6
         add r1, r2
         ret
 
@@ -402,17 +359,17 @@ exact_tape_matches:
         imm r0, 1
         ret
 
-; Input r14 is a decoded start; output r0 is one iff the exact 16-byte push is
-; `imm r2,8; sub r15,r2; store r15,r0`.
+; Input r14 is a decoded start; output r0 is one iff the exact 6-byte push is
+; `sub r15,r13; store r15,r0`.
 exact_match_push:
         mov r20, r14
-        imm r1, 16
+        imm r1, 6
         add r20, r1
         imm r1, 524296
         load r2, r1
         jlt r2, r20, exact_match_push_none
         mov r20, r14
-        imm r21, 1
+        imm r21, 4
         call exact_tape_byte_matches
         imm r1, 1
         jeq r0, r1, exact_match_push_register
@@ -421,7 +378,7 @@ exact_match_push_register:
         mov r20, r14
         imm r1, 1
         add r20, r1
-        imm r21, 2
+        imm r21, 15
         call exact_tape_byte_matches
         imm r1, 1
         jeq r0, r1, exact_match_push_step
@@ -430,41 +387,14 @@ exact_match_push_step:
         mov r20, r14
         imm r1, 2
         add r20, r1
-        imm r21, 8
-        call exact_tape_word_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_push_sub
-        jmp exact_match_push_none
-exact_match_push_sub:
-        mov r20, r14
-        imm r1, 10
-        add r20, r1
-        imm r21, 4
-        call exact_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_push_sub_sp
-        jmp exact_match_push_none
-exact_match_push_sub_sp:
-        mov r20, r14
-        imm r1, 11
-        add r20, r1
-        imm r21, 15
-        call exact_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, exact_match_push_sub_step
-        jmp exact_match_push_none
-exact_match_push_sub_step:
-        mov r20, r14
-        imm r1, 12
-        add r20, r1
-        imm r21, 2
+        imm r21, 13
         call exact_tape_byte_matches
         imm r1, 1
         jeq r0, r1, exact_match_push_store
         jmp exact_match_push_none
 exact_match_push_store:
         mov r20, r14
-        imm r1, 13
+        imm r1, 3
         add r20, r1
         imm r21, 11
         call exact_tape_byte_matches
@@ -473,7 +403,7 @@ exact_match_push_store:
         jmp exact_match_push_none
 exact_match_push_store_sp:
         mov r20, r14
-        imm r1, 14
+        imm r1, 4
         add r20, r1
         imm r21, 15
         call exact_tape_byte_matches
@@ -482,7 +412,7 @@ exact_match_push_store_sp:
         jmp exact_match_push_none
 exact_match_push_store_value:
         mov r20, r14
-        imm r1, 15
+        imm r1, 5
         add r20, r1
         imm r21, 0
         call exact_tape_byte_matches
@@ -491,9 +421,8 @@ exact_match_push_none:
         imm r0, 0
         ret
 
-; Strict push extent at r20. Return imm/sub/store starts in r0..r2 and
-; exclusive successor in r3. The boolean matcher remains available to the
-; exhaustive artifact scanner.
+; Strict push extent at r20. Preserve the historical tuple: r0/r1 both name
+; the sub, r2 names the store, and r3 is the exclusive successor.
 exact_require_push:
         mov r36, r14                 ; boolean scanner's input register
         mov r37, r20
@@ -506,13 +435,11 @@ exact_require_push:
 exact_push_extent:
         mov r0, r37
         mov r1, r37
-        imm r3, 10
-        add r1, r3
         mov r2, r37
-        imm r3, 13
+        imm r3, 3
         add r2, r3
         mov r3, r37
-        imm r4, 16
+        imm r4, 6
         add r3, r4
         ret
 
@@ -727,7 +654,8 @@ exact_proc_entry_r25:
         ret
 
 ; Exact generated root prelude for independently reconstructed main procedure
-; identity r20. Return SP-init/FP-init/call/halt starts in r0..r3 and exclusive
+; identity r20. It initializes the closed program's reserved r13 word-size
+; constant. Return SP-init/FP-init/call/halt starts in r0..r3 and exclusive
 ; successor in r4. All layout arithmetic stays with this compiler-macro owner.
 exact_require_program_prelude:
         mov r0, r20
@@ -752,20 +680,29 @@ exact_require_program_prelude:
         imm r21, 1048576
         call require_tape_word
         imm r20, 20
+        imm r21, 1
+        call require_tape_byte
+        imm r20, 21
+        imm r21, 13
+        call require_tape_byte
+        imm r20, 22
+        imm r21, 8
+        call require_tape_word
+        imm r20, 30
         mov r21, r30
-        imm r22, 29
+        imm r22, 39
         call exact_require_call
-        imm r20, 29
+        imm r20, 39
         imm r21, 0
         call require_tape_byte
-        imm r20, 30
+        imm r20, 40
         imm r21, 0
         call require_tape_byte
         imm r0, 0
         imm r1, 10
-        imm r2, 20
-        imm r3, 29
-        imm r4, 31
+        imm r2, 30
+        imm r3, 39
+        imm r4, 41
         ret
 
 ; Resolve the compiler-synthesized __write_str extent from the checked root
@@ -920,19 +857,20 @@ exact_require_preentry_epilogue:
 ; Resolve a checked epilogue from its semantic return-instruction PC r20.
 exact_require_epilogue_at_ret:
         mov r21, r20
-        imm r1, 19
+        imm r1, 9
         jlt r20, r1, reject
         sub r20, r1
         call exact_require_epilogue
         ret
 
 ; Exact canonical epilogue at [r20,r21], with r21 the return instruction.
-; Return mov/load/imm/add/ret starts in r0..r4 and successor in r5.
+; Preserve the historical tuple: r0/r1 are mov/load, r2/r3 both name the add,
+; r4 names ret, and r5 is the successor.
 exact_require_epilogue:
         mov r25, r20
         mov r26, r21
         mov r2, r25
-        imm r1, 19
+        imm r1, 9
         add r2, r1
         jeq r2, r26, exact_epilogue_ret_linked
         jmp reject
@@ -968,35 +906,20 @@ exact_epilogue_ret_linked:
         mov r20, r25
         imm r1, 6
         add r20, r1
-        imm r21, 1
+        imm r21, 3
         call require_tape_byte
         mov r20, r25
         imm r1, 7
         add r20, r1
-        imm r21, 2
+        imm r21, 15
         call require_tape_byte
         mov r20, r25
         imm r1, 8
         add r20, r1
-        imm r21, 8
-        call require_tape_word
-        mov r20, r25
-        imm r1, 16
-        add r20, r1
-        imm r21, 3
+        imm r21, 13
         call require_tape_byte
         mov r20, r25
-        imm r1, 17
-        add r20, r1
-        imm r21, 15
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 18
-        add r20, r1
-        imm r21, 2
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 19
+        imm r1, 9
         add r20, r1
         imm r21, 20
         call require_tape_byte
@@ -1011,7 +934,7 @@ exact_epilogue_ret_linked:
         imm r6, 6
         add r2, r6
         mov r3, r25
-        imm r6, 16
+        imm r6, 6
         add r3, r6
         mov r4, r26
         ret

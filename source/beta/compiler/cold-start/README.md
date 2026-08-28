@@ -39,7 +39,7 @@ unconditional `to` jumps, while `to … when expr` jumps only for nonzero guards
 Byte/word memory lowers directly to Alpha loads and stores. `read_byte()` and
 `write_byte(x)` are the sole runtime I/O intrinsics. `emit("…")` decodes Beta's
 six string escapes and emits one Alpha `write` per byte; the pinned `bc.beta`
-contains only 913 literal payload bytes, so this direct lowering remains well
+contains only 791 literal payload bytes, so this direct lowering remains well
 inside the checked output extent.
 
 The compiler reads at most 1,048,576 source bytes into a checked fixed extent,
@@ -67,8 +67,8 @@ refinement for the exact persisted tape and `B_bc1` profile.
 ## Full-source target profile
 
 The target is pinned to the current `bc.beta` source, SHA-256
-`fe4b5af69f87163ce919d22e2aa662ad0b5f2a044a6904581c91e8638749aa25`:
-32,565 bytes. Its measured surface remains inside every adjacent-boundary-tested
+`b6ad15ed9cc540a628b83c671bd8c6629770056a641d72d885e41354a8b06c4c`:
+32,605 bytes. Its measured surface remains inside every adjacent-boundary-tested
 cold-compiler capacity. It uses
 every arithmetic and comparison operator, byte/word memory, calls, CFG
 transitions, byte I/O, and fixed-string emission. These measurements define

@@ -78,13 +78,13 @@ fixed_decimal_shape_transitions:
 fixed_decimal_shape_events:
         imm r20, 42
         imm r21, 209
-        imm r22, fixed_decimal_literal_imm_r5_8
-        imm r23, 9
+        imm r22, fixed_decimal_literal_empty
+        imm r23, 0
         call exact_unique_emit_event_identity
         imm r20, 42
         imm r21, 209
-        imm r22, fixed_decimal_literal_sub_r15_r5
-        imm r23, 11
+        imm r22, fixed_decimal_literal_sub_r15_r13
+        imm r23, 12
         call exact_unique_emit_event_identity
         imm r20, 42
         imm r21, 209
@@ -346,8 +346,9 @@ fixed_decimal_shape_censuses:
         call exact_quiet_scan_region
         ret
 
-fixed_decimal_literal_imm_r5_8:
-        db "imm r5,8\n"
+fixed_decimal_literal_empty:
+fixed_decimal_literal_sub_r15_r13:
+        db "sub r15,r13\n"
 fixed_decimal_literal_sub_r15_r5:
         db "sub r15,r5\n"
 fixed_decimal_literal_store_r15_r14:

@@ -945,8 +945,11 @@ fs_load_operands:
         loadb r2, r1
         ret
 
-; Require immediately preceding imm r21,k, returning positive aligned k.
+; Resolve a stack-adjustment operand.  r13 is the ABI-owned word-size constant;
+; every other register must still come from an immediately preceding imm.
 fs_require_setup:
+        imm r1, 13
+        jeq r21, r1, fs_setup_word_size
         mov r4, r20
         imm r1, 10
         jlt r4, r1, reject
@@ -977,6 +980,9 @@ fs_setup_aligned:
         jeq r3, r1, fs_setup_ok
         jmp reject
 fs_setup_ok:
+        ret
+fs_setup_word_size:
+        imm r0, 8
         ret
 
 fs_load_tape_word:

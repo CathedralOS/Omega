@@ -101,7 +101,11 @@ root_observation_build_loop_split:
         imm r12, 1
         imm r13, 1                    ; selected nonzero source byte
         imm r14, 5                    ; Body
-        imm r15, 51405
+        imm r20, 353
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r15, r0
         imm r16, 1
         imm r17, 1
         imm r18, 1
@@ -176,7 +180,11 @@ root_observation_build_iteration:
         imm r11, 1                    ; PPRC row1 Ret0
         imm r12, 1                    ; SWSQ
         imm r13, 0
-        imm r14, 51262
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r14, r0
         imm r15, 3                    ; exact finite PPRC trace class
         imm r16, 0
         imm r17, 1                    ; completed parse/guard/skip/backedge Tau
@@ -190,7 +198,11 @@ root_observation_build_iteration:
         imm r11, 1
         imm r12, 2                    ; SWSX, LEN<CUR<=LEN+2
         imm r13, 0
-        imm r14, 51262
+        imm r20, 352
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r14, r0
         imm r15, 3
         imm r16, 0
         imm r17, 1
