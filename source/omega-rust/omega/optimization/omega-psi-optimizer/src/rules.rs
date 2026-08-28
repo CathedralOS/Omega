@@ -32,7 +32,7 @@ const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propa
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v11";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
-const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v2";
+const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v3";
 const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v5";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -52,6 +52,9 @@ pub struct ProofCertifiedDeadScalarEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedIntegerIdentityEliminationRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LiveProofCertifiedIntegerDivideByOneEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockTotalScalarCseRule;
@@ -2187,112 +2190,165 @@ impl PsiOptimizationRule for LiveProofCertifiedIntegerIdentityEliminationRule {
         unit: &PsiOptimizationUnit,
         analyses: RuleAnalysisView<'_>,
     ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
-        let Some(AnalysisProduct::ScalarConstants(constants)) =
-            analyses.get(AnalysisKind::ScalarConstants)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
+        propose_proof_certified_scalar_identities(
+            unit,
+            analyses,
+            Self::contract(),
+            proof_certified_scalar_identity_shapes,
+        )
+    }
+}
+
+impl LiveProofCertifiedIntegerDivideByOneEliminationRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.live-proof-certified-integer-divide-by-one-elimination.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
+            1,
+            AnalysisSet::new([
                 AnalysisKind::ScalarConstants,
-            ));
-        };
-        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
-            analyses.get(AnalysisKind::UseDefinition)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
                 AnalysisKind::UseDefinition,
-            ));
-        };
-        let Some(AnalysisProduct::EffectSummaries(effects)) =
-            analyses.get(AnalysisKind::EffectSummaries)
-        else {
-            return Err(RuleProposalError::MissingAnalysis(
                 AnalysisKind::EffectSummaries,
-            ));
-        };
-        let contract = Self::contract();
-        let mut candidates = Vec::new();
-        for function in &unit.functions {
-            for block in &function.blocks {
-                for (node_index, node) in block.nodes.iter().enumerate() {
-                    let shapes = proof_certified_scalar_identity_shapes(&node.operation);
-                    if shapes.is_empty() {
-                        continue;
-                    }
-                    let node_index =
-                        u32::try_from(node_index).expect("optimization node index fits u32");
-                    let effect = effects.nodes.iter().find(|row| {
-                        row.machine == function.machine
-                            && row.block == block.id
-                            && row.node == node_index
-                    });
-                    if effect.is_none_or(|row| {
-                        row.revision != unit.identity
-                            || row.class != crate::EffectClass::PureScalar
-                            || row.observable != crate::EffectKnowledge::No
-                            || row.structural_state != crate::EffectKnowledge::No
-                            || row.crash != crate::EffectKnowledge::No
-                            || row.suspension != crate::EffectKnowledge::No
-                    }) {
-                        continue;
-                    }
-                    let Some((patch_shape, constant_fact)) =
-                        shapes.into_iter().find_map(|(shape, expected)| {
-                            let (actual, fact) = literal_integer_constant(
-                                constants,
-                                function.machine,
-                                shape.identity_operand,
-                            )?;
-                            (actual == expected).then_some((shape, fact))
-                        })
-                    else {
-                        continue;
-                    };
-                    if !use_definitions.uses.iter().any(|(machine, use_site)| {
-                        *machine == function.machine && use_site.value == patch_shape.result
-                    }) {
-                        continue;
-                    }
-                    let Ok(obligation_fact) = accepted_obligation_fact(
-                        unit,
-                        function.machine,
-                        patch_shape.source_operation,
-                    ) else {
-                        continue;
-                    };
-                    let location = NodeLocation {
-                        machine: function.machine,
-                        block: block.id,
-                        node: node_index,
-                    };
-                    let Some((affected_blocks, provenance)) =
-                        local_cse_accounting(function, location, patch_shape.result)
-                    else {
-                        continue;
-                    };
-                    candidates.push(
-                        PsiRewriteCandidate::new_proof_certified_scalar_identity(
-                            unit.identity,
-                            contract,
-                            affected_blocks,
-                            provenance,
-                            constant_fact,
-                            obligation_fact,
-                            -1,
-                            ProofCertifiedScalarIdentityRewrite {
-                                location,
-                                source_operation: patch_shape.source_operation,
-                                result: patch_shape.result,
-                                replacement: patch_shape.replacement,
-                                scalar_type: patch_shape.scalar_type,
-                                identity: patch_shape.identity,
-                            },
-                        )
-                        .map_err(RuleProposalError::InvalidCandidate)?,
-                    );
+            ]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for LiveProofCertifiedIntegerDivideByOneEliminationRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        propose_proof_certified_scalar_identities(
+            unit,
+            analyses,
+            Self::contract(),
+            proof_certified_integer_divide_by_one_shapes,
+        )
+    }
+}
+
+fn propose_proof_certified_scalar_identities(
+    unit: &PsiOptimizationUnit,
+    analyses: RuleAnalysisView<'_>,
+    contract: OptimizationRuleContract,
+    shapes_for_operation: fn(&O) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)>,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let Some(AnalysisProduct::ScalarConstants(constants)) =
+        analyses.get(AnalysisKind::ScalarConstants)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::ScalarConstants,
+        ));
+    };
+    let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+        analyses.get(AnalysisKind::UseDefinition)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::UseDefinition,
+        ));
+    };
+    let Some(AnalysisProduct::EffectSummaries(effects)) =
+        analyses.get(AnalysisKind::EffectSummaries)
+    else {
+        return Err(RuleProposalError::MissingAnalysis(
+            AnalysisKind::EffectSummaries,
+        ));
+    };
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let shapes = shapes_for_operation(&node.operation);
+                if shapes.is_empty() {
+                    continue;
                 }
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node index fits u32");
+                let effect = effects.nodes.iter().find(|row| {
+                    row.machine == function.machine
+                        && row.block == block.id
+                        && row.node == node_index
+                });
+                if effect.is_none_or(|row| {
+                    row.revision != unit.identity
+                        || row.class != crate::EffectClass::PureScalar
+                        || row.observable != crate::EffectKnowledge::No
+                        || row.structural_state != crate::EffectKnowledge::No
+                        || row.crash != crate::EffectKnowledge::No
+                        || row.suspension != crate::EffectKnowledge::No
+                }) {
+                    continue;
+                }
+                let Some((patch_shape, constant_fact)) =
+                    shapes.into_iter().find_map(|(shape, expected)| {
+                        let (actual, fact) = literal_integer_constant(
+                            constants,
+                            function.machine,
+                            shape.identity_operand,
+                        )?;
+                        (actual == expected).then_some((shape, fact))
+                    })
+                else {
+                    continue;
+                };
+                if !use_definitions.uses.iter().any(|(machine, use_site)| {
+                    *machine == function.machine && use_site.value == patch_shape.result
+                }) {
+                    continue;
+                }
+                let Ok(obligation_fact) =
+                    accepted_obligation_fact(unit, function.machine, patch_shape.source_operation)
+                else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                let Some((affected_blocks, provenance)) =
+                    local_cse_accounting(function, location, patch_shape.result)
+                else {
+                    continue;
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_proof_certified_scalar_identity(
+                        unit.identity,
+                        contract,
+                        affected_blocks,
+                        provenance,
+                        constant_fact,
+                        obligation_fact,
+                        -1,
+                        ProofCertifiedScalarIdentityRewrite {
+                            location,
+                            source_operation: patch_shape.source_operation,
+                            result: patch_shape.result,
+                            replacement: patch_shape.replacement,
+                            scalar_type: patch_shape.scalar_type,
+                            identity: patch_shape.identity,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
             }
         }
-        Ok(candidates)
     }
+    Ok(candidates)
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -2429,6 +2485,70 @@ fn proof_certified_scalar_identity_shapes(
         )],
         _ => Vec::new(),
     }
+}
+
+fn proof_certified_integer_divide_by_one_shapes(
+    operation: &O,
+) -> Vec<(ProofCertifiedScalarIdentityShape, IntegerValue)> {
+    let (source_operation, result, scalar_type, left, right, identity) = match operation {
+        O::ExactIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
+        ),
+        O::WrappingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
+        ),
+        O::SaturatingIntegerDivide {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+            ..
+        } => (
+            *psi_operation,
+            *result,
+            *scalar_type,
+            *left,
+            *right,
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+        ),
+        _ => return Vec::new(),
+    };
+    vec![(
+        ProofCertifiedScalarIdentityShape {
+            source_operation,
+            result,
+            replacement: left,
+            identity_operand: right,
+            scalar_type,
+            identity,
+        },
+        integer_one(scalar_type),
+    )]
 }
 
 fn integer_zero(scalar_type: IntegerType) -> IntegerValue {
@@ -6693,6 +6813,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
     if optimization == Optimization::ProofCheckElision {
         register!(0, ProofCertifiedDeadScalarEliminationRule);
         register!(1, LiveProofCertifiedIntegerIdentityEliminationRule);
+        register!(2, LiveProofCertifiedIntegerDivideByOneEliminationRule);
     }
     registrations
 }
@@ -6832,6 +6953,87 @@ pub(crate) mod tests {
         unit.identity = recompute_psi_optimization_unit_identity(&unit);
         validate_psi_optimization_unit(&unit).unwrap();
         unit
+    }
+
+    pub(crate) fn live_divide_by_one_unit(
+        integer: IntegerType,
+        make_operation: impl FnOnce(
+            OperationId,
+            ObligationId,
+            ValueId,
+            IntegerType,
+            ValueId,
+            ValueId,
+        ) -> TerminalAbstractOperation,
+    ) -> PsiOptimizationUnit {
+        let machine = id(321, MachineId::new);
+        let block = id(322, BlockId::new);
+        let dividend = id(323, ValueId::new);
+        let one = id(324, ValueId::new);
+        let quotient = id(325, ValueId::new);
+        let literal_operation = id(326, OperationId::new);
+        let divide_operation = id(327, OperationId::new);
+        let obligation = id(328, ObligationId::new);
+        let scalar_type = ScalarType::Integer(integer);
+        let unit = reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([31; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: dividend,
+                        scalar_type,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: quotient,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::IntegerConstant {
+                            psi_operation: literal_operation,
+                            result: one,
+                            scalar_type,
+                            value: integer_one(integer),
+                        },
+                        make_operation(
+                            divide_operation,
+                            obligation,
+                            quotient,
+                            integer,
+                            dividend,
+                            one,
+                        ),
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(329, EdgeId::new),
+                            result: quotient,
+                            value: quotient,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        with_synthetic_accepted_obligations(unit)
     }
 
     pub(crate) fn dependent_exact_chain_unit() -> PsiOptimizationUnit {
@@ -9582,7 +9784,7 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
         let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
         let proof = built_in_psi_registry(&proof).unwrap();
-        assert_eq!(proof.len(), 2);
+        assert_eq!(proof.len(), 3);
         assert_eq!(
             proof
                 .contracts()
@@ -9591,6 +9793,7 @@ pub(crate) mod tests {
             [
                 ProofCertifiedDeadScalarEliminationRule::contract().identity(),
                 LiveProofCertifiedIntegerIdentityEliminationRule::contract().identity(),
+                LiveProofCertifiedIntegerDivideByOneEliminationRule::contract().identity(),
             ]
         );
         let unsupported_combination = OptimizationSelections::new([
@@ -11882,6 +12085,273 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
         assert!(
             LiveProofCertifiedIntegerIdentityEliminationRule
+                .propose(&missing_proof, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn proof_certified_divide_by_one_covers_every_policy_and_integer_sign() {
+        for integer in [
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+        ] {
+            for (policy, expected) in [
+                (
+                    0,
+                    ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
+                ),
+                (
+                    1,
+                    ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
+                ),
+                (
+                    2,
+                    ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+                ),
+            ] {
+                let unit = live_divide_by_one_unit(
+                    integer,
+                    |psi_operation, obligation, result, scalar_type, left, right| match policy {
+                        0 => O::ExactIntegerDivide {
+                            psi_operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                        1 => O::WrappingIntegerDivide {
+                            psi_operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                        2 => O::SaturatingIntegerDivide {
+                            psi_operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        },
+                        _ => unreachable!(),
+                    },
+                );
+                let contract = LiveProofCertifiedIntegerDivideByOneEliminationRule::contract();
+                let mut manager = crate::AnalysisManager::new(&unit);
+                let products = manager
+                    .require_all(&unit, contract.required_analyses())
+                    .unwrap()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let [candidate] = LiveProofCertifiedIntegerDivideByOneEliminationRule
+                    .propose(&unit, RuleAnalysisView::new(&products))
+                    .unwrap()
+                    .try_into()
+                    .expect("each typed divide by literal one has one candidate");
+                let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) =
+                    candidate.patch()
+                else {
+                    unreachable!()
+                };
+                assert_eq!(patch.identity, expected);
+                assert_eq!(patch.replacement, id(323, ValueId::new));
+                assert_eq!(candidate.consumed_facts().len(), 2);
+                let accepted =
+                    validate_proof_certified_scalar_identity_candidate(&unit, &candidate).unwrap();
+                assert_eq!(
+                    accepted.validator(),
+                    OptimizationValidatorIdentity::from_canonical_bytes(
+                        b"omega.validator.live-proof-certified-integer-divide-by-one-elimination.v1"
+                    )
+                );
+                assert_eq!(
+                    accepted.unit().accepted_obligation_facts,
+                    unit.accepted_obligation_facts
+                );
+                assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
+                    !matches!(fact, OptimizationFact::OperationObligationReference { .. })
+                }));
+                assert!(matches!(
+                    accepted.unit().functions[0].blocks[0].nodes[1].operation,
+                    O::Return { value, .. } if value == id(323, ValueId::new)
+                ));
+                assert_eq!(
+                    accepted.unit().functions[0].blocks[0].nodes[1]
+                        .provenance
+                        .len(),
+                    2
+                );
+                assert_eq!(
+                    accepted.unit().functions[0].blocks[0].nodes[1].fuel.len(),
+                    2
+                );
+
+                let mut manager = crate::AnalysisManager::new(accepted.unit());
+                let products = manager
+                    .require_all(accepted.unit(), contract.required_analyses())
+                    .unwrap()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                assert!(
+                    LiveProofCertifiedIntegerDivideByOneEliminationRule
+                        .propose(accepted.unit(), RuleAnalysisView::new(&products))
+                        .unwrap()
+                        .is_empty()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn proof_certified_divide_by_one_declines_missing_evidence_and_rejects_corruption() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let make_exact =
+            |psi_operation, obligation, result, scalar_type, left, right| O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            };
+        let unit = live_divide_by_one_unit(integer, make_exact);
+        let contract = LiveProofCertifiedIntegerDivideByOneEliminationRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = LiveProofCertifiedIntegerDivideByOneEliminationRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let PsiRewritePatch::EliminateProofCertifiedScalarIdentity(patch) = candidate.patch()
+        else {
+            unreachable!()
+        };
+        let (constant_fact, obligation_fact) =
+            candidate.proof_certified_scalar_identity_witness().unwrap();
+
+        let forged_kind = PsiRewriteCandidate::new_proof_certified_scalar_identity(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            constant_fact,
+            obligation_fact,
+            candidate.predicted_cost_delta(),
+            ProofCertifiedScalarIdentityRewrite {
+                identity: ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
+                ..patch
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_scalar_identity_candidate(&unit, &forged_kind),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+        let forged_old_family = PsiRewriteCandidate::new_proof_certified_scalar_identity(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            constant_fact,
+            obligation_fact,
+            candidate.predicted_cost_delta(),
+            ProofCertifiedScalarIdentityRewrite {
+                identity: ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyOneRight,
+                ..patch
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_scalar_identity_candidate(&unit, &forged_old_family),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+        let foreign_constant = PsiRewriteCandidate::new_proof_certified_scalar_identity(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            ScalarConstantFactIdentity::from_canonical_bytes(b"foreign divide-one literal"),
+            obligation_fact,
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_scalar_identity_candidate(&unit, &foreign_constant),
+            Err(OptimizationUnitValidationError::CandidateOperandFactMismatch)
+        );
+        let foreign_obligation = PsiRewriteCandidate::new_proof_certified_scalar_identity(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            constant_fact,
+            omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                b"foreign divide-one proof",
+            ),
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_scalar_identity_candidate(&unit, &foreign_obligation),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+
+        let mut wrong_literal = live_divide_by_one_unit(integer, make_exact);
+        let O::IntegerConstant { value, .. } =
+            &mut wrong_literal.functions[0].blocks[0].nodes[0].operation
+        else {
+            unreachable!()
+        };
+        *value = IntegerValue::Unsigned(0);
+        let OptimizationFact::IntegerConstant { constant, .. } =
+            &mut wrong_literal.functions[0].facts[0]
+        else {
+            unreachable!()
+        };
+        *constant = IntegerValue::Unsigned(0);
+        wrong_literal.identity = recompute_psi_optimization_unit_identity(&wrong_literal);
+        validate_psi_optimization_unit(&wrong_literal).unwrap();
+        let mut manager = crate::AnalysisManager::new(&wrong_literal);
+        let products = manager
+            .require_all(&wrong_literal, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            LiveProofCertifiedIntegerDivideByOneEliminationRule
+                .propose(&wrong_literal, RuleAnalysisView::new(&products))
+                .unwrap()
+                .is_empty()
+        );
+
+        let mut missing_proof = live_divide_by_one_unit(integer, make_exact);
+        missing_proof.accepted_obligation_facts.clear();
+        missing_proof.identity = recompute_psi_optimization_unit_identity(&missing_proof);
+        let mut manager = crate::AnalysisManager::new(&missing_proof);
+        let products = manager
+            .require_all(&missing_proof, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        assert!(
+            LiveProofCertifiedIntegerDivideByOneEliminationRule
                 .propose(&missing_proof, RuleAnalysisView::new(&products))
                 .unwrap()
                 .is_empty()

@@ -742,7 +742,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     );
     let proof_elision_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.proof-check-elision.v1",
+            b"omega.psi-pass.proof-check-elision.v3",
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
@@ -784,11 +784,11 @@ mod tests {
         rules::tests::{
             boolean_unit, constant_conditional_same_target_unit, dead_exact_add_unit,
             dead_wrapping_add_unit, dependent_exact_chain_unit, diamond_dominator_gvn_unit,
-            dominator_gvn_unit, exact_add_unit, linear_empty_block_unit, local_cse_unit,
-            non_adjacent_merge_unit, phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
-            proof_certified_local_cse_unit, proof_certified_phi_translated_gvn_unit,
-            propagated_block_parameter_unit, randomized_built_in_registries,
-            redundant_block_parameter_unit, wrapping_add_unit,
+            dominator_gvn_unit, exact_add_unit, linear_empty_block_unit, live_divide_by_one_unit,
+            local_cse_unit, non_adjacent_merge_unit, phi_translated_gvn_unit,
+            proof_certified_dominator_gvn_unit, proof_certified_local_cse_unit,
+            proof_certified_phi_translated_gvn_unit, propagated_block_parameter_unit,
+            randomized_built_in_registries, redundant_block_parameter_unit, wrapping_add_unit,
         },
     };
 
@@ -1355,7 +1355,7 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 2);
+        assert_eq!(manifest.ordered_rules().len(), 3);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
@@ -1508,6 +1508,22 @@ mod tests {
                 diamond_dominator_gvn_unit(),
             ),
             (
+                Optimization::ProofCheckElision,
+                live_divide_by_one_unit(
+                    psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+                    |psi_operation, obligation, result, scalar_type, left, right| {
+                        TerminalAbstractOperation::ExactIntegerDivide {
+                            psi_operation,
+                            obligation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                        }
+                    },
+                ),
+            ),
+            (
                 Optimization::DeadPureScalarElimination,
                 dead_wrapping_add_unit(),
             ),
@@ -1554,6 +1570,19 @@ mod tests {
             dominator_gvn_unit(),
             proof_certified_local_cse_unit(),
             proof_certified_dominator_gvn_unit(),
+            live_divide_by_one_unit(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+                |psi_operation, obligation, result, scalar_type, left, right| {
+                    TerminalAbstractOperation::ExactIntegerDivide {
+                        psi_operation,
+                        obligation,
+                        result,
+                        scalar_type,
+                        left,
+                        right,
+                    }
+                },
+            ),
         ] {
             let (first_output, first_manifests, first_ledger) =
                 run_test_pipeline(initial, &registries);
@@ -1874,7 +1903,7 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.pass_manifests.len(), 1);
-        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 2);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 3);
         assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
             run.pass_manifests[0].decisions()[0].consumed_facts().len(),
