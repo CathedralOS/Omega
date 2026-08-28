@@ -797,100 +797,10 @@ validate_event_owned:
 check_epilogue_at_ret:
         imm r1, 19
         jlt r14, r1, reject
-        mov r6, r14
-        imm r1, 19
-        sub r6, r1
-        imm r1, 2097152
-        add r1, r6
-        loadb r2, r1
-        imm r3, 2
-        jeq r2, r3, epilogue_mov_regs
-        jmp reject
-epilogue_mov_regs:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 15
-        jeq r2, r3, epilogue_mov_fp
-        jmp reject
-epilogue_mov_fp:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 14
-        jeq r2, r3, epilogue_load
-        jmp reject
-epilogue_load:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 10
-        jeq r2, r3, epilogue_load_regs
-        jmp reject
-epilogue_load_regs:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 14
-        jeq r2, r3, epilogue_load_sp
-        jmp reject
-epilogue_load_sp:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 15
-        jeq r2, r3, epilogue_imm
-        jmp reject
-epilogue_imm:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, epilogue_imm_reg
-        jmp reject
-epilogue_imm_reg:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 2
-        jeq r2, r3, epilogue_imm_value
-        jmp reject
-epilogue_imm_value:
-        imm r2, 1
-        add r1, r2
-        load r2, r1
-        imm r3, 8
-        jeq r2, r3, epilogue_add
-        jmp reject
-epilogue_add:
-        imm r2, 8
-        add r1, r2
-        loadb r2, r1
-        imm r3, 3
-        jeq r2, r3, epilogue_add_regs
-        jmp reject
-epilogue_add_regs:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 15
-        jeq r2, r3, epilogue_add_r2
-        jmp reject
-epilogue_add_r2:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 2
-        jeq r2, r3, epilogue_ret
-        jmp reject
-epilogue_ret:
-        imm r2, 1
-        add r1, r2
-        loadb r2, r1
-        imm r3, 20
-        jeq r2, r3, epilogue_ok
-        jmp reject
-epilogue_ok:
+        mov r20, r14
+        sub r20, r1
+        mov r21, r14
+        call exact_require_epilogue
         ret
 
 ; Validate exact `jmp literal; db ...; imm r0,addr; imm r1,len; call helper`

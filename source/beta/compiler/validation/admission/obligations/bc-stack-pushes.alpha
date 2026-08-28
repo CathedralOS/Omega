@@ -252,7 +252,7 @@ validate_stack_push_one:
 own_stack_push:
         imm r2, 1
         storeb r1, r2
-        call classify_stack_push_macro
+        call exact_match_push
         imm r1, 1
         jeq r0, r1, validate_stack_push_next
         jmp reject
@@ -277,7 +277,7 @@ scan_stack_push_artifact_pc:
         jmp scan_stack_push_artifact_next
 scan_stack_push_artifact_start:
         mov r14, r10
-        call classify_stack_push_macro
+        call exact_match_push
         imm r1, 1
         jeq r0, r1, scan_stack_push_artifact_owned
         jmp scan_stack_push_artifact_next
@@ -304,79 +304,6 @@ scan_stack_push_artifact_count:
         imm r3, 407
         jeq r2, r3, composition_scan_init
         jmp reject
-
-; Input r14 is a decoded start; output r0 is one iff the exact 16-byte macro is
-; `imm r2,8; sub r15,r2; store r15,r0`.
-classify_stack_push_macro:
-        mov r20, r14
-        imm r1, 16
-        add r20, r1
-        imm r1, 524296
-        load r2, r1
-        jlt r2, r20, classify_stack_push_none
-        imm r20, 0
-        imm r21, 1
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_reg
-        jmp classify_stack_push_none
-classify_stack_push_reg:
-        imm r20, 1
-        imm r21, 2
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_step
-        jmp classify_stack_push_none
-classify_stack_push_step:
-        imm r20, 2
-        imm r21, 8
-        call expr_tape_word_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_sub
-        jmp classify_stack_push_none
-classify_stack_push_sub:
-        imm r20, 10
-        imm r21, 4
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_sub_sp
-        jmp classify_stack_push_none
-classify_stack_push_sub_sp:
-        imm r20, 11
-        imm r21, 15
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_sub_step
-        jmp classify_stack_push_none
-classify_stack_push_sub_step:
-        imm r20, 12
-        imm r21, 2
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_store
-        jmp classify_stack_push_none
-classify_stack_push_store:
-        imm r20, 13
-        imm r21, 11
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_store_sp
-        jmp classify_stack_push_none
-classify_stack_push_store_sp:
-        imm r20, 14
-        imm r21, 15
-        call expr_tape_byte_matches
-        imm r1, 1
-        jeq r0, r1, classify_stack_push_store_value
-        jmp classify_stack_push_none
-classify_stack_push_store_value:
-        imm r20, 15
-        imm r21, 0
-        call expr_tape_byte_matches
-        ret
-classify_stack_push_none:
-        imm r0, 0
-        ret
 
 ; Compact exact-shape adapters keep the push-kind proposition explicit while
 ; avoiding hundreds of repeated immediate loads at individual call sites.

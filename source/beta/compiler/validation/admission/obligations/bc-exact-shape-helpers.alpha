@@ -1,5 +1,382 @@
 ; Responsibility-neutral exact shape/table helpers shared by semantic tranches.
+; Compiler-generated stack/frame macros are decoded here exactly once; semantic
+; consumers pass only their independently reconstructed PC/register/slot facts.
 ; This file has no initialization edge and publishes no theorem token.
+
+; Exact saved-fp prologue prefix at r20:
+; `imm r5,8; sub r15,r5; store r15,r14; mov r14,r15`.
+exact_require_prologue:
+        mov r25, r20
+        mov r20, r25
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 8
+        call require_tape_word
+        mov r20, r25
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 12
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 11
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        ret
+
+; Exact optional frame allocation at r20 for r21 bytes:
+; `imm r5,frame_bytes; sub r15,r5`.
+exact_require_frame_allocation:
+        mov r25, r20
+        mov r26, r21
+        mov r20, r25
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        mov r21, r26
+        call require_tape_word
+        mov r20, r25
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 12
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        ret
+
+; Exact parameter store at r20 for argument register r21:
+; `mov r5,r14; imm r4,8+8*k; sub r5,r4; store r5,rK`.
+exact_require_parameter_store:
+        mov r25, r20
+        mov r26, r21
+        mov r20, r25
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        mov r21, r26
+        imm r1, 1
+        add r21, r1
+        imm r1, 8
+        mul r21, r1
+        call require_tape_word
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 11
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        mov r21, r26
+        call require_tape_byte
+        ret
+
+; Exact 16-byte pop at r20 into register r21:
+; `load rK,r15; imm r5,8; add r15,r5`.
+exact_require_pop:
+        call exact_match_pop
+        imm r1, 1
+        jeq r0, r1, exact_shape_ok
+        jmp reject
+
+; Boolean form used by exhaustive artifact scanners. Inputs match the strict
+; adapter above; output r0 is one exactly for the canonical pop macro.
+exact_match_pop:
+        mov r25, r20
+        mov r26, r21
+        mov r2, r25
+        imm r1, 16
+        add r2, r1
+        imm r1, 524296
+        load r3, r1
+        jlt r3, r2, exact_match_pop_none
+        mov r20, r25
+        imm r21, 10
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_register
+        jmp exact_match_pop_none
+exact_match_pop_register:
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        mov r21, r26
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_sp
+        jmp exact_match_pop_none
+exact_match_pop_sp:
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_imm
+        jmp exact_match_pop_none
+exact_match_pop_imm:
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_step_register
+        jmp exact_match_pop_none
+exact_match_pop_step_register:
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 5
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_step
+        jmp exact_match_pop_none
+exact_match_pop_step:
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        imm r21, 8
+        call exact_tape_word_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add
+        jmp exact_match_pop_none
+exact_match_pop_add:
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 3
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add_sp
+        jmp exact_match_pop_none
+exact_match_pop_add_sp:
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add_step
+        jmp exact_match_pop_none
+exact_match_pop_add_step:
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 5
+        call exact_tape_byte_matches
+        ret
+exact_match_pop_none:
+        imm r0, 0
+        ret
+
+; Boolean byte/word equality at exact tape pc r20; output r0 is zero/one.
+exact_tape_byte_matches:
+        imm r1, 2097152
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r21, exact_tape_matches
+        imm r0, 0
+        ret
+exact_tape_word_matches:
+        imm r1, 2097152
+        add r1, r20
+        load r2, r1
+        jeq r2, r21, exact_tape_matches
+        imm r0, 0
+        ret
+exact_tape_matches:
+        imm r0, 1
+        ret
+
+; Input r14 is a decoded start; output r0 is one iff the exact 16-byte push is
+; `imm r2,8; sub r15,r2; store r15,r0`.
+exact_match_push:
+        mov r20, r14
+        imm r1, 16
+        add r20, r1
+        imm r1, 524296
+        load r2, r1
+        jlt r2, r20, exact_match_push_none
+        mov r20, r14
+        imm r21, 1
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_register
+        jmp exact_match_push_none
+exact_match_push_register:
+        mov r20, r14
+        imm r1, 1
+        add r20, r1
+        imm r21, 2
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_step
+        jmp exact_match_push_none
+exact_match_push_step:
+        mov r20, r14
+        imm r1, 2
+        add r20, r1
+        imm r21, 8
+        call exact_tape_word_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub
+        jmp exact_match_push_none
+exact_match_push_sub:
+        mov r20, r14
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub_sp
+        jmp exact_match_push_none
+exact_match_push_sub_sp:
+        mov r20, r14
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub_step
+        jmp exact_match_push_none
+exact_match_push_sub_step:
+        mov r20, r14
+        imm r1, 12
+        add r20, r1
+        imm r21, 2
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store
+        jmp exact_match_push_none
+exact_match_push_store:
+        mov r20, r14
+        imm r1, 13
+        add r20, r1
+        imm r21, 11
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store_sp
+        jmp exact_match_push_none
+exact_match_push_store_sp:
+        mov r20, r14
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store_value
+        jmp exact_match_push_none
+exact_match_push_store_value:
+        mov r20, r14
+        imm r1, 15
+        add r20, r1
+        imm r21, 0
+        call exact_tape_byte_matches
+        ret
+exact_match_push_none:
+        imm r0, 0
+        ret
 
 ; Exhaust all expression primitive/push rows for selected blocks [r20,r21].
 ; The four supplied half-open row intervals must contain every matching row

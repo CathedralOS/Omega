@@ -46,9 +46,14 @@ maximal observation. Responsibility-specific decoded-region descriptors share
 one parameterized effect census for exact call, return, write, store, and
 raw-byte-access policy. Selected local, memory, primitive, and push rows likewise
 share one canonical exact-table decoder instead of tranche-local copies. The
-final ROOT tape is 79,124 bytes for the current
+same responsibility-neutral owner decodes compiler-generated push, pop,
+saved-frame prologue, optional frame-allocation, parameter-store, and epilogue
+macros once. Frame, effect, memory, expression, and stack-table consumers pass
+their independently reconstructed PC/register/slot facts to those decoders
+instead of embedding another instruction-byte copy. The final ROOT tape is
+77,889 bytes for the current
 exact subjects, SHA-256
-`feb10320cf6e9caa10aadb8a89af3e6dd8da0529aeadf5b85d6c5a8c3b93a5b1`.
+`c3d80a1f102bff26a8ed70e5a70f89b4f327afb41296d4d1815c59aa16849865`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
