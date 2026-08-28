@@ -48,7 +48,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 7;
+const MANIFEST_VERSION: u32 = 8;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -104,6 +104,8 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub resolved_layout: ResolvedSelectedFormLayoutIdentity,
     pub x86_branch_relaxation: Option<X86BranchRelaxationIdentity>,
     pub aarch64_cbnz_fusion: Option<omega_machine_optimizer::Aarch64CbnzFusionIdentity>,
+    pub aarch64_movn_materialization:
+        Option<omega_machine_optimizer::Aarch64MovnMaterializationIdentity>,
     pub whole_function_exit_contract: WholeFunctionExitContractIdentity,
     pub target: NativeTarget,
     pub layout_policy: SelectedFunctionLayoutPolicy,
@@ -123,7 +125,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v7\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v8\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -213,6 +215,19 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64CbnzFusionStatus(tag));
             }
         };
+        let aarch64_movn_materialization = match cursor.byte()? {
+            0 => None,
+            1 => Some(
+                omega_machine_optimizer::Aarch64MovnMaterializationIdentity::from_bytes(
+                    cursor.array()?,
+                ),
+            ),
+            tag => {
+                return Err(
+                    FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownAarch64MovnMaterializationStatus(tag),
+                );
+            }
+        };
         let whole_function_exit_contract =
             WholeFunctionExitContractIdentity::from_bytes(cursor.array()?);
         let target = decode_target(&mut cursor)?;
@@ -281,6 +296,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
             resolved_layout,
             x86_branch_relaxation,
             aarch64_cbnz_fusion,
+            aarch64_movn_materialization,
             whole_function_exit_contract,
             target,
             layout_policy,
@@ -295,6 +311,15 @@ impl FunctionRelativeOptimizationRealizationManifest {
             installation: unavailable[6],
             publication: unavailable[7],
         };
+        if usize::from(manifest.x86_branch_relaxation.is_some())
+            + usize::from(manifest.aarch64_cbnz_fusion.is_some())
+            + usize::from(manifest.aarch64_movn_materialization.is_some())
+            > 1
+        {
+            return Err(
+                FunctionRelativeOptimizationRealizationManifestDecodeError::ConflictingPhysicalTransformations,
+            );
+        }
         if manifest.identity != manifest.recomputed_identity() {
             return Err(
                 FunctionRelativeOptimizationRealizationManifestDecodeError::IdentityMismatch,
@@ -411,6 +436,15 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 writeln!(output, "AArch64 CBNZ fusion: {}", hex(&identity.bytes())).unwrap()
             }
             None => writeln!(output, "AArch64 CBNZ fusion: not run").unwrap(),
+        }
+        match self.aarch64_movn_materialization {
+            Some(identity) => writeln!(
+                output,
+                "AArch64 MOVN materialization: {}",
+                hex(&identity.bytes())
+            )
+            .unwrap(),
+            None => writeln!(output, "AArch64 MOVN materialization: not run").unwrap(),
         }
         writeln!(
             output,
@@ -876,6 +910,8 @@ pub enum FunctionRelativeOptimizationRealizationManifestDecodeError {
     UnknownSelectedLoweringCompletionStatus(u8),
     UnknownX86BranchRelaxationStatus(u8),
     UnknownAarch64CbnzFusionStatus(u8),
+    UnknownAarch64MovnMaterializationStatus(u8),
+    ConflictingPhysicalTransformations,
     UnknownArchitecture(u8),
     UnknownObjectFormat(u8),
     TargetLayoutOverflow,
@@ -1974,6 +2010,131 @@ fn expected_cbnz_manifest(
         resolved_layout: layout.identity(),
         x86_branch_relaxation: None,
         aarch64_cbnz_fusion: Some(fusion.fusion().receipt().identity()),
+        aarch64_movn_materialization: None,
+        whole_function_exit_contract: exit_contract.identity(),
+        target,
+        layout_policy: layout.policy(),
+        scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
+        statistics: final_statistics,
+        frame: unavailable,
+        machine_emission: unavailable,
+        section_placement: unavailable,
+        symbols: unavailable,
+        object_relocations: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    record.identity = record.recomputed_identity();
+    Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn expected_aarch64_movn_manifest(
+    selections: &OptimizationSelections,
+    selected_lowering_selections: OptimizationSelectionIdentity,
+    selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
+    post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
+    selected: SelectedInstructionPlanIdentity,
+    target: NativeTarget,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    materialization: &crate::StagedOptimizedAarch64MovnMaterialization,
+    baseline_encoding: &StagedOptimizedSelectedFormEncoding,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    baseline_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    exit_contract: &ValidatedWholeFunctionExitContract,
+) -> Result<
+    ValidatedFunctionRelativeOptimizationRealizationManifest,
+    FunctionRelativeOptimizationRealizationError,
+> {
+    let selected_lowering_phase =
+        selections.for_phase(OptimizationExecutionPhase::SelectedLowering);
+    let post_phase = selections.for_phase(OptimizationExecutionPhase::PostAllocationMachine);
+    let layout_phase = selections.for_phase(OptimizationExecutionPhase::FunctionRelativeLayout);
+    let receipt = materialization.custody();
+    if selected_lowering_selections != selected_lowering_phase.identity()
+        || selected_lowering_completion.is_some() == selected_lowering_phase.is_empty()
+        || post_phase.as_slice()
+            != [Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1]
+        || !layout_phase.is_empty()
+        || receipt.selections() != selections.identity()
+        || receipt.post_allocation_machine_selections() != post_phase.identity()
+        || receipt.source() != machine.machine().receipt().identity()
+        || machine.machine().receipt().post_allocation_manifest() != post_allocation_manifest
+        || machine.machine().receipt().selected() != selected
+        || baseline_encoding.selected() != selected
+        || baseline_encoding.machine() != machine.machine().receipt().identity()
+        || baseline_encoding.machine_optimization().is_some()
+        || baseline_encoding.movn_optimization().is_some()
+        || encoding.selected() != selected
+        || encoding.machine() != machine.machine().receipt().identity()
+        || encoding.machine_optimization().is_some()
+        || encoding.movn_optimization().is_none_or(|custody| {
+            custody.selections() != selections.identity()
+                || custody.post_allocation_machine_selections() != post_phase.identity()
+                || custody.materialization() != receipt.materialization()
+        })
+        || baseline_layout.pre_layout() != baseline_encoding.identity()
+        || baseline_layout.machine_optimization().is_some()
+        || baseline_layout.movn_optimization().is_some()
+        || layout.pre_layout() != encoding.identity()
+        || layout.machine_optimization().is_some()
+        || layout.movn_optimization() != encoding.movn_optimization()
+        || baseline_layout.target() != target
+        || layout.target() != target
+        || exit_contract.contract().selected != selected
+        || exit_contract.contract().post_allocation_manifest != post_allocation_manifest
+        || exit_contract.contract().post_allocation_machine
+            != machine.machine().receipt().identity()
+        || exit_contract.contract().pre_layout != encoding.identity()
+        || exit_contract.contract().resolved_layout != layout.identity()
+        || !matches!(
+            exit_contract.contract().layout_custody,
+            crate::WholeFunctionExitLayoutCustody::Aarch64SelectShortestMovnSeededI64MaterializationV1 {
+                materialization
+            } if materialization == receipt.materialization()
+        )
+    {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
+    let final_statistics = function_relative_statistics(layout)?;
+    let expected_shrink = receipt
+        .baseline_words()
+        .checked_sub(receipt.selected_words())
+        .and_then(|words| words.checked_mul(4))
+        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
+    if baseline_bytes.checked_sub(final_statistics.bytes) != Some(expected_shrink) {
+        return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
+    }
+    let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
+    let mut record = FunctionRelativeOptimizationRealizationManifest {
+        identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
+            b"pending",
+        ),
+        stage: FunctionRelativeOptimizationRealizationStage::ValidatedFunctionRelativeSelectedFormsAndWholeFunctionExitV1,
+        selections: selections.identity(),
+        selected_lowering_selections,
+        selected_lowering_completion,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
+        post_allocation_machine_selections: post_phase.identity(),
+        function_relative_layout_selections: layout_phase.identity(),
+        pre_physical_manifest,
+        post_allocation_manifest,
+        selected,
+        pre_allocation_machine_effects: machine.effects().effects().receipt().identity(),
+        post_allocation_machine: machine.machine().receipt().identity(),
+        baseline_pre_layout: baseline_encoding.identity(),
+        pre_layout: encoding.identity(),
+        baseline_resolved_layout: baseline_layout.identity(),
+        resolved_layout: layout.identity(),
+        x86_branch_relaxation: None,
+        aarch64_cbnz_fusion: None,
+        aarch64_movn_materialization: Some(receipt.materialization()),
         whole_function_exit_contract: exit_contract.identity(),
         target,
         layout_policy: layout.policy(),
@@ -2074,6 +2235,7 @@ fn expected_manifest(
         resolved_layout: final_layout.identity(),
         x86_branch_relaxation: relaxation.map(StagedOptimizedX86BranchRelaxation::identity),
         aarch64_cbnz_fusion: None,
+        aarch64_movn_materialization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
@@ -2176,6 +2338,7 @@ fn expected_direct_manifest(
         resolved_layout: relaxation.layout().identity(),
         x86_branch_relaxation: Some(relaxation.identity()),
         aarch64_cbnz_fusion: None,
+        aarch64_movn_materialization: None,
         whole_function_exit_contract: exit_contract.identity(),
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
@@ -2353,6 +2516,13 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         None => canonical.push(0),
     }
     match manifest.aarch64_cbnz_fusion {
+        Some(identity) => {
+            canonical.push(1);
+            canonical.extend_from_slice(&identity.bytes());
+        }
+        None => canonical.push(0),
+    }
+    match manifest.aarch64_movn_materialization {
         Some(identity) => {
             canonical.push(1);
             canonical.extend_from_slice(&identity.bytes());
