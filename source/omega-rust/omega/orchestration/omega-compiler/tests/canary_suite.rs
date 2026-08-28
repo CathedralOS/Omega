@@ -530,6 +530,7 @@ const CHECKED_ONLY_PASS_CANARIES: &[&str] = &[
     "proofs/higher_order_machine_schema_compile",
     "proofs/machine_parameterized_data_compile",
     "proofs/named_witness_concrete_lane_compile",
+    "proofs/named_witness_static_trait_call_compile",
     "proofs/proof_constant_arithmetic_identity",
     "proofs/proof_order_transitivity",
     "proofs/proof_linear_range_sum",
