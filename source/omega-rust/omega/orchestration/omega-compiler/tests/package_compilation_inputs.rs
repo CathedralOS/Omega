@@ -731,6 +731,240 @@ boundary machine LeafData::boundary_extension(value: u64) -> u64;
 }
 
 #[test]
+fn machine_satisfies_edges_require_exact_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub machine public_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply
+{
+    value
+}
+machine private_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply
+{
+    value
+}
+boundary machine boundary_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply;
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait LeafPolicy {
+    machine apply(value: u64) -> u64;
+}
+"#,
+    );
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive satisfies graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("a machine may not satisfy a transitive-only requirement");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected machine-satisfies diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct satisfies graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit exact machine-satisfies edges");
+    let root_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+        })
+        .collect::<Vec<_>>();
+    for kind in [Kind::TypeReference, Kind::StaticPathSegment] {
+        let selections = root_selections
+            .iter()
+            .filter(|selection| {
+                selection.kind() == kind
+                    && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains(if kind == Kind::TypeReference { "LeafPolicy" } else { "apply" }))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(selections.len(), 3);
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+                .count(),
+            2,
+        );
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+                .count(),
+            1,
+        );
+    }
+    for machine in checked.machines().iter().filter(|machine| {
+        matches!(
+            machine.name.as_str(),
+            "public_apply" | "private_apply" | "boundary_apply"
+        )
+    }) {
+        let [conformance] = checked.machine_trait_conformances(machine) else {
+            panic!("one exact satisfies edge for {}", machine.name)
+        };
+        assert!(conformance.requirement_symbol.is_valid());
+        assert_eq!(
+            checked.symbols.name(conformance.requirement_symbol),
+            "apply"
+        );
+    }
+}
+
+#[test]
+fn public_machine_satisfies_edges_reject_private_requirements() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only satisfies graph should close")
+    };
+    let source = |machine_prefix: &str| {
+        format!(
+            r#"trait PrivatePolicy {{
+    machine apply(value: u64) -> u64;
+}}
+{machine_prefix}machine apply(value: u64) -> u64
+    satisfies PrivatePolicy::apply
+{{
+    value
+}}
+"#,
+        )
+    };
+
+    TempTree::write(root.join("main.omg"), &source("pub "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public satisfier may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected public private-requirement diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(root.join("main.omg"), &source(""));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("a private satisfier may select its package-private requirement");
+
+    TempTree::write(root.join("main.omg"), &source("boundary "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("an exported boundary satisfier may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected boundary private-requirement diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn machine_satisfies_retains_the_exact_result_dispatch_overload() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub domain u64::First;
+pub domain u64::Second;
+pub trait Choice {
+    machine choose(value: u64) -> u64 in First;
+    machine choose(value: u64) -> u64 in Second;
+}
+boundary machine choose_first(value: u64) -> u64 in First
+    satisfies Choice::choose;
+"#,
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only overload graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("result dispatch should select one exact requirement overload");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose_first")
+        .expect("overload satisfier");
+    let [conformance] = checked.machine_trait_conformances(machine) else {
+        panic!("one exact overload edge")
+    };
+    let choice = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Choice")
+        .expect("choice trait");
+    let selected = checked
+        .trait_machine_signatures(choice)
+        .iter()
+        .find(|requirement| requirement.symbol == conformance.requirement_symbol)
+        .expect("settled requirement symbol must name one Choice overload");
+    assert!(
+        checked
+            .normalized_result_dispatch_set(selected.return_type)
+            .identity()
+            .contains("First")
+    );
+}
+
+#[test]
 fn package_compilation_rejects_authored_reserved_cleanup_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");

@@ -11204,6 +11204,12 @@ fn project_callable_conformances(
                     }
                 ))]);
             };
+            if operator.symbol != conformance.requirement_symbol {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` operator realization `{}::{}` drifted from its retained exact overload",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
             if !operator.is_public && (external_operator || require_public_trait) {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
@@ -11356,38 +11362,28 @@ fn project_callable_conformances(
                 machine.name
             ))]);
         };
-        let implementation_dispatch = compilation.normalized_result_dispatch_set(
-            compilation
-                .machine_states(machine)
-                .first()
-                .expect("reviewed callable entry was checked before conformances")
-                .return_type,
-        );
-        let named = compilation
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .filter(|requirement| requirement.name == *requirement_name)
-            .collect::<Vec<_>>();
-        let matching = if named.len() == 1 {
-            named
-        } else {
-            named
-                .into_iter()
-                .filter(|requirement| {
-                    compilation.normalized_result_dispatch_set(requirement.return_type)
-                        == implementation_dispatch
-                })
-                .collect()
-        };
-        let [requirement] = matching.as_slice() else {
+        let Some(psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+            definition: resolved_trait,
+            requirement,
+        }) = psi_typed_trees::machine::resolve_satisfied_declaration(
+            &compilation.typed,
+            machine,
+            conformance,
+        )
+        else {
             return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` trait realization `{}::{}` resolves to {} exact requirement overloads; expected one",
-                machine.name,
-                trait_definition.name,
-                requirement_name,
-                matching.len()
+                "reviewed callable `{}` trait realization `{}::{}` does not resolve to one exact retained requirement overload",
+                machine.name, trait_definition.name, requirement_name,
             ))]);
         };
+        if resolved_trait.symbol != trait_definition.symbol
+            || requirement.symbol != conformance.requirement_symbol
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` trait realization `{}::{}` drifted from its retained exact requirement",
+                machine.name, trait_definition.name, requirement_name
+            ))]);
+        }
         let row = PackageReviewCallableConformance {
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
             requirement_identity: trait_requirement_identity(

@@ -7,8 +7,8 @@ use psi_validation::validate_program;
 fn validate(source: &str) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
     let tokens = Lexer::new(source).tokenize().expect("tokenize");
     let syntax = parse_syntax_trees(&tokens).expect("parse");
-    let resolved = lower_syntax_trees(&syntax).expect("resolve");
-    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    let resolved = lower_syntax_trees(&syntax)?;
+    let typed = lower_symbol_resolved_trees(&resolved).map_err(|diagnostic| vec![diagnostic])?;
     validate_program(&typed)
 }
 
@@ -51,9 +51,8 @@ fn rejects_a_runtime_type_in_a_machine_identity_slot() {
     )
     .expect_err("a data type is not a machine declaration identity");
     assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic
-            .message
-            .contains("is not an exact machine or trait requirement")
+        diagnostic.message.contains("expected one exact")
+            && diagnostic.message.contains("Trait::requirement")
     }));
 }
 

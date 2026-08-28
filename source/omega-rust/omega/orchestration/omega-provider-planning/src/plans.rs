@@ -2370,17 +2370,10 @@ pub fn derive_satisfies_plans_with_provenance(
             );
             let semantic_requirement_identity = exact_satisfied_requirement_identity(
                 typed,
-                machine,
                 clause.symbol,
-                requirement.as_str(),
+                clause.requirement_symbol,
             );
-            let requirement_symbol = exact_satisfied_requirement_symbol(
-                typed,
-                machine,
-                clause.symbol,
-                requirement.as_str(),
-            )
-            .unwrap_or_else(psi_symbols::SymbolHandle::invalid);
+            let requirement_symbol = clause.requirement_symbol;
             for (schema_declaration, schema_trait, schema) in provider_plan_schema_targets(
                 typed,
                 &provider_type,
@@ -2708,19 +2701,13 @@ pub fn satisfied_requirement_identity(
 
 fn exact_satisfied_requirement_identity(
     typed: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
     trait_symbol: psi_symbols::SymbolHandle,
-    requirement_name: &str,
+    requirement_symbol: psi_symbols::SymbolHandle,
 ) -> String {
     let Some(definition) = typed
         .traits()
         .iter()
         .find(|definition| definition.symbol == trait_symbol)
-    else {
-        return String::new();
-    };
-    let Some(requirement_symbol) =
-        exact_satisfied_requirement_symbol(typed, machine, trait_symbol, requirement_name)
     else {
         return String::new();
     };
@@ -2734,40 +2721,6 @@ fn exact_satisfied_requirement_identity(
                 .identity()
         })
         .unwrap_or_default()
-}
-
-fn exact_satisfied_requirement_symbol(
-    typed: &TypedTrees,
-    machine: &psi_typed_trees::machine::Machine,
-    trait_symbol: psi_symbols::SymbolHandle,
-    requirement_name: &str,
-) -> Option<psi_symbols::SymbolHandle> {
-    let definition = typed
-        .traits()
-        .iter()
-        .find(|definition| definition.symbol == trait_symbol)?;
-    let named = typed
-        .trait_machine_signatures(definition)
-        .iter()
-        .filter(|signature| signature.name.as_str() == requirement_name)
-        .collect::<Vec<_>>();
-    let selected = match named.as_slice() {
-        [single] => Some(*single),
-        many => {
-            let implementation_dispatch = typed
-                .machine_states(machine)
-                .first()
-                .map(|entry| typed.normalized_result_dispatch_set(entry.return_type));
-            let mut matching = many.iter().copied().filter(|signature| {
-                implementation_dispatch.as_ref().is_some_and(|dispatch| {
-                    typed.normalized_result_dispatch_set(signature.return_type) == *dispatch
-                })
-            });
-            let selected = matching.next();
-            selected.filter(|_| matching.next().is_none())
-        }
-    }?;
-    Some(selected.symbol)
 }
 
 fn exact_external_binding_identity<'typed>(
