@@ -119,7 +119,9 @@ source closure and tools, reconstructs the packed Gamma program, independently
 decodes repeated executions, requires byte-identical assembly, and validates
 the bounded target dialect. It remains fail-closed until those observations
 come from the exact full-source execution; it does not manufacture the missing
-compiler artifact.
+compiler artifact. The 2026-08-28 exact attempt was stopped after both parallel
+executions reached 9,660 seconds with zero output; it produced no receipt and
+grants no publication authority.
 
 Design blocker: [`OWNER_QUESTIONS.md`](OWNER_QUESTIONS.md) Q16 must ratify the
 independent Delta v1 language, resource, and observation semantics before the
@@ -157,13 +159,15 @@ and are not blocked on this ruling.
 - [ ] Make the full Gamma execution practical to repeat. The current paired V1
   run is already parallel, but after two CPU-hours per execution a read-only
   sample still places about 91% of time in the audited Alpha VM's common
-  instruction-dispatch path, whose Darwin seed currently performs a linear
-  21-opcode comparison chain for every instruction. Evaluate a bounded jump
-  table or an equally auditable dispatch change, and profile the generated
-  Delta/Gamma workload as the second axis. Reduce the cost without changing
-  Alpha or Gamma meaning, hiding a compiler stage, or weakening the exact
-  evidence join. The 12-hour safety ceiling is not an acceptable normal gate
-  duration.
+  instruction-dispatch path. A bounds-checked 21-row branch-table prototype
+  passed all Alpha gates and improved a synthetic two-opcode loop from
+  4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
+  Gamma tail loop from 2.68–2.70 seconds to 3.18–3.19 seconds; it was therefore
+  rejected and the committed seed remains unchanged. Profile the generated
+  Delta/Gamma workload before choosing the next optimization axis. Reduce the
+  cost without changing Alpha or Gamma meaning, hiding a compiler stage, or
+  weakening the exact evidence join. The 12-hour safety ceiling is not an
+  acceptable normal gate duration.
 - [x] Retire the unconsumed imperative Gamma compatibility compiler, its native
   artifact, scripts, and private example corpus. It was not the Gamma rung used
   to produce Delta and no default gate or external consumer used it; Git history
