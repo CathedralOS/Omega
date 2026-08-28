@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v27";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v28";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -3792,7 +3792,8 @@ fn verify_git_batch_request_identity(
             ));
         }
     }
-    verify_macos_open_cache_extended_acl_custody(CacheCustodyKind::Git, path, file)
+    verify_macos_open_cache_extended_acl_custody(CacheCustodyKind::Git, path, file)?;
+    verify_windows_open_cache_custody(CacheCustodyKind::Git, path, file)
 }
 
 impl Drop for PendingGitBatchRequest {
@@ -4811,6 +4812,14 @@ impl VerifiedGitRepository {
                         .map_err(|error| io_error(&path, error))?
                         .into_std_file(),
                 )?;
+                verify_windows_open_cache_custody(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &directory
+                        .try_clone()
+                        .map_err(|error| io_error(&path, error))?
+                        .into_std_file(),
+                )?;
                 (directory, identity)
             }
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
@@ -5314,7 +5323,8 @@ fn verify_cache_custody_root(
         ));
     }
     verify_cache_node_owner_and_mode(kind, root, &metadata)?;
-    verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)
+    verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)?;
+    verify_windows_open_cache_directory_custody(kind, root, &metadata)
 }
 
 #[cfg(unix)]
@@ -5352,7 +5362,24 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+    for ancestor in root.ancestors() {
+        let metadata =
+            std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(cache_custody_invalid(
+                kind,
+                ancestor,
+                "cache custody ancestry contains a non-directory or reparse point",
+            ));
+        }
+        verify_windows_open_cache_ancestry_custody(kind, ancestor, &metadata)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_cache_ancestry(_kind: CacheCustodyKind, _root: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
@@ -5424,6 +5451,7 @@ fn verify_cache_custody_from_open_root(
             .map_err(|error| io_error(&path, error))?
             .into_std_file();
         verify_macos_open_cache_extended_acl_custody(kind, &path, &directory_file)?;
+        verify_windows_open_cache_custody(kind, &path, &directory_file)?;
 
         let children = directory
             .entries()
@@ -5454,8 +5482,22 @@ fn verify_cache_custody_from_open_root(
                     &name,
                     &metadata,
                 )?;
+                verify_windows_open_cache_regular_file_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
             } else if file_type.is_symlink() {
                 verify_macos_cache_link_extended_acl_custody(kind, &child_path)?;
+                verify_windows_open_cache_link_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
             }
             if file_type.is_file() || file_type.is_symlink() {
                 logical_bytes = logical_bytes
@@ -5755,9 +5797,9 @@ fn verify_cache_node_owner_and_mode(
     _path: &Path,
     _metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    // Windows ownership/DACL enforcement belongs to the native isolation
-    // backend. The portable floor still checks concrete kinds and bounded
-    // topology instead of asking Git to describe its own cache.
+    // Windows owner/DACL custody is verified through retained handles at each
+    // concrete call site. Other non-Unix targets retain only the portable
+    // kind and bounded-topology floor.
     Ok(())
 }
 
@@ -5770,6 +5812,219 @@ fn cache_custody_invalid(
         CacheCustodyKind::Git => cache_invalid(path, message),
         CacheCustodyKind::LocalSnapshot => local_snapshot_invalid(path, message),
     }
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    verify_windows_open_cache_custody_with_owner_policy(
+        kind,
+        path,
+        file,
+        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserOnly,
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_custody_with_owner_policy(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+    owner_policy: omega_platform_custody::WindowsFileOwnerPolicy,
+) -> Result<(), SourceResolveError> {
+    use omega_platform_custody::{WindowsFileCustodyViolation, inspect_open_windows_file_custody};
+
+    let violation = inspect_open_windows_file_custody(file, owner_policy).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not inspect retained Windows cache custody: {error}"),
+        )
+    })?;
+    if let Some(violation) = violation {
+        let message = match violation {
+            WindowsFileCustodyViolation::UntrustedOwner => {
+                "cache entry is not owned by the resolver's current Windows user"
+            }
+            WindowsFileCustodyViolation::NullDacl => {
+                "cache entry has a null DACL granting unrestricted access"
+            }
+            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
+                "cache entry grants mutation authority to an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::UnsupportedAllowAce => {
+                "cache entry contains an unsupported access-allowing Windows ACE"
+            }
+        };
+        return Err(cache_custody_invalid(kind, path, message));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _file: &File,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_directory_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache custody directory: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_ancestry_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache ancestry: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache ancestry changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody_with_owner_policy(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
+    )
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_directory_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_regular_file_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache file without following links: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache file changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_regular_file_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_link_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache reparse point: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache reparse point changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_link_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
 }
 
 #[cfg(target_os = "macos")]
@@ -5984,6 +6239,7 @@ impl CacheEntryLock {
         verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
         let file = capability_file.into_std();
         verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+        verify_windows_open_cache_custody(kind, path, &file)?;
         Ok((file, parent, lock_name))
     }
 
@@ -6137,6 +6393,7 @@ fn verify_cache_lock_path_identity(
     }
     verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
     verify_macos_open_cache_extended_acl_custody(kind, path, file)?;
+    verify_windows_open_cache_custody(kind, path, file)?;
 
     let parent_path = path
         .parent()
@@ -6429,6 +6686,14 @@ fn retain_private_cache_directory(
         }
     }
     verify_macos_open_cache_extended_acl_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )?;
+    verify_windows_open_cache_custody(
         kind,
         path,
         &directory
@@ -7880,7 +8145,15 @@ fn verify_git_transport_invocation_node_custody(
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn verify_git_transport_invocation_node_custody(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    verify_windows_executable_path_custody(path, metadata)
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_git_transport_invocation_node_custody(
     _path: &Path,
     _metadata: &std::fs::Metadata,
@@ -8138,14 +8411,181 @@ fn verify_macos_open_executable_ancestry_acl_custody(
     Ok(())
 }
 
-#[cfg(not(unix))]
-fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
-    // Windows ownership and DACL enforcement belongs to the native isolation
-    // backend. The portable floor still commits the concrete file identity.
+#[cfg(windows)]
+fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        }
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "canonical resolver executable is not a concrete regular file".to_owned(),
+        });
+    }
+    verify_windows_executable_path_custody(path, &metadata)?;
+    verify_git_executable_ancestry(path)
+}
+
+#[cfg(windows)]
+fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no absolute custody ancestry".to_owned(),
+        })?;
+    for ancestor in parent.ancestors() {
+        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
+            SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: error.to_string(),
+            }
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: "resolver executable ancestry contains a non-directory or reparse point"
+                    .to_owned(),
+            });
+        }
+        verify_windows_executable_directory_custody(ancestor, &metadata)?;
+    }
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn verify_windows_executable_path_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable entry has no absolute custody parent".to_owned(),
+        })?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable entry has no concrete filename".to_owned(),
+        })?;
+    let parent = open_absolute_directory_nofollow(parent_path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: parent_path.to_path_buf(),
+            message: format!("could not retain resolver executable parent: {error}"),
+        }
+    })?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "could not retain resolver executable entry without following reparse points: {error}"
+            ),
+        }
+    })?;
+    let opened = file
+        .metadata()
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not inspect retained resolver executable entry: {error}"),
+        })?;
+    if !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_windows_open_executable_custody(path, &file.into_std())
+}
+
+#[cfg(windows)]
+fn verify_windows_executable_directory_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not retain resolver executable ancestry: {error}"),
+        }
+    })?;
+    let opened =
+        directory
+            .dir_metadata()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "could not inspect retained resolver executable ancestry: {error}"
+                ),
+            })?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_windows_open_executable_custody(
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!("could not clone retained executable ancestry: {error}"),
+            })?
+            .into_std_file(),
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_executable_custody(
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    use omega_platform_custody::{
+        WindowsFileCustodyViolation, WindowsFileOwnerPolicy, inspect_open_windows_file_custody,
+    };
+
+    let violation = inspect_open_windows_file_custody(
+        file,
+        WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
+    )
+    .map_err(|error| SourceResolveError::GitExecutableInvalid {
+        path: path.to_path_buf(),
+        message: format!("could not inspect retained Windows executable custody: {error}"),
+    })?;
+    if let Some(violation) = violation {
+        let message = match violation {
+            WindowsFileCustodyViolation::UntrustedOwner => {
+                "resolver executable is owned by an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::NullDacl => {
+                "resolver executable has a null DACL granting unrestricted access"
+            }
+            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
+                "resolver executable grants mutation authority to an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::UnsupportedAllowAce => {
+                "resolver executable contains an unsupported access-allowing Windows ACE"
+            }
+        };
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: message.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
     if path.parent().is_none() {
         return Err(SourceResolveError::GitExecutableInvalid {

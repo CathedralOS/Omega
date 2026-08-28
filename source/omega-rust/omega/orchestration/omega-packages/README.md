@@ -355,12 +355,19 @@ ACLs do not broaden custody, unreadable ACLs fail closed, and symlinks are
 inspected without following them. The same walk applies source-scaled,
 absolutely capped
 logical resident-byte ceilings to accepted Git entries and local publications.
+On Windows, every cache root, retained directory, regular file, reparse point,
+and lock is inspected through its no-follow retained handle. Cache objects must
+be owned by the current process user; ancestry may instead be owned by that
+user, LocalSystem, or BUILTIN Administrators. A null DACL, an unknown granting
+ACE form, or mutation authority granted to any other SID rejects without
+resolving principal names. Inherit-only ACEs are ignored for the current
+object, while inheritable ACEs that also apply to it are checked normally.
 Git lock waiting consumes its ten-minute whole-resolution budget; local
 snapshot publication lock waiting has a separate compiler-owned two-minute
 deadline and rejects explicitly instead of blocking indefinitely. Those
 post-helper checks can reject an oversized cache but cannot prevent
-temporary disk exhaustion during an unconfined fetch. Hostile same-user racing,
-Windows ownership/DACL enforcement, and complete native isolation remain open.
+temporary disk exhaustion during an unconfined fetch. Hostile trusted-principal
+racing and complete native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.
@@ -383,10 +390,12 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v27 separates entries
+and an unreadable ACL fails closed. Windows applies the equivalent closed
+owner/DACL mutation-authority policy through retained handles to invocation
+entries, canonical targets, and every ancestor. Cache policy v28 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
 network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
-metadata/HTTPS-network-metadata/deadline/Windows-Job floor. HTTPS receives
+metadata/HTTPS-network-metadata/deadline/Windows-Job/Windows-custody floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without
@@ -404,7 +413,9 @@ ceiling does not prevent direct egress on an unconfining backend. On Windows,
 the resolver-owned Job Object separately enforces 16 active processes, 2 GiB
 committed memory per process, 4 GiB aggregate committed memory, and 120 aggregate
 user-CPU seconds; filesystem, executable, and endpoint confinement remain
-unavailable there.
+unavailable there. Here executable confinement means constraining which images
+descendants may load; selected resolver executable owner/DACL custody is
+enforced separately.
 Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.

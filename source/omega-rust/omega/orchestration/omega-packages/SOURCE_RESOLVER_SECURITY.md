@@ -439,13 +439,17 @@ sealed SSH command receive the same identity, hash, custody, and ACL treatment;
 they do not grant execution of any unlisted descendant. Both transports recheck
 their executable identity around every Git launch, re-hash the canonical target
 at completion, and retain it separately. Drift rejects. The Git cache policy is
-v16, so a cache fetched before these executable-custody, cumulative-output,
-transport-authority, endpoint-brokerage, and nonnetwork descendant-denial floors
-is not silently reused.
+v28, so a cache fetched before these executable-custody, cumulative-output,
+transport-authority, endpoint-brokerage, nonnetwork descendant-denial, and
+Windows owner/DACL floors is not silently reused.
 This identifies observed parent bytes and closes ordinary cross-user path
-ownership on Unix; it does not certify Git, the HTTPS helper, or SSH, bind
-other executable components, establish Windows ownership/DACL custody, protect
-against same-user replacement, bind TLS or SSH host trust, or
+ownership on Unix. On Windows, each invocation entry, canonical target, and
+ancestor is opened no-follow and queried by handle; its owner must be the
+current user, LocalSystem, or BUILTIN Administrators, while a null DACL,
+unknown granting ACE, or mutation grant to another SID rejects. Inherit-only
+ACEs do not apply to the current object; other inheritable ACEs do. This does not
+certify Git, the HTTPS helper, or SSH, bind other executable components, protect
+against trusted-principal replacement, bind TLS or SSH host trust, or
 prove that an observed file equals an already loaded image. On macOS, every
 concrete selected executable, transport invocation entry, canonical transport
 target, and executable ancestor is opened no-follow, required to preserve its
@@ -587,10 +591,13 @@ owner/mode classification remains path-based, but each ACL fact follows a
 no-follow directory open and identity reconciliation. Symlinks are inspected
 as links rather than following their targets because the native link ACL
 interface is path-oriented.
-This closes ordinary cross-user
-ownership/configuration substitution on Unix. It does not prevent the owning
-user from replacing a path after an observation, establish Windows
-ownership/DACL policy, or establish strict native isolation on every platform.
+On Windows, cache roots and every retained directory, regular file, reparse
+point, and lock receive the analogous handle-bound owner/DACL check. Cache
+objects require current-user ownership; ancestry may also be owned by
+LocalSystem or BUILTIN Administrators. No account-name service is consulted.
+This closes ordinary cross-user ownership/configuration substitution on Unix
+and Windows. It does not prevent a trusted owner from replacing a path after an
+observation or establish strict native isolation on every platform.
 Git path and symlink preflight rejects Windows
 drive/alternate-stream colons, forbidden characters and controls, trailing
 dots/spaces, and reserved device names independently of the host path parser.

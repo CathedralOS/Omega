@@ -34,3 +34,6 @@ nix = { version = "0.27", features = ["user"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 omega-platform-custody = { path = "../../foundation/omega-platform-custody" }
+
+[target.'cfg(windows)'.dependencies]
+omega-platform-custody = { path = "../../foundation/omega-platform-custody" }
