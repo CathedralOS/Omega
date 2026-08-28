@@ -1661,40 +1661,90 @@ fn source_metadata_and_read_chains_replay_in_exact_order() {
 }
 
 #[test]
-fn failed_or_descriptor_metadata_does_not_claim_source_input_replay() {
-    for (label, body) in [
-        (
-            "failed-source-metadata-no-replay",
-            r#"    let path: &[u8] in Path = builder.source.resolve("missing.omg");
+fn failed_source_metadata_does_not_claim_source_input_replay() {
+    let (project, profile) = rooted_build_probe_project(
+        "failed-source-metadata-no-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("missing.omg");
     self.code = self.filesystem.read_metadata(path, &mut self.buffer);"#,
-        ),
-        (
-            "descriptor-metadata-no-replay",
-            r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("failed metadata remains an ordinary observed build");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("metadata build retains observations");
+    assert!(!summary.source_inputs_replay_verified());
+    assert!(
+        capture_verified_build_filesystem_replay_record(
+            summary,
+            BuildFilesystemReplayRecordLimits::default(),
+        )
+        .expect("non-replayed metadata summary is not a codec error")
+        .is_none()
+    );
+    let _ = std::fs::remove_dir_all(&project);
+}
+
+#[test]
+#[ignore = "OWNER Q7: build boundary-service identity is not yet authority-bearing"]
+fn source_open_descriptor_metadata_close_replays_without_a_filesystem_provider() {
+    let (project, profile) = rooted_build_probe_project(
+        "descriptor-metadata-replay",
+        r#"    let path: &[u8] in Path = builder.source.resolve("main.omg");
     self.descriptor = self.filesystem.open(path, 0);
     self.code = self.filesystem.read_file_metadata(self.descriptor, &mut self.buffer);
     self.code = self.filesystem.close(self.descriptor);"#,
-        ),
-    ] {
-        let (project, profile) = rooted_build_probe_project(label, body);
-        let compilation =
-            compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
-                .expect("out-of-rung metadata remains an ordinary observed build");
-        let summary = compilation
-            .build_observation_summary()
-            .expect("metadata build retains observations");
-        assert!(!summary.source_inputs_replay_verified(), "{label}");
-        assert!(
-            capture_verified_build_filesystem_replay_record(
-                summary,
-                BuildFilesystemReplayRecordLimits::default(),
-            )
-            .expect("non-replayed metadata summary is not a codec error")
-            .is_none(),
-            "{label}"
-        );
-        let _ = std::fs::remove_dir_all(&project);
-    }
+    );
+    let compilation = compile_to_checked(&project.join("main.omg"), Some(profile.target_name()))
+        .expect("descriptor metadata should compile and replay");
+    let summary = compilation
+        .build_observation_summary()
+        .expect("descriptor metadata retains observations");
+    assert!(summary.source_inputs_replay_verified());
+    let [open, metadata_attempt, close] = summary.filesystem_operation_attempts() else {
+        panic!("descriptor metadata replay fixture has three attempts")
+    };
+    assert_eq!(
+        [
+            open.operation_tag(),
+            metadata_attempt.operation_tag(),
+            close.operation_tag()
+        ],
+        [2, 39, 8]
+    );
+    assert_eq!(
+        metadata_attempt.metadata_observations()[0].kind(),
+        BuildFilesystemMetadataObservationKind::OpenDescriptor
+    );
+
+    let limits = BuildFilesystemReplayRecordLimits::default();
+    let record = capture_verified_build_filesystem_replay_record(summary, limits)
+        .expect("verified descriptor metadata must encode")
+        .expect("verified descriptor metadata retains review-only custody");
+    let recovered =
+        recover_review_only_build_filesystem_replay_record(record.canonical_bytes(), limits)
+            .expect("canonical descriptor metadata must recover");
+
+    std::fs::write(
+        project.join("main.omg"),
+        "data Main { value: u8; changed: u64; }\n",
+    )
+    .expect("change host source after descriptor metadata capture");
+    let replayed = compile_to_checked_with_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        recovered,
+    )
+    .expect("descriptor metadata replay must not consult changed host metadata");
+    let replayed_summary = replayed
+        .build_observation_summary()
+        .expect("replayed descriptor metadata retains observations");
+    assert!(replayed_summary.source_inputs_replay_verified());
+    assert_eq!(
+        replayed_summary.filesystem_operation_attempts(),
+        summary.filesystem_operation_attempts()
+    );
+
+    let _ = std::fs::remove_dir_all(&project);
 }
 
 #[test]
@@ -2811,6 +2861,9 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
         "receipted-generated-source",
         r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
     self.descriptor = self.filesystem.open(input, 0);
+    self.code = self.filesystem.read_file_metadata(self.descriptor, &mut self.buffer);
+    self.code = self.filesystem.close(self.descriptor);
+    self.descriptor = self.filesystem.open(input, 0);
     self.result = self.filesystem.read(self.descriptor, &mut self.buffer, 23);
     self.code = self.filesystem.close(self.descriptor);
     let generated: &[u8] in Path = builder.output.resolve("generated.omg");
@@ -2834,7 +2887,7 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
             .iter()
             .map(|attempt| attempt.operation_tag())
             .collect::<Vec<_>>(),
-        vec![2, 4, 8, 1, 5, 8]
+        vec![2, 39, 8, 2, 4, 8, 1, 5, 8]
     );
 
     let limits = BuildFilesystemReplayRecordLimits::default();

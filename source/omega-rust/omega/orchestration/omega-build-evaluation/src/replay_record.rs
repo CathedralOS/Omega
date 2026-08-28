@@ -12,7 +12,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 7;
+const VERSION: u16 = 8;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -178,6 +178,17 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
         }
         let open = &shapes[cursor];
         cursor += 1;
+        if shapes[cursor].operation == 39 {
+            let metadata = &shapes[cursor];
+            let close = &shapes[cursor + 1];
+            cursor += 2;
+            events.push(
+                psi_checked_interpreter::FilesystemSourceInputReplayEventRecord::DescriptorMetadata(
+                    rehydrate_descriptor_metadata_shape(open, metadata, close)?,
+                ),
+            );
+            continue;
+        }
         let reads_start = cursor;
         while matches!(shapes.get(cursor), Some(read) if matches!(read.operation, 4 | 6)) {
             cursor += 1;
@@ -348,6 +359,65 @@ fn rehydrate_path_metadata_shape(
     .map_err(|_| {
         BuildFilesystemReplayRecordError::new(
             "filesystem replay path metadata could not be rehydrated",
+        )
+    })
+}
+
+fn rehydrate_descriptor_metadata_shape(
+    open: &AttemptShape<'_>,
+    metadata_shape: &AttemptShape<'_>,
+    close: &AttemptShape<'_>,
+) -> Result<
+    psi_checked_interpreter::FilesystemSourceDescriptorMetadataReplayRecord,
+    BuildFilesystemReplayRecordError,
+> {
+    let ShapeResult::Handle(logical_handle_identity) = open.result else {
+        unreachable!("validated descriptor metadata open returns a handle")
+    };
+    let [source_path] = open.rooted_paths.as_slice() else {
+        unreachable!("validated descriptor metadata open has one source path")
+    };
+    let [metadata] = metadata_shape.metadata.as_slice() else {
+        unreachable!("validated descriptor metadata has one semantic row")
+    };
+    let [(1, mutable_resolution)] = metadata_shape.mutable_byte_resolutions.as_slice() else {
+        unreachable!("validated descriptor metadata has one mutable resolution")
+    };
+    let [mutable] = metadata_shape.mutable_bytes.as_slice() else {
+        unreachable!("validated descriptor metadata has one mutable carrier")
+    };
+    let metadata = psi_checked_interpreter::FilesystemMetadataObservation::from_replay(
+        psi_checked_interpreter::FilesystemMetadataObservationKind::OpenDescriptor,
+        metadata.device,
+        metadata.mode,
+        metadata.link_count,
+        metadata.inode,
+        metadata.user,
+        metadata.group,
+        metadata.referenced_device,
+        metadata.access_time,
+        metadata.modification_time,
+        metadata.change_time,
+        metadata.birth_time,
+        metadata.size,
+        metadata.blocks_512,
+        metadata.preferred_block_size,
+    );
+    psi_checked_interpreter::FilesystemSourceDescriptorMetadataReplayRecord::new(
+        crate::BUILD_SOURCE_ROOT_IDENTITY,
+        clone_bytes(source_path.bytes)?,
+        logical_handle_identity,
+        open.post_error,
+        metadata_shape.post_error,
+        clone_bytes(mutable_resolution)?,
+        clone_bytes(mutable.pre)?,
+        clone_bytes(mutable.post)?,
+        metadata,
+        close.post_error,
+    )
+    .map_err(|_| {
+        BuildFilesystemReplayRecordError::new(
+            "filesystem replay descriptor metadata could not be rehydrated",
         )
     })
 }
@@ -981,6 +1051,20 @@ fn validate_first_rung(
         identities.push(identity);
         cursor += 1;
 
+        if cursor < shapes.len() && shapes[cursor].operation == 39 {
+            validate_descriptor_metadata_shape(&shapes[cursor], identity)?;
+            cursor += 1;
+            if cursor == shapes.len() {
+                return Err(BuildFilesystemReplayRecordError::new(
+                    "filesystem replay descriptor metadata chain is incomplete",
+                ));
+            }
+            validate_close_shape(&shapes[cursor], identity)?;
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+
         let reads_start = cursor;
         while cursor < shapes.len() && matches!(shapes[cursor].operation, 4 | 6) {
             validate_read_shape(&shapes[cursor], identity)?;
@@ -1320,6 +1404,51 @@ fn validate_read_shape(
     Ok(())
 }
 
+fn validate_descriptor_metadata_shape(
+    metadata_attempt: &AttemptShape<'_>,
+    identity: u64,
+) -> Result<(), BuildFilesystemReplayRecordError> {
+    let [metadata] = metadata_attempt.metadata.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay descriptor metadata has no unique semantic row",
+        ));
+    };
+    let [(resolution_ordinal, resolution)] = metadata_attempt.mutable_byte_resolutions.as_slice()
+    else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay descriptor metadata has no unique mutable resolution",
+        ));
+    };
+    let [carrier] = metadata_attempt.mutable_bytes.as_slice() else {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "bounded replay descriptor metadata has no unique mutable carrier",
+        ));
+    };
+    if metadata_attempt.operation != 39
+        || metadata_attempt.provider != 2
+        || metadata_attempt.result != ShapeResult::Scalar(0)
+        || metadata_attempt.inputs.as_slice()
+            != [ShapeLogicalInput {
+                ordinal: 0,
+                kind: 0,
+                resolution: Some(identity),
+            }]
+        || metadata.ordinal != 1
+        || metadata.kind != 1
+        || *resolution_ordinal != 1
+        || carrier.ordinal != 1
+        || *resolution != carrier.pre
+        || carrier.pre.len() != carrier.post.len()
+        || carrier.post.len() < psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        || !only_descriptor_metadata_lanes(metadata_attempt)
+    {
+        return Err(BuildFilesystemReplayRecordError::new(
+            "filesystem replay descriptor metadata is internally inconsistent",
+        ));
+    }
+    Ok(())
+}
+
 fn common_empty_lanes(attempt: &AttemptShape<'_>) -> bool {
     attempt.byte_operands.is_empty()
         && attempt.path_like_operand_count == 0
@@ -1339,6 +1468,21 @@ fn only_path_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
         && attempt.mutable_i64_count == 0
         && attempt.scalars.is_empty()
         && attempt.inputs.is_empty()
+        && attempt.output.is_none()
+        && attempt.retired.is_empty()
+        && attempt.refusal_count == 0
+}
+
+fn only_descriptor_metadata_lanes(attempt: &AttemptShape<'_>) -> bool {
+    attempt.byte_operands.is_empty()
+        && attempt.path_like_operand_count == 0
+        && attempt.returned_path_count == 0
+        && attempt.observed_regions.is_empty()
+        && attempt.mutable_i64_resolution_count == 0
+        && attempt.mutable_i64_count == 0
+        && attempt.scalars.is_empty()
+        && attempt.rooted_paths.is_empty()
+        && attempt.authorized_paths.is_empty()
         && attempt.output.is_none()
         && attempt.retired.is_empty()
         && attempt.refusal_count == 0
@@ -1422,6 +1566,9 @@ fn clone_bytes(bytes: &[u8]) -> Result<Vec<u8>, BuildFilesystemReplayRecordError
 #[cfg(test)]
 mod first_rung_validation_tests {
     use super::*;
+
+    static METADATA_CARRIER: [u8; psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES] =
+        [0; psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES];
 
     fn empty_shape(operation: u16, result: ShapeResult) -> AttemptShape<'static> {
         AttemptShape {
@@ -1529,6 +1676,42 @@ mod first_rung_validation_tests {
         vec![open, read, source_close, create, write, output_close]
     }
 
+    fn exact_descriptor_metadata_shapes() -> Vec<AttemptShape<'static>> {
+        let mut shapes = exact_input_output_shapes();
+        let mut metadata = empty_shape(39, ShapeResult::Scalar(0));
+        metadata.metadata = vec![ShapeMetadata {
+            ordinal: 1,
+            kind: 1,
+            device: 1,
+            mode: 0o100444,
+            link_count: 1,
+            inode: 2,
+            user: 3,
+            group: 4,
+            referenced_device: 0,
+            access_time: 5,
+            modification_time: 6,
+            change_time: 7,
+            birth_time: 8,
+            size: 23,
+            blocks_512: 8,
+            preferred_block_size: 4096,
+        }];
+        metadata.mutable_byte_resolutions = vec![(1, &METADATA_CARRIER)];
+        metadata.mutable_bytes = vec![ShapeMutableBytes {
+            ordinal: 1,
+            pre: &METADATA_CARRIER,
+            post: &METADATA_CARRIER,
+        }];
+        metadata.inputs = vec![ShapeLogicalInput {
+            ordinal: 0,
+            kind: 0,
+            resolution: Some(1),
+        }];
+        shapes[1] = metadata;
+        shapes
+    }
+
     #[test]
     fn output_write_authorization_lane_rejects_during_recovery_validation() {
         let mut shapes = exact_input_output_shapes();
@@ -1550,6 +1733,23 @@ mod first_rung_validation_tests {
         shapes[4].inputs[0].resolution = Some(1);
         shapes[5].inputs[0].resolution = Some(1);
         shapes[5].retired[0] = 1;
+        assert!(validate_first_rung(&shapes).is_err());
+    }
+
+    #[test]
+    fn descriptor_metadata_chain_validates_exact_kind_lineage_and_retirement() {
+        let mut shapes = exact_descriptor_metadata_shapes();
+        assert!(validate_first_rung(&shapes).is_ok());
+
+        shapes[1].metadata[0].kind = 0;
+        assert!(validate_first_rung(&shapes).is_err());
+
+        let mut shapes = exact_descriptor_metadata_shapes();
+        shapes[1].inputs[0].resolution = Some(9);
+        assert!(validate_first_rung(&shapes).is_err());
+
+        let mut shapes = exact_descriptor_metadata_shapes();
+        shapes.remove(2);
         assert!(validate_first_rung(&shapes).is_err());
     }
 

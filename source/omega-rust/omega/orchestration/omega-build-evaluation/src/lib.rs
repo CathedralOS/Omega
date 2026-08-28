@@ -300,7 +300,7 @@ pub struct BuildEvaluationUsage {
     pub result_cells: u64,
 }
 
-pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 25;
+pub const BUILD_OBSERVATION_SCHEMA_VERSION: u32 = 26;
 
 /// Normalized build-host observation class for one selected build machine.
 ///
@@ -2193,6 +2193,21 @@ fn source_input_replay_prefix_end(
         identities.push(identity);
         cursor += 1;
 
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
+            if !source_descriptor_metadata_is_exact(&attempts[cursor], identity) {
+                return None;
+            }
+            cursor += 1;
+            if cursor == attempts.len()
+                || !source_read_chain_close_is_exact(&attempts[cursor], identity)
+            {
+                return None;
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
+
         let reads_start = cursor;
         while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
             if !source_read_chain_read_is_exact(&attempts[cursor], identity) {
@@ -2378,6 +2393,56 @@ fn source_read_chain_read_is_exact(
         && region.kind() == expected_region_kind
         && region.offset() == 0
         && region.length() == read_length
+}
+
+fn source_descriptor_metadata_is_exact(
+    attempt: &psi_checked_interpreter::FilesystemOperationAttempt,
+    identity: psi_checked_interpreter::FilesystemLogicalHandleIdentity,
+) -> bool {
+    use psi_checked_interpreter::{
+        FilesystemLogicalHandleInputResolution as InputResolution,
+        FilesystemLogicalHandleKind as HandleKind,
+        FilesystemMetadataObservationKind as MetadataKind,
+        FilesystemObservationProvider as Provider, FilesystemOperationResult as ResultValue,
+    };
+    let [descriptor] = attempt.logical_handle_inputs() else {
+        return false;
+    };
+    let [metadata] = attempt.metadata_observations() else {
+        return false;
+    };
+    let [mutable_resolution] = attempt.mutable_byte_operand_resolutions() else {
+        return false;
+    };
+    let [mutable] = attempt.mutable_byte_operands() else {
+        return false;
+    };
+    attempt.operation_tag() == 39
+        && attempt.provider() == Provider::RealScoped
+        && attempt.result() == Some(ResultValue::Scalar(0))
+        && descriptor.operand_ordinal() == 0
+        && descriptor.kind() == HandleKind::Descriptor
+        && descriptor.resolution() == InputResolution::Resolved(identity)
+        && metadata.output_operand_ordinal() == 1
+        && metadata.kind() == MetadataKind::OpenDescriptor
+        && mutable_resolution.operand_ordinal() == 1
+        && mutable.operand_ordinal() == 1
+        && mutable_resolution.bytes() == mutable.pre_bytes()
+        && mutable.pre_bytes().len() == mutable.post_bytes().len()
+        && mutable.post_bytes().len()
+            >= psi_checked_interpreter::FILESYSTEM_METADATA_API_CARRIER_BYTES
+        && attempt.scalar_operands().is_empty()
+        && attempt.byte_operands().is_empty()
+        && attempt.path_like_operands().is_empty()
+        && attempt.rooted_path_operand_resolutions().is_empty()
+        && attempt.returned_paths().is_empty()
+        && attempt.observed_byte_regions().is_empty()
+        && attempt.mutable_i64_operand_resolutions().is_empty()
+        && attempt.mutable_i64_operands().is_empty()
+        && attempt.authorized_paths().is_empty()
+        && attempt.logical_handle_output().is_none()
+        && attempt.retired_logical_handles().is_empty()
+        && attempt.grant_refusals().is_empty()
 }
 
 fn source_read_chain_close_is_exact(

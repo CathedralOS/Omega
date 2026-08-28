@@ -595,6 +595,17 @@ reach still has a `Volatile` ceiling; broader operations and output shapes
 remain realized `Volatile`. Operation schema v18 and baseline capsule v2 do not
 change. A separate 16 MiB aggregate retained-evidence ceiling rejects before
 replay cloning; validated attempts are shared across evaluator handoff.
+
+Summary v26 and replay-record v8 additionally admit one exact successful
+Source-rooted flags-zero `open` -> `read_file_metadata` -> `close` event. Its
+descriptor is created and retired inside that indivisible event, and replay
+retains the exact `OpenDescriptor` row, mutable carrier states, descriptor
+lineage, results, and post-error states. The event composes with the ordered
+Source stream and existing Output grammar, but arbitrary descriptor-metadata/
+read interleaving remains outside the rung. Recovery rejects changed kind,
+ordinal, lineage, carrier shape, operation order, missing close, and descriptor
+reuse. Filesystem-attempt v19 and baseline capsule v2 remain unchanged.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject
@@ -1004,8 +1015,9 @@ arguments in selected conformance applications and non-public or lifetime-
 parameterized trait realizations fail closed until complete rows land, except
 that binder-free generic requirements, explicit evidence binders, and non-
 generic selected conformances use the canonical public-trait row. Review
-v71/canonical row v29 additionally retains an exact public ordinary,
-nongeneric, lifetime-free operator coordinate for each unaliased checked-body realization,
+v76/canonical row v34 additionally retains an exact public ordinary,
+nongeneric, lifetime-free operator coordinate plus optional conformance alias
+for each checked-body realization,
 whether or not the declaration owns a fixed token,
 after checked lowering retains and projection exactly rederives the selected
 machine/operator symbols, conformance/admission form, normalized overload
@@ -1016,8 +1028,8 @@ specific or crash contracts, and providers with any nonempty checked crash
 behavior, reject until their refinement rules land. The
 association is a retained compiler-private checked baseline, not a hash,
 persisted package format, or defense against a trusted component rewriting both
-typed state and checked facts. Private, generic/lifetime-parameterized, aliased,
-and bodyless checked realizations still fail closed. Operator-bound external
+typed state and checked facts. Private, generic/lifetime-parameterized, and
+bodyless checked realizations still fail closed. Operator-bound external
 supply uses the tagged v72/canonical-row-v30 trust association below. A fixed-
 token checked realization uses the same declaration coordinate as its named
 call surface; the public-operator row owns the closed compiler spelling, so the
@@ -1318,7 +1330,7 @@ Other nested clause/use-site coordinates remain unfinished engineering work; non
 independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v75/row v33,
+calls. Package review v76/row v34,
 canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
@@ -1519,4 +1531,4 @@ each standalone private mirror is resolved into full custody and compiled
 through package-aware review; the resulting package key, projection identity,
 immutable resolution, and source-consumption commitment must remain bound to
 that lineage. The local `generated-table` fixture also round-trips its verified
-v24/v6 filesystem replay record through canonical review-baseline recovery.
+v26/v8 filesystem replay record through canonical review-baseline recovery.
