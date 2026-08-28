@@ -11,7 +11,7 @@ from pathlib import Path
 from omgrfn22_frame import RefinementError, RefinementResourceError, require
 
 HERE = Path(__file__).resolve().parent
-GATES = HERE.parents[3] / "source/on-ramp/omega-bootstrap/gates"
+GATES = HERE.parents[2] / "source/on-ramp/omega-bootstrap/gates"
 sys.path.insert(0, str(GATES))
 
 

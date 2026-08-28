@@ -318,8 +318,8 @@ mod tests {
     };
     use omega_terminal_target_operations_to_selected_instructions::{
         SelectedInstructionError, TerminalLegalizationError,
-        terminal_selected_instruction_plan_identity, validate_terminal_legalized_operations,
-        validate_terminal_selected_instructions,
+        terminal_legalization_validator_identity, terminal_selected_instruction_plan_identity,
+        validate_terminal_legalized_operations, validate_terminal_selected_instructions,
     };
     use psi_core::{
         BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -2205,6 +2205,18 @@ mod tests {
             let identity = terminal_legalized_operation_plan_identity(original);
             assert_eq!(identity, staged.legalized().receipt().identity());
             assert_eq!(
+                staged.legalized().receipt().validator(),
+                terminal_legalization_validator_identity()
+            );
+            assert_eq!(
+                staged.selected().receipt().legalization_validator(),
+                terminal_legalization_validator_identity()
+            );
+            assert_eq!(
+                staged.custody().legalization_validator(),
+                terminal_legalization_validator_identity()
+            );
+            assert_eq!(
                 identity,
                 staged_conditional(target).legalized().receipt().identity()
             );
@@ -2273,7 +2285,97 @@ mod tests {
                 validate(corrupted),
                 Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
             );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0].condition_definition_site = ValueDefinitionSite::Node {
+                block: corrupted.functions[0].entry_block,
+                node: 0,
+            };
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0].branch_true_fuel[0].site =
+                omega_optimization_unit::PsiProvenance::Edge(
+                    corrupted.functions[0].branch_false_edge,
+                );
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert_eq!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            );
+
+            let mut corrupted = original.clone();
+            corrupted.functions[0].provenance.edges.swap(0, 1);
+            assert_ne!(
+                terminal_legalized_operation_plan_identity(&corrupted),
+                identity
+            );
+            assert!(matches!(
+                validate(corrupted),
+                Err(TerminalLegalizationError::SourceCustodyMismatch)
+                    | Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+            ));
         }
+    }
+
+    #[test]
+    fn legalization_replay_rejects_foreign_proof_fact_and_leaf_operation_custody() {
+        let staged = staged_exact_add_conditional(NativeTarget::linux_x64());
+        let original = staged.legalized().plan();
+        let validate = |plan| {
+            validate_terminal_legalized_operations(
+                staged.optimized_target().target_operations(),
+                staged.optimized_target().optimized().plan(),
+                staged.optimized_target().optimized().unit(),
+                plan,
+            )
+        };
+
+        let mut corrupted = original.clone();
+        let false_fact = match corrupted.functions[0].when_false.value {
+            omega_terminal_legalized_operations::TerminalLegalizedLeafValue::ExactAdd {
+                accepted_fact,
+                ..
+            } => accepted_fact,
+            _ => panic!("exact-add fixture must retain its admitted fact"),
+        };
+        let omega_terminal_legalized_operations::TerminalLegalizedLeafValue::ExactAdd {
+            accepted_fact,
+            ..
+        } = &mut corrupted.functions[0].when_true.value
+        else {
+            panic!("exact-add fixture must retain its admitted fact")
+        };
+        *accepted_fact = false_fact;
+        assert_eq!(
+            validate(corrupted),
+            Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+        );
+
+        let mut corrupted = original.clone();
+        let omega_terminal_legalized_operations::TerminalLegalizedLeafValue::ExactAdd {
+            left,
+            right,
+            ..
+        } = &mut corrupted.functions[0].when_true.value
+        else {
+            panic!("exact-add fixture must retain its inputs")
+        };
+        std::mem::swap(&mut left.constant_operation, &mut right.constant_operation);
+        assert_eq!(
+            validate(corrupted),
+            Err(TerminalLegalizationError::NonCanonicalLegalizedPlan)
+        );
     }
 
     #[test]

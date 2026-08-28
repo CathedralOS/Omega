@@ -86,7 +86,7 @@ for entry in REFINEMENT.md alpha_refinement_check.py alpha_symbolic.py \
   [ -L "$OMEGA_PATH_ALPHA/$entry" ] || fail "Alpha refinement link is absent: $entry"
 done
 for entry in meaning-tv.sh input-tv.sh meaning-cert-diamond.sh \
-  translation-validation.sh gamma2claim.py tv-encode.py meaning_cert_diamond.py; do
+  gamma2claim.py tv-encode.py meaning_cert_diamond.py; do
   [ -L "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/$entry" ] ||
     fail "omega-bootstrap refinement link is absent: $entry"
   [ -f "$OMEGA_PATH_OMEGA_BOOTSTRAP_GATES/$entry" ] ||

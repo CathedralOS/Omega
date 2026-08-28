@@ -108,8 +108,8 @@ canonicalization to the V1 owner and independently selects the V2 version and
 configuration pair. [`omega-bootstrap-compilation-check.alp`](omega-bootstrap-compilation-check.alp)
 shares the unchanged table checker between exact V1 and V2 headers.
 
-`../gates/delta-compilation-envelope-v2.sh` builds the canonical fixture with
-an independent fixed-shape reference encoder, compares it byte-for-byte with
-the packer, checks inspection output, exercises native and self-produced Delta
-checkers where supported, observes exact 0/251/252 cases, and reruns the V1
-Python regression.
+The independent fixed-shape reference encoder and deterministic packer retain
+the canonical fixture and inspection relation. The former producer wrapper
+joined them byte-for-byte to native/self Delta checkers, exact 0/251/252 cases,
+and the V1 regression. Producer replay is suspended until canonical Delta
+publication.

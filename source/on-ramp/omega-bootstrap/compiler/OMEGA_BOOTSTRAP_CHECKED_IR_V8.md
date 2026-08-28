@@ -117,23 +117,13 @@ Resource exhaustion selects 252. Neither status publishes CKIR or ELF bytes.
 
 ## 5. Focused evidence
 
-The focused implementation evidence is:
-
-- `../gates/delta-resolved-to-ckir8.sh`: Delta-native and Delta-self-built
-  OMGLOW9 production over least OMGRSW1/2/3, exact precedence, association,
-  authored-token correspondence, type and purity negatives, inherited
-  composition, and depth 8/9;
-- `../gates/delta-resolved-to-ckir8-meaning.sh`: persisted-Beta translation of
-  the actual Delta lowerer plus canonical Gamma observations of result,
-  semantic rejection, resource exhaustion, and exact publication;
-- `../gates/delta-checked-ir-v8-reference.sh`: independent decoding,
+The retained `../gates/delta-checked-ir-v8-reference.sh` owns independent decoding,
   validation, equality meaning for all Boolean rows and selected `u8`/`u32`
-  rows, result reconstruction, and isolated mutations; and
-- `../gates/delta-checked-ir-v8-backend.sh`: Delta-native/self artifact
-  identity, pinned instruction templates, and artifact mutations.
+  rows, result reconstruction, and isolated mutations. Producer, Gamma-meaning,
+  backend, and same-frame replay are suspended until canonical Delta
+  publication.
 
-These gates establish the selected producer, independent CKIR meaning, and
-conservative backend. Same-frame persisted-Beta refinement remains a separate
-admission obligation. Nothing here admits aggregate or sum equality, `!=`,
+This retained evidence establishes independent CKIR meaning only. Same-frame
+persisted-Beta refinement remains a separate admission obligation. Nothing here admits aggregate or sum equality, `!=`,
 `u64`, cross-carrier equality, effectful operands, or the feature to final
 `Ωself`.

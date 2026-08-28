@@ -16,7 +16,7 @@ from omgrfn17_profiles import load_fixture, profiles, source, witness
 from omgrfn17_source import check_witness_relation, parse_selected_source
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[3]
+REPO = HERE.parents[2]
 GATES = REPO / "source/on-ramp/omega-bootstrap/gates"
 sys.path[:0] = [str(GATES), str(REPO / "source/on-ramp/omega-bootstrap/compiler")]
 import shared_byte_view_resolution_fixture as shared  # noqa: E402

@@ -1353,6 +1353,15 @@ bindings, accepted exact-operation facts, and every operation/edge fuel
 settlement. Its receipt says zero decompositions: V1 recognizes already-legal
 forms and cannot masquerade as width expansion.
 
+A separate plan-driven replay validates that projection without calling the
+canonicalizer, importing its producer helpers, or constructing a second
+expected plan. It checks the proposed fields directly against the raw target,
+abstract-plan, and verified optimization-unit custody. A domain-separated
+validator identity is retained by the legalized receipt, selected receipt, and
+staged selection custody, so a legal-plan content identity cannot be detached
+from the implementation that independently admitted it. Architecture tests
+enforce the producer/replay dependency boundary.
+
 Instruction selection accepts only that opaque legal carrier, so its public
 producer and validator cannot freely recombine raw target, abstract, and unit
 inputs. Selection constraints are derived from legal ABI source locations,
@@ -1391,10 +1400,16 @@ fabricate Psi `ValueId`s, record an exact source-occurrence-to-legal-program-
 point expansion map, and partition proof/effect/provenance/fuel custody across
 one-to-many recipes. The legality profile must eventually bind target profile,
 ABI, ISA feature/capability, and applicable semantic catalogs rather than only
-`NativeTarget`. A separately implemented replay must then validate the
-canonicalizer, and at least one genuinely illegal width or shape must be
-decomposed. This mandatory normalization is not a named build optimization;
-optional target combines remain explicit selections.
+`NativeTarget`. The first credible current-vocabulary decomposition is an
+accepted overflow-free unsigned-u8 exact add followed by a u8-to-u64 widen.
+Legalization may commute the widen through that exact add into the existing u64
+materialize/add sequence only when independent replay re-derives the unsigned
+theorem and retains both source operations, the accepted obligation, definition
+sites, provenance, and fuel. A plain constant widen would only be a many-to-one
+canonicalization, while a direct narrow return would silently choose ABI
+extension semantics and therefore remains unsupported. This mandatory
+normalization is not a named build optimization; optional target combines
+remain explicit selections.
 
 ## Register allocation
 

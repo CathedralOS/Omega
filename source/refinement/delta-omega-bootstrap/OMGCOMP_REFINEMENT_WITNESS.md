@@ -337,15 +337,13 @@ Implementation status:
   [`omgrfn2-witness-ckir-tables.beta`](omgrfn2-witness-ckir-tables.beta);
 - layer 4 reconstructs resolved bodies and every operation/operand/terminator
   row, while a physically artifact-free companion independently computes the
-  full source result, through
-  [`omgrfn2-resolved-body-result.sh`](omgrfn2-resolved-body-result.sh); and
+  full source result; and
 - layer 5 reuses the complete CKIR and CKIR-to-ELF relations at the v2 frame
-  offsets through
-  [`omgrfn2-ckir-elf-refinement.sh`](omgrfn2-ckir-elf-refinement.sh).
+  offsets.
 
-All five responsibilities are executable and joined by the lattice
-orchestrator after the producer's native/self-built and Rust-free two-package
-composition gates. The join closes the selected public two-package, finite,
+The five responsibility-local owners remain executable. Their former
+producer-dependent composition wrappers are retired until the canonical Delta
+compiler is published. The relation closes the selected public two-package, finite,
 acyclic, returning artifact; it does not grant resolver-receipt or digest
 authority and does not generalize this fixture into `Ωself`. Mechanically
 translating the Delta resolver into Beta would preserve the same common-mode

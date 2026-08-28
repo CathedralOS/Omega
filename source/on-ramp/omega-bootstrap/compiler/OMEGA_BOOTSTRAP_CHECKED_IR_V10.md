@@ -99,18 +99,13 @@ ELF bytes.
 
 ## 5. Focused evidence
 
-- `../gates/delta-resolved-to-ckir10.sh` checks Delta-native/self OMGLOWB
-  production over least OMGRSW1/2/3, exact token/operation correspondence,
-  assignment, parentheses, single-argument calls, 0/70/255, negatives, and
-  depth controls.
-- `../gates/delta-resolved-to-ckir10-meaning.sh` observes canonical result,
-  semantic rejection, resource exhaustion, and exact publication through the
-  persisted-Beta/Gamma path.
 - `../gates/delta-checked-ir-v10-reference.sh` independently decodes,
   validates, interprets, and mutates CKIR10.
-- `../gates/delta-checked-ir-v10-backend.sh` checks Delta-native/self artifact
-  identity, exact unsigned widening bytes, mutation rejection, and 0/70/255.
 
-These gates establish the selected producer, independent CKIR meaning, and
-conservative backend. Same-frame refinement remains a separate admission
-obligation.
+The former producer, Gamma-meaning, and backend wrappers joined that reference
+to exact token/operation correspondence, 0/70/255 observations, unsigned
+widening bytes, resource/semantic rejection, and artifact identity. Replay is
+suspended until canonical Delta publication.
+
+The retained gate establishes independent CKIR meaning. Producer/backend and
+same-frame refinement remain separate admission obligations.

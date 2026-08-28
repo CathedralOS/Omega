@@ -40,10 +40,11 @@ Focused evidence is split by responsibility:
   Boolean/`u8`/`u32` meaning, same-carrier enforcement, schema and opcode
   isolation, malformed-row rejection, and inherited resource ceilings;
 - `../gates/delta-checked-ir-v8-backend-fixture.py` recognizes the exact
-  load/CMP/SETE/MOVZX/store instruction template; and
-- `../gates/delta-checked-ir-v8-backend.sh` checks Delta-native/self artifact
-  identity, result 70, `SETE` mutation rejection, and no partial artifact
-  publication for rejected inputs.
+  load/CMP/SETE/MOVZX/store instruction template.
+
+The former producer-backed wrapper joined them to native/self artifact
+identity, result 70, `SETE` mutation rejection, and empty rejected publication.
+Replay is suspended until canonical Delta publication.
 
 This is backend evidence only. It does not define a public Omega ABI, source
 syntax or evaluation order, or a source-to-CKIR8 lowering relation.

@@ -33,11 +33,11 @@ artifact does not erase safety checks from static control facts.
 
 `../gates/delta-checked-ir-v12-backend-fixture.py` recognizes the complete
 descriptor initialization, nonempty, head, tail, branch, and read-only literal
-templates. `../gates/delta-checked-ir-v12-backend.sh` checks deterministic
-fixtures, independent one-byte/empty execution meaning, native/self artifact
-identity, instruction mutation rejection, all schema/type/constant/operation/
-control/value mutations, the 33-byte and inherited table resource statuses,
-empty rejection publication, and the saved CKIR11 backend regression.
+templates. The former producer-backed wrapper joined deterministic fixtures to
+independent one-byte/empty execution meaning, native/self artifact identity,
+instruction and schema mutations, resource statuses, empty rejected
+publication, and the CKIR11 regression. Replay is suspended until canonical
+Delta publication.
 
 The focused positive carrier returns 70 on both paths. The one-byte carrier
 takes the synthetic true edge, observes head 70, and produces an empty tail.

@@ -1489,6 +1489,19 @@ admissions, and open obligations remain separately bound. This is neither an
 accepted lock nor a package instance, and a future multi-package Git selector
 adds a request case rather than changing today's repository-root meaning.
 
+`CanonicalPackageReconstructionQuestion` is the first canonical association of
+that source-selection question with the current ordinary obligation questions.
+It retains the complete source-subject bytes and, in strict full-`PackageKey`
+source order, one complete canonical ledger frame for every package. Each
+ledger root, target, transitive package set, and requester-local alias edge must
+match the closure independently derived for that package; missing, foreign,
+swapped, colliding-identity, mixed-target, or graph-drifted associations reject.
+Fresh matching reconstructs the aggregate from current resolver custody and a
+new compiler-issued review set. Decode and the aggregate's domain-separated
+fingerprint remain inert: the type contains no compiler pedigree, build
+observation, artifact, certificate, result, open obligation, admission,
+accepted-lock state, or `PackageInstance` promotion route.
+
 Terminal Psi now provides the first concrete replay ledger: one ordered,
 owner-tagged set covers executable operations, call and nominal-cleanup
 requirements, and contract guarantees, retaining each exact proposition,
