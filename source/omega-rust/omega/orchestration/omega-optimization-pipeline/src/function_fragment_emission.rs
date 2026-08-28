@@ -22,23 +22,24 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
-    StagedAarch64CbnzFunctionRelativeRealization,
+    OptimizedUnitFunctionRelativeRealizationError, StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
-    StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedUnitFunctionRelativeRealization,
     StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization, TerminalResolvedSelectedFormRow,
     TerminalSelectedFormEncodingIdentity, TerminalWholeFunctionExitContractIdentity,
     validate_aarch64_cbnz_function_relative_realization_custody,
     validate_function_relative_layout_optimization_realization_custody,
     validate_optimized_active_resident_rematerialization_function_relative_realization,
+    validate_optimized_unit_function_relative_realization,
     validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 2;
+const MANIFEST_VERSION: u32 = 3;
 
 #[derive(Debug)]
 pub enum StagedOptimizedFunctionFragmentEmissionSource {
@@ -51,6 +52,7 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
     ActiveResidentRematerialization(
         Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
     ),
+    UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
@@ -85,6 +87,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     .rematerialization()
                     .selected_plan()
             }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
         }
     }
 
@@ -97,6 +107,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization).homes()
             }
+            Self::UnitBaseline(realization) => realization.homes().homes(),
         }
     }
 
@@ -140,6 +151,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     .selected_stage()
                     .register_environment()
             }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
         }
     }
 
@@ -150,6 +168,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::Aarch64CbnzDirect(realization) => realization.exit_contract(),
             Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.exit_contract(),
             Self::ActiveResidentRematerialization(realization) => realization.exit_contract(),
+            Self::UnitBaseline(realization) => realization.exit_contract(),
         }
     }
     pub fn pre_physical_manifest(
@@ -204,6 +223,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     .optimized()
                     .pre_physical_manifest()
             }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
         }
     }
 
@@ -216,6 +244,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::Aarch64CbnzDirect(realization) => realization.manifest(),
             Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.manifest(),
             Self::ActiveResidentRematerialization(realization) => realization.manifest(),
+            Self::UnitBaseline(realization) => realization.manifest(),
         }
     }
 
@@ -234,6 +263,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::ActiveResidentRematerialization(realization) => {
                 active_resident_rematerialization(realization).post_allocation_manifest()
             }
+            Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
         }
     }
 
@@ -291,6 +321,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                     .optimized()
                     .verified_input()
             }
+            Self::UnitBaseline(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
         }
     }
 }
@@ -322,6 +361,7 @@ pub enum FunctionFragmentEmissionSourceKind {
     X86Rel8V1,
     Aarch64CbnzV1,
     ActiveResidentImmediateU64MultiUseRematerializationV1,
+    UnitBaselineV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -373,7 +413,7 @@ pub struct FunctionFragmentEmissionManifest {
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v2\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v3\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -410,6 +450,7 @@ impl FunctionFragmentEmissionManifest {
             1 => FunctionFragmentEmissionSourceKind::X86Rel8V1,
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
             tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag)),
         };
         let source_realization =
@@ -581,6 +622,7 @@ pub enum FunctionFragmentEmissionError {
     ActiveResidentRematerializationSource(
         OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     ),
+    UnitSource(OptimizedUnitFunctionRelativeRealizationError),
     MissingX86Rel8Realization,
     SourceKindMismatch,
     MissingFunction(MachineId),
@@ -718,6 +760,10 @@ fn validate_source(
             )
             .map_err(FunctionFragmentEmissionError::ActiveResidentRematerializationSource)?;
         }
+        StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(realization) => {
+            validate_optimized_unit_function_relative_realization(realization)
+                .map_err(FunctionFragmentEmissionError::UnitSource)?;
+        }
     }
     Ok(())
 }
@@ -818,6 +864,21 @@ fn compute(
                 source,
                 rematerialization.rematerialization(),
                 realization.source().layout(),
+                realization.manifest().record(),
+            )
+        }
+        StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(realization) => {
+            let selected = realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected();
+            compute_from(
+                source,
+                selected,
+                realization.layout(),
                 realization.manifest().record(),
             )
         }
@@ -1118,6 +1179,9 @@ fn source_kind(
         StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(_) => {
             FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
         }
+        StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(_) => {
+            FunctionFragmentEmissionSourceKind::UnitBaselineV1
+        }
     }
 }
 
@@ -1139,6 +1203,7 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => 1,
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
+        FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
     });
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());
