@@ -105,7 +105,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     let m = |needle: &str| p.contains(needle);
 
     // Order matters: the most specific backend sub-groups are checked before
-    // the generic Omega on-ramp `backend/` catch-all.
+    // the generic Rust product `backend/` catch-all.
     if p.ends_with("/source/omega-rust/omega/Cargo.toml") {
         Some("product")
     } else if m("/source/omega-rust/omega/foundation/") || m("/source/omega-rust/psi/foundation/") {
@@ -132,7 +132,7 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     } else if m("/source/omega-rust/omega/backend/") {
         Some("backend")
     } else {
-        // This crate itself lives under the Omega on-ramp architecture/ and is not part
+        // This crate itself lives under the Rust product architecture/ and is not part
         // of the governed graph; ditto anything else unrecognised.
         None
     }

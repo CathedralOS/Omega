@@ -42,7 +42,7 @@ its detailed execution queue lives in
 [`TASKS_OPTIMIZER.md`](TASKS_OPTIMIZER.md). Keep the product-compiler ownership
 task here; do not duplicate optimizer pass milestones in both queues.
 
-## Omega-written hosted product compiler
+## Omega-written product compiler
 
 Remaining:
 
@@ -52,15 +52,15 @@ Remaining:
   `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
-  artifact emission. The current implementation under
-  `source/omega-rust/` is a migration/reference producer, not the
+  artifact emission. The maintained implementation under
+  `source/omega-rust/` is a differential producer, not the
   source tree for this task.
 
   Acceptance: the exact Omega source tree builds a compiler that implements the
   full Omega specification, including the production optimizer and lowering
   pipeline, passes the applicable product compiler and language suites, and
   contains no Rust implementation under the
-  reserved product roots. "Full" governs accepted Omega and emitted-artifact
+  reserved product root. "Full" governs accepted Omega and emitted-artifact
   meaning; it does not require standalone interpreters, REPLs, proof explorers,
   viewers, debuggers, or other adjacent tools unless the compiler executable
   imports them. Publish a deterministic manifest of every transitive compiler
@@ -202,7 +202,7 @@ Remaining:
   making Rust agreement or availability a correctness, bootstrap, or release
   condition. Rust-specific maintenance stays in the explicit
   `source/omega-rust/` owner and never
-  moves into `source/omega/{psi,omega}/`.
+  moves into `source/omega/`.
 
 ## Execution order
 

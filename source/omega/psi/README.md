@@ -17,9 +17,9 @@ Omega programs the resulting compiler accepts. Standalone terminal-Psi
 interpreters, proof explorers, and other tools remain outside this closure
 unless the compiler executable imports them.
 
-The current Rust implementation is explicitly transitional and lives at
-`source/omega-rust/psi/`. It remains a differential comparator; no
-Rust implementation belongs in this product subtree.
+The maintained Rust implementation lives at `source/omega-rust/psi/`. It
+remains a differential comparator and may continue in parallel; no Rust
+implementation belongs in this product subtree.
 
 `test-parser.sh` compiles the product entrypoint once and runs the parser's
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
