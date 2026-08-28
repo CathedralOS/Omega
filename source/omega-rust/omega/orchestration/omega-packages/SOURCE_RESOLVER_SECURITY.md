@@ -173,12 +173,16 @@ parent component-by-component no-follow, reduce both operands to validated
 direct-child names, and rename through that retained directory capability.
 The parent then confirms the published directory has the staged directory's
 file identity and synchronizes the retained parent handle. A replaced parent
-pathname therefore cannot redirect the publication operation. Cache lock
-opening and pathname confirmation, metadata reads, staging creation and
-cleanup, invalidation, and macOS ACL inspection are not yet fully
-handle-relative. Destination exclusion is cooperative rather than an atomic
-hostile-same-user no-replace primitive, so this still does not claim exclusion
-of an actively hostile same-user process.
+pathname therefore cannot redirect the publication operation. Git and local
+publication locks likewise open a validated direct-child name no-follow through
+a retained parent capability. Lock acquisition confirms leaf identity relative
+to that parent after waiting and requires the canonical parent pathname still
+to identify the retained directory; the parent capability remains alive for
+the lock lifetime. Metadata reads, staging creation and cleanup, invalidation,
+and macOS ACL inspection are not yet fully handle-relative. Destination
+exclusion is cooperative rather than an atomic hostile-same-user no-replace
+primitive, so this still does not claim exclusion of an actively hostile
+same-user process.
 
 Compilation handoff now captures and revalidates the root package of each
 package compilation again, then asks the compiler to independently recapture
@@ -326,11 +330,13 @@ symlink logical lengths. Git entries reject above
 `min(source-byte-limit + 64 MiB, 512 MiB)`. These are post-helper acceptance
 ceilings for resident cache state, not during-write disk quotas or transferred-
 byte measurements: an unconfined helper may still exhaust storage before the
-parent can reject its output. After acquiring every Git or local publication
-lock, the resolver compares the locked handle with the current lock pathname
-using device/inode identity on Unix or volume/file-index identity on Windows;
-a pathname replacement while opening or waiting cannot split synchronization
-across two lock objects. Git waits consume the whole-resolution deadline, while
+parent can reject its output. Every Git or local publication lock opens
+no-follow relative to a retained canonical-parent capability. After waiting,
+the resolver compares the locked handle with that parent's current leaf and
+compares the retained parent with the current canonical parent pathname using
+platform file identity. A symlink leaf or replaced parent therefore rejects
+rather than selecting a different cooperative lock namespace. Git waits
+consume the whole-resolution deadline, while
 local publication waits use a separate two-minute compiler-owned deadline and
 reject explicitly on expiry. On Unix each cache entry and lock must be owned by
 the resolver's effective user and not group- or other-writable;
