@@ -12,17 +12,15 @@
 //! SysV/AAPCS schema must retain structural classification before this planner
 //! may admit it.
 
-use super::program_entry_source_signature::{
-    ProgramEntrySourceReceiverSignature, SelectedProgramEntrySourceSignature,
-};
 use super::program_storage_entry::{
     ProgramEntryReceiverPlacementRecord, ProgramEntryReceiverStoragePlan,
     ProgramStorageEntryDiagnostic,
 };
 use super::program_storage_wrapper::{
-    ProgramStorageEntryRootRole, ProgramStorageEntryWrapperReceiverTransfer,
-    ProgramStorageEntryWrapperTransferPlan,
+    ProgramStorageEntryWrapperReceiverTransfer, ProgramStorageEntryWrapperTransferPlan,
 };
+use crate::ProgramStorageEntryRootRole;
+use crate::{ProgramEntrySourceReceiverSignature, SelectedProgramEntrySourceSignature};
 use omega_calling_conventions::{CallPlan, CallSignature, ValuePlacement, ValueShape};
 
 #[derive(Debug, Clone, PartialEq, Eq)]

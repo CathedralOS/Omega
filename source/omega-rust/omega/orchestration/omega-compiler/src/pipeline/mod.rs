@@ -21,39 +21,23 @@ mod optimization_gate;
 mod output;
 #[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
-#[path = "program_storage/entry_physical.rs"]
-mod program_entry_physical;
+pub(crate) use omega_program_storage as program_entry_physical;
 pub(crate) use omega_program_storage as program_entry_source_signature;
-#[path = "program_storage/local_storage_custody.rs"]
-mod program_local_storage_custody;
-#[path = "program_storage/continuation_inbound.rs"]
-mod program_storage_continuation_inbound;
-#[path = "program_storage/emitted_argument_binding.rs"]
-mod program_storage_emitted_argument_binding;
-#[path = "program_storage/entry.rs"]
-mod program_storage_entry;
-#[path = "program_storage/extent_operand.rs"]
-mod program_storage_extent_operand;
-#[path = "program_storage/extent_value.rs"]
-mod program_storage_extent_value;
-#[path = "program_storage/reserved_outgoing_frame.rs"]
-mod program_storage_reserved_outgoing_frame;
-#[path = "program_storage/root_argument_binding.rs"]
-mod program_storage_root_argument_binding;
-#[path = "program_storage/root_authority.rs"]
-mod program_storage_root_authority;
-#[path = "program_storage/source_call.rs"]
-mod program_storage_source_call;
-#[path = "program_storage/wrapper.rs"]
-mod program_storage_wrapper;
-#[path = "program_storage/wrapper_arrival.rs"]
-mod program_storage_wrapper_arrival;
-#[path = "program_storage/wrapper_body.rs"]
-mod program_storage_wrapper_body;
-#[path = "program_storage/wrapper_evidence.rs"]
-mod program_storage_wrapper_evidence;
-#[path = "program_storage/wrapper_frame.rs"]
-mod program_storage_wrapper_frame;
+pub(crate) use omega_program_storage as program_local_storage_custody;
+pub(crate) use omega_program_storage as program_storage_continuation_inbound;
+pub(crate) use omega_program_storage as program_storage_emitted_argument_binding;
+pub(crate) use omega_program_storage as program_storage_entry;
+pub(crate) use omega_program_storage as program_storage_extent_operand;
+pub(crate) use omega_program_storage as program_storage_extent_value;
+pub(crate) use omega_program_storage as program_storage_reserved_outgoing_frame;
+pub(crate) use omega_program_storage as program_storage_root_argument_binding;
+pub(crate) use omega_program_storage as program_storage_root_authority;
+pub(crate) use omega_program_storage as program_storage_source_call;
+pub(crate) use omega_program_storage as program_storage_wrapper;
+pub(crate) use omega_program_storage as program_storage_wrapper_arrival;
+pub(crate) use omega_program_storage as program_storage_wrapper_body;
+pub(crate) use omega_program_storage as program_storage_wrapper_evidence;
+pub(crate) use omega_program_storage as program_storage_wrapper_frame;
 mod project;
 pub(crate) use omega_provider_planning::approval as provider_approval;
 pub(crate) use omega_provider_planning::plans as provider_plans;
@@ -81,7 +65,7 @@ pub(crate) use crate::compiler::{
 };
 
 pub(crate) use artifacts::write_checked_snapshot;
-pub use artifacts::{
+pub use omega_program_storage::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
 pub use build_config::{

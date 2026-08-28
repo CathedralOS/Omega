@@ -12,8 +12,8 @@ use super::program_storage_entry::{
     ProgramEntryReceiverStoragePlan, ProgramStorageEntryDiagnostic, ProgramStorageEntryParameter,
     ProgramStorageEntryPlanBinding,
 };
+use crate::ProgramStorageEntryRootRole;
 use omega_calling_conventions::ValuePlacement;
-pub use omega_program_storage::ProgramStorageEntryRootRole;
 use std::ops::Range;
 
 const IMAGE_PARAMETER_INDEX: usize = 0;
