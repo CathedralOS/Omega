@@ -268,9 +268,8 @@ fn task_start_acknowledges_only_the_start_operation_not_the_target_machine() {
 
 #[test]
 fn compiler_synthesized_calls_record_acknowledgements_without_source_tokens() {
-    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(
-        "../../../../../../tests/omega/pass/traits/equatable_record_equality_exit/main.omg",
-    );
+    let canary = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../../../tests/omega/pass/traits/equatable_record_equality_exit/main.omg");
     let checked =
         compile_to_checked(&canary, None).expect("synthesized equality-call canary should compile");
     let synthesized = checked

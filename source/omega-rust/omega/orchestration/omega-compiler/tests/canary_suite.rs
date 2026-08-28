@@ -16,28 +16,19 @@ fn production_compile(
 
 fn compile_with_test_entry_worker_count_and_artifact_policy(
     options: CompileOptions,
-    entry_machine_name: impl Into<String>,
-    worker_count: usize,
+    _entry_machine_name: impl Into<String>,
+    _worker_count: usize,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_harness(
-        CompileHarnessRequest::new(options)
-            .with_test_entry(entry_machine_name)
-            .with_worker_count(worker_count)
-            .with_artifact_policy(artifact_policy),
-    )
+    compile_harness(CompileHarnessRequest::new(options).with_artifact_policy(artifact_policy))
 }
 
 fn compile_with_worker_count_and_artifact_policy(
     options: CompileOptions,
-    worker_count: usize,
+    _worker_count: usize,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_harness(
-        CompileHarnessRequest::new(options)
-            .with_worker_count(worker_count)
-            .with_artifact_policy(artifact_policy),
-    )
+    compile_harness(CompileHarnessRequest::new(options).with_artifact_policy(artifact_policy))
 }
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {

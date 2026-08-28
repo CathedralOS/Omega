@@ -60,8 +60,4 @@ impl CompileTimings {
             });
         }
     }
-
-    pub(super) fn as_slice(&self) -> &[PhaseTiming] {
-        &self.phases
-    }
 }

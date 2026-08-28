@@ -127,22 +127,6 @@ pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
     pub(super) accepted_template_classifications:
         omega_trust_ledger::AcceptedTemplateClassifications,
-    pub(super) selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
-    pub(super) component_progress: Option<Arc<omega_effects::ComponentProgressManifest>>,
-    pub(super) task_activations: Arc<omega_task_plans::TaskActivationPlanSet>,
-    pub(super) callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
-    pub(super) external_binding_rows: Arc<[omega_calling_conventions::ExternalBindingRow]>,
-}
-
-pub(super) fn source_files_to_syntax_trees(
-    root_path: &Path,
-    target_name: Option<&str>,
-    package_inputs: Option<&PackageCompilationInputs>,
-    timings: &mut CompileTimings,
-) -> Result<(usize, AssembledSyntax), Vec<Diagnostic>> {
-    // The native-image path substitutes target-specific providers. The interpreter
-    // keeps abstract boundary traits for its headless stubs.
-    source_files_to_syntax_trees_for_engine(root_path, target_name, true, package_inputs, timings)
 }
 
 pub(super) fn source_files_to_syntax_trees_for_engine(
@@ -1067,11 +1051,6 @@ pub(super) fn typed_trees_to_checked_trees(
         Ok(CheckedProgramSurface {
             program: Arc::new(program),
             accepted_template_classifications,
-            selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
-            component_progress: None,
-            task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
-            callback_placements: Arc::from([]),
-            external_binding_rows: Arc::from([]),
         })
     })
 }

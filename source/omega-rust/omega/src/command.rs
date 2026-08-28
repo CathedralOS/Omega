@@ -5,8 +5,8 @@ use std::fmt::Write;
 use std::path::PathBuf;
 
 use omega_compiler::{
-    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileRequest,
-    RequestedCompileProduct, compile, compile_harness, compile_to_checked,
+    ArtifactEmissionPolicy, CompileOptions, CompileRequest, RequestedCompileProduct, compile,
+    compile_to_checked,
 };
 use omega_core::allocations::CountingAllocator;
 use psi_core::{ServiceId, StructuralTypeId};
@@ -861,31 +861,32 @@ fn refresh_samples(samples_root: &std::path::Path) -> ! {
                         .parent()
                         .expect("main.omg has a sample directory")
                         .join("build");
-                    match compile_harness(
-                        CompileHarnessRequest::new(CompileOptions {
-                            root_path: main_path.clone(),
-                            build_dir: Some(build_dir),
-                            target_name: Some(
-                                omega_target::TargetProfile::host().target_name().to_owned(),
-                            ),
-                            write_output: true,
-                        })
-                        .with_worker_count(1)
-                        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
-                    ) {
+                    let options = CompileOptions {
+                        root_path: main_path.clone(),
+                        build_dir: Some(build_dir.clone()),
+                        target_name: Some(
+                            omega_target::TargetProfile::host().target_name().to_owned(),
+                        ),
+                        write_output: true,
+                    };
+                    let request = CompileRequest::new(options)
+                        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+                        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly);
+                    let result = match compile(request) {
+                        Ok(report) => output::publish_native_artifact(report, &build_dir),
+                        Err(diagnostics) => Err(diagnostics
+                            .first()
+                            .map(|diagnostic| diagnostic.to_string())
+                            .unwrap_or_else(|| "unknown compilation error".to_owned())),
+                    };
+                    match result {
                         Ok(_) => {
                             built.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
                         }
-                        Err(diagnostics) => {
-                            let first = diagnostics
-                                .first()
-                                .map(|diagnostic| diagnostic.to_string())
-                                .unwrap_or_else(|| "unknown error".to_owned());
-                            failures
-                                .lock()
-                                .unwrap()
-                                .push(format!("{}: {first}", main_path.display()));
-                        }
+                        Err(message) => failures
+                            .lock()
+                            .unwrap()
+                            .push(format!("{}: {message}", main_path.display())),
                     }
                 }
             });

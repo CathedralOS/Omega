@@ -1155,8 +1155,6 @@ fn retained_native_product_enters_only_terminal_realization() {
     let legacy_driver_path = root.join(
         "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/harness.rs",
     );
-    let legacy_driver = std::fs::read_to_string(&legacy_driver_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_driver_path.display()));
     let request_path =
         root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/request.rs");
     let request = std::fs::read_to_string(&request_path)
@@ -1179,9 +1177,10 @@ fn retained_native_product_enters_only_terminal_realization() {
         !request.contains("InstalledOutput"),
         "installed legacy output is not a production compile product"
     );
-    assert!(!legacy_driver.contains("RequestedCompileProduct::NativeArtifact"));
-    assert!(!legacy_driver.contains("RequestedCompileProduct::TerminalArtifact"));
-    assert!(!legacy_driver.contains("produce_terminal_artifact("));
+    assert!(
+        !legacy_driver_path.exists(),
+        "the StateGraph compatibility compiler must stay deleted"
+    );
     let native = driver
         .split_once("fn native_report")
         .map(|(native, _)| native)
@@ -1246,10 +1245,10 @@ fn shared_frontend_stages_stop_at_checked_psi() {
     let legacy_path = root.join(
         "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/stages.rs",
     );
-    let legacy = std::fs::read_to_string(&legacy_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_path.display()));
-    assert!(legacy.contains("pub(super) fn checked_trees_to_state_graph"));
-    assert!(legacy.contains("deleted with `StateGraphHarness`"));
+    assert!(
+        !legacy_path.exists(),
+        "the checked-Psi seam must not retain a compatibility lowering module"
+    );
 }
 
 #[test]

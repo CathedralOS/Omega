@@ -1,5 +1,5 @@
 use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
-use crate::pipeline::{ExecutableTcbBuildPolicy, PackageCompilationInputs};
+use crate::pipeline::PackageCompilationInputs;
 
 /// The semantic product requested from the production compiler pipeline.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +18,6 @@ pub enum RequestedCompileProduct {
 pub struct CompileRequest {
     pub(crate) options: CompileOptions,
     pub(crate) requested_product: RequestedCompileProduct,
-    pub(crate) executable_tcb_policy: ExecutableTcbBuildPolicy,
     pub(crate) artifact_policy: ArtifactEmissionPolicy,
     pub(crate) terminal_admission_profile: psi_proof_admission::AdmissionProfile,
     pub(crate) package_inputs: Option<PackageCompilationInputs>,
@@ -33,19 +32,10 @@ impl CompileRequest {
         Self {
             options,
             requested_product: RequestedCompileProduct::Check,
-            executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
             package_inputs: None,
         }
-    }
-
-    pub fn with_executable_tcb_policy(
-        mut self,
-        executable_tcb_policy: ExecutableTcbBuildPolicy,
-    ) -> Self {
-        self.executable_tcb_policy = executable_tcb_policy;
-        self
     }
 
     pub fn with_requested_product(mut self, requested_product: RequestedCompileProduct) -> Self {

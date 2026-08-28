@@ -4,7 +4,6 @@
 //! host-execution infrastructure live beneath it; language and target semantics
 //! belong to the stage crates the coordinator invokes.
 
-use crate::pipeline::ExecutableTcbBuildPolicy;
 use psi_diagnostics::Diagnostic;
 
 mod driver;
@@ -41,19 +40,16 @@ impl Compiler {
         request: CompileHarnessRequest,
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         execution::run_on_compile_thread(move || {
-            let mut driver =
-                crate::pipeline::compatibility::StateGraphHarness::with_executable_tcb_policy(
-                    request.options,
-                    ExecutableTcbBuildPolicy::default(),
-                )
-                .with_artifact_policy(request.artifact_policy);
-            if let Some(entry_machine_name) = request.entry_machine_name {
-                driver = driver.with_test_entry(entry_machine_name);
-            }
-            if let Some(worker_count) = request.worker_count {
-                driver = driver.with_worker_count(worker_count);
-            }
-            driver.compile()
+            let requested_product = if request.options.write_output {
+                RequestedCompileProduct::NativeArtifact
+            } else {
+                RequestedCompileProduct::Check
+            };
+            driver::compile(
+                CompileRequest::new(request.options)
+                    .with_requested_product(requested_product)
+                    .with_artifact_policy(request.artifact_policy),
+            )
         })
     }
 }
