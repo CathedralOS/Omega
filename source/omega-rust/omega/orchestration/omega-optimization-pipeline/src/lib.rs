@@ -293,7 +293,8 @@ pub use whole_function_exit_contract::{
     TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitLayoutCustody,
     TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
     TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
-    ValidatedTerminalWholeFunctionExitContract, stage_terminal_whole_function_exit_contract,
+    ValidatedTerminalWholeFunctionExitContract,
+    stage_terminal_whole_function_exit_contract,
     stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
     validate_terminal_whole_function_exit_contract,
@@ -759,6 +760,83 @@ mod tests {
 
     fn staged_conditional(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
         let (semantic, proof) = conditional_immediate_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
+    }
+
+    fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(3_501).unwrap();
+        let entry = BlockId::new(3_502).unwrap();
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(3_503).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(3_504).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_unit_return(target: NativeTarget) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = unit_return_artifact();
         let optimized = optimize_artifact_sections(
             &semantic,
             &proof,
@@ -10747,6 +10825,173 @@ mod tests {
             let range_stage = legality_stage.live_range_stage();
             let selected_stage = range_stage.liveness_stage().selected_stage();
             let environment = selected_stage.register_environment();
+            assert!(
+                omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                    selected_stage.selected(),
+                    post.effects().effects(),
+                    range_stage.ranges(),
+                    legality_stage.legality(),
+                    homes.homes(),
+                    homes.post_allocation_manifest(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    corrupted_post,
+                )
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let selected = staged_unit_return(target);
+            let selected_function = &selected.selected().plan().functions[0];
+            assert!(selected_function.virtual_registers.is_empty());
+            assert_eq!(selected_function.blocks.len(), 1);
+            assert!(selected_function.blocks[0].instructions.is_empty());
+            let TerminalSelectedTerminator::Return { instruction, .. } =
+                &selected_function.blocks[0].terminator
+            else {
+                panic!("Unit selection must end in the generic return terminator");
+            };
+            assert_eq!(instruction.kind, TerminalSelectedInstructionKind::ReturnUnit);
+            assert!(instruction.operands.is_empty());
+
+            let raw_liveness = analyze_terminal_liveness(selected.selected()).unwrap();
+            let mut corrupted_liveness = raw_liveness.plan().clone();
+            corrupted_liveness.functions[0].blocks[0]
+                .unit_live_in
+                .clear();
+            assert!(matches!(
+                validate_terminal_liveness(selected.selected(), corrupted_liveness),
+                Err(TerminalLivenessError::BlockMismatch {
+                    function: 0,
+                    block: 0
+                })
+            ));
+
+            let liveness = stage_optimized_liveness(selected).unwrap();
+            assert_eq!(liveness.custody().function_count(), 1);
+            assert_eq!(liveness.custody().block_count(), 1);
+            assert_eq!(liveness.custody().virtual_register_count(), 0);
+            assert_eq!(liveness.custody().instruction_count(), 1);
+            assert_eq!(liveness.custody().successor_count(), 0);
+            let live_function = &liveness.liveness().plan().functions[0];
+            assert!(live_function.entry_definitions.is_empty());
+            assert!(live_function.operand_positions.is_empty());
+            assert!(live_function.blocks[0].virtual_live_in.is_empty());
+            assert!(live_function.blocks[0].virtual_live_out.is_empty());
+            assert!(!live_function.blocks[0].unit_live_in.is_empty());
+            assert!(live_function.blocks[0].unit_live_out.is_empty());
+
+            let raw_ranges = analyze_terminal_live_ranges(
+                liveness.selected_stage().selected(),
+                liveness.liveness(),
+            )
+            .unwrap();
+            let mut corrupted_ranges = raw_ranges.plan().clone();
+            corrupted_ranges.functions[0].architectural_units.pop();
+            assert!(matches!(
+                validate_terminal_live_ranges(
+                    liveness.selected_stage().selected(),
+                    liveness.liveness(),
+                    corrupted_ranges,
+                ),
+                Err(TerminalLiveRangeError::ArchitecturalUnitMismatch { function: 0, .. })
+            ));
+
+            let ranges = stage_optimized_live_ranges(liveness).unwrap();
+            assert_eq!(ranges.custody().function_count(), 1);
+            assert_eq!(ranges.custody().block_count(), 1);
+            assert_eq!(ranges.custody().virtual_register_count(), 0);
+            assert_eq!(ranges.custody().virtual_occurrence_count(), 0);
+            assert_eq!(ranges.custody().fixed_constraint_count(), 0);
+            assert_eq!(ranges.custody().virtual_fragment_count(), 0);
+            assert_eq!(ranges.custody().interference_count(), 0);
+            assert!(ranges.custody().architectural_unit_count() > 0);
+            assert_eq!(
+                ranges.ranges().plan().functions[0]
+                    .block_domains
+                    .iter()
+                    .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 2)]
+            );
+
+            let legality = stage_optimized_allocation_legality(ranges).unwrap();
+            assert_eq!(legality.custody().function_count(), 1);
+            assert_eq!(legality.custody().virtual_register_count(), 0);
+            assert_eq!(legality.custody().point_count(), 0);
+            assert_eq!(legality.custody().candidate_count(), 0);
+            assert_eq!(legality.custody().entry_transition_count(), 0);
+            let range_stage = legality.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_legality = legality.legality().plan().clone();
+            corrupted_legality.functions[0].machine = MachineId::new(3_599).unwrap();
+            assert!(matches!(
+                validate_terminal_allocation_legality(
+                    range_stage.ranges(),
+                    legality.allocator_availability(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_legality,
+                ),
+                Err(TerminalAllocationLegalityError::FunctionMismatch { function: 0 })
+            ));
+
+            let homes = stage_optimized_register_homes(legality).unwrap();
+            assert_eq!(homes.custody().function_count(), 1);
+            assert_eq!(homes.custody().assignment_count(), 0);
+            assert!(homes.homes().plan().functions[0].assignments.is_empty());
+            assert!(
+                homes
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations
+                    .is_empty()
+            );
+            let legality_stage = homes.legality_stage();
+            let range_stage = legality_stage.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_homes = homes.homes().plan().clone();
+            corrupted_homes.functions[0].machine = MachineId::new(3_599).unwrap();
+            assert!(matches!(
+                validate_terminal_register_homes(
+                    legality_stage.legality(),
+                    range_stage.ranges(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_homes,
+                ),
+                Err(TerminalRegisterHomeError::FunctionMismatch { function: 0 })
+            ));
+
+            let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+            assert_eq!(post.custody().instruction_count(), 1);
+            assert_eq!(post.machine().plan().functions.len(), 1);
+            let post_instruction = &post.machine().plan().functions[0].blocks[0].instructions[0];
+            assert_eq!(
+                post_instruction.alternative.key.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::ReturnUnit
+            );
+            assert!(post_instruction.operands.is_empty());
+            let mut corrupted_post = post.machine().plan().clone();
+            corrupted_post.functions[0].machine = MachineId::new(3_599).unwrap();
+            let selected_stage = range_stage.liveness_stage().selected_stage();
             assert!(
                 omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
                     selected_stage.selected(),
