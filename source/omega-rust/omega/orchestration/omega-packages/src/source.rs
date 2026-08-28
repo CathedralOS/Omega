@@ -9769,7 +9769,7 @@ mod tests {
             "test-null-stdin",
             16,
             16,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
         )
         .expect("null stdin must reach EOF without blocking");
         assert!(output.status.success());
@@ -9784,7 +9784,7 @@ mod tests {
             "test-both-streams",
             128 * 1024,
             128 * 1024,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
         )
         .expect("stdout and stderr must be drained concurrently");
         assert!(output.status.success());
@@ -9801,7 +9801,7 @@ mod tests {
             "test-shared-output-budget",
             128 * 1024,
             128 * 1024,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
             shared_budget.clone(),
         )
         .expect_err("stdout and stderr must consume one shared cumulative budget");

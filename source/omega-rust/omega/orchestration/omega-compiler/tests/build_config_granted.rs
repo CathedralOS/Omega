@@ -117,12 +117,54 @@ reaches FilesystemHost
     (project, profile)
 }
 
+fn rooted_build_session(project: &Path, label: &str) -> PathBuf {
+    let project_name = project
+        .file_name()
+        .and_then(|name| name.to_str())
+        .expect("rooted build project has a UTF-8 directory name");
+    std::env::temp_dir().join(format!("{project_name}-{label}"))
+}
+
+#[cfg(unix)]
+fn set_canonical_source_tree_permissions(root: &Path, sealed: bool) {
+    use std::os::unix::fs::PermissionsExt;
+
+    let metadata = std::fs::symlink_metadata(root).expect("inspect canonical test Source path");
+    if metadata.is_symlink() {
+        return;
+    }
+    if metadata.is_dir() {
+        if !sealed {
+            std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o755))
+                .expect("unseal canonical test Source directory");
+        }
+        for entry in std::fs::read_dir(root).expect("enumerate canonical test Source directory") {
+            set_canonical_source_tree_permissions(
+                &entry.expect("read canonical test Source entry").path(),
+                sealed,
+            );
+        }
+        if sealed {
+            std::fs::set_permissions(root, std::fs::Permissions::from_mode(0o555))
+                .expect("seal canonical test Source directory");
+        }
+    } else if metadata.is_file() {
+        let mode = if sealed { 0o444 } else { 0o644 };
+        std::fs::set_permissions(root, std::fs::Permissions::from_mode(mode))
+            .expect("set canonical test Source file permissions");
+    }
+}
+
+#[cfg(not(unix))]
+fn set_canonical_source_tree_permissions(_root: &Path, _sealed: bool) {}
+
 fn compile_rooted_probe_with_sponsored_output(
     project: &std::path::Path,
     profile: omega_target::TargetProfile,
     label: &str,
 ) -> Result<CheckedCompilation, Vec<psi_diagnostics::Diagnostic>> {
-    let session = project.join(label);
+    let session = rooted_build_session(project, label);
+    let _ = std::fs::remove_dir_all(&session);
     std::fs::create_dir(&session).expect("create generated-source review session");
     let session = std::fs::canonicalize(session).expect("canonicalize review session");
     let sponsor = FilesystemSponsor::new(&session).expect("create generated-source sponsor");
@@ -136,24 +178,30 @@ fn compile_rooted_probe_with_sponsored_output(
     std::fs::create_dir(&build_dir).expect("create generated output");
     prepared.commit().expect("commit generated output");
 
-    let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
-    let package_inputs = PackageCompilationInputs::new(
-        package,
-        vec![PackageSourceBinding::new(
+    let _ = std::fs::remove_dir_all(project.join("build"));
+    set_canonical_source_tree_permissions(project, true);
+    let result = (|| {
+        let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
+        let package_inputs = PackageCompilationInputs::new(
             package,
-            "generated-source",
-            project.to_path_buf(),
-        )],
-        Vec::new(),
-    )
-    .expect("single-package generated-source input");
-    compile_to_checked_with_packages_in_sponsored_build_dir(
-        &project.join("main.omg"),
-        &build_dir,
-        Some(profile.target_name()),
-        package_inputs,
-        sponsor,
-    )
+            vec![
+                PackageSourceBinding::new(package, "generated-source", project.to_path_buf())
+                    .with_canonical_source_metadata()
+                    .expect("capture generated-source canonical metadata"),
+            ],
+            Vec::new(),
+        )
+        .expect("single-package generated-source input");
+        compile_to_checked_with_packages_in_sponsored_build_dir(
+            &project.join("main.omg"),
+            &build_dir,
+            Some(profile.target_name()),
+            package_inputs,
+            sponsor,
+        )
+    })();
+    set_canonical_source_tree_permissions(project, false);
+    result
 }
 
 #[test]
@@ -244,7 +292,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     let checked_observations = checked
         .build_observation_summary()
         .expect("build machine evaluation must publish observation evidence");
-    assert_eq!(checked_observations.schema_version(), 24);
+    assert_eq!(checked_observations.schema_version(), 26);
     assert_eq!(
         checked_observations.ceiling(),
         BuildObservationClass::Volatile
@@ -255,7 +303,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     assert_eq!(
         checked_observations.filesystem_operation_schema_version(),
-        18
+        19
     );
     assert!(
         checked_observations.staged_output_tree().is_none(),
@@ -509,7 +557,8 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         String::from_utf8_lossy(&output.stderr)
     );
 
-    let sponsored_session = project.join("sponsored-review");
+    let sponsored_session = rooted_build_session(&project, "sponsored-review");
+    let _ = std::fs::remove_dir_all(&sponsored_session);
     std::fs::create_dir(&sponsored_session).expect("create sponsored review session");
     let sponsored_session =
         std::fs::canonicalize(sponsored_session).expect("canonicalize sponsored review session");
@@ -534,14 +583,16 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     );
     std::fs::write(project.join("build.omg"), sponsored_build_source)
         .expect("write sponsored build source");
+    let _ = std::fs::remove_dir_all(&build_dir);
+    set_canonical_source_tree_permissions(&project, true);
     let package = PackageKeyIdentity::from_digest([91; 32]).expect("nonzero package identity");
     let package_inputs = PackageCompilationInputs::new(
         package,
-        vec![PackageSourceBinding::new(
-            package,
-            "sponsored-build",
-            project.clone(),
-        )],
+        vec![
+            PackageSourceBinding::new(package, "sponsored-build", project.clone())
+                .with_canonical_source_metadata()
+                .expect("capture sponsored-build canonical metadata"),
+        ],
         Vec::new(),
     )
     .expect("single-package compiler input");
@@ -551,8 +602,9 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
         Some(profile.target_name()),
         package_inputs,
         sponsor,
-    )
-    .expect("sponsored package build must retain staged-output custody");
+    );
+    set_canonical_source_tree_permissions(&project, false);
+    let sponsored = sponsored.expect("sponsored package build must retain staged-output custody");
     let sponsored_tree = sponsored
         .build_observation_summary()
         .and_then(|summary| summary.staged_output_tree())
@@ -561,6 +613,7 @@ machine Main::main(&mut self) { self.console.exit_process(70); }
     assert_eq!(sponsored_tree.file_bytes(), 16);
 
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(&sponsored_session);
 }
 
 #[test]
@@ -2646,6 +2699,7 @@ fn path_like_filesystem_operands_survive_compiler_projection() {
     assert_eq!(link.relative_path(), b"missing-parent/link");
     assert!(symlink.byte_operands().is_empty());
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "review"));
 }
 
 #[cfg(unix)]
@@ -2848,15 +2902,19 @@ fn generated_source_handoff_requires_custody_and_enters_one_frozen_final_pass() 
         .verify_current_source_consumption()
         .expect("generated bytes remain tied to retained staged-output custody");
     assert_eq!(
-        std::fs::read_to_string(project.join("sponsored-review/output/generated.omg")).unwrap(),
+        std::fs::read_to_string(
+            rooted_build_session(&project, "sponsored-review").join("output/generated.omg"),
+        )
+        .unwrap(),
         "data Generated {}\n"
     );
 
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "sponsored-review"));
 }
 
 #[test]
-fn receipted_generated_source_reopens_without_host_source_or_output() {
+fn receipted_generated_source_reopens_with_source_custody_and_rejects_source_drift() {
     let (project, profile) = rooted_build_probe_project(
         "receipted-generated-source",
         r#"    let input: &[u8] in Path = builder.source.resolve("main.omg");
@@ -2903,22 +2961,16 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
         recover_review_only_build_filesystem_replay_record(&changed_record_bytes, limits)
             .expect("changed payload remains canonically framed but has different semantics");
     let package = PackageKeyIdentity::from_digest([97; 32]).expect("nonzero package identity");
-    let package_inputs = || {
-        PackageCompilationInputs::new(
-            package,
-            vec![PackageSourceBinding::new(
-                package,
-                "generated-source",
-                project.clone(),
-            )],
-            Vec::new(),
-        )
-        .expect("single-package generated-source input")
-    };
+    set_canonical_source_tree_permissions(&project, true);
+    let package_source = PackageSourceBinding::new(package, "generated-source", project.clone())
+        .with_canonical_source_metadata()
+        .expect("capture replayed generated-source canonical metadata");
+    let package_inputs = PackageCompilationInputs::new(package, vec![package_source], Vec::new())
+        .expect("single-package generated-source input");
     let changed_diagnostics = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
-        package_inputs(),
+        package_inputs.clone(),
         changed_record,
     )
     .expect_err("changed retained output bytes must disagree with authored replay");
@@ -2926,10 +2978,8 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
         diagnostic.message.contains("replay") && diagnostic.message.contains("changed")
     }));
 
-    std::fs::write(project.join("main.omg"), "data Main { value: u16; }\n")
-        .expect("change host source after receipt capture");
     std::fs::write(
-        project.join("receipted-review/output/generated.omg"),
+        rooted_build_session(&project, "receipted-review").join("output/generated.omg"),
         "data Spoofed {}\n",
     )
     .expect("change host output after receipt capture");
@@ -2937,10 +2987,10 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
     let replayed = compile_to_checked_with_packages_and_replay_record(
         &project.join("main.omg"),
         Some(profile.target_name()),
-        package_inputs(),
-        record,
+        package_inputs.clone(),
+        record.clone(),
     )
-    .expect("reopened receipt should reproduce build input and generated output");
+    .expect("reopened receipt should reproduce build input and ignore stale host output");
     let replayed_summary = replayed
         .build_observation_summary()
         .expect("reopened receipt retains observations");
@@ -2957,7 +3007,23 @@ fn receipted_generated_source_reopens_without_host_source_or_output() {
         .expect("replayed generated source enters the final checked program");
     assert_eq!(generated.source.as_ref(), "data Generated { value: u8; }\n");
 
+    set_canonical_source_tree_permissions(&project, false);
+    std::fs::write(project.join("main.omg"), "data Main { value: u16; }\n")
+        .expect("change host source after receipt capture");
+    let source_drift = compile_to_checked_with_packages_and_replay_record(
+        &project.join("main.omg"),
+        Some(profile.target_name()),
+        package_inputs,
+        record,
+    )
+    .expect_err("package-aware replay must reject changed canonical Source custody");
+    assert!(source_drift.iter().any(|diagnostic| {
+        diagnostic.message.contains("canonical Source metadata")
+            || diagnostic.message.contains("source consumption")
+    }));
+
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "receipted-review"));
 }
 
 #[test]
@@ -2985,6 +3051,7 @@ fn staged_omega_source_requires_an_explicit_handoff() {
     );
 
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "unhanded-review"));
 }
 
 #[test]
@@ -3009,6 +3076,7 @@ fn handed_off_generated_source_must_pass_the_final_frontend() {
     assert!(rendered.contains("invalid.omg"), "{rendered}");
 
     let _ = std::fs::remove_dir_all(&project);
+    let _ = std::fs::remove_dir_all(rooted_build_session(&project, "invalid-review"));
 }
 
 #[test]

@@ -106,6 +106,12 @@ fn expected_canary_application_name(root: &Path) -> String {
         .file_name()
         .and_then(|name| name.to_str())
         .expect("canary root must have a UTF-8 leaf name");
+    if root.ends_with("pass/float/build_runtime_semantics_twins_windows_x64") {
+        return "windows-x64-baseline-float-semantic-edge-twin".to_owned();
+    }
+    if root.ends_with("pass/float/build_runtime_semantics_twins_x86_baseline") {
+        return "x86-baseline-float-semantic-edge-twin".to_owned();
+    }
     if root.ends_with("pass/arithmetic/float_trapping_invalid_traps")
         || root.ends_with("pass/arithmetic/float_trapping_overflow_traps")
     {
@@ -122,7 +128,6 @@ fn repository_workspace_declares_its_members_in_authored_order() {
         BuildDeclaration::Workspace(omega_packages::WorkspaceDeclaration {
             members: vec![
                 WorkspaceMemberPath::parse("source/library/std").unwrap(),
-                WorkspaceMemberPath::parse("source/psi").unwrap(),
                 WorkspaceMemberPath::parse("source/omega").unwrap(),
             ],
         })
@@ -139,7 +144,7 @@ fn compiler_application_and_standard_library_declare_their_kinds() {
         })
     );
     assert_eq!(
-        extract_build_declaration(root.join("source/psi")).unwrap(),
+        extract_build_declaration(root.join("source/omega/psi")).unwrap(),
         BuildDeclaration::Package(omega_packages::PackageDeclaration {
             name: PackageName::parse("psi").unwrap(),
         })
@@ -184,7 +189,7 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     collect_build_roots(&canaries, &mut roots);
     assert_eq!(
         roots.len(),
-        1_121,
+        1_125,
         "unexpected canary build-root population"
     );
 
@@ -216,5 +221,5 @@ fn ordinary_canary_projects_declare_canonical_application_roles() {
     }
 
     assert_eq!(exceptions, ROLE_MIGRATION_EXCEPTIONS.len());
-    assert_eq!(applications, 1_116);
+    assert_eq!(applications, 1_120);
 }
