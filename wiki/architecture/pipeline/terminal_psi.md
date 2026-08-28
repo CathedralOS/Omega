@@ -2031,7 +2031,7 @@ component/era set and charges coexistence at peak. A parent root enforces a
 shared cap only within its own installed assembly and epoch, while a
 cross-epoch ceiling requires authority preserved across the epoch boundary.
 
-The Rust on-ramp performs that join through the canonical installed-root
+The Rust product implementation performs that join through the canonical installed-root
 ledger. It retains the exact target-required slot closure, issues one cohort
 verifier, restricts prebinding to those members, and commits the complete
 eligible set atomically for one lifecycle ledger and epoch. The closed aggregate

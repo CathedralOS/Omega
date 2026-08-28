@@ -521,7 +521,7 @@ domain identity. Installation joins that carrier directly to the verified
 Terminal producer catalog; it never parses a display type or substitutes a
 short source spelling such as `Extent` for `named(name(Extent))`.
 
-The Rust on-ramp consumes that cohort into one non-clonable epoch runtime. The
+The Rust product implementation consumes that cohort into one non-clonable epoch runtime. The
 runtime retains every still-dormant occurrence instead of distributing loose
 mint tokens. A generated installed-entry bridge supplies a single-use subject
 binding naming the exact installed root, physical and semantic parameter

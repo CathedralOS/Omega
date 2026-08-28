@@ -885,7 +885,7 @@ Remaining:
   first provide the canonical requirement-position, qualification, projection/
   algebra, capacity/family-instance, and artifact-scope schema; installation can
   then join exact slot occurrences, cardinality, artifact instance, and epoch.
-  The Rust on-ramp now publishes and independently replays the first portable
+  The Rust product implementation now publishes and independently replays the first portable
   producer-schema slice: one exact static boundary requirement and authored
   parameter position, its exact qualified carrier and normalized domain
   identity, the owner-unique content projection and closed algebra, normalized
@@ -902,7 +902,7 @@ Remaining:
   catalog constructible only from a successfully verified Terminal module. It
   retains the exact Terminal identity and entry plus each resolved requirement,
   qualification, carrier, and producer schema, while deliberately carrying no
-  occurrence, cardinality, lifecycle, lineage, or grant state. The Rust on-ramp
+  occurrence, cardinality, lifecycle, lineage, or grant state. The Rust product implementation
   accepts only that catalog for non-authoritative installation prebinding, then
   replays the exact native object bytes/architecture/entry and binds the
   admitted provider execution, installed code/artifact, root, slot, owner, and
@@ -9757,7 +9757,7 @@ checked-result arithmetic decision listed below.
   - implement a durable deployment journal with `Prepared`, `Activated`, and
     `Finalized` restart reconciliation. The journal retains accepting envelope,
     evidence, admissions, slot history, and live-era state; it is not assumed
-    atomic with in-memory publication. The Rust on-ramp now owns the canonical
+    atomic with in-memory publication. The Rust product implementation now owns the canonical
     versioned journal record and typed `Prepared` -> `Activated` -> `Finalized`
     transitions. It retains exact slot/era/artifact, entry-plan/admission,
     accepting-envelope, disclosed-admission, and canonical installation
