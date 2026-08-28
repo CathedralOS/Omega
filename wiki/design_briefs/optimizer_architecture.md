@@ -810,8 +810,13 @@ names a known unattached boundary. The set of current `BoundaryCall` targets
 must equal that roster, while repeated calls remain legal, and provider roots
 cannot become runtime structural arguments to either `BoundaryCall` or
 `CallUnit`. A source-derived repeated-write Console program exercises this
-optimizer-admission boundary. Structural-domain content-projection validation,
-remaining root-kind legality, ownership/custody replay, exact
+optimizer-admission boundary. Structural-domain content projections
+independently replay Terminal's exact owner identity, algebra/expression shape,
+nonempty parameter, canonical naturals, bounded recursive scalar grammar,
+Record-only field-identity paths ending in Scalar leaves, and canonical
+fingerprint. Retained content-entry claims must reference that exact owner
+identity and algebra; forged or unknown owners reject before pass execution.
+Remaining root-kind legality, ownership/custody replay, exact
 payloadless-callee classification, and the wider crash/requirement/effect
 vocabulary remain explicit unfinished validator layers. It
 also rechecks the complete current

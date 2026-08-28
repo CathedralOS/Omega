@@ -552,8 +552,14 @@ These facts constrain the work below.
   boundary targets, equality with the current boundary-call set, and no use of
   provider roots as `BoundaryCall` or `CallUnit` structural arguments.
   Repeated calls share one requirement root, and a source-derived Console
-  canary passes verified optimizer admission. Structural-domain
-  content-projection validation remains a separate validator layer. Every
+  canary passes verified optimizer admission. Structural-domain content
+  projections now independently replay Terminal's exact owner identity,
+  algebra/expression shape, nonempty parameter, canonical decimal naturals,
+  bounded recursive arithmetic, Record-only identity-path traversal to Scalar
+  leaves, and canonical fingerprint. Every retained content-entry projection
+  must additionally match the exact owner identity and algebra from that
+  domain catalog; unknown or substituted owners reject before optimization.
+  Every
   current executable input of a producer-defined root now locates its exact
   `CallStructural` result, byte-literal, or explicit trivial-affine-local
   producer and requires strict
@@ -577,8 +583,7 @@ These facts constrain the work below.
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence and structural-domain content-projection validation;
-  remaining root-kind legality, full ownership/custody replay, exact
+  proof/range evidence, remaining root-kind legality, full ownership/custody replay, exact
   payloadless-callee classification, and the crash/requirement/effect
   vocabulary also remain across the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
@@ -1243,7 +1248,10 @@ dependency.
   canonical boundary-root roster, no-`self` shape, root/call set equality, and
   prohibition on passing requirement roots as runtime structural arguments;
   repeated calls to one rooted boundary remain valid. Structural-domain
-  content-projection validation remains open. Byte-literal catalogs
+  content projections replay the exact Terminal owner/algebra/expression,
+  bounded scalar grammar, carrier field paths, and fingerprint contract;
+  content-entry claims must reference that exact owner identity and algebra.
+  Byte-literal catalogs
   additionally require dense ordinals, borrowed-view carriers, and exact one-to-one full
   typed executable witnesses. A unified current-revision producer walk
   requires each use of a `CallStructural` result, byte literal, or explicit

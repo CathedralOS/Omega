@@ -1304,6 +1304,7 @@ dependencies = [
  "omega-terminal-abstract-operations",
  "omega-terminal-psi-to-abstract-operations",
  "psi-core",
+ "psi-language-semantics",
  "psi-proof-admission",
  "psi-terminal",
  "psi-terminal-codec",
