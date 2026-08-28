@@ -19,3 +19,4 @@ psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 
 [dev-dependencies]
 omega-optimization-core = { path = "../../../foundation/omega-optimization-core" }
+omega-optimization-unit = { path = "../../../representations/omega-optimization-unit" }

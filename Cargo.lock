@@ -1931,6 +1931,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-optimization-core",
+ "omega-optimization-unit",
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",

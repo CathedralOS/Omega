@@ -1,13 +1,145 @@
-use omega_register_model::{RegisterViewId, ValidatedPhysicalRegisterModel};
+use omega_calling_conventions::{CallingPolicy, EntryControl, MachineRegister};
+use omega_register_model::{
+    RegisterUnitId, RegisterViewId, ValidatedPhysicalRegisterModel,
+    ValidatedRegisterConstraintCatalog,
+};
+use omega_target::{Architecture, NativeTarget, ObjectFormat};
 use omega_terminal_selected_instructions::{
-    TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey,
+    TerminalMachineAlternativeFamily, TerminalMachineAlternativeKey, TerminalMachineCleanupEffect,
     TerminalMachineEncodedControlEffect, TerminalMachineEncodedEffects,
     TerminalMachineEncodedMemoryEffect, TerminalMachineEncodedStackEffect,
-    TerminalMachineEncodedTrapBehavior, TerminalSelectedInstructionKind,
+    TerminalMachineEncodedTrapBehavior, TerminalMachineTrapBehavior,
+    TerminalSelectedInstructionKind, TerminalSelectedStructuralUnitCallInstruction,
+    TerminalSelectedStructuralUnitIndirectBinding, TerminalStructuralUnitCallBarrier,
+    TerminalStructuralUnitCallEffect, TerminalStructuralUnitCallEffectDeclaration,
+    TerminalStructuralUnitCallFrameEffect, TerminalStructuralUnitCallMemoryEffect,
 };
-use psi_core::IntegerValue;
+use psi_core::{IntegerValue, MachineId};
 
-use crate::x86_64_physical_register_model;
+use crate::{
+    X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, x86_64_physical_register_model,
+    x86_64_register_constraint_catalog,
+};
+
+pub const X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT: usize = 89;
+pub const X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET: u16 = 80;
+pub const X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET: u16 = 81;
+pub const X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET: u16 = 85;
+pub const X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH: u8 = 4;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64StructuralUnitInternalControlFixupKind {
+    Relative32FromNextInstructionToInternalMachineV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64StructuralUnitInternalControlFixupState {
+    UnresolvedZeroFieldV1,
+}
+
+/// One section-layout-dependent internal-control field. This is not an object
+/// relocation: the selected callee is an in-roster [`MachineId`], but its
+/// section coordinate is deliberately unavailable at selected-form encoding.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64StructuralUnitInternalControlFixup {
+    pub kind: X86_64StructuralUnitInternalControlFixupKind,
+    pub state: X86_64StructuralUnitInternalControlFixupState,
+    pub callee: MachineId,
+    pub opcode_byte_offset: u16,
+    pub field_byte_offset: u16,
+    pub next_instruction_byte_offset: u16,
+    pub field_byte_width: u8,
+    pub addend: i64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64StructuralUnitRootRead {
+    pub root: MachineRegister,
+    pub byte_offset: u32,
+    pub byte_count: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64StructuralUnitCallerCopyWrite {
+    pub stack_byte_offset: u32,
+    pub byte_count: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct X86_64StructuralUnitArgumentPointerWrite {
+    pub register: MachineRegister,
+    pub stack_byte_offset: u32,
+}
+
+/// Independently decoded architectural footprint of the exact bounded call
+/// bundle. It remains distinct from ordinary alternative effects because the
+/// latter cannot express root-indirect reads, caller-copy writes, or a call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct X86_64SelectedStructuralUnitCallFootprint {
+    pub implicit_unit_uses: Vec<RegisterUnitId>,
+    pub implicit_unit_defs: Vec<RegisterUnitId>,
+    pub implicit_unit_clobbers: Vec<RegisterUnitId>,
+    pub root_reads: [X86_64StructuralUnitRootRead; 4],
+    pub caller_copy_writes: [X86_64StructuralUnitCallerCopyWrite; 4],
+    pub scratch_register_writes: [MachineRegister; 1],
+    pub argument_pointer_writes: [X86_64StructuralUnitArgumentPointerWrite; 2],
+    pub writes_rflags: bool,
+    pub frame_byte_count: u32,
+    pub shadow_byte_count: u32,
+    pub pre_call_stack_alignment: u16,
+    pub frame_is_balanced: bool,
+    pub trap: TerminalMachineTrapBehavior,
+    pub barrier: TerminalStructuralUnitCallBarrier,
+    pub call: TerminalStructuralUnitCallEffect,
+    pub cleanup: TerminalMachineCleanupEffect,
+}
+
+/// Canonical bytes plus explicit proof that their rel32 field is unresolved.
+/// These bytes must not be treated as executable until section placement has
+/// discharged the returned fixup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ValidatedX86_64SelectedStructuralUnitCallTemplate {
+    bytes: Vec<u8>,
+    footprint: X86_64SelectedStructuralUnitCallFootprint,
+    fixup: X86_64StructuralUnitInternalControlFixup,
+}
+
+impl ValidatedX86_64SelectedStructuralUnitCallTemplate {
+    pub fn bytes(&self) -> &[u8] {
+        &self.bytes
+    }
+
+    pub const fn footprint(&self) -> &X86_64SelectedStructuralUnitCallFootprint {
+        &self.footprint
+    }
+
+    pub const fn fixup(&self) -> X86_64StructuralUnitInternalControlFixup {
+        self.fixup
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum X86_64StructuralUnitCallTemplateError {
+    UnsupportedTarget,
+    NonCanonicalPhysicalModel,
+    NonCanonicalConstraintCatalog,
+    ConstraintMismatch,
+    CallPlanMismatch,
+    LayoutMismatch,
+    EffectMismatch,
+    MalformedTemplate,
+}
+
+impl std::fmt::Display for X86_64StructuralUnitCallTemplateError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            formatter,
+            "invalid x86-64 structural Unit call template: {self:?}"
+        )
+    }
+}
+
+impl std::error::Error for X86_64StructuralUnitCallTemplateError {}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct X86_64SelectedFormFootprint {
@@ -475,6 +607,386 @@ fn encode_unchecked(
     Ok(bytes)
 }
 
+/// Encode the one bounded Microsoft-x64 structural Unit call as an explicitly
+/// unresolved template. The returned zero rel32 field is owned by the typed
+/// internal-control fixup and is not an executable displacement.
+pub fn encode_x86_64_terminal_selected_structural_unit_call_template(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    call: &TerminalSelectedStructuralUnitCallInstruction,
+    declaration: TerminalStructuralUnitCallEffectDeclaration,
+) -> Result<ValidatedX86_64SelectedStructuralUnitCallTemplate, X86_64StructuralUnitCallTemplateError>
+{
+    validate_structural_unit_call_request(target, physical, constraints, call, declaration)?;
+
+    let mut bytes = Vec::with_capacity(X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT);
+    bytes.extend([0x48, 0x83, 0xec, 0x48]);
+    for (source_modrm, source_offset, stack_offset) in [
+        (0x81, 0_u32, 32_u32),
+        (0x81, 8, 40),
+        (0x82, 0, 48),
+        (0x82, 8, 56),
+    ] {
+        bytes.extend([0x48, 0x8b, source_modrm]);
+        bytes.extend(source_offset.to_le_bytes());
+        bytes.extend([0x48, 0x89, 0x84, 0x24]);
+        bytes.extend(stack_offset.to_le_bytes());
+    }
+    bytes.extend([0x48, 0x8d, 0x8c, 0x24]);
+    bytes.extend(32_u32.to_le_bytes());
+    bytes.extend([0x48, 0x8d, 0x94, 0x24]);
+    bytes.extend(48_u32.to_le_bytes());
+    bytes.extend([0xe8, 0, 0, 0, 0]);
+    bytes.extend([0x48, 0x83, 0xc4, 0x48]);
+    debug_assert_eq!(bytes.len(), X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT);
+
+    validate_x86_64_terminal_selected_structural_unit_call_template(
+        target,
+        physical,
+        constraints,
+        call,
+        declaration,
+        &bytes,
+    )
+}
+
+/// Independently decode and validate an unresolved structural Unit call
+/// template. In particular, this routine parses every opcode, operand, and
+/// displacement instead of comparing the candidate with encoder output.
+pub fn validate_x86_64_terminal_selected_structural_unit_call_template(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    call: &TerminalSelectedStructuralUnitCallInstruction,
+    declaration: TerminalStructuralUnitCallEffectDeclaration,
+    bytes: &[u8],
+) -> Result<ValidatedX86_64SelectedStructuralUnitCallTemplate, X86_64StructuralUnitCallTemplateError>
+{
+    validate_structural_unit_call_request(target, physical, constraints, call, declaration)?;
+    let decoded = decode_structural_unit_call_template(bytes, call, declaration)?;
+    let expected = expected_structural_unit_call_footprint(call, declaration);
+    if decoded != expected {
+        return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+    }
+    Ok(ValidatedX86_64SelectedStructuralUnitCallTemplate {
+        bytes: bytes.to_vec(),
+        footprint: decoded,
+        fixup: X86_64StructuralUnitInternalControlFixup {
+            kind: X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1,
+            state: X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1,
+            callee: call.callee,
+            opcode_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
+            field_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET,
+            next_instruction_byte_offset: X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET,
+            field_byte_width: X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
+            addend: 0,
+        },
+    })
+}
+
+fn validate_structural_unit_call_request(
+    target: NativeTarget,
+    physical: &ValidatedPhysicalRegisterModel,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    call: &TerminalSelectedStructuralUnitCallInstruction,
+    declaration: TerminalStructuralUnitCallEffectDeclaration,
+) -> Result<(), X86_64StructuralUnitCallTemplateError> {
+    if target.architecture != Architecture::X86_64
+        || target.object_format != ObjectFormat::Coff
+        || target.pointer_size != 8
+        || target.pointer_alignment != 8
+    {
+        return Err(X86_64StructuralUnitCallTemplateError::UnsupportedTarget);
+    }
+    if physical.model() != &x86_64_physical_register_model() {
+        return Err(X86_64StructuralUnitCallTemplateError::NonCanonicalPhysicalModel);
+    }
+    if constraints.architecture() != Architecture::X86_64
+        || constraints.physical_identity() != physical.identity()
+        || constraints.catalog() != &x86_64_register_constraint_catalog(physical)
+    {
+        return Err(X86_64StructuralUnitCallTemplateError::NonCanonicalConstraintCatalog);
+    }
+    let row = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR)
+        .ok_or(X86_64StructuralUnitCallTemplateError::ConstraintMismatch)?;
+    if !row.operands.is_empty()
+        || call.constraint != row.key
+        || call.implicit_uses != row.implicit_uses
+        || call.implicit_defs != row.implicit_defs
+        || call.clobbers != row.clobbers
+    {
+        return Err(X86_64StructuralUnitCallTemplateError::ConstraintMismatch);
+    }
+    if [&call.caller_call_plan, &call.callee_call_plan]
+        .into_iter()
+        .any(|plan| {
+            plan.policy != CallingPolicy::MicrosoftX64
+                || plan.result.is_some()
+                || !plan.callback_materializations.is_empty()
+                || plan.stack_alignment != 16
+                || plan.shadow_bytes != 32
+                || plan.entry_control != EntryControl::CallReturn
+        })
+    {
+        return Err(X86_64StructuralUnitCallTemplateError::CallPlanMismatch);
+    }
+    let expected_layout =
+        omega_terminal_selected_instructions::TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+            shadow_byte_count: 32,
+            outgoing_frame_byte_count: 72,
+            pre_call_stack_alignment: 16,
+            bindings: [
+                TerminalSelectedStructuralUnitIndirectBinding {
+                    parameter_index: 0,
+                    pointer: MachineRegister::X86Rcx,
+                    copy_stack_byte_offset: 32,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+                TerminalSelectedStructuralUnitIndirectBinding {
+                    parameter_index: 1,
+                    pointer: MachineRegister::X86Rdx,
+                    copy_stack_byte_offset: 48,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            ],
+        };
+    if call.layout != expected_layout {
+        return Err(X86_64StructuralUnitCallTemplateError::LayoutMismatch);
+    }
+    let expected_declaration = TerminalStructuralUnitCallEffectDeclaration {
+        constraint: X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
+        memory: TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+            root_byte_count: 16,
+            copy_stack_byte_offsets: [32, 48],
+        },
+        frame: TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+            frame_byte_count: 72,
+            shadow_byte_count: 32,
+            pre_call_stack_alignment: 16,
+        },
+        trap: TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+        barrier: TerminalStructuralUnitCallBarrier::CallV1,
+        call: TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+        cleanup: TerminalMachineCleanupEffect::NoneV1,
+    };
+    if declaration != expected_declaration {
+        return Err(X86_64StructuralUnitCallTemplateError::EffectMismatch);
+    }
+    Ok(())
+}
+
+fn expected_structural_unit_call_footprint(
+    call: &TerminalSelectedStructuralUnitCallInstruction,
+    declaration: TerminalStructuralUnitCallEffectDeclaration,
+) -> X86_64SelectedStructuralUnitCallFootprint {
+    let TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+        frame_byte_count,
+        shadow_byte_count,
+        pre_call_stack_alignment,
+    } = declaration.frame;
+    X86_64SelectedStructuralUnitCallFootprint {
+        implicit_unit_uses: call.implicit_uses.clone(),
+        implicit_unit_defs: call.implicit_defs.clone(),
+        implicit_unit_clobbers: call.clobbers.clone(),
+        root_reads: [
+            X86_64StructuralUnitRootRead {
+                root: MachineRegister::X86Rcx,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitRootRead {
+                root: MachineRegister::X86Rcx,
+                byte_offset: 8,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitRootRead {
+                root: MachineRegister::X86Rdx,
+                byte_offset: 0,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitRootRead {
+                root: MachineRegister::X86Rdx,
+                byte_offset: 8,
+                byte_count: 8,
+            },
+        ],
+        caller_copy_writes: [
+            X86_64StructuralUnitCallerCopyWrite {
+                stack_byte_offset: 32,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitCallerCopyWrite {
+                stack_byte_offset: 40,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitCallerCopyWrite {
+                stack_byte_offset: 48,
+                byte_count: 8,
+            },
+            X86_64StructuralUnitCallerCopyWrite {
+                stack_byte_offset: 56,
+                byte_count: 8,
+            },
+        ],
+        scratch_register_writes: [MachineRegister::X86Rax],
+        argument_pointer_writes: [
+            X86_64StructuralUnitArgumentPointerWrite {
+                register: MachineRegister::X86Rcx,
+                stack_byte_offset: 32,
+            },
+            X86_64StructuralUnitArgumentPointerWrite {
+                register: MachineRegister::X86Rdx,
+                stack_byte_offset: 48,
+            },
+        ],
+        writes_rflags: true,
+        frame_byte_count,
+        shadow_byte_count,
+        pre_call_stack_alignment,
+        frame_is_balanced: true,
+        trap: declaration.trap,
+        barrier: declaration.barrier,
+        call: declaration.call,
+        cleanup: declaration.cleanup,
+    }
+}
+
+fn decode_structural_unit_call_template(
+    bytes: &[u8],
+    call: &TerminalSelectedStructuralUnitCallInstruction,
+    declaration: TerminalStructuralUnitCallEffectDeclaration,
+) -> Result<X86_64SelectedStructuralUnitCallFootprint, X86_64StructuralUnitCallTemplateError> {
+    if bytes.len() != X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT {
+        return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+    }
+    let mut cursor = StructuralTemplateCursor { bytes, offset: 0 };
+    cursor.expect(&[0x48, 0x83, 0xec])?;
+    let reserved = u32::from(cursor.byte()?);
+    let mut root_reads = Vec::with_capacity(4);
+    let mut caller_copy_writes = Vec::with_capacity(4);
+    for _ in 0..4 {
+        cursor.expect(&[0x48, 0x8b])?;
+        let root = match cursor.byte()? {
+            0x81 => MachineRegister::X86Rcx,
+            0x82 => MachineRegister::X86Rdx,
+            _ => return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate),
+        };
+        let source_offset = cursor.u32()?;
+        cursor.expect(&[0x48, 0x89, 0x84, 0x24])?;
+        let stack_byte_offset = cursor.u32()?;
+        root_reads.push(X86_64StructuralUnitRootRead {
+            root,
+            byte_offset: source_offset,
+            byte_count: 8,
+        });
+        caller_copy_writes.push(X86_64StructuralUnitCallerCopyWrite {
+            stack_byte_offset,
+            byte_count: 8,
+        });
+    }
+    let mut argument_pointer_writes = Vec::with_capacity(2);
+    for (prefix, register) in [
+        ([0x48, 0x8d, 0x8c, 0x24], MachineRegister::X86Rcx),
+        ([0x48, 0x8d, 0x94, 0x24], MachineRegister::X86Rdx),
+    ] {
+        cursor.expect(&prefix)?;
+        argument_pointer_writes.push(X86_64StructuralUnitArgumentPointerWrite {
+            register,
+            stack_byte_offset: cursor.u32()?,
+        });
+    }
+    if cursor.offset != usize::from(X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET) {
+        return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+    }
+    cursor.expect(&[0xe8])?;
+    if cursor.offset != usize::from(X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET)
+        || cursor.u32()? != 0
+        || cursor.offset != usize::from(X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET)
+    {
+        return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+    }
+    cursor.expect(&[0x48, 0x83, 0xc4])?;
+    let released = u32::from(cursor.byte()?);
+    if cursor.offset != bytes.len() {
+        return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+    }
+
+    Ok(X86_64SelectedStructuralUnitCallFootprint {
+        implicit_unit_uses: call.implicit_uses.clone(),
+        implicit_unit_defs: call.implicit_defs.clone(),
+        implicit_unit_clobbers: call.clobbers.clone(),
+        root_reads: root_reads
+            .try_into()
+            .map_err(|_| X86_64StructuralUnitCallTemplateError::MalformedTemplate)?,
+        caller_copy_writes: caller_copy_writes
+            .try_into()
+            .map_err(|_| X86_64StructuralUnitCallTemplateError::MalformedTemplate)?,
+        scratch_register_writes: [MachineRegister::X86Rax],
+        argument_pointer_writes: argument_pointer_writes
+            .try_into()
+            .map_err(|_| X86_64StructuralUnitCallTemplateError::MalformedTemplate)?,
+        writes_rflags: true,
+        frame_byte_count: reserved,
+        shadow_byte_count: 32,
+        pre_call_stack_alignment: 16,
+        frame_is_balanced: reserved == released,
+        trap: declaration.trap,
+        barrier: declaration.barrier,
+        call: declaration.call,
+        cleanup: declaration.cleanup,
+    })
+}
+
+struct StructuralTemplateCursor<'a> {
+    bytes: &'a [u8],
+    offset: usize,
+}
+
+impl StructuralTemplateCursor<'_> {
+    fn expect(&mut self, expected: &[u8]) -> Result<(), X86_64StructuralUnitCallTemplateError> {
+        let end = self
+            .offset
+            .checked_add(expected.len())
+            .ok_or(X86_64StructuralUnitCallTemplateError::MalformedTemplate)?;
+        if self.bytes.get(self.offset..end) != Some(expected) {
+            return Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate);
+        }
+        self.offset = end;
+        Ok(())
+    }
+
+    fn byte(&mut self) -> Result<u8, X86_64StructuralUnitCallTemplateError> {
+        let byte = *self
+            .bytes
+            .get(self.offset)
+            .ok_or(X86_64StructuralUnitCallTemplateError::MalformedTemplate)?;
+        self.offset += 1;
+        Ok(byte)
+    }
+
+    fn u32(&mut self) -> Result<u32, X86_64StructuralUnitCallTemplateError> {
+        let end = self
+            .offset
+            .checked_add(4)
+            .ok_or(X86_64StructuralUnitCallTemplateError::MalformedTemplate)?;
+        let value = self
+            .bytes
+            .get(self.offset..end)
+            .and_then(|bytes| bytes.try_into().ok())
+            .map(u32::from_le_bytes)
+            .ok_or(X86_64StructuralUnitCallTemplateError::MalformedTemplate)?;
+        self.offset = end;
+        Ok(value)
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DecodedInstruction {
     Materialize {
@@ -884,9 +1396,13 @@ fn footprint(
 
 #[cfg(test)]
 mod tests {
+    use omega_calling_conventions::{CallPlan, RegisterSet};
     use omega_optimization_core::AcceptedObligationFactIdentity;
-    use omega_register_model::validate_physical_register_model;
-    use psi_core::ObligationId;
+    use omega_optimization_unit::EffectLink;
+    use omega_register_model::{
+        ValidatedRegisterConstraintCatalog, validate_physical_register_model,
+    };
+    use psi_core::{ObligationId, OperationId};
 
     use super::*;
 
@@ -902,6 +1418,291 @@ mod tests {
             obligation: ObligationId::new(1).unwrap(),
             accepted_fact: AcceptedObligationFactIdentity::from_bytes([3; 32]),
         }
+    }
+
+    fn structural_call_plan() -> CallPlan {
+        CallPlan {
+            policy: CallingPolicy::MicrosoftX64,
+            parameters: Vec::new(),
+            result: None,
+            callback_materializations: Vec::new(),
+            ordinary_clobbers: RegisterSet::default(),
+            stack_alignment: 16,
+            shadow_bytes: 32,
+            entry_control: EntryControl::CallReturn,
+        }
+    }
+
+    fn structural_layout()
+    -> omega_terminal_selected_instructions::TerminalSelectedMicrosoftX64OwnedIndirectPairLayout
+    {
+        omega_terminal_selected_instructions::TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+            shadow_byte_count: 32,
+            outgoing_frame_byte_count: 72,
+            pre_call_stack_alignment: 16,
+            bindings: [
+                TerminalSelectedStructuralUnitIndirectBinding {
+                    parameter_index: 0,
+                    pointer: MachineRegister::X86Rcx,
+                    copy_stack_byte_offset: 32,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+                TerminalSelectedStructuralUnitIndirectBinding {
+                    parameter_index: 1,
+                    pointer: MachineRegister::X86Rdx,
+                    copy_stack_byte_offset: 48,
+                    byte_count: 16,
+                    alignment: 8,
+                },
+            ],
+        }
+    }
+
+    fn structural_declaration() -> TerminalStructuralUnitCallEffectDeclaration {
+        TerminalStructuralUnitCallEffectDeclaration {
+            constraint: X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR,
+            memory:
+                TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                    root_byte_count: 16,
+                    copy_stack_byte_offsets: [32, 48],
+                },
+            frame: TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                frame_byte_count: 72,
+                shadow_byte_count: 32,
+                pre_call_stack_alignment: 16,
+            },
+            trap: TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+            barrier: TerminalStructuralUnitCallBarrier::CallV1,
+            call: TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+            cleanup: TerminalMachineCleanupEffect::NoneV1,
+        }
+    }
+
+    fn structural_fixture() -> (
+        ValidatedPhysicalRegisterModel,
+        ValidatedRegisterConstraintCatalog,
+        TerminalSelectedStructuralUnitCallInstruction,
+    ) {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let constraints = crate::validate_x86_64_register_constraint_catalog(
+            x86_64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap();
+        let row = constraints
+            .catalog()
+            .constraints
+            .iter()
+            .find(|row| row.key == X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR)
+            .unwrap();
+        let call = TerminalSelectedStructuralUnitCallInstruction {
+            id: omega_terminal_selected_instructions::TerminalSelectedInstructionId(0),
+            operation: OperationId::new(1).unwrap(),
+            callee: MachineId::new(2).unwrap(),
+            caller_call_plan: structural_call_plan(),
+            callee_call_plan: structural_call_plan(),
+            arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+            layout: structural_layout(),
+            constraint: row.key,
+            implicit_uses: row.implicit_uses.clone(),
+            implicit_defs: row.implicit_defs.clone(),
+            clobbers: row.clobbers.clone(),
+            provenance: Default::default(),
+            effect: EffectLink {
+                input: 10,
+                output: 11,
+            },
+            ownership: Vec::new(),
+        };
+        (physical, constraints, call)
+    }
+
+    #[test]
+    fn structural_unit_call_template_is_exact_and_explicitly_unresolved() {
+        let (physical, constraints, call) = structural_fixture();
+        let encoded = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::uefi_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+        let expected = [
+            0x48, 0x83, 0xec, 0x48, 0x48, 0x8b, 0x81, 0x00, 0x00, 0x00, 0x00, 0x48, 0x89, 0x84,
+            0x24, 0x20, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x81, 0x08, 0x00, 0x00, 0x00, 0x48, 0x89,
+            0x84, 0x24, 0x28, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x82, 0x00, 0x00, 0x00, 0x00, 0x48,
+            0x89, 0x84, 0x24, 0x30, 0x00, 0x00, 0x00, 0x48, 0x8b, 0x82, 0x08, 0x00, 0x00, 0x00,
+            0x48, 0x89, 0x84, 0x24, 0x38, 0x00, 0x00, 0x00, 0x48, 0x8d, 0x8c, 0x24, 0x20, 0x00,
+            0x00, 0x00, 0x48, 0x8d, 0x94, 0x24, 0x30, 0x00, 0x00, 0x00, 0xe8, 0x00, 0x00, 0x00,
+            0x00, 0x48, 0x83, 0xc4, 0x48,
+        ];
+        assert_eq!(encoded.bytes(), expected);
+        assert_eq!(
+            encoded.bytes().len(),
+            X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT
+        );
+        assert_eq!(
+            encoded.bytes()[usize::from(X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET)],
+            0xe8
+        );
+        assert_eq!(
+            &encoded.bytes()[usize::from(X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET)
+                ..usize::from(X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET)],
+            [0, 0, 0, 0]
+        );
+        assert_eq!(
+            encoded.fixup(),
+            X86_64StructuralUnitInternalControlFixup {
+                kind: X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1,
+                state: X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1,
+                callee: call.callee,
+                opcode_byte_offset: 80,
+                field_byte_offset: 81,
+                next_instruction_byte_offset: 85,
+                field_byte_width: 4,
+                addend: 0,
+            }
+        );
+        assert_eq!(
+            encoded.footprint().root_reads[0].root,
+            MachineRegister::X86Rcx
+        );
+        assert_eq!(encoded.footprint().root_reads[3].byte_offset, 8);
+        assert_eq!(
+            encoded.footprint().caller_copy_writes[3].stack_byte_offset,
+            56
+        );
+        assert_eq!(
+            encoded.footprint().scratch_register_writes,
+            [MachineRegister::X86Rax]
+        );
+        assert_eq!(encoded.footprint().frame_byte_count, 72);
+        assert!(encoded.footprint().frame_is_balanced);
+        assert!(encoded.footprint().writes_rflags);
+        assert_eq!(encoded.footprint().implicit_unit_uses, call.implicit_uses);
+        assert_eq!(encoded.footprint().implicit_unit_defs, call.implicit_defs);
+        assert_eq!(encoded.footprint().implicit_unit_clobbers, call.clobbers);
+    }
+
+    #[test]
+    fn structural_unit_call_decoder_rejects_every_byte_corruption() {
+        let (physical, constraints, call) = structural_fixture();
+        let declaration = structural_declaration();
+        let encoded = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::windows_x64(),
+            &physical,
+            &constraints,
+            &call,
+            declaration,
+        )
+        .unwrap();
+        for index in 0..encoded.bytes().len() {
+            let mut corrupted = encoded.bytes().to_vec();
+            corrupted[index] ^= 1;
+            assert_eq!(
+                validate_x86_64_terminal_selected_structural_unit_call_template(
+                    NativeTarget::windows_x64(),
+                    &physical,
+                    &constraints,
+                    &call,
+                    declaration,
+                    &corrupted,
+                ),
+                Err(X86_64StructuralUnitCallTemplateError::MalformedTemplate),
+                "byte {index} was not independently rejected"
+            );
+        }
+    }
+
+    #[test]
+    fn structural_unit_call_rejects_target_constraint_layout_effect_and_plan_drift() {
+        let (physical, constraints, call) = structural_fixture();
+        let declaration = structural_declaration();
+        assert_eq!(
+            encode_x86_64_terminal_selected_structural_unit_call_template(
+                NativeTarget::linux_x64(),
+                &physical,
+                &constraints,
+                &call,
+                declaration,
+            ),
+            Err(X86_64StructuralUnitCallTemplateError::UnsupportedTarget)
+        );
+
+        let mut wrong_constraint = call.clone();
+        wrong_constraint.implicit_uses.pop();
+        assert_eq!(
+            encode_x86_64_terminal_selected_structural_unit_call_template(
+                NativeTarget::uefi_x64(),
+                &physical,
+                &constraints,
+                &wrong_constraint,
+                declaration,
+            ),
+            Err(X86_64StructuralUnitCallTemplateError::ConstraintMismatch)
+        );
+
+        let mut wrong_layout = call.clone();
+        wrong_layout.layout.bindings[1].copy_stack_byte_offset = 56;
+        assert_eq!(
+            encode_x86_64_terminal_selected_structural_unit_call_template(
+                NativeTarget::uefi_x64(),
+                &physical,
+                &constraints,
+                &wrong_layout,
+                declaration,
+            ),
+            Err(X86_64StructuralUnitCallTemplateError::LayoutMismatch)
+        );
+
+        let mut wrong_effect = declaration;
+        wrong_effect.frame = TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+            frame_byte_count: 88,
+            shadow_byte_count: 32,
+            pre_call_stack_alignment: 16,
+        };
+        assert_eq!(
+            encode_x86_64_terminal_selected_structural_unit_call_template(
+                NativeTarget::uefi_x64(),
+                &physical,
+                &constraints,
+                &call,
+                wrong_effect,
+            ),
+            Err(X86_64StructuralUnitCallTemplateError::EffectMismatch)
+        );
+
+        let mut wrong_plan = call.clone();
+        wrong_plan.caller_call_plan.shadow_bytes = 0;
+        assert_eq!(
+            encode_x86_64_terminal_selected_structural_unit_call_template(
+                NativeTarget::uefi_x64(),
+                &physical,
+                &constraints,
+                &wrong_plan,
+                declaration,
+            ),
+            Err(X86_64StructuralUnitCallTemplateError::CallPlanMismatch)
+        );
+    }
+
+    #[test]
+    fn structural_unit_call_fixup_binds_the_selected_callee() {
+        let (physical, constraints, mut call) = structural_fixture();
+        call.callee = MachineId::new(99).unwrap();
+        let encoded = encode_x86_64_terminal_selected_structural_unit_call_template(
+            NativeTarget::uefi_x64(),
+            &physical,
+            &constraints,
+            &call,
+            structural_declaration(),
+        )
+        .unwrap();
+        assert_eq!(encoded.fixup().callee, MachineId::new(99).unwrap());
+        assert_eq!(encoded.bytes()[81..85], [0, 0, 0, 0]);
     }
 
     #[test]
