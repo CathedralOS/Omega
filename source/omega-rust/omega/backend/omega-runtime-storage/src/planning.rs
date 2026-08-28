@@ -18,6 +18,7 @@ pub fn build_runtime_storage_plan_with_workers(
     if context.runtime_bodies.bodies.is_empty() {
         let mut plan = build_straight_line_runtime_storage_plan(&context);
         reserve_frame_scratch_region(&mut plan);
+        plan.rebuild_frame_slot_index();
         return plan;
     }
 
@@ -61,18 +62,7 @@ pub fn build_runtime_storage_plan_with_workers(
             frame_slots,
             writes,
             // Scratch is reserved later on the aggregate plan (stacking phase).
-            frame_scratch_base: _,
-            frame_scratch_size: _,
-            wire_scratch_base: _,
-            wire_scratch_size: _,
-            host_argument_scratch_base: _,
-            host_argument_scratch_size: _,
-            entry_argument_spill_base: _,
-            entry_argument_spill_size: _,
-            entry_indirect_result_pointer_base: _,
-            entry_indirect_result_pointer_size: _,
-            entry_result_scratch_base: _,
-            entry_result_scratch_size: _,
+            ..
         } = body_plan;
         plan.frame_slots.insert_many(frame_slots.into_items());
         for write in writes.into_items() {
@@ -91,6 +81,7 @@ pub fn build_runtime_storage_plan_with_workers(
     append_unserved_recursive_call_result_slots(&context, &mut plan);
     append_private_dynamic_receiver_slots(&context, &mut plan);
     reserve_frame_scratch_region(&mut plan);
+    plan.rebuild_frame_slot_index();
     plan
 }
 
