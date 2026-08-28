@@ -87,14 +87,14 @@ beside the artifact being admitted, not under the Gamma rung.
 
 ## Parked imperative Gamma
 
-`gamma.alpha`, `gamma_x64_windows.exe`, `build.sh`, `rebuild.sh`, and the root
-`examples/` directory implement the older compiler-first language with variables
-`a`–`j`, mutation, `if`/`while`, and decimal I/O. They remain compatibility and
+`compatibility/imperative/` contains the older compiler-first language with
+variables `a`–`j`, mutation, `if`/`while`, and decimal I/O. Its compiler,
+native artifact, scripts, and examples remain compatibility and optional
 differential-testing artifacts only. They do not define canonical Gamma and
 must not grow into a second meaning path.
 
-The parked files remain co-located for compatibility only. Their classification,
-not their host-language suffix or directory proximity, determines their
+The parked files are physically isolated from the canonical language owner.
+Their classification, not their host-language suffix, determines their
 architectural role. The former `compiler/gamma` compatibility entry has been
 retired.
 

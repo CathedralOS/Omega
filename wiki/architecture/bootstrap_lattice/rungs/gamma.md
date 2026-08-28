@@ -59,15 +59,16 @@ the spike's own README and live task status, not in this durable rung definition
 
 ## Parked imperative surface
 
-`gamma.alpha`, its native executable, `build.sh`, and the root `examples/`
-directory implement the older compiler-first imperative language. It has fixed
+`source/gamma/compatibility/imperative/` contains the compiler, native
+executable, scripts, and examples for the older compiler-first imperative
+language. It has fixed
 variables, mutation, `if`/`while`, and decimal I/O. It remains a compatibility
 and differential-testing artifact only. It does not define Gamma and must not
 grow into a parallel meaning path.
 
-The parked implementation remains co-located only so existing compatibility
-entry points keep working. That transitional proximity grants no semantic
-authority. The old format-specific terminal-ledger prototype was retired after
+The parked implementation remains below the Gamma owner only so its historical
+entry points keep working. That containment grants no semantic authority. The
+old format-specific terminal-ledger prototype was retired after
 its feasibility result was absorbed into the production closed-row design; any
 future low-rung generator belongs beside the artifact it admits, not this rung.
 
