@@ -58,11 +58,27 @@ pub(crate) fn compute_terminal_allocation_legality(
             )
         })
         .collect::<Result<Vec<_>, _>>()?;
+    let structural_unit_functions = ranges
+        .plan()
+        .structural_unit_functions
+        .iter()
+        .enumerate()
+        .map(|(function_index, function)| {
+            compute_function(
+                function_index,
+                function,
+                availability,
+                physical,
+                reservations,
+            )
+        })
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalAllocationLegalityPlan {
         ranges: ranges.receipt().identity(),
         register_environment,
         allocator_availability: availability.receipt().identity(),
         functions,
+        structural_unit_functions,
     })
 }
 

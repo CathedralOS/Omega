@@ -17,7 +17,6 @@ pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     liveness: &ValidatedTerminalLiveness,
 ) -> Result<TerminalLiveRangePlan, TerminalLiveRangeError> {
-    reject_structural_unit_functions(liveness.plan().structural_unit_functions.len())?;
     let functions = selected
         .selected_plan()
         .functions
@@ -26,6 +25,14 @@ pub(crate) fn compute_terminal_live_ranges(
         .enumerate()
         .map(|(index, (selected, live))| compute_function(index, selected, live))
         .collect::<Result<Vec<_>, _>>()?;
+    let structural_unit_functions = selected
+        .selected_plan()
+        .structural_unit_functions
+        .iter()
+        .zip(&liveness.plan().structural_unit_functions)
+        .enumerate()
+        .map(|(index, (selected, live))| compute_structural_function(index, selected.machine, live))
+        .collect::<Result<Vec<_>, _>>()?;
     Ok(TerminalLiveRangePlan {
         selected: selected.selected_identity(),
         liveness: liveness.receipt().identity(),
@@ -33,15 +40,38 @@ pub(crate) fn compute_terminal_live_ranges(
         fuel_schedule: selected.fuel_schedule_identity(),
         target: selected.selected_plan().target,
         functions,
+        structural_unit_functions,
     })
 }
 
-fn reject_structural_unit_functions(count: usize) -> Result<(), TerminalLiveRangeError> {
-    if count == 0 {
-        Ok(())
-    } else {
-        Err(TerminalLiveRangeError::UnsupportedStructuralUnitFunctions { count })
+fn compute_structural_function(
+    function_index: usize,
+    machine: psi_core::MachineId,
+    liveness: &crate::TerminalFunctionLiveness,
+) -> Result<TerminalFunctionLiveRanges, TerminalLiveRangeError> {
+    if liveness.machine != machine
+        || !liveness.entry_definitions.is_empty()
+        || !liveness.operand_positions.is_empty()
+    {
+        return Err(TerminalLiveRangeError::FunctionMismatch {
+            function: function_index,
+        });
     }
+    let block_domains = liveness
+        .blocks
+        .iter()
+        .map(|block| block_domain(function_index, block))
+        .collect::<Result<Vec<_>, _>>()?;
+    let architectural_units = architectural_units(function_index, liveness)?;
+    Ok(TerminalFunctionLiveRanges {
+        machine,
+        block_domains,
+        virtual_registers: Vec::new(),
+        tied_pairs: Vec::new(),
+        early_clobbers: Vec::new(),
+        architectural_units,
+        interference: Vec::new(),
+    })
 }
 
 fn compute_function(
@@ -128,25 +158,7 @@ fn compute_function(
         });
     }
 
-    let mut units = BTreeSet::new();
-    for block in &liveness.blocks {
-        units.extend(block.unit_live_in.iter().copied());
-        units.extend(block.unit_live_out.iter().copied());
-        for instruction in &block.instructions {
-            units.extend(instruction.unit_uses.iter().copied());
-            units.extend(instruction.unit_defs.iter().copied());
-            units.extend(instruction.unit_clobbers.iter().copied());
-            units.extend(instruction.unit_live_in.iter().copied());
-            units.extend(instruction.unit_live_out.iter().copied());
-        }
-        for edge in &block.successors {
-            units.extend(edge.unit_live.iter().copied());
-        }
-    }
-    let architectural_units = units
-        .into_iter()
-        .map(|unit| build_unit(function_index, liveness, unit))
-        .collect::<Result<Vec<_>, _>>()?;
+    let architectural_units = architectural_units(function_index, liveness)?;
 
     let mut interference = BTreeSet::new();
     for (left_index, left) in virtual_rows.iter().enumerate() {
@@ -168,6 +180,31 @@ fn compute_function(
         architectural_units,
         interference: interference.into_iter().collect(),
     })
+}
+
+fn architectural_units(
+    function_index: usize,
+    liveness: &crate::TerminalFunctionLiveness,
+) -> Result<Vec<TerminalArchitecturalUnitLiveRange>, TerminalLiveRangeError> {
+    let mut units = BTreeSet::new();
+    for block in &liveness.blocks {
+        units.extend(block.unit_live_in.iter().copied());
+        units.extend(block.unit_live_out.iter().copied());
+        for instruction in &block.instructions {
+            units.extend(instruction.unit_uses.iter().copied());
+            units.extend(instruction.unit_defs.iter().copied());
+            units.extend(instruction.unit_clobbers.iter().copied());
+            units.extend(instruction.unit_live_in.iter().copied());
+            units.extend(instruction.unit_live_out.iter().copied());
+        }
+        for edge in &block.successors {
+            units.extend(edge.unit_live.iter().copied());
+        }
+    }
+    units
+        .into_iter()
+        .map(|unit| build_unit(function_index, liveness, unit))
+        .collect()
 }
 
 pub(crate) fn derive_early_clobbers(
@@ -634,18 +671,9 @@ mod tests {
     use psi_core::{BlockId, MachineId};
 
     use super::{
-        block_domain, build_unit, derive_early_clobbers, derive_tied_pairs, fragments_overlap,
-        reject_structural_unit_functions, virtual_fragments,
+        block_domain, build_unit, compute_structural_function, derive_early_clobbers,
+        derive_tied_pairs, fragments_overlap, virtual_fragments,
     };
-
-    #[test]
-    fn structural_unit_liveness_fails_closed_before_range_erasure() {
-        assert_eq!(reject_structural_unit_functions(0), Ok(()));
-        assert_eq!(
-            reject_structural_unit_functions(2),
-            Err(crate::TerminalLiveRangeError::UnsupportedStructuralUnitFunctions { count: 2 })
-        );
-    }
     use crate::{
         TerminalBlockLiveness, TerminalFunctionLiveness, TerminalInstructionLiveness,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessPosition,
@@ -701,6 +729,36 @@ mod tests {
             instructions,
             successors: Vec::new(),
         }
+    }
+
+    #[test]
+    fn structural_unit_ranges_retain_architecture_without_inventing_virtuals() {
+        let mut call = instruction(0, &[], &[], &[], &[]);
+        call.unit_uses = vec![RegisterUnitId(1)];
+        call.unit_defs = vec![RegisterUnitId(2)];
+        call.unit_clobbers = vec![RegisterUnitId(3)];
+        call.unit_live_in = vec![RegisterUnitId(1)];
+        call.unit_live_out = vec![RegisterUnitId(2)];
+        let mut returned = instruction(1, &[], &[], &[], &[]);
+        returned.unit_uses = vec![RegisterUnitId(2)];
+        returned.unit_live_in = vec![RegisterUnitId(2)];
+        let live = TerminalFunctionLiveness {
+            machine: MachineId::new(9).unwrap(),
+            entry_definitions: Vec::new(),
+            operand_positions: Vec::new(),
+            blocks: vec![block(0, vec![call, returned])],
+        };
+        let ranges = compute_structural_function(0, live.machine, &live).unwrap();
+        assert_eq!(ranges.machine, live.machine);
+        assert!(ranges.virtual_registers.is_empty());
+        assert!(ranges.tied_pairs.is_empty());
+        assert!(ranges.early_clobbers.is_empty());
+        assert!(ranges.interference.is_empty());
+        assert_eq!(ranges.block_domains.len(), 1);
+        assert_eq!(ranges.architectural_units.len(), 3);
+        assert_eq!(ranges.architectural_units[0].actions.len(), 1);
+        assert_eq!(ranges.architectural_units[1].actions.len(), 2);
+        assert_eq!(ranges.architectural_units[2].actions.len(), 1);
     }
 
     #[test]

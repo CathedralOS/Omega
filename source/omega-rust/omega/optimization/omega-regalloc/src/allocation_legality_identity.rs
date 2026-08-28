@@ -9,43 +9,45 @@ pub fn terminal_allocation_legality_identity(
     plan: &TerminalAllocationLegalityPlan,
 ) -> TerminalAllocationLegalityIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v5\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
-    length(&mut bytes, plan.functions.len());
-    for function in &plan.functions {
-        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
-        length(&mut bytes, function.virtual_registers.len());
-        for register in &function.virtual_registers {
-            bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
-            bytes.extend_from_slice(&register.class.0.to_le_bytes());
-            length(&mut bytes, register.points.len());
-            for point in &register.points {
-                bytes.extend_from_slice(&point.block.0.to_le_bytes());
-                bytes.extend_from_slice(&point.point.0.to_le_bytes());
-                length(&mut bytes, point.candidates.len());
-                for candidate in &point.candidates {
-                    bytes.extend_from_slice(&candidate.0.to_le_bytes());
+    for functions in [&plan.functions, &plan.structural_unit_functions] {
+        length(&mut bytes, functions.len());
+        for function in functions {
+            bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+            length(&mut bytes, function.virtual_registers.len());
+            for register in &function.virtual_registers {
+                bytes.extend_from_slice(&register.virtual_register.0.to_le_bytes());
+                bytes.extend_from_slice(&register.class.0.to_le_bytes());
+                length(&mut bytes, register.points.len());
+                for point in &register.points {
+                    bytes.extend_from_slice(&point.block.0.to_le_bytes());
+                    bytes.extend_from_slice(&point.point.0.to_le_bytes());
+                    length(&mut bytes, point.candidates.len());
+                    for candidate in &point.candidates {
+                        bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                    }
                 }
-            }
-            length(&mut bytes, register.early_clobber_points.len());
-            for point in &register.early_clobber_points {
-                bytes.extend_from_slice(&point.block.0.to_le_bytes());
-                bytes.extend_from_slice(&point.position.0.to_le_bytes());
-                bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&point.operand.to_le_bytes());
-                bytes.extend_from_slice(&point.point.0.to_le_bytes());
-                length(&mut bytes, point.candidates.len());
-                for candidate in &point.candidates {
-                    bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                length(&mut bytes, register.early_clobber_points.len());
+                for point in &register.early_clobber_points {
+                    bytes.extend_from_slice(&point.block.0.to_le_bytes());
+                    bytes.extend_from_slice(&point.position.0.to_le_bytes());
+                    bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&point.operand.to_le_bytes());
+                    bytes.extend_from_slice(&point.point.0.to_le_bytes());
+                    length(&mut bytes, point.candidates.len());
+                    for candidate in &point.candidates {
+                        bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                    }
                 }
-            }
-            length(&mut bytes, register.entry_transitions.len());
-            for transition in &register.entry_transitions {
-                bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
-                encode_fixed_site(&mut bytes, transition.to_site);
-                bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
+                length(&mut bytes, register.entry_transitions.len());
+                for transition in &register.entry_transitions {
+                    bytes.extend_from_slice(&transition.from_view.0.to_le_bytes());
+                    encode_fixed_site(&mut bytes, transition.to_site);
+                    bytes.extend_from_slice(&transition.to_view.0.to_le_bytes());
+                }
             }
         }
     }
@@ -141,6 +143,10 @@ mod tests {
                     }],
                 }],
             }],
+            structural_unit_functions: vec![TerminalFunctionAllocationLegality {
+                machine: MachineId::new(2).unwrap(),
+                virtual_registers: Vec::new(),
+            }],
         }
     }
 
@@ -218,6 +224,8 @@ mod tests {
                     .clear()
             },
             |plan| plan.functions.clear(),
+            |plan| plan.structural_unit_functions.clear(),
+            |plan| plan.structural_unit_functions[0].machine = MachineId::new(3).unwrap(),
         ];
         for mutate in mutations {
             let mut changed = plan();
