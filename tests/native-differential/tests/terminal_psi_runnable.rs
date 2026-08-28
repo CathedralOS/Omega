@@ -81,7 +81,7 @@ fn canonical_console_source() -> &'static str {
 
 const CONCRETE_ROOT_SERVICE_REACH_SOURCE: &str = r#"
     boundary trait PortIo {}
-    data Receipt [linear] { value: u64; }
+    pub data Receipt [linear] { value: u64; }
 
     boundary machine Receipt::settle(self)
     reaches PortIo
@@ -214,18 +214,14 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
     validate_verified_psi_optimization_unit(&verified)
         .expect("source provider attachment satisfies exact specialization replay");
 
-    let source_services = &verified.input().context().terminal_module().services;
+    let source_services = &verified.input().context().module().services;
     assert_eq!(
         verified.unit().services.as_ref(),
         source_services.as_slice()
     );
     assert_eq!(
         verified.unit().root_service_reach,
-        verified
-            .input()
-            .context()
-            .terminal_module()
-            .root_service_reach
+        verified.input().context().module().root_service_reach
     );
     let service_catalog = verified
         .unit()
@@ -381,11 +377,7 @@ fn source_concrete_root_service_reach_reaches_verified_optimizer_admission() {
 
     assert_eq!(
         verified.unit().root_service_reach,
-        verified
-            .input()
-            .context()
-            .terminal_module()
-            .root_service_reach
+        verified.input().context().module().root_service_reach
     );
     assert!(
         verified
@@ -427,11 +419,7 @@ fn source_bounded_root_service_reach_reaches_verified_optimizer_admission() {
 
     assert_eq!(
         verified.unit().root_service_reach,
-        verified
-            .input()
-            .context()
-            .terminal_module()
-            .root_service_reach
+        verified.input().context().module().root_service_reach
     );
     assert!(verified.unit().root_service_reach.concrete.is_empty());
     let [dependency] = verified

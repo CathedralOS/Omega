@@ -94,11 +94,11 @@ fn checked_uefi_compilation_retains_source_and_two_surface_entry_custody() {
     assert_eq!(source.visible_parameters().len(), 2);
     assert_eq!(
         source.visible_parameters()[0].role(),
-        omega_program_storage::ProgramStorageEntryRootRole::Image
+        omega_program_entry_plan::ProgramStorageEntryRootRole::Image
     );
     assert_eq!(
         source.visible_parameters()[1].role(),
-        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
+        omega_program_entry_plan::ProgramStorageEntryRootRole::InitialStorage
     );
     assert!(
         plans.storage_entry.physical_contract().is_some(),

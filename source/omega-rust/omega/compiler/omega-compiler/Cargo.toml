@@ -39,6 +39,7 @@ psi-source = { path = "../../../psi/foundation/psi-source" }
 psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
 psi-tokens = { path = "../../../psi/representations/psi-tokens" }
 omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
 omega-artifacts = { path = "../../tooling/omega-artifacts" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
