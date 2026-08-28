@@ -221,9 +221,10 @@ and Delta publication/custody lives under
 `source/delta/compiler/validation/`.
 
 The package library now lives at `source/library/`. The relocation deliberately
-has no compatibility symlink. Package-manager P8 still owns removal of the
-temporary physical-path readers that were updated to this location during the
-move; the final implementation resolves std through the package graph.
+has no compatibility symlink. Package-manager task
+`ORDINARY-STD-AND-PROVIDER-AUTHORITY` still owns removal of the temporary
+physical-path readers that were updated to this location during the move; the
+final implementation resolves std through the package graph.
 
 ## Placement Rules
 

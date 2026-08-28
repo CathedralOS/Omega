@@ -39,5 +39,6 @@ evaluator and type checker, which then realize Delta through its declared
 meaning route.
 
 The package library lives at `source/library/`. Temporary compiler readers may
-still address that physical location while package-manager P8 completes the
-ordinary package-graph route; no compatibility path exists.
+still address that physical location while
+`ORDINARY-STD-AND-PROVIDER-AUTHORITY` completes the ordinary package-graph
+route; no compatibility path exists.
