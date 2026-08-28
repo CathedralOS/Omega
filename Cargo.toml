@@ -132,6 +132,7 @@ members = [
     "source/omega-rust/omega/orchestration/omega-source-profile",
     "source/omega-rust/omega/orchestration/omega-build-output",
     "source/omega-rust/omega/orchestration/omega-build-provenance",
+    "source/omega-rust/omega/orchestration/omega-compilation-report",
     "source/omega-rust/omega/orchestration/omega-provider-planning",
     "source/omega-rust/omega/orchestration/omega-program-storage",
     "source/omega-rust/omega/orchestration/omega-trust-ledger",

@@ -742,6 +742,31 @@ fn build_evaluation_is_not_owned_by_the_compiler() {
 }
 
 #[test]
+fn compilation_report_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    assert!(
+        !root
+            .join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/report.rs")
+            .exists(),
+        "compiler coordination must not own its product report domain"
+    );
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-compilation-report must own compile results"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/Cargo.toml"),
+    )
+    .expect("read compilation-report manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "compile reports must remain reusable without depending on the coordinator"
+    );
+}
+
+#[test]
 fn omega_product_entry_remains_a_tiny_dispatcher() {
     let root = workspace_root();
     let entry = root.join("source/omega-rust/omega/src/main.rs");
@@ -1170,7 +1195,7 @@ fn retained_native_product_enters_only_terminal_realization() {
     }
 
     let report_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/report.rs");
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
     let report = std::fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
     let production = report

@@ -20,7 +20,7 @@ pub enum ExecutablePublicationDestination {
     MacOsAppBundle,
 }
 
-pub(crate) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
+pub fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
     root_path
         .parent()
         .and_then(|parent| parent.file_name())
@@ -37,7 +37,7 @@ pub(crate) fn macos_app_bundle_name(root_path: &std::path::Path) -> String {
         .collect()
 }
 
-pub(crate) fn expected_macos_app_bundle_executable_path(
+pub fn expected_macos_app_bundle_executable_path(
     root_path: &std::path::Path,
     flat_output_path: &std::path::Path,
 ) -> Option<PathBuf> {
@@ -52,7 +52,7 @@ pub(crate) fn expected_macos_app_bundle_executable_path(
     )
 }
 
-pub(crate) fn executable_installation_evidence_fingerprint(
+pub fn executable_installation_evidence_fingerprint(
     destination: ExecutablePublicationDestination,
     publication_evidence_fingerprint: u64,
     callback_placement_identity_fingerprint: u64,
@@ -85,7 +85,7 @@ pub(crate) fn executable_installation_evidence_fingerprint(
     hash
 }
 
-pub(crate) fn executable_publication_pair_matches(
+pub fn executable_publication_pair_matches(
     root_path: &std::path::Path,
     flat: &ExecutablePublicationReceipt,
     bundle: Option<&ExecutablePublicationReceipt>,
@@ -141,7 +141,7 @@ pub struct ExecutablePublicationReceipt {
 }
 
 impl ExecutablePublicationReceipt {
-    pub(crate) fn new(
+    pub fn new(
         destination: ExecutablePublicationDestination,
         output_path: PathBuf,
         certificate_fingerprint: u64,
@@ -239,8 +239,8 @@ pub struct TerminalComponentDeploymentReportError {
     root_path: PathBuf,
     source_file_count: usize,
     deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
-    build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
-    build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+    build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
+    build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     diagnostic: String,
 }
 
@@ -262,8 +262,8 @@ impl TerminalComponentDeploymentReportError {
         PathBuf,
         usize,
         omega_component_deployment::PublishedTerminalComponentFlatOutput,
-        Option<crate::pipeline::BuildEvaluationUsage>,
-        Option<crate::pipeline::BuildObservationSummary>,
+        Option<omega_build_evaluation::BuildEvaluationUsage>,
+        Option<omega_build_evaluation::BuildObservationSummary>,
     ) {
         (
             self.root_path,
@@ -313,32 +313,35 @@ pub struct CompileReport {
     /// Exact target root-slot/schema/ABI-capture binding for a program-storage
     /// entry. Hosted compatibility entries and unmigrated name discovery have
     /// no such authority-bearing artifact.
-    program_storage_entry: Option<crate::pipeline::ProgramStorageEntryPlanBinding>,
+    program_storage_entry: Option<omega_program_storage::ProgramStorageEntryPlanBinding>,
     /// Emitted object-entry handoff awaiting concrete environment supply and
     /// runtime installation. This is not an installation receipt.
-    program_storage_entry_bridge: Option<crate::pipeline::ProgramStorageEntryNativeBridgePlan>,
+    program_storage_entry_bridge:
+        Option<omega_program_storage::ProgramStorageEntryNativeBridgePlan>,
     /// Deterministic accounting from the transitional typed-tree build
     /// evaluator. This is explicitly not terminal-Psi fuel.
-    pub build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
+    pub build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
     /// Exact build-host observation ceiling and realized class for the
     /// selected build-machine run. This does not claim replayability or source
     /// rebuildability.
-    pub build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+    pub build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
 }
 
 impl CompileReport {
     #[allow(clippy::too_many_arguments)]
-    pub(crate) fn checked(
+    pub fn checked(
         root_path: PathBuf,
         source_file_count: usize,
         wrote_output: bool,
         output_kind: CompileOutputKind,
         executable_publication: Option<ExecutablePublicationReceipt>,
         app_bundle_publication: Option<ExecutablePublicationReceipt>,
-        program_storage_entry: Option<crate::pipeline::ProgramStorageEntryPlanBinding>,
-        program_storage_entry_bridge: Option<crate::pipeline::ProgramStorageEntryNativeBridgePlan>,
-        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
-        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+        program_storage_entry: Option<omega_program_storage::ProgramStorageEntryPlanBinding>,
+        program_storage_entry_bridge: Option<
+            omega_program_storage::ProgramStorageEntryNativeBridgePlan,
+        >,
+        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
+        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         let report = Self {
             root_path,
@@ -376,8 +379,8 @@ impl CompileReport {
         root_path: PathBuf,
         source_file_count: usize,
         deployment: omega_component_deployment::PublishedTerminalComponentFlatOutput,
-        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
-        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
+        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, Box<TerminalComponentDeploymentReportError>> {
         if let Err(error) = deployment.validate() {
             return Err(Box::new(TerminalComponentDeploymentReportError {
@@ -409,12 +412,12 @@ impl CompileReport {
         })
     }
 
-    pub(crate) fn from_retained_native_artifact(
+    pub fn from_retained_native_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: RetainedNativeArtifact,
-        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
-        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
+        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -456,12 +459,12 @@ impl CompileReport {
         self.retained_native_artifact.as_ref()
     }
 
-    pub(crate) fn from_terminal_artifact(
+    pub fn from_terminal_artifact(
         root_path: PathBuf,
         source_file_count: usize,
         artifact: psi_terminal_codec::CanonicalTerminalArtifact,
-        build_evaluation_usage: Option<crate::pipeline::BuildEvaluationUsage>,
-        build_observation_summary: Option<crate::pipeline::BuildObservationSummary>,
+        build_evaluation_usage: Option<omega_build_evaluation::BuildEvaluationUsage>,
+        build_observation_summary: Option<omega_build_evaluation::BuildObservationSummary>,
     ) -> Result<Self, &'static str> {
         artifact
             .validate()
@@ -547,13 +550,13 @@ impl CompileReport {
 
     pub fn program_storage_entry(
         &self,
-    ) -> Option<&crate::pipeline::ProgramStorageEntryPlanBinding> {
+    ) -> Option<&omega_program_storage::ProgramStorageEntryPlanBinding> {
         self.program_storage_entry.as_ref()
     }
 
     pub fn program_storage_entry_bridge(
         &self,
-    ) -> Option<&crate::pipeline::ProgramStorageEntryNativeBridgePlan> {
+    ) -> Option<&omega_program_storage::ProgramStorageEntryNativeBridgePlan> {
         self.program_storage_entry_bridge.as_ref()
     }
 
@@ -562,7 +565,7 @@ impl CompileReport {
             self.program_storage_entry.as_ref(),
             self.program_storage_entry_bridge
                 .as_ref()
-                .map(crate::pipeline::ProgramStorageEntryNativeBridgePlan::binding),
+                .map(omega_program_storage::ProgramStorageEntryNativeBridgePlan::binding),
         ) && program_storage_emission_matches_output_kind(
             self.output_kind,
             self.program_storage_entry_bridge.as_ref().map(|bridge| {
@@ -578,7 +581,7 @@ impl CompileReport {
                 .as_ref()
                 .and_then(ExecutablePublicationReceipt::boundary_contract_fingerprint),
             self.program_storage_entry.as_ref().map(
-                crate::pipeline::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint,
+                omega_program_storage::ProgramStorageEntryPlanBinding::boundary_contract_fingerprint,
             ),
         ) && emitted_inventory_matches_publication(
             self.executable_publication
@@ -587,7 +590,7 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .and_then(
-                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
                 )
                 .map(|evidence| evidence.executable_inventory_fingerprint()),
         ) && emitted_validation_matches_publication(
@@ -600,7 +603,7 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .and_then(
-                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
                 )
                 .map(|evidence| {
                     (
@@ -617,7 +620,7 @@ impl CompileReport {
             self.program_storage_entry_bridge
                 .as_ref()
                 .and_then(
-                    crate::pipeline::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
+                    omega_program_storage::ProgramStorageEntryNativeBridgePlan::emitted_wrapper_evidence,
                 )
                 .map(|evidence| evidence.arrival().boundary_contract_fingerprint()),
         )
