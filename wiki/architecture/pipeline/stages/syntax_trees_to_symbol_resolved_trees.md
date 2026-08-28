@@ -102,17 +102,17 @@ The Psi product role owns this stage and its eventual hosted source belongs
 under `source/psi/`. The current Rust implementation stays split by identity
 task:
 
-- `source/on-ramp/rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
+- `source/omega-rust/psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees` contains the
   stage implementation. All workspace consumers invoke it directly.
 
-- `source/on-ramp/rust/psi/pipeline/psi-generic-instances` contains the pre-resolution
+- `source/omega-rust/psi/pipeline/psi-generic-instances` contains the pre-resolution
   closed-instance and contextual-construction normalization used by that stage
   and by Psi-owned probe frontends. Its public entry consumes one syntax tree
   and returns the normalized tree; the in-place elaborator is private. Omega
   orchestration may sequence that Psi entry while the larger frontend conveyor
   is split, but cannot own or extend the language elaboration.
 
-- `source/on-ramp/rust/psi/semantics/psi-build-time-evaluation` owns the
+- `source/omega-rust/psi/semantics/psi-build-time-evaluation` owns the
   cross-stage evaluation continuation. Pre-resolution returns target-filterable
   syntax beside one opaque, non-cloneable `PreCheckEvaluation` retaining the
   matching plan-laid rows, placed-view rows, and optional package-selection
@@ -122,10 +122,10 @@ task:
   plan-laid, placed-view, and wire-plan work remains in its Psi-defined
   fail-fast order.
 
-- `source/on-ramp/rust/psi/representations/psi-symbol-resolved-trees` contains the stage
+- `source/omega-rust/psi/representations/psi-symbol-resolved-trees` contains the stage
   output.
 
-- `source/on-ramp/rust/psi/foundation/psi-language-semantics` contains the resolved
+- `source/omega-rust/psi/foundation/psi-language-semantics` contains the resolved
   semantic identities, service/domain tables, machine supply/termination
   plans, establishment routes, and byte-sequence predicate vocabulary carried
   by this stage.

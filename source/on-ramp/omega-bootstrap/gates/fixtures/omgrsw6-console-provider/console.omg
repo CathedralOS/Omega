@@ -1,6 +1,0 @@
-pub boundary trait Console {
-    machine exit_process(return_code: i32)
-    reaches Console;
-}
-
-data ConsoleNativeProvider { }

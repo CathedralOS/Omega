@@ -1,7 +1,0 @@
-data OversizedLayoutProbe {
-    words: [u32; 32769] in Trapping;
-}
-
-machine OversizedLayoutProbe::run(&mut self) -> u8 {
-    70
-}

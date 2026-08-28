@@ -31,21 +31,16 @@ if [ -n "$violations" ]; then
   exit 1
 fi
 
-# The retired external Delta producer must not re-enter executable bridge,
-# refinement, cache, or bootstrap-tool custody under either its old path or its
-# former resolver variable. Git history is the archive for those wrappers.
-retired_delta_pattern='OMEGA_PATH_DELTA''_RUST|source/on-ramp/rust/''delta'
+# The retired external Delta producer must not re-enter source or bootstrap
+# tooling under either its old role variable or a new Rust subtree.
+retired_delta_pattern='OMEGA_PATH_DELTA''_RUST|source/omega-rust/''delta'
 if command -v rg >/dev/null 2>&1; then
   retired_delta_violations=$(rg -n "$retired_delta_pattern" \
-    "$OMEGA_REPO_ROOT/source/on-ramp/omega-bootstrap/gates" \
-    "$OMEGA_REPO_ROOT/source/refinement/delta-omega-bootstrap" \
-    "$OMEGA_REPO_ROOT/tests/lattice/lattice-cache-deps" \
+    "$OMEGA_REPO_ROOT/source" \
     "$OMEGA_REPO_ROOT/tools/bootstrap" || true)
 else
   retired_delta_violations=$(grep -R -En "$retired_delta_pattern" \
-    "$OMEGA_REPO_ROOT/source/on-ramp/omega-bootstrap/gates" \
-    "$OMEGA_REPO_ROOT/source/refinement/delta-omega-bootstrap" \
-    "$OMEGA_REPO_ROOT/tests/lattice/lattice-cache-deps" \
+    "$OMEGA_REPO_ROOT/source" \
     "$OMEGA_REPO_ROOT/tools/bootstrap" || true)
 fi
 

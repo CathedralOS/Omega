@@ -129,17 +129,7 @@ portable format.
 
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
-The separate bootstrap architecture has the language-capability progression
-Alpha → Beta → Gamma → Delta → Omega. Its audited bootstrap-language spine ends
-at Delta; the Gamma→Delta edge executes
-the Delta-written compiler through the lower-rung Delta→Gamma route; that exact
-compiler then builds the Delta-written, `Ωself`-limited `omega-bootstrap`, which
-performs the hosted build of full production Omega. Delta is independently
-specified; Omega-like spelling does not make it an Omega subset. `Ωself` is a
-source profile rather than another language rung, and `omega-bootstrap` is a
-compiler artifact rather than another language. An optional Omega→Omega rebuild may optimize
-that compiler's own binary, but produces the same compiler and is not another
-rung or required dependency. Its active queue lives in
+The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Omega. The published Delta-produced compiler compiles the exact production source closure `C`, written in ordinary Omega constrained to `Ωself`, into a conservative first binary `omega₀`; `omega₀` then recompiles the same `C` into production `omega`. `Ωself` is a source profile, not another language or compiler artifact. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_lattice/repository_structure.md).

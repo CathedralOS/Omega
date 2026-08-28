@@ -20,10 +20,10 @@ import source_closure_snapshot_v1 as closure
 
 HERE = Path(__file__).resolve().parent
 REPOSITORY = HERE.parents[1]
-OMEGA2GAMMA_SOURCE = REPOSITORY / "source/on-ramp/omega-bootstrap/meaning/omega2gamma.beta"
+OMEGA2GAMMA_SOURCE = REPOSITORY / "source/delta/meaning/omega2gamma.beta"
 INTERPRETER_SOURCE = REPOSITORY / "source/gamma/interp.beta"
-PACKER_SOURCE = REPOSITORY / "source/on-ramp/omega-bootstrap/meaning/encode-gamma-input.py"
-DECODER_SOURCE = REPOSITORY / "source/on-ramp/omega-bootstrap/meaning/decode-gamma-output.py"
+PACKER_SOURCE = REPOSITORY / "source/delta/meaning/encode-gamma-input.py"
+DECODER_SOURCE = REPOSITORY / "source/delta/meaning/decode-gamma-output.py"
 BETA_COMPILER_SOURCE = REPOSITORY / "source/beta/bc.beta"
 BETA_COMPILER_TAPE = REPOSITORY / "source/beta/artifacts/bc.tape"
 ALPHA_ASSEMBLER_SOURCE = REPOSITORY / "source/alpha/assembler/assembler.alpha"
