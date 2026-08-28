@@ -181,8 +181,12 @@ to identify the retained directory; the parent capability remains alive for
 the lock lifetime. Git invalidation opens the entry as a stable direct child
 through the retained cache parent and removes resolver metadata relative to the
 retained entry directory; a substituted entry symlink cannot redirect that
-deletion. Metadata reads, staging creation and cleanup, and macOS ACL inspection
-are not yet fully handle-relative. Destination
+deletion. Resolver-owned control records—Git configuration, Git source identity,
+and Git/local snapshot identity—are read through retained no-follow directory
+and file capabilities with per-record byte ceilings, repeated handle reads, and
+leaf/handle identity confirmation. Structural metadata observations, staging
+creation and cleanup, and macOS ACL inspection are not yet fully
+handle-relative. Destination
 exclusion is cooperative rather than an atomic hostile-same-user no-replace
 primitive, so this still does not claim exclusion of an actively hostile
 same-user process.

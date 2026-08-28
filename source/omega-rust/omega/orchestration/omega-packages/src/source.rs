@@ -1045,11 +1045,12 @@ fn bounded_git_fetch_arguments(
 
 fn read_canonical_git_config(repository: &Path) -> Result<Vec<u8>, SourceResolveError> {
     let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "local Git configuration is not a regular file",
+    let config = read_bounded_cache_record(
+        CacheCustodyKind::Git,
+        repository,
+        Path::new("config"),
+        GIT_CONFIG_SHA256.len(),
     )?;
-    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
     if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
         return Err(cache_invalid(
             &config_path,
@@ -2027,18 +2028,12 @@ fn verify_git_snapshot(
     let source = publication.join(GIT_SNAPSHOT_SOURCE);
     require_real_directory(&source, "snapshot source is not a real directory")?;
     let metadata_path = publication.join(GIT_SNAPSHOT_METADATA);
-    require_regular_file(&metadata_path, "snapshot metadata is not a regular file")?;
-    let metadata_length = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_length > 1024 {
-        return Err(cache_invalid(
-            &metadata_path,
-            "snapshot metadata exceeds its limit",
-        ));
-    }
-    let metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let metadata = read_bounded_cache_record(
+        CacheCustodyKind::Git,
+        publication,
+        Path::new(GIT_SNAPSHOT_METADATA),
+        1024,
+    )?;
     let metadata = parse_git_snapshot_metadata(&metadata, &metadata_path)?;
     if metadata != *expected {
         return Err(cache_invalid(
@@ -2289,18 +2284,12 @@ fn verify_local_snapshot(
     let source = publication.join(LOCAL_SNAPSHOT_SOURCE);
     require_local_snapshot_directory(&source, "snapshot source is not a real directory")?;
     let metadata_path = publication.join(LOCAL_SNAPSHOT_METADATA);
-    require_local_snapshot_file(&metadata_path, "snapshot metadata is not a regular file")?;
-    let metadata_length = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_length > 512 {
-        return Err(local_snapshot_invalid(
-            &metadata_path,
-            "snapshot metadata exceeds its limit",
-        ));
-    }
-    let metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let metadata = read_bounded_cache_record(
+        CacheCustodyKind::LocalSnapshot,
+        publication,
+        Path::new(LOCAL_SNAPSHOT_METADATA),
+        512,
+    )?;
     let expected = parse_local_snapshot_metadata(&metadata, &metadata_path)?;
     if expected.content_identity != content_identity {
         return Err(local_snapshot_invalid(
@@ -2325,14 +2314,6 @@ fn verify_local_snapshot(
 fn require_local_snapshot_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
     let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
     if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(local_snapshot_invalid(path, message));
-    }
-    Ok(())
-}
-
-fn require_local_snapshot_file(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
         return Err(local_snapshot_invalid(path, message));
     }
     Ok(())
@@ -3026,20 +3007,13 @@ fn verify_git_cache_entry(
 ) -> Result<(), SourceResolveError> {
     verify_git_cache_custody(entry_root, limits)?;
     require_real_directory(entry_root, "cache entry root is not a real directory")?;
-    let metadata_path = entry_root.join(GIT_CACHE_METADATA);
-    require_regular_file(&metadata_path, "resolver metadata is not a regular file")?;
     let expected_metadata = git_cache_metadata(url, requested_rev, execution_transport);
-    let metadata_size = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_size != expected_metadata.len() as u64 {
-        return Err(cache_invalid(
-            &metadata_path,
-            "resolver metadata has an unexpected length",
-        ));
-    }
-    let actual_metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let actual_metadata = read_bounded_cache_record(
+        CacheCustodyKind::Git,
+        entry_root,
+        Path::new(GIT_CACHE_METADATA),
+        expected_metadata.len(),
+    )?;
     if actual_metadata != expected_metadata {
         return Err(cache_invalid(
             entry_root,
@@ -3067,11 +3041,12 @@ fn verify_git_cache_entry(
     }
 
     let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "local Git configuration is not a regular file",
+    let config = read_bounded_cache_record(
+        CacheCustodyKind::Git,
+        &repository,
+        Path::new("config"),
+        GIT_CONFIG_SHA256.len(),
     )?;
-    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
     if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
         return Err(cache_invalid(
             &config_path,
@@ -3186,6 +3161,35 @@ fn require_regular_file(path: &Path, message: &str) -> Result<(), SourceResolveE
 enum CacheCustodyKind {
     Git,
     LocalSnapshot,
+}
+
+fn read_bounded_cache_record(
+    kind: CacheCustodyKind,
+    root: &Path,
+    relative_path: &Path,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, SourceResolveError> {
+    verify_cache_custody_root(root, kind)?;
+    let directory = open_absolute_directory_nofollow(root)
+        .map_err(|error| cache_custody_invalid(kind, root, error.to_string()))?;
+    let record_root =
+        RecordFileRoot::from_directory(directory, root.to_path_buf()).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                root,
+                format!("failed to retain cache record directory: {error:?}"),
+            )
+        })?;
+    let record = record_root
+        .read(relative_path, RecordFileLimits { maximum_bytes })
+        .map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                &root.join(relative_path),
+                format!("failed to read bounded cache record: {error:?}"),
+            )
+        })?;
+    Ok(record.bytes().to_vec())
 }
 
 fn verify_git_cache_custody(
@@ -8734,6 +8738,46 @@ mod tests {
             Err(SourceResolveError::GitCacheInvalid { .. })
         ));
 
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn bounded_cache_record_read_rejects_content_above_its_exact_limit() {
+        let cache = temp_root("bounded-cache-record");
+        std::fs::create_dir_all(&cache).expect("create cache record root");
+        std::fs::write(cache.join("record"), b"12345").expect("write oversized cache record");
+
+        let error =
+            read_bounded_cache_record(CacheCustodyKind::Git, &cache, Path::new("record"), 4)
+                .expect_err("oversized cache record must reject before unbounded allocation");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_cache_record_read_does_not_follow_a_symlink_leaf() {
+        let cache = temp_root("bounded-cache-record-symlink");
+        std::fs::create_dir_all(&cache).expect("create cache record root");
+        let target = cache.join("target");
+        std::fs::write(&target, b"outside").expect("write cache record target");
+        std::os::unix::fs::symlink(&target, cache.join("record"))
+            .expect("create cache record symlink");
+
+        let error = read_bounded_cache_record(
+            CacheCustodyKind::LocalSnapshot,
+            &cache,
+            Path::new("record"),
+            64,
+        )
+        .expect_err("cache record read must not follow a symlink leaf");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert_eq!(std::fs::read(&target).expect("read target"), b"outside");
         let _ = std::fs::remove_dir_all(&cache);
     }
 
