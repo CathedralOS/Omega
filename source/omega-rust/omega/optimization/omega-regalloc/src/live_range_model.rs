@@ -35,6 +35,9 @@ pub struct TerminalLiveRangePlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub functions: Vec<TerminalFunctionLiveRanges>,
+    /// Structural-signature Unit functions remain distinct from the ordinary
+    /// VReg roster while retaining their exact architectural live ranges.
+    pub structural_unit_functions: Vec<TerminalFunctionLiveRanges>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -189,6 +192,7 @@ pub struct TerminalLiveRangeValidationReceipt {
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) function_count: usize,
+    pub(crate) structural_unit_function_count: usize,
     pub(crate) block_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) virtual_occurrence_count: usize,
@@ -224,6 +228,9 @@ impl TerminalLiveRangeValidationReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn block_count(self) -> usize {
         self.block_count
@@ -292,9 +299,6 @@ pub enum TerminalLiveRangeError {
     LivenessRevalidation(TerminalLivenessError),
     LivenessReceiptMismatch,
     RootMismatch,
-    UnsupportedStructuralUnitFunctions {
-        count: usize,
-    },
     UnsupportedUseDef {
         function: usize,
         instruction: u32,

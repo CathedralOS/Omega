@@ -6,7 +6,7 @@ pub fn terminal_register_home_identity(
     plan: &TerminalRegisterHomePlan,
 ) -> TerminalRegisterHomeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-homes.v5\0");
+    bytes.extend_from_slice(b"omega.terminal-register-homes.v6\0");
     bytes.extend_from_slice(&encode_terminal_register_home_content(plan));
     TerminalRegisterHomeIdentity(Sha256::digest(bytes).into())
 }
@@ -19,6 +19,16 @@ pub(crate) fn encode_terminal_register_home_content(plan: &TerminalRegisterHomeP
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
     encode_len(&mut bytes, plan.functions.len());
     for function in &plan.functions {
+        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        encode_len(&mut bytes, function.assignments.len());
+        for assignment in &function.assignments {
+            bytes.extend_from_slice(&assignment.virtual_register.0.to_le_bytes());
+            bytes.extend_from_slice(&assignment.class.0.to_le_bytes());
+            bytes.extend_from_slice(&assignment.view.0.to_le_bytes());
+        }
+    }
+    encode_len(&mut bytes, plan.structural_unit_functions.len());
+    for function in &plan.structural_unit_functions {
         bytes.extend_from_slice(&function.machine.get().to_le_bytes());
         encode_len(&mut bytes, function.assignments.len());
         for assignment in &function.assignments {
@@ -71,6 +81,10 @@ mod tests {
                     view: RegisterViewId(2),
                 }],
             }],
+            structural_unit_functions: vec![TerminalFunctionRegisterHomes {
+                machine: MachineId::new(2).unwrap(),
+                assignments: Vec::new(),
+            }],
         }
     }
 
@@ -94,6 +108,8 @@ mod tests {
             |plan| plan.functions[0].assignments[0].view = RegisterViewId(3),
             |plan| plan.functions[0].assignments.clear(),
             |plan| plan.functions.clear(),
+            |plan| plan.structural_unit_functions.clear(),
+            |plan| plan.structural_unit_functions[0].machine = MachineId::new(3).unwrap(),
         ];
         for mutate in mutations {
             let mut changed = plan();

@@ -20,19 +20,50 @@ pub fn validate_terminal_live_ranges(
     plan: TerminalLiveRangePlan,
 ) -> Result<ValidatedTerminalLiveRanges, TerminalLiveRangeError> {
     revalidate_liveness_custody(selected, liveness)?;
-    if !liveness.plan().structural_unit_functions.is_empty() {
-        return Err(TerminalLiveRangeError::UnsupportedStructuralUnitFunctions {
-            count: liveness.plan().structural_unit_functions.len(),
-        });
-    }
     if plan.selected != selected.selected_identity()
         || plan.liveness != liveness.receipt().identity()
         || plan.optimization_unit != selected.optimization_unit_identity()
         || plan.fuel_schedule != selected.fuel_schedule_identity()
         || plan.target != selected.selected_plan().target
         || plan.functions.len() != selected.selected_plan().functions.len()
+        || plan.structural_unit_functions.len()
+            != selected.selected_plan().structural_unit_functions.len()
+        || plan.structural_unit_functions.len() != liveness.plan().structural_unit_functions.len()
     {
         return Err(TerminalLiveRangeError::RootMismatch);
+    }
+    let mut machines = BTreeSet::new();
+    for (function_index, function) in plan
+        .functions
+        .iter()
+        .chain(&plan.structural_unit_functions)
+        .enumerate()
+    {
+        if !machines.insert(function.machine) {
+            return Err(TerminalLiveRangeError::FunctionMismatch {
+                function: function_index,
+            });
+        }
+    }
+    for (function_index, ((selected_function, live_function), actual)) in selected
+        .selected_plan()
+        .structural_unit_functions
+        .iter()
+        .zip(&liveness.plan().structural_unit_functions)
+        .zip(&plan.structural_unit_functions)
+        .enumerate()
+    {
+        let expected = independently_replay_structural_function(
+            function_index,
+            selected_function.machine,
+            live_function,
+        )?;
+        validate_canonical(function_index, actual)?;
+        if actual != &expected {
+            return Err(TerminalLiveRangeError::FunctionMismatch {
+                function: function_index,
+            });
+        }
     }
     for (function_index, ((selected_function, live_function), actual)) in selected
         .selected_plan()
@@ -110,9 +141,11 @@ pub fn validate_terminal_live_ranges(
         optimization_unit: plan.optimization_unit,
         fuel_schedule: plan.fuel_schedule,
         function_count: plan.functions.len(),
+        structural_unit_function_count: plan.structural_unit_functions.len(),
         block_count: plan
             .functions
             .iter()
+            .chain(&plan.structural_unit_functions)
             .map(|row| row.block_domains.len())
             .sum(),
         virtual_register_count: plan
@@ -141,17 +174,20 @@ pub fn validate_terminal_live_ranges(
         architectural_unit_count: plan
             .functions
             .iter()
+            .chain(&plan.structural_unit_functions)
             .map(|row| row.architectural_units.len())
             .sum(),
         architectural_action_count: plan
             .functions
             .iter()
+            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|row| row.actions.len())
             .sum(),
         architectural_fragment_count: plan
             .functions
             .iter()
+            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|row| row.fragments.len())
             .sum(),
@@ -164,6 +200,7 @@ pub fn validate_terminal_live_ranges(
         architectural_edge_connector_count: plan
             .functions
             .iter()
+            .chain(&plan.structural_unit_functions)
             .flat_map(|row| &row.architectural_units)
             .map(|range| range.edge_connectors.len())
             .sum(),
@@ -191,6 +228,73 @@ pub fn validate_terminal_live_ranges(
             .sum(),
     };
     Ok(ValidatedTerminalLiveRanges { plan, receipt })
+}
+
+fn independently_replay_structural_function(
+    function: usize,
+    machine: psi_core::MachineId,
+    live: &crate::TerminalFunctionLiveness,
+) -> Result<TerminalFunctionLiveRanges, TerminalLiveRangeError> {
+    if live.machine != machine
+        || !live.entry_definitions.is_empty()
+        || !live.operand_positions.is_empty()
+    {
+        return Err(TerminalLiveRangeError::FunctionMismatch { function });
+    }
+    let mut block_domains = Vec::new();
+    for block in &live.blocks {
+        let first =
+            block
+                .instructions
+                .first()
+                .ok_or(TerminalLiveRangeError::BlockDomainMismatch {
+                    function,
+                    block: block.block.0,
+                })?;
+        let last = block
+            .instructions
+            .last()
+            .expect("first established nonempty");
+        block_domains.push(TerminalBlockPointDomain {
+            block: block.block,
+            source_block: block.source_block,
+            start: checked_before(function, first.position.0)?,
+            end: TerminalLiveRangePoint(
+                checked_after(function, last.position.0)?
+                    .0
+                    .checked_add(1)
+                    .ok_or(TerminalLiveRangeError::PointOverflow { function })?,
+            ),
+        });
+    }
+    let mut discovered_units = BTreeSet::new();
+    for block in &live.blocks {
+        discovered_units.extend(block.unit_live_in.iter().copied());
+        discovered_units.extend(block.unit_live_out.iter().copied());
+        for instruction in &block.instructions {
+            discovered_units.extend(instruction.unit_uses.iter().copied());
+            discovered_units.extend(instruction.unit_defs.iter().copied());
+            discovered_units.extend(instruction.unit_clobbers.iter().copied());
+            discovered_units.extend(instruction.unit_live_in.iter().copied());
+            discovered_units.extend(instruction.unit_live_out.iter().copied());
+        }
+        for edge in &block.successors {
+            discovered_units.extend(edge.unit_live.iter().copied());
+        }
+    }
+    let architectural_units = discovered_units
+        .into_iter()
+        .map(|unit| independently_replay_unit(function, live, unit))
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(TerminalFunctionLiveRanges {
+        machine,
+        block_domains,
+        virtual_registers: Vec::new(),
+        tied_pairs: Vec::new(),
+        early_clobbers: Vec::new(),
+        architectural_units,
+        interference: Vec::new(),
+    })
 }
 
 fn require_early_clobber_rows(

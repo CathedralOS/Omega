@@ -832,6 +832,7 @@ pub(crate) mod tests {
                 architectural_units: Vec::new(),
                 interference: Vec::new(),
             }],
+            structural_unit_functions: Vec::new(),
         };
         let original = &selected.functions[0].blocks[0].instructions[0];
         let recovery = TerminalRecoveryClassificationPlan {
