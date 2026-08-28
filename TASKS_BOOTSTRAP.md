@@ -262,6 +262,14 @@ Directionally clear Delta work does not have to wait for that final join:
   skipped boundary declarations, and any source form for which parsing does
   not lead to a complete checked meaning. Give every rejection a focused
   phase-local negative gate.
+
+  First measured violation: the canonical compiler's local-`let` pass currently
+  scans the text before `=` and treats any byte `W` as Wrapping and any byte `S`
+  as Saturating. Consequently `in Whatever` publishes wrapping assembly instead
+  of rejecting. Validate the exact qualifier in phase 1 and retain its checked
+  policy for lowering; add a lower-rooted status-1/empty-output negative beside
+  the existing wrapping/saturating positives. This removes accidental
+  acceptance without deciding which arithmetic domains enter Delta v1.
 - [ ] Reconcile x86-64 and AArch64 arithmetic/domain behavior against one
   explicit provisional table. Where the producers differ, fail closed until
   the shared rule is implemented; do not let either backend silently define

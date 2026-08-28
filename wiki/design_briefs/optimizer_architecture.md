@@ -795,10 +795,15 @@ contributions separately carry source-declared contiguous schedule ordinals;
 their private assembler sorts by those ordinals before constructing the
 ordered registry. Thus contribution arrival order cannot perturb the declared
 schedule, while no opaque identity sort silently invents policy. A direct
-second sweep of the currently supported SCCP, CFG-cleanup, then
-copy-propagation schedule
-must produce an empty delta; composing that delta preserves the first sweep's
-ledger exactly.
+second sweep of the currently supported SCCP, CFG-cleanup, copy-propagation,
+GVN, proof-elision, then dead-scalar schedule must produce an empty delta;
+composing that delta preserves the first sweep's ledger exactly. For each
+current multi-rule family—SCCP, CFG cleanup, GVN, and dead-scalar
+elimination—thirty-two shuffled pre-assembly contribution orders reconstruct
+the same ordered registry identity and contracts, then produce byte-for-byte
+equal final units, commits, work usage, decisions, manifests, and ledgers on a
+real dependent fixture. The test never shuffles an assembled public registry,
+because its order is intentionally semantic and identity-bearing.
 
 The first Rust candidate vocabulary is intentionally closed rather than an
 opaque callback or byte payload. An exact-integer-evaluation candidate records
