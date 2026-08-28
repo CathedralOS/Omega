@@ -1,4 +1,4 @@
-use omega_compiler::PackageReviewCanonicalRowKind;
+use omega_package_review::PackageReviewCanonicalRowKind;
 use omega_packages::{
     ExternalSourceContext, LocalSourceLimits, PackageSourceClosureLimits,
     compile_resolved_package_reviews, resolve_external_local_package_closure,

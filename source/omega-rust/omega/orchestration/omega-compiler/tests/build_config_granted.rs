@@ -6,26 +6,33 @@
 //! without incidentally supplying filesystem authority. Fail canaries cover
 //! undeclared services and package-authored boundary lookalikes.
 
-use omega_compiler::{
+use omega_build_evaluation::{
     BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
     BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationResult, BuildFilesystemProvider,
     BuildFilesystemReplayRecordLimits, BuildFilesystemReturnedPathCompleteness,
     BuildFilesystemReturnedPathKind, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
-    BuildObservationClass, CheckedCompilation, CompileOptions, FilesystemSponsor,
-    PackageCompilationInputs, PackageSourceBinding,
-    capture_verified_build_filesystem_replay_record, compile_to_checked,
+    BuildObservationClass, capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+};
+use omega_compiler::{
+    CheckedCompilation, CompileOptions, compile_to_checked,
     compile_to_checked_with_packages_and_replay_record,
     compile_to_checked_with_packages_in_build_dir,
     compile_to_checked_with_packages_in_sponsored_build_dir, compile_to_checked_with_replay_record,
-    recover_review_only_build_filesystem_replay_record,
 };
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use psi_checked_interpreter::FilesystemSponsor;
 
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 use psi_core::PackageKeyIdentity;

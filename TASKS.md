@@ -46,9 +46,9 @@ task here; do not duplicate optimizer pass milestones in both queues.
 
 Remaining:
 
-- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as
-  Omega source under `source/psi/` and
-  `source/omega/`, with the hosted product entrypoints at
+- **OMEGA-PRODUCT-COMPILER-SOURCE.** Establish the production compiler as one
+  Omega source tree under `source/omega/`, with target-neutral phases under
+  `source/omega/psi/` and the hosted product entrypoints at
   `source/omega/{build.omg,main.omg}`. Preserve the Psi/Omega ownership
   firewall: Psi owns parsing and target-neutral semantics through terminal Psi;
   Omega owns provider installation, optimization, target realization, and
@@ -109,14 +109,17 @@ Remaining:
   passes the applicable product suites. Historical `checkpoint-000001`
   manifests and profiles were retired with `source/omega/source-checkpoints/`;
   they are not current closure evidence and must not be recreated as a bridge
-  dialect or file allowlist. The live authored slice under `source/psi/` plus
-  `source/omega/` currently reaches source/span custody, tokens, Unicode tables,
-  lexing, and fail-closed whole-file parsing for ordinary
-  `use path::member;` roots. The parser retains ordered source spans in
-  owner-local bounded tables and rejects every other root form; declarations,
-  resolution, checking, terminal Psi, and all later Psi/Omega phases remain
-  open. Extend this as live grammar/semantic slices, not checkpoint dialects,
-  private bridge IRs, or file-shape allowlists.
+  dialect or file allowlist. The live authored slice under
+  `source/omega/psi/` plus the product entrypoint currently reaches source/span
+  custody, tokens, Unicode tables, lexing, and fail-closed whole-file parsing
+  for ordinary
+  `use path::member;` roots plus basic `[pub] data` records whose fields have
+  bare named types. The parser retains ordered source spans in owner-local
+  bounded syntax and type-reference tables and rejects every unsupported root
+  or richer declaration form; remaining declaration grammar, resolution,
+  checking, terminal Psi, and all later Psi/Omega phases remain open. Extend
+  this as live grammar/semantic slices, not checkpoint dialects, private bridge
+  IRs, or file-shape allowlists.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
@@ -172,21 +175,6 @@ Remaining:
   condition. Rust-specific maintenance stays in the explicit
   `source/omega-rust/` owner and never
   moves into `source/omega/{psi,omega}/`.
-
-- **OMEGA-RUST-DYNAMIC-COPY-HANDOFF.** Fix the hosted compiler's native
-  materialization of runtime-selected `[copy]` aggregates across machine
-  arguments/returns and its same-state observation of scalar scratch written by
-  a preceding mutable machine call. The live Psi parser currently scalarizes
-  the token header and crosses an explicit loaded-state boundary because the
-  aggregate form silently produced zero fields at runtime even though package
-  checking accepted it. This is an engineering defect, not a language-design
-  blocker and not permission to invent a parser bridge format.
-
-  Acceptance: focused native canaries retain every selected aggregate field
-  across argument and return positions, statement-order tests observe the
-  preceding mutable call before transition arguments, and the reference and
-  native paths agree. Then simplify the parser handoff where doing so preserves
-  the conservative compiler-source surface and its bounded input ownership.
 
 ## Execution order
 

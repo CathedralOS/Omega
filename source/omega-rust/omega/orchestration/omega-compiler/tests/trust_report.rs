@@ -106,8 +106,8 @@ fn claim_free_boundary_symbols_do_not_consume_trust() {
     std::fs::create_dir_all(&project).expect("create project dir");
     std::fs::write(
         project.join("main.omg"),
-        r#"boundary data Carrier;
-boundary machine Carrier::combine(a: Carrier, b: Carrier) -> Carrier;
+        r#"pub boundary data Carrier;
+pub boundary machine Carrier::combine(a: Carrier, b: Carrier) -> Carrier;
 boundary trait AlgebraAudit {}
 boundary machine combine_commutative(callback: &mut AlgebraAudit, a: Carrier, b: Carrier)
 reaches AlgebraAudit
@@ -809,10 +809,10 @@ machine Main::exercise(&mut self) {{
     assert!(
         instance_rows
             .iter()
-            .any(|line| line.contains("const argument identities: named(name(1))"))
+            .any(|line| line.contains("const argument identities: named(integer-const(1))"))
             && instance_rows
                 .iter()
-                .any(|line| line.contains("const argument identities: named(name(2))")),
+                .any(|line| line.contains("const argument identities: named(integer-const(2))")),
         "each instance must retain its exact normalized const identity"
     );
     assert!(
@@ -846,8 +846,8 @@ machine Main::exercise(&mut self) {{
     }
     assert!(manifest.contains("\"accepted_template_commitment\": \"admitted\""));
     assert!(manifest.contains("\"type_argument_identities\": [\"named(name(Card))\"]"));
-    assert!(manifest.contains("\"const_argument_identities\": [\"named(name(1))\"]"));
-    assert!(manifest.contains("\"const_argument_identities\": [\"named(name(2))\"]"));
+    assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(1))\"]"));
+    assert!(manifest.contains("\"const_argument_identities\": [\"named(integer-const(2))\"]"));
     assert!(manifest.contains("\"machine_argument_contract_fingerprints\": [\"0x"));
 
     // Changing the authored machine-parameter contract changes the universal

@@ -2,7 +2,7 @@ use crate::{
     CompilerIssuedPackageReview, CompilerIssuedPackageReviewSet, PackageKey,
     capability_conflict::changed_review_risk, review_evidence::PackageReviewEvidence,
 };
-use omega_compiler::{
+use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewDangerousAuthorityClass,
 };

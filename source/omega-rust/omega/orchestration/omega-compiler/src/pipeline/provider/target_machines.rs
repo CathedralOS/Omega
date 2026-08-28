@@ -52,7 +52,7 @@ impl SelectedTargetMachineDeclarations {
     pub(crate) fn settle_provider_defaults(
         self,
         typed: &TypedTrees,
-    ) -> Result<Vec<super::build_config::ProviderSelection>, Vec<Diagnostic>> {
+    ) -> Result<Vec<omega_provider_planning::ProviderSelection>, Vec<Diagnostic>> {
         let mut defaults = Vec::new();
         let mut diagnostics = Vec::new();
         for machine_name in self.provider_default_machine_names {

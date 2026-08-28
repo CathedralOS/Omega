@@ -240,8 +240,10 @@ version = "0.1.0"
 dependencies = [
  "omega-compiler",
  "omega-core",
+ "omega-package-compilation",
  "omega-packages",
  "omega-target",
+ "psi-checked-interpreter",
  "psi-checked-trees-to-terminal",
  "psi-core",
  "psi-proof-admission",
@@ -487,6 +489,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-build-evaluation"
+version = "0.1.0"
+dependencies = [
+ "omega-build-output",
+ "omega-calling-conventions",
+ "omega-effects",
+ "omega-optimization-core",
+ "omega-optimization-pipeline",
+ "omega-program-storage",
+ "omega-provider-planning",
+ "omega-target",
+ "psi-build-time-evaluation",
+ "psi-checked-interpreter",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+ "sha2",
+]
+
+[[package]]
+name = "omega-build-output"
+version = "0.1.0"
+dependencies = [
+ "psi-checked-interpreter",
+ "psi-diagnostics",
+ "sha2",
+]
+
+[[package]]
+name = "omega-build-provenance"
+version = "0.1.0"
+dependencies = [
+ "sha2",
+]
+
+[[package]]
 name = "omega-calling-conventions"
 version = "0.1.0"
 dependencies = [
@@ -516,6 +559,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-compilation-report"
+version = "0.1.0"
+dependencies = [
+ "omega-build-evaluation",
+ "omega-component-deployment",
+ "omega-program-storage",
+ "omega-terminal-native-artifact",
+ "psi-terminal-codec",
+]
+
+[[package]]
 name = "omega-compiler"
 version = "0.1.0"
 dependencies = [
@@ -524,10 +578,11 @@ dependencies = [
  "omega-backend-plan",
  "omega-backend-report",
  "omega-build-declarations",
+ "omega-build-evaluation",
+ "omega-build-output",
  "omega-calling-conventions",
  "omega-checked-trees-to-state-graph",
- "omega-component-deployment",
- "omega-component-publication",
+ "omega-compilation-report",
  "omega-control-flow",
  "omega-core",
  "omega-effects",
@@ -544,12 +599,17 @@ dependencies = [
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-pipeline",
+ "omega-package-compilation",
  "omega-platform-interface",
+ "omega-program-storage",
+ "omega-provider-planning",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
  "omega-runtime-storage",
  "omega-runtime-text",
+ "omega-selected-dispatch",
+ "omega-source-profile",
  "omega-state-calls",
  "omega-state-graph",
  "omega-state-graph-to-control-flow",
@@ -562,14 +622,14 @@ dependencies = [
  "omega-task-plans",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
- "omega-terminal-component-candidate",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "omega-terminal-machine-emission",
- "omega-terminal-native-artifact",
+ "omega-terminal-native-realization",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "omega-trust-ledger",
  "omega-visualizations",
  "psi-access-plans",
  "psi-arena",
@@ -1090,14 +1150,18 @@ dependencies = [
  "omega-executable-installation",
  "omega-external-roots",
  "omega-instruction-selection",
+ "omega-provider-planning",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
  "omega-terminal-assigned-target-operations",
+ "omega-terminal-component-candidate",
  "omega-terminal-image-emission",
  "omega-terminal-installation-evidence",
  "omega-terminal-machine-code",
  "omega-terminal-machine-emission",
+ "omega-terminal-native-artifact",
+ "omega-terminal-native-realization",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
@@ -1238,6 +1302,47 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-package-compilation"
+version = "0.1.0"
+dependencies = [
+ "omega-build-output",
+ "omega-target",
+ "psi-build-time-evaluation",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-source",
+ "sha2",
+]
+
+[[package]]
+name = "omega-package-review"
+version = "0.1.0"
+dependencies = [
+ "omega-build-evaluation",
+ "omega-compiler",
+ "omega-effects",
+ "omega-package-compilation",
+ "omega-provider-planning",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+ "psi-validation",
+ "sha2",
+]
+
+[[package]]
 name = "omega-packages"
 version = "0.1.0"
 dependencies = [
@@ -1246,8 +1351,13 @@ dependencies = [
  "command-group",
  "nix",
  "omega-build-declarations",
+ "omega-build-evaluation",
+ "omega-build-provenance",
  "omega-compiler",
+ "omega-package-compilation",
+ "omega-package-review",
  "omega-platform-custody",
+ "psi-checked-interpreter",
  "psi-core",
  "psi-diagnostics",
  "psi-source",
@@ -1274,6 +1384,72 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "omega-program-storage"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-backend-pipeline",
+ "omega-backend-plan",
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-effects",
+ "omega-external-roots",
+ "omega-image",
+ "omega-instruction-selection",
+ "omega-isa-x86_64",
+ "omega-layout",
+ "omega-machine-bytes",
+ "omega-object-file",
+ "omega-runtime-storage",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-extents",
+ "psi-language-semantics",
+ "psi-symbols",
+ "psi-typed-trees",
+]
+
+[[package]]
+name = "omega-provider-planning"
+version = "0.1.0"
+dependencies = [
+ "omega-backend-plan",
+ "omega-calling-conventions",
+ "omega-effects",
+ "omega-executable-installation",
+ "omega-external-roots",
+ "omega-instruction-selection",
+ "omega-layout",
+ "omega-package-compilation",
+ "omega-program-storage",
+ "omega-target",
+ "omega-task-plans",
+ "omega-trust-ledger",
+ "omega-visualizations",
+ "psi-arena",
+ "psi-build-time-evaluation",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-numerics",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",
@@ -1436,6 +1612,36 @@ dependencies = [
  "omega-state-storage",
  "psi-arena",
  "psi-checked-trees",
+]
+
+[[package]]
+name = "omega-selected-dispatch"
+version = "0.1.0"
+dependencies = [
+ "omega-effects",
+ "omega-provider-planning",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-diagnostics",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "omega-source-profile"
+version = "0.1.0"
+dependencies = [
+ "psi-syntax-trees",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -1791,6 +1997,29 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-terminal-native-realization"
+version = "0.1.0"
+dependencies = [
+ "omega-effects",
+ "omega-lowering-optimizer",
+ "omega-optimization-core",
+ "omega-optimization-pipeline",
+ "omega-target",
+ "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-image-emission",
+ "omega-terminal-installation-evidence",
+ "omega-terminal-machine-emission",
+ "omega-terminal-native-artifact",
+ "omega-terminal-psi-to-abstract-operations",
+ "omega-terminal-target-operations",
+ "omega-terminal-target-operations-to-assigned-target-operations",
+ "psi-diagnostics",
+ "psi-proof-admission",
+ "psi-terminal-codec",
+]
+
+[[package]]
 name = "omega-terminal-psi-to-abstract-operations"
 version = "0.1.0"
 dependencies = [
@@ -1859,6 +2088,22 @@ dependencies = [
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
+]
+
+[[package]]
+name = "omega-trust-ledger"
+version = "0.1.0"
+dependencies = [
+ "omega-artifacts",
+ "omega-effects",
+ "omega-target",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-language-semantics",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]

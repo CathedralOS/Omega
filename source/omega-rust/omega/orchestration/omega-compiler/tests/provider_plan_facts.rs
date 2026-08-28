@@ -1,4 +1,5 @@
-use omega_compiler::{compile_to_checked, selected_external_root_provider_plan_id};
+use omega_compiler::compile_to_checked;
+use omega_provider_planning::plans::selected_external_root_provider_plan_id;
 
 #[test]
 fn checked_program_retains_the_exact_selected_provider_plan() {

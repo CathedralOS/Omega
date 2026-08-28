@@ -5,15 +5,18 @@ use crate::{
     ImmutableSourceResolution, PackageKey, ResolvedPackageSourceClosure,
     package_compilation_inputs_for,
 };
-use omega_compiler::{
-    BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
-    CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
-    OrdinaryPackageObligationLedger, PackageCompilationInputError, PackageGeneratedSourceBundle,
-    PackageReviewCanonicalRow, PackageReviewEncodingError, PackageSourceConsumptionCommitment,
-    compile_to_checked_with_packages_in_sponsored_build_dir,
-    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
-    validate_ordinary_package_obligation_ledger,
+use omega_build_evaluation::BuildObservationSummary;
+use omega_build_provenance::{CompilerExecutableCommitment, CompilerExecutableCommitmentError};
+use omega_compiler::compile_to_checked_with_packages_in_sponsored_build_dir;
+use omega_package_compilation::{
+    PackageCompilationInputError, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
+use omega_package_review::{
+    CheckedPackageReviewProjection, OrdinaryPackageObligationLedger, PackageReviewCanonicalRow,
+    PackageReviewEncodingError, ordinary_package_obligation_ledger_from_compiler_rows,
+    project_checked_package_review, validate_ordinary_package_obligation_ledger,
+};
+use psi_checked_interpreter::{FilesystemSponsor, FilesystemSponsorError};
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;
 use std::fmt;

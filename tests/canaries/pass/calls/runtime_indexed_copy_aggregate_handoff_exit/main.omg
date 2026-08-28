@@ -1,0 +1,115 @@
+// A runtime-selected `[copy]` record must retain its complete representation
+// when it is passed to and returned from a value machine. The runtime index
+// keeps this on the indexed-place path instead of allowing literal folding.
+use omega::language::std::console;
+
+data Header [copy] {
+    tag: u8;
+    first: u8;
+    second: u8;
+    third: u8;
+    source: u32 in Wrapping;
+    start: u64 in Wrapping;
+    end: u64 in Wrapping;
+    decoded_start: u64 in Wrapping;
+    decoded_length: u64 in Wrapping;
+}
+
+data HeaderStore {
+    headers: [Header; 16384] in Trapping;
+}
+
+data HeaderOwner {
+    output: HeaderStore;
+}
+
+data HeaderSink {
+    tag: u8;
+    first: u8;
+    second: u8;
+    third: u8;
+    source: u32 in Wrapping;
+    start: u64 in Wrapping;
+    end: u64 in Wrapping;
+    decoded_start: u64 in Wrapping;
+    decoded_length: u64 in Wrapping;
+}
+
+machine HeaderSink::accept(&mut self, header: Header) {
+    self.tag = header.tag;
+    self.first = header.first;
+    self.second = header.second;
+    self.third = header.third;
+    self.source = header.source;
+    self.start = header.start;
+    self.end = header.end;
+    self.decoded_start = header.decoded_start;
+    self.decoded_length = header.decoded_length;
+}
+
+machine round_trip(header: Header) -> Header {
+    header
+}
+
+machine HeaderStore::select(&self, index: u64 [0..=2]) -> Header {
+    transition index < 3 {
+        true -> present(index)
+        false -> absent()
+    }
+
+    state present(&self, retained: u64 [0..=2]) -> Header {
+        self.headers[retained]
+    }
+
+    state absent(&self) -> Header {
+        Header {
+            tag: 0, first: 0, second: 0, third: 0, source: 0,
+            start: 0, end: 0, decoded_start: 0, decoded_length: 0
+        }
+    }
+}
+
+data Main {
+    console: Console;
+    line: [u8; 8];
+    owner: HeaderOwner;
+    sink: HeaderSink;
+    selected: u64 [0..=2];
+}
+
+machine Main::main(&mut self) {
+    self.console.read_line(&mut self.line);
+    self.owner.output.headers[0] = Header {
+        tag: 1, first: 2, second: 3, third: 4, source: 5,
+        start: 6, end: 7, decoded_start: 8, decoded_length: 9
+    };
+    self.owner.output.headers[1] = Header {
+        tag: self.line[0],
+        first: self.line[1],
+        second: 17,
+        third: 18,
+        source: 19,
+        start: self.line[2] as u64,
+        end: self.line[3] as u64,
+        decoded_start: 20,
+        decoded_length: 21
+    };
+    self.owner.output.headers[2] = Header {
+        tag: 9, first: 8, second: 7, third: 6, source: 5,
+        start: 4, end: 3, decoded_start: 2, decoded_length: 1
+    };
+    self.selected = 1;
+    let picked: Header = self.owner.output.select(self.selected);
+    self.sink.accept(picked);
+
+    transition self.sink.tag == 5 && self.sink.first == 27 &&
+        self.sink.second == 17 && self.sink.third == 18 && self.sink.source == 19 &&
+        self.sink.start == 33 && self.sink.end == 44 &&
+        self.sink.decoded_start == 20 && self.sink.decoded_length == 21 {
+        true -> good()
+        false -> bad()
+    }
+
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self) { self.console.exit_process(71); }
+}

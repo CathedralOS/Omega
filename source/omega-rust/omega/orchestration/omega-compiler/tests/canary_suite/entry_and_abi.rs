@@ -281,7 +281,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(source_signature.state_name(), bridge.continuation_state());
     assert_eq!(
         source_signature.result(),
-        omega_compiler::ProgramEntrySourceResultSignature::Unit
+        omega_program_storage::ProgramEntrySourceResultSignature::Unit
     );
     assert!(!source_signature.normalized_callable_identity().is_empty());
     assert_eq!(
@@ -295,7 +295,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(binding.image().carrier_identity(), "named(name(Extent))");
     assert_eq!(
         image.role(),
-        omega_compiler::ProgramStorageEntryRootRole::Image
+        omega_program_storage::ProgramStorageEntryRootRole::Image
     );
     assert_eq!(
         image.normalized_type_identity(),
@@ -308,7 +308,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     );
     assert_eq!(
         initial_storage.role(),
-        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
     );
     assert_eq!(
         initial_storage.normalized_type_identity(),
@@ -329,7 +329,7 @@ fn uefi_program_entry_retains_exact_storage_root_binding() {
     assert_eq!(continuation_abi.call().parameters.len(), 3);
     assert!(matches!(
         continuation_abi.receiver(),
-        omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::BorrowedActivationLoan {
+        omega_program_storage::ProgramStorageEntryContinuationReceiverAbiPlan::BorrowedActivationLoan {
             parameter_index: 0,
             ..
         }

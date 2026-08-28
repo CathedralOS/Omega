@@ -1,4 +1,4 @@
-use crate::pipeline::compile_options::CompileOptions;
+use crate::compiler::CompileOptions;
 use omega_artifacts::{
     ArtifactWriter, WireCaseReportEntry, WireCompatibilityDemandReportEntry,
     WireCompatibilityFactReport, WireCompatibilityVerdicts, WireFieldRelevance,
@@ -29,6 +29,17 @@ pub(super) fn write_wire_protocol_report(
             .map_err(|diagnostic| vec![diagnostic])?;
     }
 
+    validate_wire_protocol_report(&report)
+}
+
+pub(super) fn validate_wire_protocol(
+    typed: &TypedTrees,
+    compatibility_demands: &[super::build_config::WireCompatibilityDemand],
+) -> Result<(), Vec<Diagnostic>> {
+    validate_wire_protocol_report(&build_wire_protocol_report(typed, compatibility_demands))
+}
+
+fn validate_wire_protocol_report(report: &WireProtocolReport) -> Result<(), Vec<Diagnostic>> {
     let diagnostics = report
         .demands
         .iter()

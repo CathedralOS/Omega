@@ -43,9 +43,10 @@ These facts constrain the work below.
   register and instruction-constraint vocabularies with total structural
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
   for bounded liveness, ranges, candidate legality, the first strict
-  transition-free physical-home assignment, one exact distinct Use-to-later-
-  Def tied-home form, one exact single-Def-against-Uses early-clobber form, and
-  a separately validated local pressure-victim decision. It is not yet a
+  transition-free physical-home assignment, arbitrary transitive components
+  of distinct earlier-Use-to-later-Def ties, one exact single-Def-against-Uses
+  early-clobber form, and a separately validated local pressure-victim
+  decision. It is not yet a
   general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
   spill, reload, rematerialize, allocate a frame, or emit instructions.
@@ -181,10 +182,13 @@ These facts constrain the work below.
   relocation-free per-function byte fragments while retaining the zero-byte
   row, provenance, successor bindings, and path fuel. Those fragments can now
   be placed densely in one validated text section with exact coordinates and a
-  closed proof that the current inventory needs no relocations. Symbols, object
-  container/serialization, external entry bridging, executable-image
-  construction, installation, and publication remain closed and install no
-  output.
+  closed proof that the current inventory needs no relocations. A clean object-
+  owned plan now gives every placed function one private `MachineId`-rooted
+  symbol, binds the semantic entry to one object-local symbol, serializes a
+  strict relocation-free Omega object container, and independently replays the
+  exact zero-relocation conclusion. External/process entry bridging, native
+  image construction, installation, and publication remain closed and install
+  no output.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -677,9 +681,11 @@ These facts constrain the work below.
   provenance, successor, and fuel custody. A second strict v1 manifest places
   them densely into a validated text section, binds every section coordinate
   and aggregate byte, and proves the current inventory requires no relocations.
-  Frame construction, symbols, object container/serialization, external entry
-  bridge, image, installation, and publication remain unavailable. Final
-  physical/publication and artifact metadata remain open.
+  A third strict v1 manifest binds a clean object plan, private function-symbol
+  roster, object-local semantic-entry binding, strict container bytes, and zero
+  relocation records. Frame construction, external/process entry bridging,
+  native image construction, installation, and publication remain unavailable.
+  Final physical/publication and artifact metadata remain open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -831,8 +837,11 @@ dependency.
   contract. A separate strict v1 function-fragment manifest now joins either
   the completed x86 rel8 or AArch64 CBNZ realization to relocation-free bytes
   and a strict v1 text-section manifest binds deterministic placement and a
-  closed no-relocation proof while declaring symbols, object container, entry
-  bridge, image, installation, and publication unavailable. This task
+  closed no-relocation proof. A strict v1 object-container manifest then binds
+  private symbols, the object-local semantic entry, canonical container bytes,
+  and the independently replayed absence of relocation records while declaring
+  the external entry bridge, image, installation, and publication unavailable.
+  This task
   now also includes an explicit suppressible root-build human-report request
   and a pipeline-owned cumulative carrier over all currently available
   records. This task remains open for general frame/call/save-restore data,
@@ -1221,10 +1230,16 @@ dependency.
   exact, wrapping, and saturating fixed-width signed/unsigned operations. It
   consumes the literal-zero and accepted-obligation facts, declines missing
   evidence or a nonliteral/nonzero left operand, and independently rejects a
-  foreign policy, operand, or proof row. Candidate schema remains v24 so adding
-  the new closed identity tags cannot rehash or retie-break existing candidates;
-  optimization-unit identity remains v10. The named v5 pass, prephysical
-  manifest v18, and projection validator v19 bind the expanded rule schedule;
+  foreign policy, operand, or proof row. The sixth rule,
+  `live-proof-certified-exact-integer-zero-value-shift-elimination.v1`, rewrites
+  exact fixed-width signed/unsigned `0 << count` or `0 >> count` to the existing
+  direct typed zero operand. The count need not be literal, but the operation
+  must retain the exact verifier-accepted obligation proving its authored shift
+  is defined; wrapping shifts remain outside this proof-bearing family.
+  Candidate schema remains v24 so adding the new closed identity tags cannot
+  rehash or retie-break existing candidates; optimization-unit identity remains
+  v10. The named v6 pass, prephysical manifest v19, and projection validator
+  v20 bind the expanded rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.
@@ -1505,15 +1520,19 @@ dependency.
   validator reconstructs CFG order, effects, transfers, canonical sets, and a
   domain-separated content identity. Opt-in orchestration retains this result
   only in a nested custody carrier that grants no interval, allocation,
-  emission, or publication authority. The v3 analysis admits the named
-  `DistinctUseToDefTiedHomesV1` topology: at most one distinct earlier Use and
-  later Def tie per VReg pair and instruction, with each VReg participating in
-  at most one pair per function. It also admits
+  emission, or publication authority. The v4 analysis admits any canonical set
+  of distinct earlier-Use-to-later-Def ties within the selected SSA vocabulary.
+  Multiple Defs may
+  target one Use, and a VReg may join later ties, so chains and forks form one
+  transitive same-home component while preserving every ordered tie-edge row.
+  It also admits
   `SingleDistinctDefAgainstUsesEarlyClobberV1`: at most one instruction per
   function with exactly one early-clobber Def and one or more distinct Uses,
   with no UseDef, tie, additional Def, or repeated participant. Other
-  early-clobber and tied topologies reject rather than pretending their phase
-  semantics are complete. A second independently validated artifact converts
+  UseDef, overlapping tie/early-clobber participants, and other early-clobber
+  topologies reject rather than pretending their phase semantics are complete.
+  Disjoint tied components and the one admitted early-clobber row may coexist.
+  A second independently validated artifact converts
   the facts into maximal half-open fragments within each block, exact
   polarity/edge connectors across blocks, ordered occurrence and fixed-view
   sites, separate architectural-unit fragments/actions, and canonical unordered
@@ -1544,11 +1563,15 @@ dependency.
   only transition-free plans,
   chooses the lowest stable shared legal view in first-live-point/VReg order,
   checks exact interference and complete write footprints, and is independently
-  replayed. A supported tied pair becomes one canonical bundle over the union
-  envelope; production and replay intersect both members' point candidates and
-  assign the same lowest view. Tied-member interference, disjoint candidates,
-  unresolved transitions, and pressure requiring a spill reject. Spill-choice
-  also fails closed while a tied bundle is present. This does not authorize
+  replayed. Each tied component becomes one canonical bundle over the union
+  envelope; production union-find and separately coded replay set-merging
+  derive the same lowest-VReg-led component, intersect every member's ordinary
+  and early-clobber point candidates, and assign one lowest stable view. Every
+  unordered member pair must be noninterfering. Component interference,
+  disjoint candidates, unresolved transitions, and pressure requiring a spill
+  reject. Spill-choice also fails closed while any tied component is present.
+  Liveness/live-range identity is v4 and the strict home identity/codec is v5.
+  This does not authorize
   physical emission. Home production and independent replay separately require
   the early Def view's complete write footprint to be disjoint from every Use
   view even when a dying Use has expired from the ordinary active set;
@@ -1585,8 +1608,9 @@ dependency.
   analysis/allocation/machine replay boundary.
 
   Remaining to close: live-interval construction, loop weights, calls and call
-  crossings, crashes, cleanup and suspension frontiers, and general tied,
-  UseDef, and early-clobber handling beyond the two exact admitted forms. General
+  crossings, crashes, cleanup and suspension frontiers, UseDef representation,
+  and early-clobber/tie composition beyond the disjoint exact admitted forms.
+  General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
   rest of the legalized instruction vocabulary.
@@ -1984,11 +2008,24 @@ dependency.
   container/serialization, external entry bridge, executable image,
   installation, and publication remain unavailable.
 
+  The next object-owned boundary now consumes that validated text section by
+  value. `ValidatedRelocationFreeTerminalObjectContainerV1` creates exactly one
+  private object-local symbol per placed function in source order, names each
+  from its `MachineId`, covers the text section with exact dense symbol
+  intervals, and binds the semantic entry to exactly one of those symbols even
+  when it is not the first function and begins at a nonzero section offset. It
+  deliberately does not create reserved process-entry names such as `main` or
+  `_main`. The strict `OMGTRO` v1 container and `OMGTOM` v1 manifest bind the
+  canonical target, source text-section identity, symbol roster, semantic-entry
+  role, exact bytes, and independently reconstructed zero-relocation record
+  count. External/process entry bridging, native image construction,
+  installation, and publication remain unavailable.
+
   Remaining for the named rel8 rule: replace the current compiler execution
-  gate with an end-to-end selected-build path that carries the validated text
-  section through symbol/entry, object, artifact, and publication custody. Until
-  those downstream authorities exist, a build that explicitly selects the rule
-  is parsed and identified but still fails without installing output.
+  gate with an end-to-end selected-build path that carries the validated object
+  container through external entry, native artifact, and publication custody.
+  Until those downstream authorities exist, a build that explicitly selects
+  the rule is parsed and identified but still fails without installing output.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
   selected IR admits them, general CFG layout and non-fallthrough terminator

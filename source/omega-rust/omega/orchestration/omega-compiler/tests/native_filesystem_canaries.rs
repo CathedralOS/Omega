@@ -17,7 +17,11 @@ static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 fn compile_program(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 fn compile_exact_macos_entry(
@@ -105,9 +109,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler",
-        )
+        .expect("omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler")
         .to_path_buf()
 }
 

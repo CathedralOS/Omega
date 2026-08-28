@@ -9,14 +9,14 @@ use omega_calling_conventions::{
     RegisterSet, StackDomainRef, StateFootprintEvidence, ValueShape,
     evaluate_ordinary_boundary_entry_plan, validate_entry_stack_realization,
 };
-use omega_compiler::{
-    CompileOptions, PROGRAM_STORAGE_INSTALLATION_ARTIFACT,
-    ProgramLocalStorageInstallationHandoffError,
+use omega_compiler::{CompileOptions, compile_to_checked};
+use omega_program_storage::{
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramLocalStorageInstallationHandoffError,
     ProgramLocalStorageRecordedWholeRootArgumentRecovery, SelectedProgramStorageEntryPlan,
     bind_program_local_storage_entry_emitted_whole_root_arguments,
     bind_program_local_storage_entry_whole_root_logical_values,
     bind_program_local_storage_entry_whole_root_operands, bind_program_storage_entry_plan,
-    bind_recorded_program_local_storage_entry_whole_root_arguments, compile_to_checked,
+    bind_recorded_program_local_storage_entry_whole_root_arguments,
     establish_program_storage_entry_program_local_roots,
     install_established_program_storage_entry_program_local_roots,
     plan_program_local_storage_entry_wrapper_caller_frame,
@@ -27,7 +27,11 @@ use omega_compiler::{
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 use omega_effects::provider_plan::{
@@ -670,7 +674,7 @@ fn publish_lifecycle_era(
     ledger.publish(candidate, receipt).expect("publish era");
 }
 
-fn binding(requirement_identity: &str) -> omega_compiler::ProgramStorageEntryPlanBinding {
+fn binding(requirement_identity: &str) -> omega_program_storage::ProgramStorageEntryPlanBinding {
     let boundary = boundary();
     let claims = (0..2)
         .map(|parameter_index| ServiceEntryClaim {
@@ -726,7 +730,7 @@ fn compiled_receiver_free_bridge(
     label: &str,
 ) -> (
     PathBuf,
-    omega_compiler::ProgramStorageEntryNativeBridgePlan,
+    omega_program_storage::ProgramStorageEntryNativeBridgePlan,
     psi_terminal_codec::VerifiedProgramLocalRootProducerCatalog,
     TestTerminalObject,
 ) {

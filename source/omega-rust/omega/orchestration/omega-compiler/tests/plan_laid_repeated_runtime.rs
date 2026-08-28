@@ -1,15 +1,20 @@
 //! End-to-end oracles for plan-laid outer fixed arrays whose validated
 //! destinations retain a constant physical stride larger than element width.
 
-use omega_compiler::{
-    BuildTimeValue, CompileOptions, compile_to_checked, compute_layout_plan,
-    evaluate_and_materialize_typed_owned_layout_into, materialize_typed_owned_layout_into,
+use omega_compiler::{CompileOptions, compile_to_checked};
+use psi_build_time_evaluation::{
+    BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
+    materialize_typed_owned_layout_into,
 };
 
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 use psi_checked_interpreter::interpret_entry;
 use psi_layout_plans::ByteOrder;
@@ -29,9 +34,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler",
-        )
+        .expect("omega-compiler lives under source/omega-rust/omega/orchestration/omega-compiler")
         .to_path_buf()
 }
 

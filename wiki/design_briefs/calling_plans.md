@@ -1541,7 +1541,7 @@ Native execution consumers no longer reconstruct the executable name from a
 build-directory convention. The report exposes its flat installed path only
 after replaying both the complete publication graph and optional
 program-storage bridge custody; check-only, object-container, or internally
-drifted reports return no executable path. The `omega-run` probe consumes only
+drifted reports return no executable path. The `omega run` probe consumes only
 that checked receipt path.
 
 The shared report-and-capability native execution helper now takes the checked

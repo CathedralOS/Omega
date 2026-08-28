@@ -527,14 +527,7 @@ fn reject_v1_unsupported(
             .iter()
             .filter(|operand| operand.tied_to.is_some())
             .collect::<Vec<_>>();
-        if tied.len() > 1 {
-            return Err(TerminalLivenessError::UnsupportedTiedOperand {
-                function: function_index,
-                instruction: instruction.id.0,
-                operand: tied[1].operand,
-            });
-        }
-        if let Some(definition) = tied.first() {
+        for definition in tied {
             let Some(use_operand) = instruction
                 .operands
                 .iter()
@@ -552,8 +545,6 @@ fn reject_v1_unsupported(
                 || definition.virtual_register == use_operand.virtual_register
                 || definition.class != use_operand.class
                 || use_operand.tied_to.is_some()
-                || !tied_registers.insert(use_operand.virtual_register)
-                || !tied_registers.insert(definition.virtual_register)
             {
                 return Err(TerminalLivenessError::UnsupportedTiedOperand {
                     function: function_index,
@@ -561,6 +552,8 @@ fn reject_v1_unsupported(
                     operand: definition.operand,
                 });
             }
+            tied_registers.insert(use_operand.virtual_register);
+            tied_registers.insert(definition.virtual_register);
         }
     }
     if let Some((_, instruction, operand)) = early_registers
@@ -616,6 +609,22 @@ mod tests {
         let replayed = replay_function(0, &function).unwrap();
         assert_eq!(computed, replayed);
         assert_eq!(computed.operand_positions[1].tied_to, Some(0));
+    }
+
+    #[test]
+    fn independent_liveness_replay_accepts_transitive_tied_component() {
+        let function = crate::compute::tests::supported_tied_component_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert_eq!(
+            computed
+                .operand_positions
+                .iter()
+                .filter(|operand| operand.tied_to.is_some())
+                .count(),
+            2
+        );
     }
 
     #[test]

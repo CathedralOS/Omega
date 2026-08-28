@@ -68,7 +68,7 @@ Git history is their archive.
 | Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
 | Gamma | interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution |
 | Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
-| Omega source | permanent owners under `source/psi` and `source/omega` | finish the product compiler and freeze the exact surface actually used by `C` |
+| Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | finish the product compiler and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
 
 ## Execution queue
@@ -167,6 +167,9 @@ of compiler modules that do not exercise target selection.
 
 ### 6. Keep orchestration non-authoritative
 
+- [x] Keep one Omega-written product source tree under `source/omega/`, with
+  target-neutral Psi phases nested under `source/omega/psi/`; do not create a
+  standalone Psi rung or an `omega-bootstrap` owner.
 - [x] Maintain one short optional runner that invokes the independently
   executable gates in order.
 - [x] Remove obsolete aliases, cache profiles, historical bridge formats, and

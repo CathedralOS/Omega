@@ -48,7 +48,6 @@ application declares itself an application:
 ```omega
 machine build(builder: &mut Build) {
     builder.member("source/library/std");
-    builder.member("source/psi");
     builder.member("source/omega");
 }
 ```

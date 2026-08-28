@@ -101,6 +101,12 @@ pub fn validate_terminal_register_homes(
             .iter()
             .map(|function| function.tied_pairs.len())
             .sum(),
+        tied_component_count: ranges
+            .plan()
+            .functions
+            .iter()
+            .map(|function| receipt_tied_component_count(&function.tied_pairs))
+            .sum(),
         early_clobber_count: ranges
             .plan()
             .functions
@@ -109,6 +115,41 @@ pub fn validate_terminal_register_homes(
             .sum(),
     };
     Ok(ValidatedTerminalRegisterHomes { plan, receipt })
+}
+
+fn receipt_tied_component_count(ties: &[crate::TerminalDistinctUseDefTie]) -> usize {
+    let mut components = Vec::<BTreeSet<TerminalVirtualRegisterId>>::new();
+    for tie in ties {
+        let used = components
+            .iter()
+            .position(|component| component.contains(&tie.use_virtual_register));
+        let defined = components
+            .iter()
+            .position(|component| component.contains(&tie.def_virtual_register));
+        match (used, defined) {
+            (None, None) => components.push(BTreeSet::from([
+                tie.use_virtual_register,
+                tie.def_virtual_register,
+            ])),
+            (Some(component), None) => {
+                components[component].insert(tie.def_virtual_register);
+            }
+            (None, Some(component)) => {
+                components[component].insert(tie.use_virtual_register);
+            }
+            (Some(left), Some(right)) if left != right => {
+                let (keep, remove) = if left < right {
+                    (left, right)
+                } else {
+                    (right, left)
+                };
+                let removed = components.remove(remove);
+                components[keep].extend(removed);
+            }
+            (Some(_), Some(_)) => {}
+        }
+    }
+    components.len()
 }
 
 pub(crate) fn replay_function(
@@ -122,47 +163,82 @@ pub(crate) fn replay_function(
             function: function_index,
         });
     }
-    let mut membership = BTreeMap::<TerminalVirtualRegisterId, TerminalVirtualRegisterId>::new();
+    let classes = legality
+        .virtual_registers
+        .iter()
+        .map(|register| (register.virtual_register, register.class))
+        .collect::<BTreeMap<_, _>>();
+    let mut components = legality
+        .virtual_registers
+        .iter()
+        .map(|register| BTreeSet::from([register.virtual_register]))
+        .collect::<Vec<_>>();
     for tie in &ranges.tied_pairs {
-        let leader = tie.use_virtual_register.min(tie.def_virtual_register);
-        if membership
-            .insert(tie.use_virtual_register, leader)
-            .is_some()
-            || membership
-                .insert(tie.def_virtual_register, leader)
-                .is_some()
-            || tie.use_virtual_register == tie.def_virtual_register
+        if tie.use_virtual_register == tie.def_virtual_register
+            || classes.get(&tie.use_virtual_register) != Some(&tie.class)
+            || classes.get(&tie.def_virtual_register) != Some(&tie.class)
         {
             return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
                 function: function_index,
                 instruction: tie.instruction.0,
             });
         }
-        if ranges.interference.iter().any(|pair| {
-            (pair.lower == tie.use_virtual_register && pair.higher == tie.def_virtual_register)
-                || (pair.higher == tie.use_virtual_register
-                    && pair.lower == tie.def_virtual_register)
-        }) {
-            let lower = tie.use_virtual_register.min(tie.def_virtual_register);
-            let higher = tie.use_virtual_register.max(tie.def_virtual_register);
-            return Err(TerminalRegisterHomeError::TiedRegistersInterfere {
-                function: function_index,
-                lower: lower.0,
-                higher: higher.0,
-            });
+        let used = components
+            .iter()
+            .position(|component| component.contains(&tie.use_virtual_register))
+            .expect("validated use register has a singleton component");
+        let defined = components
+            .iter()
+            .position(|component| component.contains(&tie.def_virtual_register))
+            .expect("validated definition register has a singleton component");
+        if used != defined {
+            let (keep, remove) = if used < defined {
+                (used, defined)
+            } else {
+                (defined, used)
+            };
+            let removed = components.remove(remove);
+            components[keep].extend(removed);
         }
     }
-    let mut groups = BTreeMap::<TerminalVirtualRegisterId, Vec<usize>>::new();
-    for (position, register) in legality.virtual_registers.iter().enumerate() {
-        let leader = membership
-            .get(&register.virtual_register)
+    components.sort_by_key(|component| {
+        component
+            .first()
             .copied()
-            .unwrap_or(register.virtual_register);
-        groups.entry(leader).or_default().push(position);
+            .expect("component has at least one member")
+    });
+    for component in &components {
+        let members = component.iter().copied().collect::<Vec<_>>();
+        for (left_index, left) in members.iter().enumerate() {
+            for right in members.iter().skip(left_index + 1) {
+                if ranges.interference.iter().any(|pair| {
+                    (pair.lower == *left && pair.higher == *right)
+                        || (pair.higher == *left && pair.lower == *right)
+                }) {
+                    return Err(TerminalRegisterHomeError::TiedRegistersInterfere {
+                        function: function_index,
+                        lower: left.0.min(right.0),
+                        higher: left.0.max(right.0),
+                    });
+                }
+            }
+        }
     }
-    let mut positions = groups
-        .into_values()
-        .map(|members| replay_group(function_index, &members, legality))
+    let mut positions = components
+        .into_iter()
+        .map(|component| {
+            let members = legality
+                .virtual_registers
+                .iter()
+                .enumerate()
+                .filter_map(|(position, register)| {
+                    component
+                        .contains(&register.virtual_register)
+                        .then_some(position)
+                })
+                .collect::<Vec<_>>();
+            replay_group(function_index, &members, legality)
+        })
         .collect::<Result<Vec<_>, _>>()?;
     positions.sort_by_key(|(members, start, _, _)| {
         (
@@ -258,7 +334,7 @@ fn replay_group(
     members: &[usize],
     legality: &crate::TerminalFunctionAllocationLegality,
 ) -> Result<ReplayGroup, TerminalRegisterHomeError> {
-    if members.is_empty() || members.len() > 2 {
+    if members.is_empty() {
         return Err(TerminalRegisterHomeError::FunctionMismatch { function });
     }
     let mut start = None;
@@ -297,11 +373,11 @@ fn replay_group(
     }
     let shared = shared.expect("replay group is nonempty");
     if shared.is_empty() {
-        if members.len() == 2 {
-            return Err(TerminalRegisterHomeError::NoCommonTiedCandidate {
+        if members.len() > 1 {
+            return Err(TerminalRegisterHomeError::NoCommonTiedComponent {
                 function,
-                lower: legality.virtual_registers[members[0]].virtual_register.0,
-                higher: legality.virtual_registers[members[1]].virtual_register.0,
+                leader: legality.virtual_registers[members[0]].virtual_register.0,
+                member_count: members.len(),
             });
         }
         return Err(TerminalRegisterHomeError::NoCommonCandidate {

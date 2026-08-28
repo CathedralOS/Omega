@@ -22,6 +22,78 @@ fn assert_native_exit_code(
 }
 
 #[test]
+fn runtime_indexed_copy_aggregate_handoff_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_indexed_copy_aggregate_handoff_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("runtime-indexed copy-aggregate handoff should reach checked trees");
+    let stdin = [5, 27, 33, 44, b'\n'];
+    let interpreted = interpret(&checked, &stdin);
+    assert_eq!(interpreted.error, None, "reference execution should succeed");
+    assert_eq!(interpreted.exit_code, 70, "reference execution should retain every field");
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-indexed-copy-aggregate-handoff-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("runtime-indexed copy-aggregate handoff should compile natively");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("runtime-indexed copy-aggregate handoff should retain its executable receipt");
+    let mut child = Command::new(executable)
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("runtime-indexed copy-aggregate handoff should run");
+    child.stdin.as_mut().expect("stdin pipe should exist").write_all(&stdin)
+        .expect("runtime input should be written");
+    let output = child.wait_with_output().expect("native execution should finish");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "the argument and return handoffs should retain every selected field; got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
+fn runtime_mutable_call_before_transition_args_exit_canary_runs() {
+    let canary = pass_canary("calls/runtime_mutable_call_before_transition_args_exit");
+    let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
+        .expect("mutable-call statement-order canary should reach checked trees");
+    let stdin = [5, 27, 33, 44, b'\n'];
+    let interpreted = interpret(&checked, &stdin);
+    assert_eq!(interpreted.error, None, "reference execution should succeed");
+    assert_eq!(interpreted.exit_code, 70, "reference execution should observe the call writes");
+
+    let build_dir = std::env::temp_dir().join(format!(
+        "omega-runtime-mutable-call-before-transition-args-{}",
+        std::process::id()
+    ));
+    let _ = fs::remove_dir_all(&build_dir);
+    let compilation = compile_rooted_canary_for_native_host(&canary, build_dir.clone())
+        .expect("mutable-call statement-order canary should compile natively");
+    let executable = compilation
+        .checked_native_executable_path()
+        .expect("mutable-call statement-order canary should retain its executable receipt");
+    let mut child = Command::new(executable)
+        .stdin(Stdio::piped())
+        .spawn()
+        .expect("mutable-call statement-order canary should run");
+    child.stdin.as_mut().expect("stdin pipe should exist").write_all(&stdin)
+        .expect("runtime input should be written");
+    let output = child.wait_with_output().expect("native execution should finish");
+    assert_eq!(
+        output.status.code(),
+        Some(70),
+        "transition args should observe scalar writes from the preceding statement call; got {:?}",
+        output.status.code(),
+    );
+    let _ = fs::remove_dir_all(&build_dir);
+}
+
+#[test]
 fn runtime_referenced_local_outlives_sibling_guard_call_exit_canary_runs() {
     let canary = pass_canary("calls/runtime_referenced_local_outlives_sibling_guard_call_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)

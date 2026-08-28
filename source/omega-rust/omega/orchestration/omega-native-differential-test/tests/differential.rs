@@ -17,7 +17,7 @@
 
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
-    CompileRequest, compile, compile_harness, compile_to_checked,
+    compile_harness, compile_to_checked,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -2935,8 +2935,9 @@ fn try_compile_and_run_native_with_stdin(
                 .with_worker_count(worker_count)
                 .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
-        (true, None) => compile(
-            CompileRequest::new(options).with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+        (true, None) => compile_harness(
+            CompileHarnessRequest::new(options)
+                .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
         (false, Some(worker_count)) => compile_harness(
             CompileHarnessRequest::new(options)
@@ -3005,9 +3006,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-native-differential-test lives under source/omega-rust/omega/orchestration",
-        )
+        .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
         .to_path_buf()
 }
 
@@ -3031,7 +3030,7 @@ enum PendingInterpOutcome {
 /// covers compile accepts-vs-rejects; THIS covers the runtime legs, so a fix
 /// landing on either side (a const-fold repair, a design call implemented)
 /// fails loudly with a promote signal instead of waiting for a manual
-/// omega-run sweep. Entries mirror tests/canaries/pending/*/ headers -- update BOTH
+/// `omega run` sweep. Entries mirror tests/canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:

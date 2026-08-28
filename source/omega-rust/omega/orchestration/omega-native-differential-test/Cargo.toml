@@ -34,6 +34,7 @@ omega-compiler = { path = "../omega-compiler" }
 omega-artifacts = { path = "../omega-artifacts" }
 omega-component-publication = { path = "../omega-component-publication" }
 omega-component-deployment = { path = "../omega-component-deployment" }
+omega-provider-planning = { path = "../omega-provider-planning" }
 omega-external-roots = { path = "../omega-external-roots" }
 omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
@@ -50,6 +51,9 @@ omega-terminal-machine-code = { path = "../../representations/omega-terminal-mac
 omega-terminal-image-emission = { path = "../../backend/images/omega-terminal-image-emission" }
 omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
+omega-terminal-native-realization = { path = "../omega-terminal-native-realization" }
+omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
+omega-terminal-component-candidate = { path = "../omega-terminal-component-candidate" }
 omega-effects = { path = "../../representations/omega-effects" }
 
 [dev-dependencies]
