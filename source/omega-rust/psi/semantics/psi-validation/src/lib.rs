@@ -106,8 +106,8 @@ use psi_typed_trees::TypedTrees;
 use psi_typed_trees::expression::ExpressionHandle;
 use psi_typed_trees::statement::{StatementNode, TransitionTargetNode};
 pub use quotients::{
-    ValidatedQuotientFormation, extract_non_executable_quotient_correspondences,
-    validate_quotient_formations,
+    NonExecutableQuotientCorrespondenceBatch, ValidatedQuotientFormation,
+    extract_non_executable_quotient_correspondences, validate_quotient_formations,
 };
 pub use result_overloads::resolve_named_result_overloads;
 pub use traits::{

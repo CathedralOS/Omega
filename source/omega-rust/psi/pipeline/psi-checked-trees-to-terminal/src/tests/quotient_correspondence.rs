@@ -159,8 +159,11 @@ fn installs_complete_direct_define_batch_without_executable_authority() {
     );
     let program = quotient_program(&two_defines);
     assert!(psi_validation::validate_program(&program).is_err());
-    let mut expected = psi_validation::extract_non_executable_quotient_correspondences(&program)
-        .expect("extract complete direct define batch")
+    let batch = psi_validation::extract_non_executable_quotient_correspondences(&program)
+        .expect("extract complete direct define batch");
+    let mut expected = batch
+        .clone()
+        .into_correspondences()
         .into_iter()
         .map(psi_terminal::retain_non_executable_quotient_correspondence)
         .collect::<Vec<_>>();
@@ -172,7 +175,7 @@ fn installs_complete_direct_define_batch_without_executable_authority() {
     let mut module = baseline.clone();
     module.quotient_correspondences = vec![expected[0].clone()];
 
-    install_non_executable_quotient_correspondences(&program, &mut module)
+    install_non_executable_quotient_correspondences(batch, &mut module)
         .expect("install proof-only direct define batch");
 
     assert_eq!(module.quotient_correspondences, expected);
@@ -196,24 +199,22 @@ fn installs_complete_direct_define_batch_without_executable_authority() {
 fn unsupported_request_leaves_the_installed_batch_unchanged() {
     let valid = quotient_program(TOTAL_DIRECT_DEFINE);
     let mut module = baseline_module();
-    install_non_executable_quotient_correspondences(&valid, &mut module)
+    let valid_batch = psi_validation::extract_non_executable_quotient_correspondences(&valid)
+        .expect("extract initial proof-only batch");
+    install_non_executable_quotient_correspondences(valid_batch, &mut module)
         .expect("install initial proof-only batch");
     let before = module.clone();
     let mixed = format!(
         "{TOTAL_DIRECT_DEFINE}\n\nmachine unsupported(value: EquivalenceClass) -> EquivalenceClass {{\n    Quotient::lift<representative, representative_respects>(value)\n}}\n"
     );
 
-    let error =
-        install_non_executable_quotient_correspondences(&quotient_program(&mixed), &mut module)
+    let diagnostics =
+        psi_validation::extract_non_executable_quotient_correspondences(&quotient_program(&mixed))
             .expect_err("one unsupported request rejects the whole replacement batch");
-
-    let LoweringError::InvalidQuotientCorrespondence(diagnostics) = error else {
-        panic!("unexpected installer error: {error:?}")
-    };
     assert!(
         diagnostics
             .iter()
-            .any(|diagnostic| diagnostic.contains("faithful `define` only"))
+            .any(|diagnostic| diagnostic.message.contains("faithful `define` only"))
     );
     assert_eq!(module, before);
 }
@@ -221,11 +222,13 @@ fn unsupported_request_leaves_the_installed_batch_unchanged() {
 #[test]
 fn replay_failure_leaves_the_module_unchanged() {
     let program = quotient_program(TOTAL_DIRECT_DEFINE);
+    let batch = psi_validation::extract_non_executable_quotient_correspondences(&program)
+        .expect("extract proof-only batch");
     let mut module = baseline_module();
     module.entry = psi_core::MachineId::new(99).expect("nonzero invalid entry");
     let before = module.clone();
 
-    let error = install_non_executable_quotient_correspondences(&program, &mut module)
+    let error = install_non_executable_quotient_correspondences(batch, &mut module)
         .expect_err("the producer must replay the candidate module before committing rows");
 
     assert!(matches!(

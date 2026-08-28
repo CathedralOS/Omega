@@ -37,6 +37,37 @@ pub(crate) fn type_has_forbidden_denotational_content(
 
 const CORE_EQUIVALENCE_SOURCE: &str = "relation.omg";
 
+/// Complete source-free quotient-correspondence batch admitted by the narrow
+/// proof-only extraction seam.
+///
+/// The inner rows are intentionally private. Downstream Terminal producers
+/// may inspect or consume a batch, but only this validation crate can construct
+/// one after checking every retained quotient request. This preserves the
+/// extractor's all-or-nothing guarantee across the source-erasure boundary.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct NonExecutableQuotientCorrespondenceBatch {
+    correspondences:
+        Vec<psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence>,
+}
+
+impl NonExecutableQuotientCorrespondenceBatch {
+    /// Consume the validated batch at the source-erasure boundary.
+    pub fn into_correspondences(
+        self,
+    ) -> Vec<psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence> {
+        self.correspondences
+    }
+}
+
+impl std::ops::Deref for NonExecutableQuotientCorrespondenceBatch {
+    type Target =
+        [psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence];
+
+    fn deref(&self) -> &Self::Target {
+        &self.correspondences
+    }
+}
+
 /// Exact quotient-formation identity rederived from the complete typed graph.
 ///
 /// The selected equivalence conformance licenses formation but is deliberately
@@ -74,26 +105,25 @@ pub fn validate_quotient_formations(
 /// `define` bridge, no partial aggregate is returned.
 pub fn extract_non_executable_quotient_correspondences(
     program: &TypedTrees,
-) -> Result<
-    Vec<psi_language_semantics::quotient_correspondence::CanonicalQuotientCorrespondence>,
-    Vec<Diagnostic>,
-> {
+) -> Result<NonExecutableQuotientCorrespondenceBatch, Vec<Diagnostic>> {
     let proof_only = psi_typed_trees::proof_only::classify(program);
     let mut diagnostics = Vec::new();
     collect_validated_quotient_formations(program, &proof_only, &mut diagnostics);
     if !diagnostics.is_empty() {
         return Err(diagnostics);
     }
-    terminal_bridge::extract(program).map_err(|errors| {
-        errors
-            .into_iter()
-            .map(|error| {
-                Diagnostic::error(format!(
-                    "non-executable quotient correspondence extraction failed: {error}"
-                ))
-            })
-            .collect()
-    })
+    terminal_bridge::extract(program)
+        .map(|correspondences| NonExecutableQuotientCorrespondenceBatch { correspondences })
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| {
+                    Diagnostic::error(format!(
+                        "non-executable quotient correspondence extraction failed: {error}"
+                    ))
+                })
+                .collect()
+        })
 }
 
 pub(crate) fn validate_quotients(
