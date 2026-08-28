@@ -72,23 +72,7 @@ pub(crate) fn encode_terminal_pre_allocation_machine_effect_content(
             None => bytes.push(0),
             Some(call) => {
                 bytes.push(1);
-                bytes.extend_from_slice(&call.instruction.0.to_le_bytes());
-                bytes.extend_from_slice(&call.operation.get().to_le_bytes());
-                bytes.extend_from_slice(&call.callee.get().to_le_bytes());
-                encode_constraint_key(&mut bytes, call.constraint);
-                encode_units(&mut bytes, &call.unit_uses);
-                encode_units(&mut bytes, &call.unit_defs);
-                encode_units(&mut bytes, &call.unit_clobbers);
-                encode_structural_layout(&mut bytes, call.layout);
-                encode_effect_link(&mut bytes, call.effect);
-                encode_ownership(&mut bytes, &call.ownership);
-                encode_len(&mut bytes, call.claim_transfers.len());
-                for transfer in &call.claim_transfers {
-                    bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
-                    bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
-                }
-                encode_provenance(&mut bytes, &call.provenance);
-                encode_structural_declaration(&mut bytes, call.declaration);
+                encode_structural_call(&mut bytes, call);
             }
         }
         encode_ordinary_instruction(&mut bytes, &function.return_instruction);
@@ -189,12 +173,38 @@ fn encode_machine_register(
     bytes.push(tag);
 }
 
-fn encode_effect_link(bytes: &mut Vec<u8>, effect: omega_optimization_unit::EffectLink) {
+pub(crate) fn encode_structural_call(
+    bytes: &mut Vec<u8>,
+    call: &crate::TerminalStructuralUnitCallMachineEffects,
+) {
+    bytes.extend_from_slice(&call.instruction.0.to_le_bytes());
+    bytes.extend_from_slice(&call.operation.get().to_le_bytes());
+    bytes.extend_from_slice(&call.callee.get().to_le_bytes());
+    encode_constraint_key(bytes, call.constraint);
+    encode_units(bytes, &call.unit_uses);
+    encode_units(bytes, &call.unit_defs);
+    encode_units(bytes, &call.unit_clobbers);
+    encode_structural_layout(bytes, call.layout);
+    encode_effect_link(bytes, call.effect);
+    encode_ownership(bytes, &call.ownership);
+    encode_len(bytes, call.claim_transfers.len());
+    for transfer in &call.claim_transfers {
+        bytes.extend_from_slice(&transfer.claim.get().to_le_bytes());
+        bytes.extend_from_slice(&transfer.argument_index.to_le_bytes());
+    }
+    encode_provenance(bytes, &call.provenance);
+    encode_structural_declaration(bytes, call.declaration);
+}
+
+pub(crate) fn encode_effect_link(bytes: &mut Vec<u8>, effect: omega_optimization_unit::EffectLink) {
     bytes.extend_from_slice(&effect.input.to_le_bytes());
     bytes.extend_from_slice(&effect.output.to_le_bytes());
 }
 
-fn encode_ownership(bytes: &mut Vec<u8>, ownership: &[omega_optimization_unit::OwnershipEvent]) {
+pub(crate) fn encode_ownership(
+    bytes: &mut Vec<u8>,
+    ownership: &[omega_optimization_unit::OwnershipEvent],
+) {
     use omega_optimization_unit::OwnershipEvent;
     encode_len(bytes, ownership.len());
     for event in ownership {
@@ -380,7 +390,7 @@ fn encode_integer(bytes: &mut Vec<u8>, value: psi_core::IntegerValue) {
     }
 }
 
-fn encode_provenance(
+pub(crate) fn encode_provenance(
     bytes: &mut Vec<u8>,
     provenance: &omega_terminal_selected_instructions::TerminalSelectedInstructionProvenance,
 ) {

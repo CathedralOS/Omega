@@ -16,7 +16,7 @@ pub fn terminal_post_allocation_machine_identity(
     use sha2::{Digest, Sha256};
 
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-postallocation-machine.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-postallocation-machine.v4\0");
     bytes.extend_from_slice(&encode_terminal_post_allocation_machine_content(plan));
     TerminalPostAllocationMachineIdentity::from_bytes(Sha256::digest(bytes).into())
 }
@@ -47,47 +47,70 @@ pub(crate) fn encode_terminal_post_allocation_machine_content(
             bytes.extend_from_slice(&block.block.0.to_le_bytes());
             encode_len(&mut bytes, block.instructions.len());
             for instruction in &block.instructions {
-                bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
-                encode_alternative(&mut bytes, &instruction.alternative);
-                encode_len(&mut bytes, instruction.operands.len());
-                for operand in &instruction.operands {
-                    bytes.extend_from_slice(&operand.operand.to_le_bytes());
-                    bytes.extend_from_slice(&operand.virtual_register.0.to_le_bytes());
-                    bytes.extend_from_slice(&operand.class.0.to_le_bytes());
-                    bytes.extend_from_slice(&operand.view.0.to_le_bytes());
-                    bytes.push(match operand.access {
-                        RegisterOperandAccess::Use => 0,
-                        RegisterOperandAccess::Def => 1,
-                        RegisterOperandAccess::UseDef => 2,
-                    });
-                    encode_units(&mut bytes, &operand.storage_units);
-                    encode_units(&mut bytes, &operand.read_units);
-                    encode_units(&mut bytes, &operand.write_units);
-                    match operand.write_semantics {
-                        None => bytes.push(0),
-                        Some(semantics) => {
-                            bytes.push(1);
-                            bytes.push(match semantics {
-                                RegisterWriteSemantics::ExactView => 0,
-                                RegisterWriteSemantics::PreservesUnwritten => 1,
-                                RegisterWriteSemantics::ZeroExtendsParent => 2,
-                                RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
-                                RegisterWriteSemantics::Discards => 4,
-                                RegisterWriteSemantics::InstructionDefined => 5,
-                            });
-                        }
-                    }
-                }
-                encode_units(&mut bytes, &instruction.implicit_unit_uses);
-                encode_units(&mut bytes, &instruction.implicit_unit_defs);
-                encode_units(&mut bytes, &instruction.implicit_unit_clobbers);
-                encode_units(&mut bytes, &instruction.unit_uses);
-                encode_units(&mut bytes, &instruction.unit_defs);
-                encode_units(&mut bytes, &instruction.unit_clobbers);
+                encode_instruction(&mut bytes, instruction);
             }
         }
     }
+    encode_len(&mut bytes, plan.structural_unit_functions.len());
+    for function in &plan.structural_unit_functions {
+        bytes.extend_from_slice(&function.machine.get().to_le_bytes());
+        bytes.extend_from_slice(&function.block.0.to_le_bytes());
+        match &function.call {
+            None => bytes.push(0),
+            Some(call) => {
+                bytes.push(1);
+                crate::effect_identity::encode_structural_call(&mut bytes, call);
+            }
+        }
+        encode_instruction(&mut bytes, &function.return_instruction);
+        crate::effect_identity::encode_provenance(&mut bytes, &function.return_provenance);
+        crate::effect_identity::encode_effect_link(&mut bytes, function.return_effect);
+        crate::effect_identity::encode_ownership(&mut bytes, &function.return_ownership);
+    }
     bytes
+}
+
+fn encode_instruction(
+    bytes: &mut Vec<u8>,
+    instruction: &crate::TerminalPostAllocationMachineInstruction,
+) {
+    bytes.extend_from_slice(&instruction.instruction.0.to_le_bytes());
+    encode_alternative(bytes, &instruction.alternative);
+    encode_len(bytes, instruction.operands.len());
+    for operand in &instruction.operands {
+        bytes.extend_from_slice(&operand.operand.to_le_bytes());
+        bytes.extend_from_slice(&operand.virtual_register.0.to_le_bytes());
+        bytes.extend_from_slice(&operand.class.0.to_le_bytes());
+        bytes.extend_from_slice(&operand.view.0.to_le_bytes());
+        bytes.push(match operand.access {
+            RegisterOperandAccess::Use => 0,
+            RegisterOperandAccess::Def => 1,
+            RegisterOperandAccess::UseDef => 2,
+        });
+        encode_units(bytes, &operand.storage_units);
+        encode_units(bytes, &operand.read_units);
+        encode_units(bytes, &operand.write_units);
+        match operand.write_semantics {
+            None => bytes.push(0),
+            Some(semantics) => {
+                bytes.push(1);
+                bytes.push(match semantics {
+                    RegisterWriteSemantics::ExactView => 0,
+                    RegisterWriteSemantics::PreservesUnwritten => 1,
+                    RegisterWriteSemantics::ZeroExtendsParent => 2,
+                    RegisterWriteSemantics::ZeroExtendsWithinUnit => 3,
+                    RegisterWriteSemantics::Discards => 4,
+                    RegisterWriteSemantics::InstructionDefined => 5,
+                });
+            }
+        }
+    }
+    encode_units(bytes, &instruction.implicit_unit_uses);
+    encode_units(bytes, &instruction.implicit_unit_defs);
+    encode_units(bytes, &instruction.implicit_unit_clobbers);
+    encode_units(bytes, &instruction.unit_uses);
+    encode_units(bytes, &instruction.unit_defs);
+    encode_units(bytes, &instruction.unit_clobbers);
 }
 
 fn encode_alternative(bytes: &mut Vec<u8>, alternative: &TerminalMachineAlternative) {
