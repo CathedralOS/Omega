@@ -6,6 +6,14 @@
 //! after the pass manager's independent validator has accepted their outputs,
 //! and can return only a candidate identity already present in that set.
 
+mod external_schema;
+
+pub use external_schema::{
+    ExternalDecisionAction, ExternalDecisionContext, ExternalDecisionLog, ExternalDecisionPoint,
+    ExternalDecisionSchemaError, external_psi_decision_schema_v1_identity,
+    psi_target_neutral_decision_target_v1_identity,
+};
+
 use omega_optimization_core::{
     OptimizationCandidateIdentity, OptimizationDecisionIdentity, OptimizationDecisionLogIdentity,
     OptimizationReasonCode, OptimizationUnitIdentity,
