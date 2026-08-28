@@ -184,6 +184,12 @@ and are not blocked on this ruling.
   dynamic dependency closure. Section custody is also closed over the reviewed
   compiler/linker vocabulary with exact flags, zero final-image relocations,
   ARM64 stub/pointer metadata, nonoverlap, and separation from load commands.
+  Every already-limited receipt, document, assembly, artifact, diagnostic, and
+  realization-tool input is now acquired once through a bounded open-descriptor
+  snapshot with pre/post identity and extent checks plus a post-read path
+  cross-pair. Assembly-dialect and Mach-O validation consume the same captured
+  bytes retained in their identities, so a changing path cannot pair validated
+  bytes with a later digest.
   It still has no canonical-execution artifact to bind and deliberately grants
   no source-refinement authority.
 - [x] Once no exact publication attempt is live, move Delta compiler admission

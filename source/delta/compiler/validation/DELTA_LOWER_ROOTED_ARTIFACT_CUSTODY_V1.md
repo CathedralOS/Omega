@@ -37,6 +37,14 @@ inputs makes the build reproducible and prevents a result from being silently
 cross-paired with another toolchain. It does not establish that the toolchain
 is correct.
 
+Every already-limited artifact-custody input is acquired as one bounded snapshot
+from one open descriptor. The verifier reads at most the declared ceiling plus
+one byte, compares descriptor identity and extent before and after the read,
+and then cross-pairs the descriptor with the post-read path identity and
+extent. Assembly-dialect and Mach-O validation consume the same captured bytes
+used for their retained length and digest; validation and identity cannot come
+from separate reads of a changing path.
+
 ## Reconstructed custody
 
 [`lower_rooted_artifact_custody_v1.py`](lower_rooted_artifact_custody_v1.py)
