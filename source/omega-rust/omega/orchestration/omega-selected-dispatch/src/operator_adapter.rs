@@ -19,7 +19,7 @@ struct OperatorAdapterRewrite {
     entry_symbol: psi_symbols::SymbolHandle,
 }
 
-pub(crate) fn settle_selected_operator_adapter_dispatch(
+pub fn settle_selected_operator_adapter_dispatch(
     checked: &mut Arc<CheckedTrees>,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -217,7 +217,8 @@ fn resolve_operator_adapter_call(
             plan.name,
         )));
     }
-    let provider = super::provider_plans::exact_checked_adapter(&checked.typed, plan, row)?;
+    let provider =
+        omega_provider_planning::plans::exact_checked_adapter(&checked.typed, plan, row)?;
     if provider.attached_data.as_ref().map(|owner| owner.as_str())
         != Some(plan.provider_type.as_str())
     {
@@ -327,7 +328,7 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type checked-operator dispatch fixture");
-        let plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+        let plans = omega_provider_planning::plans::derive_satisfies_plans(&typed, None);
         let checked_plan = plans
             .iter()
             .find(|plan| plan.schema.trait_name.contains("CheckedMath::offset_zero"))

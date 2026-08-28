@@ -769,17 +769,17 @@ fn compile_to_checked_inner_with_replay(
                 }),
             None,
         )?;
-    crate::pipeline::operator_adapter_dispatch::settle_selected_operator_adapter_dispatch(
+    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
-    crate::pipeline::float_intrinsic_dispatch::settle_selected_float_intrinsic_dispatch(
+    omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
-    crate::pipeline::adapter_dispatch::settle_selected_boundary_adapter_dispatch(
+    omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;

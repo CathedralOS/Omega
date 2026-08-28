@@ -89,6 +89,7 @@ psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 omega-terminal-native-realization = { path = "../omega-terminal-native-realization" }
+omega-selected-dispatch = { path = "../omega-selected-dispatch" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }
@@ -100,6 +101,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
+omega-executable-installation = { path = "../../foundation/omega-executable-installation" }
 omega-package-compilation = { path = "../omega-package-compilation", features = ["test-support"] }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

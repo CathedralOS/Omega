@@ -302,18 +302,18 @@ impl StateGraphHarness {
             &checked.accepted_template_classifications,
             emit_auxiliary_artifacts,
         )?;
-        crate::pipeline::operator_adapter_dispatch::settle_selected_operator_adapter_dispatch(
+        omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
             &mut checked.program,
             &checked.selected_provider_plans,
         )?;
-        crate::pipeline::float_intrinsic_dispatch::settle_selected_float_intrinsic_dispatch(
+        omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
             &mut checked.program,
             &checked.selected_provider_plans,
         )?;
         // PRV4 adapter dispatch (both engines, after checking): semantic facts
         // stay attached to the admitted boundary requirement, while execution
         // alone is redirected to the uniquely selected checked adapter.
-        crate::pipeline::adapter_dispatch::settle_selected_boundary_adapter_dispatch(
+        omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
             &mut checked.program,
             &checked.selected_provider_plans,
         )?;
