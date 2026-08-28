@@ -433,6 +433,19 @@ complete.
   cache publication, native confinement, or resource quotas. Strict SSH trust
   and credential custody is separately blocked on OWNER Q16.
 
+  Milestone 2026-08-27: Git and local cache-custody validation now acquires the
+  canonical cache root through a component-by-component no-follow walk and
+  traverses only retained directory capabilities. Child directories are
+  classified relative to their retained parent, opened no-follow, and required
+  to preserve file identity before descent. Existing entry-count, logical-byte,
+  Unix owner/mode, and macOS ACL checks remain in force. Canaries replace a
+  classified child directory with a symlink for both cache classes and replace
+  an already-opened root; symlink substitution rejects and the walk remains
+  bound to the opened root. This closes the custody walk's concrete
+  classify-then-`read_dir` redirection gap. Lock acquisition, metadata reads,
+  staging, publication, and invalidation still contain pathname operations;
+  path-based macOS ACL observation and a hostile same-user mutator remain open.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
