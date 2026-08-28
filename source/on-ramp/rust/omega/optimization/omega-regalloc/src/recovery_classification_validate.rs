@@ -248,6 +248,11 @@ fn replay_classification(
         TerminalVirtualRegisterOrigin::InstructionResult {
             instruction,
             source_value,
+        }
+        | TerminalVirtualRegisterOrigin::LegalizationTemporary {
+            instruction,
+            source_value,
+            ..
         } => (instruction, source_value),
     };
     if range.fragments.as_slice()
