@@ -144,9 +144,10 @@ pub data LexDiagnostic [copy] {
     source_span: SourceSpan;
 }
 
-// A deliberately flat projection used only at the hosted product
-// observation boundary. Keeping this separate from Token avoids copying its
-// nested TokenKind sum through a runtime-selected array element.
+// A deliberately flat projection used by later dynamic source phases and the
+// hosted product observation boundary. Keeping it beside Token avoids copying
+// its nested TokenKind sum through a runtime-selected array element; it is the
+// same token vocabulary, not a second lexer output.
 pub data TokenObservation [copy] {
     tag: u8;
     first: u8;
