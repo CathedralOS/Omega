@@ -32,6 +32,30 @@ pub(crate) fn lower_data_definition(
             .quotient
             .as_ref()
             .map(|quotient| {
+                crate::type_reference::retain_static_path_selection(
+                    &mut lowerer.typed_trees,
+                    &quotient.relation,
+                    quotient.relation_symbol,
+                    lowerer.type_reference_exposure,
+                    "quotient relation",
+                )?;
+                if let Some(selection) = &quotient.equivalence {
+                    crate::type_reference::retain_static_path_selection(
+                        &mut lowerer.typed_trees,
+                        &selection.relation,
+                        selection.relation_symbol,
+                        lowerer.type_reference_exposure,
+                        "quotient equivalence subject",
+                    )?;
+                    crate::type_reference::retain_type_reference_selection(
+                        lowerer.source_trees,
+                        &mut lowerer.typed_trees,
+                        &selection.trait_name,
+                        selection.trait_symbol,
+                        lowerer.type_reference_exposure,
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                    )?;
+                }
                 Ok::<_, Diagnostic>(typed::data::QuotientDefinition {
                     carrier: lower_type_reference_into_table(lowerer, &quotient.carrier)?,
                     relation: quotient

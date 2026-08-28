@@ -189,6 +189,13 @@ exact carrier declaration. Its type-reference row inherits the machine's
 interface disposition, including exported boundary supply without `pub`.
 Qualification does not relabel or implicitly admit a transitive carrier.
 
+Quotient formation likewise retains each authored coordinate independently:
+carrier, right-hand relation, repeated static-`where` relation subject, sealed
+`Equivalence` trait and arguments, and named proof conformance. Relation and
+trait rows inherit the quotient data declaration's disposition. The proof
+conformance alone remains private formation custody and outside quotient API
+identity, without bypassing ordinary visibility or direct admission.
+
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.
 They enter private artifact identity or public compatibility identity according

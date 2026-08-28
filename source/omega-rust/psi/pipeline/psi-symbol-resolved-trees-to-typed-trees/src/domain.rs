@@ -120,33 +120,13 @@ pub(crate) fn lower_domain_definition(
             .map(|constituent| -> Result<_, Diagnostic> {
                 let mut path = HandleSpan::empty();
                 let members = lowerer.source_trees.domain_path_members(constituent.domain);
-                let authored = members.iter().filter(|member| member.is_source_backed()).collect::<Vec<_>>();
-                if constituent.domain_symbol.is_valid()
-                    && let (Some(first), Some(last)) = (authored.first(), authored.last())
-                    && first.source_span().source_id == last.source_span().source_id
-                {
-                    let source_span = psi_source::SourceSpan::new(
-                        first.source_span().source_id,
-                        psi_source::Span::new(
-                            first.source_span().span.start,
-                            last.source_span().span.end,
-                        ),
-                    );
-                    lowerer
-                        .typed_trees
-                        .record_resolved_authored_declaration_selection_once(
-                            source_span,
-                            lowerer.type_reference_exposure,
-                            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
-                            constituent.domain_symbol,
-                        )
-                        .map_err(|error| {
-                            Diagnostic::error(format!(
-                                "failed to retain authored domain-alias selection: {error:?}"
-                            ))
-                            .with_source_span(source_span)
-                        })?;
-                }
+                crate::type_reference::retain_static_path_selection(
+                    &mut lowerer.typed_trees,
+                    members,
+                    constituent.domain_symbol,
+                    lowerer.type_reference_exposure,
+                    "domain-alias",
+                )?;
                 for member in members {
                     lowerer
                         .typed_trees

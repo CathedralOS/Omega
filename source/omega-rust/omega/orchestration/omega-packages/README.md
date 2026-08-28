@@ -1322,6 +1322,14 @@ reference row under the machine's interface exposure, including exported
 boundary supply even when the boundary declaration is not spelled `pub`.
 Qualification does not relabel or implicitly admit a transitive carrier.
 
+Quotient formation retains each authored declaration coordinate separately:
+the carrier type, right-hand relation path, repeated static-`where` relation
+subject, sealed `Equivalence` trait and its arguments, and named proof
+conformance. Relation and trait coordinates inherit the quotient data
+declaration's exposure. The selected conformance remains private formation
+custody and stays outside quotient API identity, though ordinary package
+visibility and direct-dependency admission still govern selecting it.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free
