@@ -1308,6 +1308,7 @@ dependencies = [
  "omega-build-output",
  "omega-target",
  "psi-build-time-evaluation",
+ "psi-checked-interpreter",
  "psi-checked-trees",
  "psi-core",
  "psi-diagnostics",

@@ -122,7 +122,7 @@ mod tests {
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
     };
-    use omega_compiler::CanonicalFilesystemMetadataRowKind;
+    use psi_checked_interpreter::CanonicalFilesystemMetadataRowKind;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 

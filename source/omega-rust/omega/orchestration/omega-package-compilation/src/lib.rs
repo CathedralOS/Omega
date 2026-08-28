@@ -5,10 +5,6 @@
 mod source_consumption;
 
 use omega_build_output::PackageGeneratedSource;
-pub use source_consumption::{
-    PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
-    toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
-};
 use psi_checked_interpreter::{
     CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
     CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
@@ -17,6 +13,10 @@ use psi_checked_interpreter::{
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use sha2::{Digest, Sha256};
+pub use source_consumption::{
+    PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
+    toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
+};
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
 use std::io::Read;
@@ -732,7 +732,8 @@ impl PackageCompilationInputs {
         }
     }
 
-    pub(crate) fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
+    #[doc(hidden)]
+    pub fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
         let mut diagnostics = Vec::new();
         for (identity, metadata) in &self.canonical_source_metadata {
             let root = self

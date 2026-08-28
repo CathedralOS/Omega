@@ -112,7 +112,8 @@ impl BuildMachineFilesystemScope {
         }
     }
 
-    pub(crate) fn for_package_root(
+    #[doc(hidden)]
+    pub fn for_package_root(
         source_root: PathBuf,
         build_dir: PathBuf,
         sponsor: Option<BuildMachineFilesystemSponsor>,
@@ -337,7 +338,8 @@ pub struct BuildCanonicalSourceMetadataIdentity {
 }
 
 impl BuildCanonicalSourceMetadataIdentity {
-    pub(crate) const fn new(policy_version: u32, source_content_commitment: [u8; 32]) -> Self {
+    #[doc(hidden)]
+    pub const fn new(policy_version: u32, source_content_commitment: [u8; 32]) -> Self {
         Self {
             policy_version,
             source_content_commitment,
