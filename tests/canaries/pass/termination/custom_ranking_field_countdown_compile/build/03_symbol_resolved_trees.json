@@ -1,0 +1,288 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Card",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "power",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "weaken",
+                  "arguments": [
+                    {
+                      "kind": "struct_literal",
+                      "type_name": "Card",
+                      "fields": [
+                        {
+                          "name": "power",
+                          "value": {
+                            "kind": "integer",
+                            "value": 3
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::weaken",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": true,
+        "decreases": [
+          {
+            "kind": "member",
+            "receiver": {
+              "kind": "name",
+              "path": [
+                "card"
+              ]
+            },
+            "member": "power"
+          }
+        ],
+        "decrease_order": [
+          "Card",
+          "PowerOrder"
+        ],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "weaken",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "card",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Card"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "self",
+                    "weaken"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "struct_literal",
+                      "type_name": "Card",
+                      "fields": [
+                        {
+                          "name": "power",
+                          "value": {
+                            "kind": "binary",
+                            "left": {
+                              "kind": "member",
+                              "receiver": {
+                                "kind": "name",
+                                "path": [
+                                  "card"
+                                ]
+                              },
+                              "member": "power"
+                            },
+                            "operator": "-",
+                            "right": {
+                              "kind": "integer",
+                              "value": 1
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "card"
+                          ]
+                        },
+                        "member": "power"
+                      },
+                      "operator": ">",
+                      "right": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "card"
+                      ]
+                    },
+                    "member": "power"
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "card"
+                          ]
+                        },
+                        "member": "power"
+                      },
+                      "operator": ">",
+                      "right": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      }
+    ],
+    "measures": [
+      {
+        "has_symbol": false,
+        "name": [
+          "Card",
+          "PowerOrder"
+        ],
+        "has_parameter": true,
+        "has_return_type": true,
+        "lexicographic": false,
+        "component_count": 1
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 26,
+    "statement_count": 3,
+    "type_reference_count": 7
+  }
+}

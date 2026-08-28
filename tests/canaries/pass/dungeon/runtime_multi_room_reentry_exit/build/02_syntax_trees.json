@@ -1,0 +1,1511 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "platform",
+          "source_id": 0,
+          "start": 4,
+          "end": 12,
+          "source_backed": true
+        },
+        {
+          "text": "console",
+          "source_id": 0,
+          "start": 14,
+          "end": 21,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 31,
+        "end": 35,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 43,
+            "end": 50,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 52,
+              "end": 59,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "current_room",
+            "source_id": 0,
+            "start": 66,
+            "end": 78,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 80,
+              "end": 83,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "fountain_used",
+            "source_id": 0,
+            "start": 90,
+            "end": 103,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 105,
+              "end": 109,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "bat_defeated",
+            "source_id": 0,
+            "start": 116,
+            "end": 128,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 130,
+              "end": 134,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "treasure_taken",
+            "source_id": 0,
+            "start": 141,
+            "end": 155,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 157,
+              "end": 161,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 183,
+            "end": 187,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 211,
+                  "end": 223,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 2
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "fountain_used",
+                  "source_id": 0,
+                  "start": 239,
+                  "end": 252,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": false
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "bat_defeated",
+                  "source_id": 0,
+                  "start": 272,
+                  "end": 284,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": false
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "treasure_taken",
+                  "source_id": 0,
+                  "start": 304,
+                  "end": 318,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": false
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "defeat_bat",
+                    "source_id": 0,
+                    "start": 362,
+                    "end": 372,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "defeat_bat",
+            "source_id": 0,
+            "start": 395,
+            "end": 405,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "bat_defeated",
+                  "source_id": 0,
+                  "start": 433,
+                  "end": 445,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": true
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "take_treasure",
+                    "source_id": 0,
+                    "start": 494,
+                    "end": 507,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "take_treasure",
+            "source_id": 0,
+            "start": 541,
+            "end": 554,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 582,
+                  "end": 594,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 3
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "treasure_taken",
+                  "source_id": 0,
+                  "start": 614,
+                  "end": 628,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": true
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "use_fountain",
+                    "source_id": 0,
+                    "start": 677,
+                    "end": 689,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "use_fountain",
+            "source_id": 0,
+            "start": 723,
+            "end": 735,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 763,
+                  "end": 775,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 1
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "fountain_used",
+                  "source_id": 0,
+                  "start": 795,
+                  "end": 808,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": true
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "revisit_ambush",
+                    "source_id": 0,
+                    "start": 857,
+                    "end": 871,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "revisit_ambush",
+            "source_id": 0,
+            "start": 905,
+            "end": 919,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 947,
+                  "end": 959,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 2
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "route_after_ambush",
+                    "source_id": 0,
+                    "start": 1005,
+                    "end": 1023,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "route_after_ambush",
+            "source_id": 0,
+            "start": 1057,
+            "end": 1075,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "ambush_clear",
+                    "source_id": 0,
+                    "start": 1176,
+                    "end": 1188,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "current_room",
+                        "source_id": 0,
+                        "start": 1115,
+                        "end": 1127,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  },
+                  "operator": "and",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "bat_defeated",
+                        "source_id": 0,
+                        "start": 1134,
+                        "end": 1146,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "fail",
+                    "source_id": 0,
+                    "start": 1209,
+                    "end": 1213,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 60
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "ambush_clear",
+            "source_id": 0,
+            "start": 1249,
+            "end": 1261,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 1289,
+                  "end": 1301,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 1
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "route_after_fountain",
+                    "source_id": 0,
+                    "start": 1347,
+                    "end": 1367,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "route_after_fountain",
+            "source_id": 0,
+            "start": 1401,
+            "end": 1421,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "spent_fountain",
+                    "source_id": 0,
+                    "start": 1523,
+                    "end": 1537,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "current_room",
+                        "source_id": 0,
+                        "start": 1461,
+                        "end": 1473,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 1
+                    }
+                  },
+                  "operator": "and",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "fountain_used",
+                        "source_id": 0,
+                        "start": 1480,
+                        "end": 1493,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "fail",
+                    "source_id": 0,
+                    "start": 1558,
+                    "end": 1562,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 61
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "spent_fountain",
+            "source_id": 0,
+            "start": 1598,
+            "end": 1612,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "current_room",
+                  "source_id": 0,
+                  "start": 1640,
+                  "end": 1652,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 3
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "route_after_vault",
+                    "source_id": 0,
+                    "start": 1698,
+                    "end": 1715,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "route_after_vault",
+            "source_id": 0,
+            "start": 1749,
+            "end": 1766,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "looted_vault",
+                    "source_id": 0,
+                    "start": 1869,
+                    "end": 1881,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "current_room",
+                        "source_id": 0,
+                        "start": 1806,
+                        "end": 1818,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  },
+                  "operator": "and",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "treasure_taken",
+                        "source_id": 0,
+                        "start": 1825,
+                        "end": 1839,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "fail",
+                    "source_id": 0,
+                    "start": 1902,
+                    "end": 1906,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 62
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "looted_vault",
+            "source_id": 0,
+            "start": 1942,
+            "end": 1954,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1982,
+                  "end": 1989,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1990,
+                "end": 2002,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 63
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "fail",
+            "source_id": 0,
+            "start": 2028,
+            "end": 2032,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "code",
+                "source_id": 0,
+                "start": 2044,
+                "end": 2048,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 2050,
+                  "end": 2053,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2071,
+                  "end": 2078,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2079,
+                "end": 2091,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "code",
+                      "source_id": 0,
+                      "start": 2092,
+                      "end": 2096,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 1,
+        "start": 15,
+        "end": 22,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "write",
+            "source_id": 1,
+            "start": 38,
+            "end": 43,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 1,
+                "start": 44,
+                "end": 48,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 50,
+                  "end": 56,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "stdout_io",
+              "source_id": 1,
+              "start": 80,
+              "end": 89,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "write_line",
+            "source_id": 1,
+            "start": 106,
+            "end": 116,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 1,
+                "start": 117,
+                "end": 121,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 123,
+                  "end": 129,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "stdout_io",
+              "source_id": 1,
+              "start": 153,
+              "end": 162,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_line",
+            "source_id": 1,
+            "start": 179,
+            "end": 188,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "out",
+                "source_id": 1,
+                "start": 189,
+                "end": 192,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "String",
+                    "source_id": 1,
+                    "start": 199,
+                    "end": 205,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "stdin_io",
+              "source_id": 1,
+              "start": 229,
+              "end": 237,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 1,
+            "start": 254,
+            "end": 266,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "code",
+                "source_id": 1,
+                "start": 267,
+                "end": 271,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 273,
+                  "end": 276,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "process_exit",
+              "source_id": 1,
+              "start": 300,
+              "end": 312,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        }
+      ]
+    }
+  ]
+}

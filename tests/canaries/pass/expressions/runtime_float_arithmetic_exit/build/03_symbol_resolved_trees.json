@@ -1,0 +1,323 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "accumulator",
+            "type_reference": {
+              "kind": "named",
+              "name": "f64"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "addend",
+            "type_reference": {
+              "kind": "named",
+              "name": "f64"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "float",
+                  "value": "10"
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "addend"
+                },
+                "value": {
+                  "kind": "float",
+                  "value": "4"
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "accumulator"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "float",
+                    "value": "2"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "accumulator"
+                  },
+                  "operator": "-",
+                  "right": {
+                    "kind": "float",
+                    "value": "1"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "accumulator"
+                  },
+                  "operator": "*",
+                  "right": {
+                    "kind": "float",
+                    "value": "3"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "accumulator"
+                  },
+                  "operator": "/",
+                  "right": {
+                    "kind": "float",
+                    "value": "2"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "accumulator"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "accumulator"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "addend"
+                  }
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 8
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 38,
+    "statement_count": 8,
+    "type_reference_count": 5
+  }
+}

@@ -1,0 +1,420 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Mode",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Stand",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Walk",
+            "payload": [
+              {
+                "name": "pace",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                }
+              }
+            ]
+          },
+          {
+            "kind": "variant",
+            "name": "Run",
+            "payload": [
+              {
+                "name": "speed",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "mode",
+            "type_reference": {
+              "kind": "named",
+              "name": "Mode"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "mode"
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Mode",
+                  "fields": [
+                    {
+                      "name": "pace",
+                      "value": {
+                        "kind": "integer",
+                        "value": 9
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "mode"
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Mode",
+                  "fields": [
+                    {
+                      "name": "speed",
+                      "value": {
+                        "kind": "integer",
+                        "value": 70
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "mode"
+                      },
+                      "member": "pace"
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "mode"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Mode",
+                        "Walk"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "done"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "mode"
+                      },
+                      "member": "speed"
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "mode"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Mode",
+                        "Run"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "integer",
+                      "value": 72
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "done",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "speed",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "speed"
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "code"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 5,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 6,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 25,
+    "expression_struct_field_count": 2,
+    "statement_count": 7,
+    "transition_target_count": 3,
+    "type_reference_count": 10,
+    "type_constraint_count": 0
+  }
+}

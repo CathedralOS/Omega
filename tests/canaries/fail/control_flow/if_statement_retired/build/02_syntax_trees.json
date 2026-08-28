@@ -1,0 +1,282 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 237,
+        "end": 244,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 259,
+            "end": 271,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 272,
+                "end": 283,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 285,
+                  "end": 288,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 298,
+        "end": 302,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 309,
+            "end": 316,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 318,
+              "end": 325,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "x",
+            "source_id": 0,
+            "start": 331,
+            "end": 332,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 334,
+              "end": 337,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 355,
+            "end": 359,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "done",
+                    "source_id": 0,
+                    "start": 402,
+                    "end": 406,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "x",
+                      "source_id": 0,
+                      "start": 385,
+                      "end": 386,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "done",
+            "source_id": 0,
+            "start": 425,
+            "end": 429,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 448,
+                  "end": 455,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 456,
+                "end": 468,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,1784 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 15,
+        "end": 22,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "write_line",
+            "source_id": 0,
+            "start": 38,
+            "end": 48,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 0,
+                "start": 49,
+                "end": 53,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 0,
+                  "start": 55,
+                  "end": 61,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "RandomState",
+        "source_id": 0,
+        "start": 75,
+        "end": 86,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "seed",
+            "source_id": 0,
+            "start": 94,
+            "end": 98,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u64",
+              "source_id": 0,
+              "start": 100,
+              "end": 103,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "calls",
+            "source_id": 0,
+            "start": 110,
+            "end": 115,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "UInt",
+              "source_id": 0,
+              "start": 117,
+              "end": 121,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Random",
+        "source_id": 0,
+        "start": 134,
+        "end": 140,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Random::seed",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Random",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "seed",
+            "source_id": 0,
+            "start": 165,
+            "end": 169,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "value",
+                "source_id": 0,
+                "start": 192,
+                "end": 197,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u64",
+                  "source_id": 0,
+                  "start": 199,
+                  "end": 202,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "state",
+                "source_id": 0,
+                "start": 209,
+                "end": 214,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 221,
+                    "end": 232,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "state",
+                      "source_id": 0,
+                      "start": 243,
+                      "end": 248,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "seed",
+                  "source_id": 0,
+                  "start": 249,
+                  "end": 253,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "value",
+                    "source_id": 0,
+                    "start": 256,
+                    "end": 261,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "state",
+                      "source_id": 0,
+                      "start": 268,
+                      "end": 273,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "calls",
+                  "source_id": 0,
+                  "start": 274,
+                  "end": 279,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Random::next_u32",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Random",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "next_u32",
+            "source_id": 0,
+            "start": 307,
+            "end": 315,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "state",
+                "source_id": 0,
+                "start": 338,
+                "end": 343,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 350,
+                    "end": 361,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 372,
+              "end": 375,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "state",
+                      "source_id": 0,
+                      "start": 383,
+                      "end": 388,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "seed",
+                  "source_id": 0,
+                  "start": 389,
+                  "end": 393,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "state",
+                          "source_id": 0,
+                          "start": 396,
+                          "end": 401,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "seed",
+                      "source_id": 0,
+                      "start": 402,
+                      "end": 406,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "multiply",
+                  "right": {
+                    "kind": "integer",
+                    "value": 6364136223846793005
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1442695040888963407
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "state",
+                      "source_id": 0,
+                      "start": 457,
+                      "end": 462,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "calls",
+                  "source_id": 0,
+                  "start": 463,
+                  "end": 468,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "state",
+                        "source_id": 0,
+                        "start": 471,
+                        "end": 476,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "calls",
+                    "source_id": 0,
+                    "start": 477,
+                    "end": 482,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "cast",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "state",
+                          "source_id": 0,
+                          "start": 497,
+                          "end": 502,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "seed",
+                      "source_id": 0,
+                      "start": 503,
+                      "end": 507,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "shift_right",
+                  "right": {
+                    "kind": "integer",
+                    "value": 32
+                  }
+                },
+                "target_type": [
+                  {
+                    "text": "u32",
+                    "source_id": 0,
+                    "start": 518,
+                    "end": 521,
+                    "source_backed": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Random::range",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Random",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "range",
+            "source_id": 0,
+            "start": 545,
+            "end": 550,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "state",
+                "source_id": 0,
+                "start": 573,
+                "end": 578,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 585,
+                    "end": 596,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "exclusive_max",
+                "source_id": 0,
+                "start": 603,
+                "end": 616,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 618,
+                  "end": 621,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 632,
+              "end": 635,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "raw",
+                "source_id": 0,
+                "start": 647,
+                "end": 650,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 652,
+                  "end": 655,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "next_u32",
+                  "source_id": 0,
+                  "start": 663,
+                  "end": 671,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "state",
+                        "source_id": 0,
+                        "start": 672,
+                        "end": 677,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "raw",
+                      "source_id": 0,
+                      "start": 687,
+                      "end": 690,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "modulo",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "exclusive_max",
+                      "source_id": 0,
+                      "start": 693,
+                      "end": 706,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Random::chance",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Random",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "chance",
+            "source_id": 0,
+            "start": 729,
+            "end": 735,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "state",
+                "source_id": 0,
+                "start": 758,
+                "end": 763,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 770,
+                    "end": 781,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "numerator",
+                "source_id": 0,
+                "start": 788,
+                "end": 797,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 799,
+                  "end": 802,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "denominator",
+                "source_id": 0,
+                "start": 809,
+                "end": 820,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 822,
+                  "end": 825,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 836,
+              "end": 840,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "roll",
+                "source_id": 0,
+                "start": 852,
+                "end": 856,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 858,
+                  "end": 861,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "range",
+                  "source_id": 0,
+                  "start": 869,
+                  "end": 874,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "state",
+                        "source_id": 0,
+                        "start": 875,
+                        "end": 880,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "denominator",
+                        "source_id": 0,
+                        "start": 882,
+                        "end": 893,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "roll",
+                      "source_id": 0,
+                      "start": 903,
+                      "end": 907,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "less",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "numerator",
+                      "source_id": 0,
+                      "start": 910,
+                      "end": 919,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Generator",
+        "source_id": 0,
+        "start": 931,
+        "end": 940,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 948,
+            "end": 955,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 957,
+              "end": 964,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "rng",
+            "source_id": 0,
+            "start": 971,
+            "end": 974,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Random",
+              "source_id": 0,
+              "start": 976,
+              "end": 982,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Generator::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Generator",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 1009,
+            "end": 1012,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 1035,
+                "end": 1041,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "RandomState",
+                  "source_id": 0,
+                  "start": 1043,
+                  "end": 1054,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "name",
+                "path": []
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "rng",
+                  "source_id": 0,
+                  "start": 1066,
+                  "end": 1069,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "seed",
+                "source_id": 0,
+                "start": 1070,
+                "end": 1074,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 1
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "random",
+                        "source_id": 0,
+                        "start": 1083,
+                        "end": 1089,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "carve",
+                "source_id": 0,
+                "start": 1103,
+                "end": 1108,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1110,
+                  "end": 1114,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "should_carve",
+                  "source_id": 0,
+                  "start": 1122,
+                  "end": 1134,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "random",
+                          "source_id": 0,
+                          "start": 1140,
+                          "end": 1146,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "yes",
+                    "source_id": 0,
+                    "start": 1195,
+                    "end": 1198,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "carve",
+                        "source_id": 0,
+                        "start": 1170,
+                        "end": 1175,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "no",
+                    "source_id": 0,
+                    "start": 1219,
+                    "end": 1221,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "carve",
+                        "source_id": 0,
+                        "start": 1170,
+                        "end": 1175,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "yes",
+            "source_id": 0,
+            "start": 1252,
+            "end": 1255,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1283,
+                  "end": 1290,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 1291,
+                "end": 1301,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "yes"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "no",
+            "source_id": 0,
+            "start": 1330,
+            "end": 1332,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1360,
+                  "end": 1367,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 1368,
+                "end": 1378,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "no"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Generator::should_carve",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Generator",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "should_carve",
+            "source_id": 0,
+            "start": 1418,
+            "end": 1430,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 1453,
+                "end": 1459,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 1466,
+                    "end": 1477,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "depth",
+                "source_id": 0,
+                "start": 1484,
+                "end": 1489,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1491,
+                  "end": 1494,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 1505,
+              "end": 1509,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "chance",
+                "source_id": 0,
+                "start": 1521,
+                "end": 1527,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1529,
+                  "end": 1532,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "integer",
+                "value": 99
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "rolled",
+                "source_id": 0,
+                "start": 1548,
+                "end": 1554,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1556,
+                  "end": 1560,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "rng",
+                    "source_id": 0,
+                    "start": 1568,
+                    "end": 1571,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "chance",
+                  "source_id": 0,
+                  "start": 1572,
+                  "end": 1578,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "random",
+                        "source_id": 0,
+                        "start": 1579,
+                        "end": 1585,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "chance",
+                        "source_id": 0,
+                        "start": 1587,
+                        "end": 1593,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "integer",
+                    "value": 100
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "rolled",
+                    "source_id": 0,
+                    "start": 1608,
+                    "end": 1614,
+                    "source_backed": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1626,
+        "end": 1630,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "generator",
+            "source_id": 0,
+            "start": 1638,
+            "end": 1647,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Generator",
+              "source_id": 0,
+              "start": 1649,
+              "end": 1658,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1680,
+            "end": 1684,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1699,
+              "end": 1702,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "generator",
+                  "source_id": 0,
+                  "start": 1715,
+                  "end": 1724,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "run",
+                "source_id": 0,
+                "start": 1725,
+                "end": 1728,
+                "source_backed": true
+              },
+              "arguments": []
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,762 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 724,
+        "end": 731,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 747,
+            "end": 759,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 760,
+                "end": 771,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 773,
+                  "end": 776,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 790,
+        "end": 794,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 802,
+            "end": 809,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 811,
+              "end": 818,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "slots",
+            "source_id": 0,
+            "start": 825,
+            "end": 830,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "i64",
+                "source_id": 0,
+                "start": 833,
+                "end": 836,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "const_call",
+              "name": {
+                "text": "table_size",
+                "source_id": 0,
+                "start": 838,
+                "end": 848,
+                "source_backed": true
+              }
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "base",
+        "source_id": 0,
+        "start": 867,
+        "end": 871,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 877,
+              "end": 882,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "integer",
+                  "value": 5
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "table_size",
+        "source_id": 0,
+        "start": 940,
+        "end": 950,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 956,
+              "end": 961,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "call",
+                      "receiver": null,
+                      "target": {
+                        "text": "base",
+                        "source_id": 0,
+                        "start": 997,
+                        "end": 1001,
+                        "source_backed": true
+                      },
+                      "arguments": []
+                    },
+                    "operator": "multiply",
+                    "right": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1040,
+            "end": 1044,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "slots",
+                    "source_id": 0,
+                    "start": 1068,
+                    "end": 1073,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 7
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "slots",
+                    "source_id": 0,
+                    "start": 1092,
+                    "end": 1097,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 15
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 63
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_last",
+                    "source_id": 0,
+                    "start": 1164,
+                    "end": 1174,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "indexed",
+                      "collection": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "slots",
+                          "source_id": 0,
+                          "start": 1131,
+                          "end": 1136,
+                          "source_backed": true
+                        }
+                      },
+                      "index": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 7
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1195,
+                    "end": 1198,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "indexed",
+                      "collection": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "slots",
+                          "source_id": 0,
+                          "start": 1131,
+                          "end": 1136,
+                          "source_backed": true
+                        }
+                      },
+                      "index": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 7
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_last",
+            "source_id": 0,
+            "start": 1221,
+            "end": 1231,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1309,
+                    "end": 1313,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "indexed",
+                      "collection": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "slots",
+                          "source_id": 0,
+                          "start": 1270,
+                          "end": 1275,
+                          "source_backed": true
+                        }
+                      },
+                      "index": {
+                        "kind": "integer",
+                        "value": 15
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 63
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1338,
+                    "end": 1341,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "indexed",
+                      "collection": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "slots",
+                          "source_id": 0,
+                          "start": 1270,
+                          "end": 1275,
+                          "source_backed": true
+                        }
+                      },
+                      "index": {
+                        "kind": "integer",
+                        "value": 15
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 63
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 1375,
+            "end": 1379,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1407,
+                  "end": 1414,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1415,
+                "end": 1427,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 1453,
+            "end": 1456,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1484,
+                  "end": 1491,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1492,
+                "end": 1504,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

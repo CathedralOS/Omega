@@ -1,0 +1,115 @@
+{
+  "machines": [
+    {
+      "machine": "Parser::resolve_navigation",
+      "contract": {
+        "fingerprint": "0x1846196e8be479fe",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Parser::resolve_command",
+      "contract": {
+        "fingerprint": "0xcbccb0e3f2ea3ddc",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Parser::resolve_exit",
+      "contract": {
+        "fingerprint": "0x0d2c9680a35897da",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Parser::navigation",
+      "contract": {
+        "fingerprint": "0xfb808812edfe9207",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0xd4ff05f364370f57",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "console_write_bytes",
+      "contract": {
+        "fingerprint": "0xcebcc36aacf01d93",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "Slice::Length",
+        "ranking_witness": {
+          "subjects": ["bytes"],
+          "view": "Slice::Length",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "console_write",
+      "contract": {
+        "fingerprint": "0xd81d4fadcdb73f73",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "console_write_line",
+      "contract": {
+        "fingerprint": "0xd81d4fadcdb73f73",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

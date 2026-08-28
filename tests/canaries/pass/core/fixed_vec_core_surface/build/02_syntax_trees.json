@@ -1,0 +1,1203 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "fixed_vec",
+          "source_id": 0,
+          "start": 27,
+          "end": 36,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 763,
+        "end": 767,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 790,
+            "end": 794,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "FixedVec",
+        "source_id": 1,
+        "start": 2658,
+        "end": 2666,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 1,
+            "start": 2667,
+            "end": 2668,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null,
+          "bounds": {
+            "multiplicity": "affine",
+            "zero_init": false
+          }
+        },
+        {
+          "name": {
+            "text": "N",
+            "source_id": 1,
+            "start": 2676,
+            "end": 2677,
+            "source_backed": true
+          },
+          "kind": "const",
+          "const_type": {
+            "kind": "named",
+            "name": {
+              "text": "u64",
+              "source_id": 1,
+              "start": 2679,
+              "end": 2682,
+              "source_backed": true
+            }
+          },
+          "bounds": {
+            "multiplicity": "affine",
+            "zero_init": false
+          }
+        }
+      ],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "items",
+            "source_id": 1,
+            "start": 2691,
+            "end": 2696,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 1,
+                "start": 2699,
+                "end": 2700,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "const_parameter",
+              "name": {
+                "text": "N",
+                "source_id": 1,
+                "start": 2702,
+                "end": 2703,
+                "source_backed": true
+              }
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "length",
+            "source_id": 1,
+            "start": 2711,
+            "end": 2717,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u64",
+              "source_id": 1,
+              "start": 2719,
+              "end": 2722,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "FixedVec",
+            "source_id": 1,
+            "start": 3147,
+            "end": 3155,
+            "source_backed": true
+          },
+          {
+            "text": "Length",
+            "source_id": 1,
+            "start": 3157,
+            "end": 3163,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 3164,
+              "end": 3165,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 3173,
+              "end": 3174,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 3176,
+                "end": 3179,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 3181,
+              "end": 3186,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "FixedVec",
+                  "source_id": 1,
+                  "start": 3189,
+                  "end": 3197,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 1,
+                      "start": 3198,
+                      "end": 3199,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "N",
+                      "source_id": 1,
+                      "start": 3201,
+                      "end": 3202,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "u64",
+            "source_id": 1,
+            "start": 3208,
+            "end": 3211,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 35
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "FixedVec",
+            "source_id": 1,
+            "start": 3390,
+            "end": 3398,
+            "source_backed": true
+          },
+          {
+            "text": "push",
+            "source_id": 1,
+            "start": 3400,
+            "end": 3404,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 3405,
+              "end": 3406,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 3414,
+              "end": 3415,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 3417,
+                "end": 3420,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 3422,
+              "end": 3427,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "FixedVec",
+                  "source_id": 1,
+                  "start": 3434,
+                  "end": 3442,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 1,
+                      "start": 3443,
+                      "end": 3444,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "N",
+                      "source_id": 1,
+                      "start": 3446,
+                      "end": 3447,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "value",
+              "source_id": 1,
+              "start": 3450,
+              "end": 3455,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 1,
+                "start": 3457,
+                "end": 3458,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "unit"
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 3481,
+                          "end": 3486,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "length",
+                      "source_id": 1,
+                      "start": 3487,
+                      "end": 3493,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "items",
+                            "source_id": 1,
+                            "start": 3496,
+                            "end": 3501,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "items",
+                        "source_id": 1,
+                        "start": 3502,
+                        "end": 3507,
+                        "source_backed": true
+                      }
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 3508,
+                      "end": 3511,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 11
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 60
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "FixedVec",
+            "source_id": 1,
+            "start": 3810,
+            "end": 3818,
+            "source_backed": true
+          },
+          {
+            "text": "pop",
+            "source_id": 1,
+            "start": 3820,
+            "end": 3823,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 3824,
+              "end": 3825,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 3833,
+              "end": 3834,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 3836,
+                "end": 3839,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 3841,
+              "end": 3846,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "FixedVec",
+                  "source_id": 1,
+                  "start": 3853,
+                  "end": 3861,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 1,
+                      "start": 3862,
+                      "end": 3863,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "N",
+                      "source_id": 1,
+                      "start": 3865,
+                      "end": 3866,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "T",
+            "source_id": 1,
+            "start": 3872,
+            "end": 3873,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 3889,
+                          "end": 3894,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "length",
+                      "source_id": 1,
+                      "start": 3895,
+                      "end": 3901,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "greater",
+                  "right": {
+                    "kind": "integer",
+                    "text": "0"
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 46
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "FixedVec",
+            "source_id": 1,
+            "start": 4008,
+            "end": 4016,
+            "source_backed": true
+          },
+          {
+            "text": "get",
+            "source_id": 1,
+            "start": 4018,
+            "end": 4021,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 4022,
+              "end": 4023,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 4031,
+              "end": 4032,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 4034,
+                "end": 4037,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 4039,
+              "end": 4044,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "FixedVec",
+                  "source_id": 1,
+                  "start": 4047,
+                  "end": 4055,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 1,
+                      "start": 4056,
+                      "end": 4057,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "N",
+                      "source_id": 1,
+                      "start": 4059,
+                      "end": 4060,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 1,
+              "start": 4063,
+              "end": 4068,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 4070,
+                "end": 4073,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "T",
+            "source_id": 1,
+            "start": 4078,
+            "end": 4079,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 1,
+                        "start": 4095,
+                        "end": 4100,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 4103,
+                          "end": 4108,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "length",
+                      "source_id": 1,
+                      "start": 4109,
+                      "end": 4115,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 51
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "FixedVec",
+            "source_id": 1,
+            "start": 4249,
+            "end": 4257,
+            "source_backed": true
+          },
+          {
+            "text": "as_slice",
+            "source_id": 1,
+            "start": 4259,
+            "end": 4267,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 4268,
+              "end": 4269,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 4277,
+              "end": 4278,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 4280,
+                "end": 4283,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 4285,
+              "end": 4290,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "FixedVec",
+                  "source_id": 1,
+                  "start": 4293,
+                  "end": 4301,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 1,
+                      "start": 4302,
+                      "end": 4303,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "N",
+                      "source_id": 1,
+                      "start": 4305,
+                      "end": 4306,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 1,
+                "start": 4314,
+                "end": 4315,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": false
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 4332,
+                          "end": 4337,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "length",
+                      "source_id": 1,
+                      "start": 4338,
+                      "end": 4344,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "less_or_equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "items",
+                            "source_id": 1,
+                            "start": 4348,
+                            "end": 4353,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "items",
+                        "source_id": 1,
+                        "start": 4354,
+                        "end": 4359,
+                        "source_backed": true
+                      }
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 4360,
+                      "end": 4363,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 12
+          },
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "result",
+                          "source_id": 1,
+                          "start": 4378,
+                          "end": 4384,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 4385,
+                      "end": 4388,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 4392,
+                          "end": 4397,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "length",
+                      "source_id": 1,
+                      "start": 4398,
+                      "end": 4404,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 62
+      }
+    }
+  ]
+}

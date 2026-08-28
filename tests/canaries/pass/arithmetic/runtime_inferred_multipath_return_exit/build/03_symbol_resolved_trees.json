@@ -1,0 +1,300 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::pick",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "pick",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 7
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      },
+      {
+        "name": "Main::run",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "s",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "call",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "target": "pick",
+                    "arguments": [
+                      {
+                        "kind": "name",
+                        "path": [
+                          "b"
+                        ]
+                      }
+                    ]
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 63
+                  }
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "s"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self"
+                ],
+                "target": "run",
+                "arguments": [
+                  {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 15,
+    "statement_count": 5,
+    "type_reference_count": 9
+  }
+}

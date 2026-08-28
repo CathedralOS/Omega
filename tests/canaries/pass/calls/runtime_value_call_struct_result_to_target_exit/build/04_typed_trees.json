@@ -1,0 +1,888 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Dir",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "N",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "E",
+            "payload": []
+          }
+        ]
+      },
+      {
+        "name": "Vec2",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "dx",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "dy",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "code",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "bare",
+            "type_reference": {
+              "kind": "named",
+              "name": "Vec2"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "via_local",
+            "type_reference": {
+              "kind": "named",
+              "name": "Vec2"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::pick",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "pick",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 7
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::mk_vec",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "mk_vec",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Vec2"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Vec2",
+                  "fields": [
+                    {
+                      "name": "dx",
+                      "value": {
+                        "kind": "integer",
+                        "value": 5
+                      }
+                    },
+                    {
+                      "name": "dy",
+                      "value": {
+                        "kind": "integer",
+                        "value": 6
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::delta",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "delta",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "d",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Dir"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Vec2"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "struct_literal",
+                    "type_name": "Vec2",
+                    "fields": [
+                      {
+                        "name": "dx",
+                        "value": {
+                          "kind": "integer",
+                          "value": 0
+                        }
+                      },
+                      {
+                        "name": "dy",
+                        "value": {
+                          "kind": "integer",
+                          "value": 7
+                        }
+                      }
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "d"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Dir",
+                        "N"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "struct_literal",
+                    "type_name": "Vec2",
+                    "fields": [
+                      {
+                        "name": "dx",
+                        "value": {
+                          "kind": "integer",
+                          "value": 8
+                        }
+                      },
+                      {
+                        "name": "dy",
+                        "value": {
+                          "kind": "integer",
+                          "value": 0
+                        }
+                      }
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "d"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Dir",
+                        "E"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "code"
+                },
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "pick",
+                  "arguments": [
+                    {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "bare"
+                },
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "mk_vec",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "v",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Vec2"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "delta",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "Dir",
+                        "E"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "via_local"
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "v"
+                  ]
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_bare"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "code"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 7
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_bare",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_via_local"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "bare"
+                        },
+                        "member": "dx"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 5
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_via_local",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "good"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "via_local"
+                        },
+                        "member": "dx"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 8
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "good",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 0,
+    "data_member_count": 8,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 4,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 8,
+    "state_parameter_count": 11,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 60,
+    "expression_struct_field_count": 6,
+    "statement_count": 17,
+    "transition_target_count": 10,
+    "type_reference_count": 25,
+    "type_constraint_count": 4
+  }
+}

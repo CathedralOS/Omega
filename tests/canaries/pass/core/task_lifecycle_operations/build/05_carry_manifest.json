@@ -1,0 +1,117 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Task",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "TaskFailureReceipt",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "StartRejection",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "TaskOutcome",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "StartOutcome",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "TaskRuntime",
+      "opaque": true,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    }
+  ],
+  "safe_point_crossings": [
+    {
+      "machine": "Main::settle",
+      "state": "settle",
+      "statement_index": 1,
+      "call_ordinal": 0,
+      "target": "Task::finish",
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"},
+      "live_values": []
+    },
+    {
+      "machine": "Main::main",
+      "state": "main",
+      "statement_index": 1,
+      "call_ordinal": 0,
+      "target": "Main::settle",
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"},
+      "live_values": [{"type": "Task<i32>", "storage": "call_argument"}]
+    }
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "TaskOutcome::settle",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::settle",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Task::request_cancel",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Task::finish",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "TaskRuntime::start",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "TaskRuntime::try_start",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

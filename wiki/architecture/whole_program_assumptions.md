@@ -16,18 +16,9 @@ real.
 
 ## Current whole-program dependencies (the rework inventory)
 
-- **One global runtime frame region.** Every machine's locals/params/call
-  scratch live in a single `omega_runtime_frame_storage` blob; slots get
-  absolute region offsets at plan time (`stack_runtime_storage_by_call_context`
-  in omega-backend-pipeline). Per-component compilation needs per-component
-  regions or a base-register discipline.
-- **One fused dispatch loop.** All dispatched states across all machines
-  compile into a single dispatch loop with dense global case indices
-  (`dispatch_index` = state arena index). A swapped-in machine cannot add
-  cases to a fused loop.
-- **Per-call-context monomorphization spans machine boundaries.** Dispatch
-  specialization clones callee states per call context across the whole
-  program; a component boundary would cut those clones.
+- **Frame and entry plans currently close over one native artifact.** Independent
+  components need component-owned frames and explicit crossing plans rather
+  than addresses borrowed from a whole-image layout.
 - **Global relocation/data planning.** String/data addresses and the
   relocation set are computed against one final image; no per-component
   object format exists (`.o` emission is explicitly a debug bridge per the
@@ -43,8 +34,8 @@ real.
 
 - Direct image construction (no external linker) remains the bet; component
   loading would extend the image/loader machinery, not abandon it.
-- The machine/state graph as the unit of behavioral contract is unchanged.
-  A replaceable component is not one arbitrary machine or one package: it is a
+- Terminal Psi plus its closed service/resource contract is the behavioral
+  subject. A replaceable component is not one arbitrary machine or one package: it is a
   selected provider realization plus the closed code/state/resource graph that
   the realization owns.
 - Package-shaped component closures are a valid first implementation fence,

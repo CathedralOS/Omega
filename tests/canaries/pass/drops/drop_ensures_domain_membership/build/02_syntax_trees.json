@@ -1,0 +1,313 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Lock",
+        "source_id": 0,
+        "start": 315,
+        "end": 319,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "held",
+            "source_id": 0,
+            "start": 326,
+            "end": 330,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 332,
+              "end": 335,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Lock::Released",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Lock",
+          "source_id": 0,
+          "start": 347,
+          "end": 351,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "held",
+                "source_id": 0,
+                "start": 373,
+                "end": 377,
+                "source_backed": true
+              }
+            },
+            "operator": "equal",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Lock::drop",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Lock",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "self_value"
+              },
+              "domain": [
+                {
+                  "text": "Lock",
+                  "source_id": 0,
+                  "start": 437,
+                  "end": 441,
+                  "source_backed": true
+                },
+                {
+                  "text": "Released",
+                  "source_id": 0,
+                  "start": 443,
+                  "end": 451,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 8
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "drop",
+            "source_id": 0,
+            "start": 401,
+            "end": 405,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "held",
+                  "source_id": 0,
+                  "start": 463,
+                  "end": 467,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 481,
+        "end": 485,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 505,
+            "end": 509,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "l",
+                "source_id": 0,
+                "start": 531,
+                "end": 532,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Lock",
+                  "source_id": 0,
+                  "start": 534,
+                  "end": 538,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Lock",
+                  "source_id": 0,
+                  "start": 541,
+                  "end": 545,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "held",
+                      "source_id": 0,
+                      "start": 548,
+                      "end": 552,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

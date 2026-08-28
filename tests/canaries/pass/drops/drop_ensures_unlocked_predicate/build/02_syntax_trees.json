@@ -1,0 +1,239 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Mutex",
+        "source_id": 0,
+        "start": 412,
+        "end": 417,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "locked",
+            "source_id": 0,
+            "start": 425,
+            "end": 431,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 433,
+              "end": 437,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "MutexGuard",
+        "source_id": 0,
+        "start": 450,
+        "end": 460,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "mutex",
+            "source_id": 0,
+            "start": 468,
+            "end": 473,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 475,
+              "end": 478,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "MutexGuard::drop",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "MutexGuard",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "mutex",
+                    "source_id": 0,
+                    "start": 540,
+                    "end": 545,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "unlocked",
+                  "source_id": 0,
+                  "start": 546,
+                  "end": 554,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            }
+          ],
+          "token_count": 6
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "drop",
+            "source_id": 0,
+            "start": 506,
+            "end": 510,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 569,
+        "end": 573,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 596,
+            "end": 600,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,296 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 15,
+        "end": 22,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 33,
+            "end": 45,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 46,
+                "end": 57,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 59,
+                  "end": 62,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 75,
+        "end": 79,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 87,
+            "end": 94,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 96,
+              "end": 103,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 110,
+            "end": 115,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "f64",
+                "source_id": 0,
+                "start": 117,
+                "end": 120,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "named",
+                "name": {
+                  "text": "Finite",
+                  "source_id": 0,
+                  "start": 124,
+                  "end": 130,
+                  "source_backed": true
+                }
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 152,
+            "end": 156,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "value",
+                  "source_id": 0,
+                  "start": 180,
+                  "end": 185,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "float",
+                  "text": "0.0"
+                },
+                "operator": "divide",
+                "right": {
+                  "kind": "float",
+                  "text": "0.0"
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "consume",
+                    "source_id": 0,
+                    "start": 222,
+                    "end": 229,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "consume",
+            "source_id": 0,
+            "start": 247,
+            "end": 254,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 269,
+                  "end": 276,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 277,
+                "end": 289,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "text": "77"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

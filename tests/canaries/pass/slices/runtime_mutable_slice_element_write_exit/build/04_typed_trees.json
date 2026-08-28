@@ -1,0 +1,366 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entry",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "entries",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Entry"
+              },
+              "length": "4"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "entry_slice",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "entries"
+                  },
+                  "target": "as_mut_slice",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        "entry_slice"
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "member": "value"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 7
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "good"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "indexed",
+                          "collection": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "name",
+                              "path": [
+                                "self"
+                              ]
+                            },
+                            "member": "entries"
+                          },
+                          "index": {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        },
+                        "member": "value"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 7
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "indexed",
+                          "collection": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "name",
+                              "path": [
+                                "self"
+                              ]
+                            },
+                            "member": "entries"
+                          },
+                          "index": {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        },
+                        "member": "value"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 7
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "good",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 21
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 22
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [
+              "process_exit"
+            ],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 3,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 4,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 28,
+    "expression_struct_field_count": 0,
+    "statement_count": 6,
+    "transition_target_count": 2,
+    "type_reference_count": 11,
+    "type_constraint_count": 0
+  }
+}

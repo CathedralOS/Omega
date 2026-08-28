@@ -1,0 +1,1024 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 487,
+        "end": 494,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 509,
+            "end": 521,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 522,
+                "end": 533,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 535,
+                  "end": 538,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 549,
+        "end": 553,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 560,
+            "end": 567,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 569,
+              "end": 576,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "nums",
+            "source_id": 0,
+            "start": 582,
+            "end": 586,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 589,
+                "end": 592,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 5
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "j",
+            "source_id": 0,
+            "start": 602,
+            "end": 603,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 0,
+                "start": 605,
+                "end": 608,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "jp",
+            "source_id": 0,
+            "start": 626,
+            "end": 628,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 0,
+                "start": 630,
+                "end": 633,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "a",
+            "source_id": 0,
+            "start": 651,
+            "end": 652,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 654,
+              "end": 657,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "b",
+            "source_id": 0,
+            "start": 663,
+            "end": 664,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 666,
+              "end": 669,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 688,
+            "end": 692,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 715,
+                    "end": 719,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 10
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 738,
+                    "end": 742,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 20
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 761,
+                    "end": 765,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 2
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 30
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 784,
+                    "end": 788,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 3
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 40
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 807,
+                    "end": 811,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 4
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 50
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "j",
+                  "source_id": 0,
+                  "start": 830,
+                  "end": 831,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "step",
+                    "source_id": 0,
+                    "start": 868,
+                    "end": 872,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "step",
+            "source_id": 0,
+            "start": 956,
+            "end": 960,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "compare",
+                    "source_id": 0,
+                    "start": 1026,
+                    "end": 1033,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "j",
+                        "source_id": 0,
+                        "start": 998,
+                        "end": 999,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "less",
+                    "right": {
+                      "kind": "integer",
+                      "value": 4
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "sorted",
+                    "source_id": 0,
+                    "start": 1053,
+                    "end": 1059,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "compare",
+            "source_id": 0,
+            "start": 1089,
+            "end": 1096,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "jp",
+                  "source_id": 0,
+                  "start": 1123,
+                  "end": 1125,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "j",
+                    "source_id": 0,
+                    "start": 1133,
+                    "end": 1134,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "a",
+                  "source_id": 0,
+                  "start": 1153,
+                  "end": 1154,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 1162,
+                    "end": 1166,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "j",
+                    "source_id": 0,
+                    "start": 1172,
+                    "end": 1173,
+                    "source_backed": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "b",
+                  "source_id": 0,
+                  "start": 1189,
+                  "end": 1190,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "nums",
+                    "source_id": 0,
+                    "start": 1198,
+                    "end": 1202,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "jp",
+                    "source_id": 0,
+                    "start": 1208,
+                    "end": 1210,
+                    "source_backed": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "unsorted",
+                    "source_id": 0,
+                    "start": 1270,
+                    "end": 1278,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "a",
+                        "source_id": 0,
+                        "start": 1237,
+                        "end": 1238,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "greater",
+                    "right": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "b",
+                        "source_id": 0,
+                        "start": 1246,
+                        "end": 1247,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "advance",
+                    "source_id": 0,
+                    "start": 1298,
+                    "end": 1305,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "advance",
+            "source_id": 0,
+            "start": 1335,
+            "end": 1342,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "j",
+                  "source_id": 0,
+                  "start": 1369,
+                  "end": 1370,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "j",
+                    "source_id": 0,
+                    "start": 1378,
+                    "end": 1379,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "step",
+                    "source_id": 0,
+                    "start": 1423,
+                    "end": 1427,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "sorted",
+            "source_id": 0,
+            "start": 1457,
+            "end": 1463,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1490,
+                  "end": 1497,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1498,
+                "end": 1510,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "unsorted",
+            "source_id": 0,
+            "start": 1533,
+            "end": 1541,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1568,
+                  "end": 1575,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1576,
+                "end": 1588,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

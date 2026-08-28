@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
+use omega_abstract_operations::AbstractOperation as O;
 use omega_optimization_core::{OptimizationUnitIdentity, OwnershipFrontierFactIdentity};
-use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{BlockId, MachineId};
 
 use crate::{
@@ -117,7 +117,7 @@ pub struct PsiClosedRegionObservation {
 }
 
 /// Reconstruct the observation boundary from the immutable unit. The exhaustive
-/// operation match is intentional: adding a Terminal abstract operation cannot
+/// operation match is intentional: adding a abstract operation cannot
 /// compile until its observation class is chosen here.
 pub fn reconstruct_psi_observation_model(unit: &PsiOptimizationUnit) -> PsiObservationModel {
     let mut nodes = Vec::new();

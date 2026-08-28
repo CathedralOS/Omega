@@ -1,0 +1,1117 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8]::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "slice",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 0,
+            "start": 8,
+            "end": 10,
+            "source_backed": true
+          }
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "valid_utf8",
+          "source_id": 0,
+          "start": 23,
+          "end": 33,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "CellId",
+        "source_id": 0,
+        "start": 50,
+        "end": 56,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Empty",
+            "source_id": 0,
+            "start": 68,
+            "end": 73,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "A1",
+            "source_id": 0,
+            "start": 84,
+            "end": 86,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "A2",
+            "source_id": 0,
+            "start": 97,
+            "end": 99,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Exit",
+        "source_id": 0,
+        "start": 109,
+        "end": 113,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "command",
+            "source_id": 0,
+            "start": 120,
+            "end": 127,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u8",
+                    "source_id": 0,
+                    "start": 131,
+                    "end": 133,
+                    "source_backed": true
+                  }
+                }
+              },
+              "constraints": [
+                {
+                  "kind": "named",
+                  "name": {
+                    "text": "Utf8",
+                    "source_id": 0,
+                    "start": 138,
+                    "end": 142,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            "is_mutable": false,
+            "is_relaxed": false
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "destination",
+            "source_id": 0,
+            "start": 148,
+            "end": 159,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "CellId",
+              "source_id": 0,
+              "start": 161,
+              "end": 167,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Room",
+        "source_id": 0,
+        "start": 177,
+        "end": 181,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "cell",
+            "source_id": 0,
+            "start": 188,
+            "end": 192,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "CellId",
+              "source_id": 0,
+              "start": 194,
+              "end": 200,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "label",
+            "source_id": 0,
+            "start": 206,
+            "end": 211,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u8",
+                    "source_id": 0,
+                    "start": 215,
+                    "end": 217,
+                    "source_backed": true
+                  }
+                }
+              },
+              "constraints": [
+                {
+                  "kind": "named",
+                  "name": {
+                    "text": "Utf8",
+                    "source_id": 0,
+                    "start": 222,
+                    "end": 226,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            "is_mutable": false,
+            "is_relaxed": false
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "description",
+            "source_id": 0,
+            "start": 232,
+            "end": 243,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u8",
+                    "source_id": 0,
+                    "start": 247,
+                    "end": 249,
+                    "source_backed": true
+                  }
+                }
+              },
+              "constraints": [
+                {
+                  "kind": "named",
+                  "name": {
+                    "text": "Utf8",
+                    "source_id": 0,
+                    "start": 254,
+                    "end": 258,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            "is_mutable": false,
+            "is_relaxed": false
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "exits",
+            "source_id": 0,
+            "start": 264,
+            "end": 269,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Exit",
+                "source_id": 0,
+                "start": 272,
+                "end": 276,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 2
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 300,
+        "end": 307,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "write_line",
+            "source_id": 0,
+            "start": 322,
+            "end": 332,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 0,
+                "start": 333,
+                "end": 337,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 341,
+                        "end": 343,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 348,
+                        "end": 352,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 367,
+            "end": 379,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 380,
+                "end": 391,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 393,
+                  "end": 396,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 407,
+        "end": 411,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 418,
+            "end": 425,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 427,
+              "end": 434,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "room",
+            "source_id": 0,
+            "start": 440,
+            "end": 444,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Room",
+              "source_id": 0,
+              "start": 446,
+              "end": 450,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "selected_exit",
+            "source_id": 0,
+            "start": 456,
+            "end": 469,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Exit",
+              "source_id": 0,
+              "start": 471,
+              "end": 475,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 494,
+            "end": 498,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 513,
+              "end": 516,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "room",
+                    "source_id": 0,
+                    "start": 528,
+                    "end": 532,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "cell",
+                  "source_id": 0,
+                  "start": 533,
+                  "end": 537,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "CellId",
+                    "source_id": 0,
+                    "start": 540,
+                    "end": 546,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "A1",
+                    "source_id": 0,
+                    "start": 548,
+                    "end": 550,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "room",
+                    "source_id": 0,
+                    "start": 561,
+                    "end": 565,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "label",
+                  "source_id": 0,
+                  "start": 566,
+                  "end": 571,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "string",
+                "text": "A1"
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "room",
+                    "source_id": 0,
+                    "start": 589,
+                    "end": 593,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "description",
+                  "source_id": 0,
+                  "start": 594,
+                  "end": 605,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "string",
+                "text": "A1: a stone entry."
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 639,
+                      "end": 643,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "exits",
+                    "source_id": 0,
+                    "start": 644,
+                    "end": 649,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              },
+              "value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Exit",
+                  "source_id": 0,
+                  "start": 655,
+                  "end": 659,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "command",
+                      "source_id": 0,
+                      "start": 662,
+                      "end": 669,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "string",
+                      "text": "north"
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "destination",
+                      "source_id": 0,
+                      "start": 680,
+                      "end": 691,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "CellId",
+                          "source_id": 0,
+                          "start": 693,
+                          "end": 699,
+                          "source_backed": true
+                        },
+                        {
+                          "text": "A2",
+                          "source_id": 0,
+                          "start": 701,
+                          "end": 703,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 716,
+                      "end": 720,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "exits",
+                    "source_id": 0,
+                    "start": 721,
+                    "end": 726,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              },
+              "value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Exit",
+                  "source_id": 0,
+                  "start": 732,
+                  "end": 736,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "command",
+                      "source_id": 0,
+                      "start": 739,
+                      "end": 746,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "string",
+                      "text": "wait"
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "destination",
+                      "source_id": 0,
+                      "start": 756,
+                      "end": 767,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "CellId",
+                          "source_id": 0,
+                          "start": 769,
+                          "end": 775,
+                          "source_backed": true
+                        },
+                        {
+                          "text": "Empty",
+                          "source_id": 0,
+                          "start": 777,
+                          "end": 782,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "selected_exit",
+                  "source_id": 0,
+                  "start": 795,
+                  "end": 808,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 816,
+                      "end": 820,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "exits",
+                    "source_id": 0,
+                    "start": 821,
+                    "end": 826,
+                    "source_backed": true
+                  }
+                },
+                "index": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 841,
+                  "end": 848,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 849,
+                "end": 859,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 865,
+                      "end": 869,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "label",
+                    "source_id": 0,
+                    "start": 870,
+                    "end": 875,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 887,
+                  "end": 894,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 895,
+                "end": 905,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 911,
+                      "end": 915,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "description",
+                    "source_id": 0,
+                    "start": 916,
+                    "end": 927,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 939,
+                  "end": 946,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 947,
+                "end": 957,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "selected_exit",
+                      "source_id": 0,
+                      "start": 963,
+                      "end": 976,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "command",
+                    "source_id": 0,
+                    "start": 977,
+                    "end": 984,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 996,
+                  "end": 1003,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1004,
+                "end": 1016,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 0
+                }
+              ]
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

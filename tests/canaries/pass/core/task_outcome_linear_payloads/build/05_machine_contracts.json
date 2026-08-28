@@ -1,0 +1,160 @@
+{
+  "machines": [
+    {
+      "machine": "Receipt::ack",
+      "contract": {
+        "fingerprint": "0x1e730455525d3e15",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "ack", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Task::settle",
+      "contract": {
+        "fingerprint": "0x1e730455525d3e15",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "settle", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x741e8d81ff4d2fdb",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Task::request_cancel",
+      "contract": {
+        "fingerprint": "0x880a03d5be18b5b6",
+        "supply": "accepted",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "published_ceiling", "services": []},
+        "suspension": {"interface": "published_ceiling", "may_suspend": false},
+        "blocking": {"interface": "published_ceiling", "may_block": false},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "request_cancel", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Task::finish",
+      "contract": {
+        "fingerprint": "0x75031d6ff7897fff",
+        "supply": "accepted",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "published_ceiling", "services": []},
+        "suspension": {"interface": "published_ceiling", "may_suspend": true},
+        "blocking": {"interface": "published_ceiling", "may_block": true},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": true,
+        "checked_may_block": true,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "finish", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "TaskRuntime::start",
+      "contract": {
+        "fingerprint": "0x9d2aa80794d09f0b",
+        "supply": "accepted",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "published_ceiling", "services": []},
+        "suspension": {"interface": "published_ceiling", "may_suspend": false},
+        "blocking": {"interface": "published_ceiling", "may_block": false},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "start", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "TaskRuntime::try_start",
+      "contract": {
+        "fingerprint": "0xca1a248c4626288c",
+        "supply": "accepted",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "published_ceiling", "services": []},
+        "suspension": {"interface": "published_ceiling", "may_suspend": false},
+        "blocking": {"interface": "published_ceiling", "may_block": false},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "try_start", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

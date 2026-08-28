@@ -1,0 +1,385 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "buffer",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": "u8"
+                },
+                "length": "8"
+              },
+              "constraints": [
+                {
+                  "kind": "named",
+                  "name": "Utf8"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ch",
+            "type_reference": {
+              "kind": "named",
+              "name": "u8"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "[u8; N]::Utf8",
+        "target_type": {
+          "kind": "fixed_array",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          },
+          "length": "8"
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "buffer"
+                },
+                "value": {
+                  "kind": "string",
+                  "value": "AB"
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "ch"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 68
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "buffer"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 67
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "buffer"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "ch"
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "ok"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "buffer"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "string",
+                        "value": "CD"
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 6
+          },
+          {
+            "name": "ok",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 29,
+    "statement_count": 8,
+    "type_reference_count": 13
+  }
+}

@@ -1,0 +1,1775 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8]::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "slice",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 0,
+            "start": 287,
+            "end": 289,
+            "source_backed": true
+          }
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "valid_utf8",
+          "source_id": 0,
+          "start": 302,
+          "end": 312,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8; N]::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "fixed_array",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 0,
+            "start": 332,
+            "end": 334,
+            "source_backed": true
+          }
+        },
+        "length": {
+          "kind": "literal",
+          "value": 16
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "valid_utf8",
+          "source_id": 0,
+          "start": 351,
+          "end": 361,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 388,
+        "end": 395,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "write_line",
+            "source_id": 0,
+            "start": 410,
+            "end": 420,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 0,
+                "start": 421,
+                "end": 425,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 429,
+                        "end": 431,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 436,
+                        "end": 440,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_line",
+            "source_id": 0,
+            "start": 455,
+            "end": 464,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "out_line",
+                "source_id": 0,
+                "start": 465,
+                "end": 473,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "fixed_array",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 481,
+                        "end": 483,
+                        "source_backed": true
+                      }
+                    },
+                    "length": {
+                      "kind": "literal",
+                      "value": 16
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 492,
+                        "end": 496,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 511,
+            "end": 523,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 524,
+                "end": 535,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 537,
+                  "end": 540,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Command",
+        "source_id": 0,
+        "start": 551,
+        "end": 558,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Look",
+            "source_id": 0,
+            "start": 570,
+            "end": 574,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Quit",
+            "source_id": 0,
+            "start": 585,
+            "end": 589,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Invalid",
+            "source_id": 0,
+            "start": 600,
+            "end": 607,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Parser",
+        "source_id": 0,
+        "start": 617,
+        "end": 623,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Parser::resolve",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Parser",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "resolve",
+            "source_id": 0,
+            "start": 645,
+            "end": 652,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "line",
+                "source_id": 0,
+                "start": 664,
+                "end": 668,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 672,
+                        "end": 674,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 679,
+                        "end": 683,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Command",
+              "source_id": 0,
+              "start": 688,
+              "end": 695,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 741,
+                      "end": 748,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Look",
+                      "source_id": 0,
+                      "start": 750,
+                      "end": 754,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "line",
+                        "source_id": 0,
+                        "start": 723,
+                        "end": 727,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "string",
+                    "text": "look"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 781,
+                      "end": 788,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Quit",
+                      "source_id": 0,
+                      "start": 790,
+                      "end": 794,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "line",
+                        "source_id": 0,
+                        "start": 763,
+                        "end": 767,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "string",
+                    "text": "quit"
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 808,
+                      "end": 815,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Invalid",
+                      "source_id": 0,
+                      "start": 817,
+                      "end": 824,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Game",
+        "source_id": 0,
+        "start": 839,
+        "end": 843,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 850,
+            "end": 857,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 859,
+              "end": 866,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "line",
+            "source_id": 0,
+            "start": 872,
+            "end": 876,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": {
+                  "text": "u8",
+                  "source_id": 0,
+                  "start": 879,
+                  "end": 881,
+                  "source_backed": true
+                }
+              },
+              "length": {
+                "kind": "literal",
+                "value": 16
+              }
+            },
+            "constraints": [
+              {
+                "kind": "named",
+                "name": {
+                  "text": "Utf8",
+                  "source_id": 0,
+                  "start": 890,
+                  "end": 894,
+                  "source_backed": true
+                }
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "parser",
+            "source_id": 0,
+            "start": 900,
+            "end": 906,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Parser",
+              "source_id": 0,
+              "start": 908,
+              "end": 914,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "command",
+            "source_id": 0,
+            "start": 920,
+            "end": 927,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Command",
+              "source_id": 0,
+              "start": 929,
+              "end": 936,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "health",
+            "source_id": 0,
+            "start": 942,
+            "end": 948,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 950,
+              "end": 953,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Game::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Game",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 972,
+            "end": 975,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "health",
+                  "source_id": 0,
+                  "start": 998,
+                  "end": 1004,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 10
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "prompt",
+                    "source_id": 0,
+                    "start": 1033,
+                    "end": 1039,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "prompt",
+            "source_id": 0,
+            "start": 1056,
+            "end": 1062,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "dead",
+                    "source_id": 0,
+                    "start": 1134,
+                    "end": 1138,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "health",
+                        "source_id": 0,
+                        "start": 1100,
+                        "end": 1106,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "read_command",
+                    "source_id": 0,
+                    "start": 1162,
+                    "end": 1174,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "health",
+                        "source_id": 0,
+                        "start": 1100,
+                        "end": 1106,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "read_command",
+            "source_id": 0,
+            "start": 1204,
+            "end": 1216,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1243,
+                  "end": 1250,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "read_line",
+                "source_id": 0,
+                "start": 1251,
+                "end": 1260,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "line",
+                      "source_id": 0,
+                      "start": 1271,
+                      "end": 1275,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "command",
+                  "source_id": 0,
+                  "start": 1291,
+                  "end": 1298,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "parser",
+                    "source_id": 0,
+                    "start": 1306,
+                    "end": 1312,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "resolve",
+                  "source_id": 0,
+                  "start": 1313,
+                  "end": 1320,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "line",
+                      "source_id": 0,
+                      "start": 1327,
+                      "end": 1331,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "look",
+                    "source_id": 0,
+                    "start": 1398,
+                    "end": 1402,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "command",
+                      "source_id": 0,
+                      "start": 1359,
+                      "end": 1366,
+                      "source_backed": true
+                    }
+                  },
+                  "domain": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 1381,
+                      "end": 1388,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Look",
+                      "source_id": 0,
+                      "start": 1390,
+                      "end": 1394,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "finished",
+                    "source_id": 0,
+                    "start": 1434,
+                    "end": 1442,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "command",
+                      "source_id": 0,
+                      "start": 1359,
+                      "end": 1366,
+                      "source_backed": true
+                    }
+                  },
+                  "domain": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 1417,
+                      "end": 1424,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Quit",
+                      "source_id": 0,
+                      "start": 1426,
+                      "end": 1430,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "invalid",
+                    "source_id": 0,
+                    "start": 1477,
+                    "end": 1484,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "command",
+                      "source_id": 0,
+                      "start": 1359,
+                      "end": 1366,
+                      "source_backed": true
+                    }
+                  },
+                  "domain": [
+                    {
+                      "text": "Command",
+                      "source_id": 0,
+                      "start": 1457,
+                      "end": 1464,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Invalid",
+                      "source_id": 0,
+                      "start": 1466,
+                      "end": 1473,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "dead",
+            "source_id": 0,
+            "start": 1514,
+            "end": 1518,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1545,
+                  "end": 1552,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 1553,
+                "end": 1563,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "dead"
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1586,
+                  "end": 1593,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1594,
+                "end": 1606,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 2
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "look",
+            "source_id": 0,
+            "start": 1628,
+            "end": 1632,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1659,
+                  "end": 1666,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 1667,
+                "end": 1677,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "look"
+                }
+              ]
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "prompt",
+                    "source_id": 0,
+                    "start": 1713,
+                    "end": 1719,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "invalid",
+            "source_id": 0,
+            "start": 1741,
+            "end": 1748,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1775,
+                  "end": 1782,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 1783,
+                "end": 1793,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "invalid"
+                }
+              ]
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "prompt",
+                    "source_id": 0,
+                    "start": 1832,
+                    "end": 1838,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "finished",
+            "source_id": 0,
+            "start": 1860,
+            "end": 1868,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1896,
+        "end": 1900,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "game",
+            "source_id": 0,
+            "start": 1907,
+            "end": 1911,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Game",
+              "source_id": 0,
+              "start": 1913,
+              "end": 1917,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1936,
+            "end": 1940,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1955,
+              "end": 1958,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "running",
+                    "source_id": 0,
+                    "start": 1983,
+                    "end": 1990,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "running",
+            "source_id": 0,
+            "start": 2007,
+            "end": 2014,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1955,
+              "end": 1958,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "game",
+                  "source_id": 0,
+                  "start": 2041,
+                  "end": 2045,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "run",
+                "source_id": 0,
+                "start": 2046,
+                "end": 2049,
+                "source_backed": true
+              },
+              "arguments": []
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "shutdown",
+                    "source_id": 0,
+                    "start": 2079,
+                    "end": 2087,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "shutdown",
+            "source_id": 0,
+            "start": 2109,
+            "end": 2117,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1955,
+              "end": 1958,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

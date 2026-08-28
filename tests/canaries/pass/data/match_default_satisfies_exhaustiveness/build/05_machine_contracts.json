@@ -1,0 +1,19 @@
+{
+  "machines": [
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x4ad75029815d479d",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

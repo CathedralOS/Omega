@@ -1,0 +1,408 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8]::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "slice",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 0,
+            "start": 8,
+            "end": 10,
+            "source_backed": true
+          }
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "valid_utf8",
+          "source_id": 0,
+          "start": 23,
+          "end": 33,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Folder",
+        "source_id": 0,
+        "start": 350,
+        "end": 356,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "write_line",
+            "source_id": 0,
+            "start": 371,
+            "end": 381,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "text",
+                "source_id": 0,
+                "start": 382,
+                "end": 386,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 390,
+                        "end": 392,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 397,
+                        "end": 401,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "filesystem_io",
+              "source_id": 0,
+              "start": 423,
+              "end": 436,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Librarian",
+        "source_id": 0,
+        "start": 446,
+        "end": 455,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Librarian::archive",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Librarian",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "archive",
+            "source_id": 0,
+            "start": 480,
+            "end": 487,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "folder",
+                "source_id": 0,
+                "start": 495,
+                "end": 501,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Folder",
+                  "source_id": 0,
+                  "start": 503,
+                  "end": 509,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "folder",
+                  "source_id": 0,
+                  "start": 517,
+                  "end": 523,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "write_line",
+                "source_id": 0,
+                "start": 524,
+                "end": 534,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "archive entry"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 561,
+        "end": 565,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "librarian",
+            "source_id": 0,
+            "start": 572,
+            "end": 581,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Librarian",
+              "source_id": 0,
+              "start": 583,
+              "end": 592,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "folder",
+            "source_id": 0,
+            "start": 598,
+            "end": 604,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Folder",
+              "source_id": 0,
+              "start": 606,
+              "end": 612,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 631,
+            "end": 635,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "librarian",
+                  "source_id": 0,
+                  "start": 658,
+                  "end": 667,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "archive",
+                "source_id": 0,
+                "start": 668,
+                "end": 675,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "folder",
+                    "source_id": 0,
+                    "start": 681,
+                    "end": 687,
+                    "source_backed": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

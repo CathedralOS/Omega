@@ -1,0 +1,1259 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 876,
+        "end": 883,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 898,
+            "end": 910,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 911,
+                "end": 922,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 924,
+                  "end": 927,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Entity",
+        "source_id": 0,
+        "start": 938,
+        "end": 944,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "hp",
+            "source_id": 0,
+            "start": 951,
+            "end": 953,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 955,
+                "end": 958,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "x",
+            "source_id": 0,
+            "start": 976,
+            "end": 977,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 979,
+                "end": 982,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1004,
+        "end": 1008,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1015,
+            "end": 1022,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1024,
+              "end": 1031,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "entities",
+            "source_id": 0,
+            "start": 1037,
+            "end": 1045,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Entity",
+                "source_id": 0,
+                "start": 1048,
+                "end": 1054,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 4
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "idx",
+            "source_id": 0,
+            "start": 1064,
+            "end": 1067,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 1069,
+              "end": 1074,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1093,
+            "end": 1097,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1120,
+                      "end": 1128,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "member": {
+                  "text": "hp",
+                  "source_id": 0,
+                  "start": 1132,
+                  "end": 1134,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 10
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1150,
+                      "end": 1158,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "member": {
+                  "text": "x",
+                  "source_id": 0,
+                  "start": 1162,
+                  "end": 1163,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 100
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1180,
+                      "end": 1188,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "member": {
+                  "text": "hp",
+                  "source_id": 0,
+                  "start": 1192,
+                  "end": 1194,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 11
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1210,
+                      "end": 1218,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "member": {
+                  "text": "x",
+                  "source_id": 0,
+                  "start": 1222,
+                  "end": 1223,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 101
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1240,
+                      "end": 1248,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                },
+                "member": {
+                  "text": "hp",
+                  "source_id": 0,
+                  "start": 1252,
+                  "end": 1254,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 12
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1270,
+                      "end": 1278,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                },
+                "member": {
+                  "text": "x",
+                  "source_id": 0,
+                  "start": 1282,
+                  "end": 1283,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 102
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1300,
+                      "end": 1308,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "member": {
+                  "text": "hp",
+                  "source_id": 0,
+                  "start": 1312,
+                  "end": 1314,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 13
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1330,
+                      "end": 1338,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "member": {
+                  "text": "x",
+                  "source_id": 0,
+                  "start": 1342,
+                  "end": 1343,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 103
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "idx",
+                  "source_id": 0,
+                  "start": 1361,
+                  "end": 1364,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 2
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1379,
+                      "end": 1387,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "idx",
+                      "source_id": 0,
+                      "start": 1393,
+                      "end": 1396,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "member": {
+                  "text": "hp",
+                  "source_id": 0,
+                  "start": 1398,
+                  "end": 1400,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 99
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "entities",
+                      "source_id": 0,
+                      "start": 1458,
+                      "end": 1466,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "idx",
+                      "source_id": 0,
+                      "start": 1472,
+                      "end": 1475,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "member": {
+                  "text": "x",
+                  "source_id": 0,
+                  "start": 1477,
+                  "end": 1478,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 55
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_x",
+                    "source_id": 0,
+                    "start": 1545,
+                    "end": 1552,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "entities",
+                            "source_id": 0,
+                            "start": 1506,
+                            "end": 1514,
+                            "source_backed": true
+                          }
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 2
+                        }
+                      },
+                      "member": {
+                        "text": "hp",
+                        "source_id": 0,
+                        "start": 1518,
+                        "end": 1520,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 99
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1568,
+                    "end": 1571,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_x",
+            "source_id": 0,
+            "start": 1590,
+            "end": 1597,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_untouched_field",
+                    "source_id": 0,
+                    "start": 1665,
+                    "end": 1686,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "entities",
+                            "source_id": 0,
+                            "start": 1635,
+                            "end": 1643,
+                            "source_backed": true
+                          }
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 2
+                        }
+                      },
+                      "member": {
+                        "text": "x",
+                        "source_id": 0,
+                        "start": 1647,
+                        "end": 1648,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 55
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1694,
+                    "end": 1697,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_untouched_field",
+            "source_id": 0,
+            "start": 1718,
+            "end": 1739,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_neighbor",
+                    "source_id": 0,
+                    "start": 1869,
+                    "end": 1883,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "entities",
+                            "source_id": 0,
+                            "start": 1838,
+                            "end": 1846,
+                            "source_backed": true
+                          }
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 0
+                        }
+                      },
+                      "member": {
+                        "text": "hp",
+                        "source_id": 0,
+                        "start": 1850,
+                        "end": 1852,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 10
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1891,
+                    "end": 1894,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_neighbor",
+            "source_id": 0,
+            "start": 1915,
+            "end": 1929,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1998,
+                    "end": 2002,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "entities",
+                            "source_id": 0,
+                            "start": 1967,
+                            "end": 1975,
+                            "source_backed": true
+                          }
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      },
+                      "member": {
+                        "text": "x",
+                        "source_id": 0,
+                        "start": 1979,
+                        "end": 1980,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 101
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2010,
+                    "end": 2013,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 2035,
+            "end": 2039,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2066,
+                  "end": 2073,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2074,
+                "end": 2086,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 2108,
+            "end": 2111,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2138,
+                  "end": 2145,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2146,
+                "end": 2158,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

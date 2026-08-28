@@ -1,0 +1,262 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "machine",
+      "name": {
+        "text": "less_equal_antisymmetric",
+        "source_id": 0,
+        "start": 177,
+        "end": 201,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 237,
+                      "end": 238,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "less_or_equal",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 242,
+                      "end": 243,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 249,
+                      "end": 250,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "less_or_equal",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 254,
+                      "end": 255,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "token_count": 12
+        },
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 270,
+                      "end": 271,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 275,
+                      "end": 276,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "token_count": 6
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 202,
+                "end": 203,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 205,
+                  "end": 210,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 212,
+                "end": 213,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 215,
+                  "end": 220,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 291,
+        "end": 295,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 318,
+            "end": 322,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

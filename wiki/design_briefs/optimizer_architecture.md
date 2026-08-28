@@ -31,14 +31,14 @@ repeat milestone history.
 The compiler has one executable backend lane.
 
 - Every native product lowers canonical Terminal Psi artifact sections
-  through `omega-terminal-psi-to-abstract-operations`. That path first decodes
+  through `omega-psi-to-abstract-operations`. That path first decodes
   and verifies the semantic module and proof bundle, then produces
   source-independent operations retaining Terminal Psi value, place, operation,
   edge, claim, and machine identities.
 - The current assigned-target stage gives computed operands scratch registers by
   cycling through a fixed architecture-specific list. It does not compute live
   ranges, an interference graph, spills, splitting, or coalescing. The clean
-  Terminal lane assigns only the deliberately bounded shapes it currently
+  Omega realization pipeline assigns only the deliberately bounded shapes it currently
   supports. Neither is a general register allocator.
 - Terminal Psi is immutable, canonical, target-neutral semantic input. It is
   deliberately distinct from mutable optimization representations. Its
@@ -49,10 +49,9 @@ The compiler has one executable backend lane.
   target-neutral optimizer over a verified Terminal-Psi-derived unit. It does
   not move optimization into the Psi frontend or mutate the canonical artifact.
 
-The former checked-tree `StateGraph`/`ControlFlowPlan` compiler route is
-deleted. Those representations survive only below historical fixtures and
-program-storage scaffolding and must not re-enter compilation. The durable
-high-level optimizer begins only after canonical Terminal Psi verification.
+The former checked-tree `StateGraph`/`ControlFlowPlan` compiler route and its
+representations are deleted. The durable high-level optimizer begins only
+after canonical Terminal Psi verification.
 
 ## Semantic contract
 
@@ -125,8 +124,8 @@ optimization report continue to retain its identity.
 ```text
 canonical Terminal Psi semantic + proof sections
     -> decode, reconstruct obligations, verify, admit
-    -> VerifiedTerminalOptimizationInput
-       { TerminalAbstractOperationPlan,
+    -> VerifiedPsiOptimizationInput
+       { AbstractOperationPlan,
          immutable TerminalModule,
          proof bundle + fingerprint,
          reconstructed obligations and their complete ordered proof questions,
@@ -144,7 +143,7 @@ canonical Terminal Psi semantic + proof sections
          replay/cache identity bundle }
     -> independently replay and validate every committed candidate
     -> ValidatedOptimizedAbstractPlan
-       { clean TerminalAbstractOperationPlan (borrowed access only),
+       { clean AbstractOperationPlan (borrowed access only),
          retained OptimizationRun,
          optimized-plan projection validation receipt,
          validated pre-physical structured manifest + text projection }
@@ -216,7 +215,7 @@ module. Native/optimized agreement is evidence about the realization, not a
 new definition of program meaning.
 
 The Rust reference orchestration entry lives in
-`orchestration/omega-optimization-pipeline`; it accepts only a nonempty exact
+`pipeline/optimization/omega-optimization-pipeline`; it accepts only a nonempty exact
 selection set and an explicit per-pass work ceiling. It derives the canonical
 named-pass schedule. The currently supported combined schedule is SCCP,
 constant-conditional CFG cleanup, then copy propagation. Each pass emits a
@@ -227,7 +226,8 @@ exact selections, flattened ordered rule identities, cost model, decision log,
 and ledger. Reordering or omitting pass manifests therefore fails independent
 projection rather than changing the meaning of a selection.
 
-The custody bridge lives in `optimization/omega-lowering-optimizer`. It
+The optimization-run projection stage lives in
+`pipeline/omega-optimization-run-to-abstract-operations`. It
 deliberately does not trust the pass manager's final unit or reserialize that
 unit as a detached lowering value. It rebuilds the initial verified unit,
 replays the retained immutable candidate declarations through
@@ -241,6 +241,14 @@ target/native realization identity. A domain-separated projection identity
 binds all of those fields plus the independent validator identity, so later
 custody and manifest joins cannot name only the optimizer-authored bundle while
 silently losing the translation validator.
+
+That stage stops at `ValidatedOptimizedAbstractPlan`. Target selection and the
+custody join to `ValidatedOptimizedTargetOperations` belong to
+`pipeline/optimization/omega-optimization-pipeline`, where the selected target,
+provider executions, and any retained provider installation are actually in
+scope. Optimization owns analyses and rewrites; the projection pipeline owns
+the exact `OptimizationRun -> AbstractOperationPlan` transformation;
+orchestration owns the cross-stage target join.
 
 That bridge now also retains a validated pre-physical manifest. The structured
 record binds the Terminal-Psi root, fuel schedule, initial/final unit revisions,
@@ -694,7 +702,7 @@ both entry and exit.
 
 `PsiOptimizationUnit` is a private, reconstructible compiler representation,
 not another portable language boundary. It should evolve from the clean
-`TerminalAbstractOperationPlan` seed instead of introducing a parallel
+`AbstractOperationPlan` seed instead of introducing a parallel
 source-shaped IR.
 
 Each function contains:
@@ -732,7 +740,7 @@ This is immutable source authority, not a mutable reconstruction of the current
 CFG: rewrites may remove a source operation or edge but must retain its fact
 row. Catalog and nested snapshot ordering are canonical, the complete catalog
 is bound by unit content identity, and validation compares it to an independent
-projection from `VerifiedTerminalOptimizationInput`. A later analysis may use a
+projection from `VerifiedPsiOptimizationInput`. A later analysis may use a
 row only at its exact source site unless it proves a new current-region
 relationship.
 
@@ -1845,7 +1853,7 @@ classes plus machine-state uses/defs. It must not preassign arbitrary scratch
 registers in ways that hide interference from the allocator.
 
 The first production slice makes that boundary concrete without claiming a
-general selector. `omega-terminal-legalized-operations` is a data-only,
+general selector. `omega-legalized-operations` is a data-only,
 target-bound representation below raw target operations. A mandatory checked
 canonicalizer reconstructs one exact V5 projection from the target plan,
 optimized abstract plan, and verified optimization unit. Its canonical identity
@@ -1870,7 +1878,7 @@ producer and validator cannot freely recombine raw target, abstract, and unit
 inputs. Selection constraints are derived from legal ABI source locations,
 the selected receipt binds the legal-plan identity, and orchestration replays
 and retains the same identity through later liveness/effects custody. The
-existing `omega-terminal-target-operations-to-selected-instructions` pipeline
+existing `omega-target-operations-to-selected-instructions` pipeline
 currently owns both checked legalization and selection mechanics, but the type
 boundary is mandatory and explicit.
 
@@ -2512,7 +2520,7 @@ bridge, executable image,
 installation, and publication unavailable.
 
 The next object-owned boundary consumes that validated text section by value.
-`ValidatedRelocationFreeTerminalObjectContainerV1` creates exactly one private
+`ValidatedRelocationFreeObjectContainerV1` creates exactly one private
 object-local symbol per placed function in source order, with canonical one-
 based symbol IDs and `MachineId`-rooted names. Dense symbol intervals cover the
 text bytes exactly. Precisely one symbol carries the semantic-entry role, even
@@ -2526,7 +2534,7 @@ installation, and publication remain unavailable.
 
 A following canonical semantic/proof-to-object boundary owns both the verified
 Terminal artifact and clean object carrier by value.
-`ValidatedOptimizedTerminalObjectArtifactV1` requires exact decoded module and
+`ValidatedOptimizedObjectArtifactV1` requires exact decoded module and
 proof-bundle equality, then binds the Terminal artifact, Psi, obligation and
 proof roots, optional debug fingerprint, explicit selections, target, semantic
 entry, every pre-physical through object manifest, canonical object/container
@@ -2614,7 +2622,7 @@ settlement. Source, target, Terminal-Psi, and entry substitution all fail
 closed. This receipt is association evidence, not entry-bridge authority.
 
 The settled semantic declaration layer is also concrete in
-`omega-program-storage`. Its optimized data-only contract admits only the
+`omega-program-entry-plan`. Its optimized data-only contract admits only the
 receiver-free UEFI x86-64 ProgramStorage slot; Image then InitialStorage with
 exact `Extent in Granted` source shape, role, and carry; Unit/no result; and the
 Microsoft x64 semantic call plan/fingerprint. It retains the separately
@@ -2700,8 +2708,8 @@ forbids relabelling one of them as a compiler wrapper. The checked settlement
 also binds the source entry to that same Terminal module entry, so the leaf in
 the structural fixture cannot be substituted as the settled continuation.
 
-The owning join has now landed in `omega-terminal-native-realization`, which
-owns the settlement and depends on both `omega-program-storage` and the
+The owning join has now landed in `omega-terminal-psi-to-native-artifact`, which
+owns the settlement and depends on both `omega-program-entry-plan` and the
 optimization pipeline. Its opaque stage consumes the validated settlement, the
 canonical optimized object artifact for the actual settled Terminal entry, and
 the selected compact encoding by value. Independent replay reconstructs those
@@ -2782,7 +2790,7 @@ owned admission into the physical pipeline rather than reconstructing it from
 names; the compatibility lane uses installation-aware target projection but
 still cannot silently emit the optimizer-only operation.
 
-Legalization retains that distinction in `TerminalLegalizedCallUnitSource` and
+Legalization retains that distinction in `LegalizedCallUnitSource` and
 independently replays the installed provider row, candidate ABI, physical
 receipt-derived transfers, original `BoundaryCall`, and `ClaimCompletion`
 ownership. Selected structural calls reuse the same source vocabulary and bind
@@ -3152,7 +3160,7 @@ The final Omega-written product source belongs under
 
 ```text
 source/omega/
-  optimization/
+  pipeline/optimization/
     core/                 # selections, rule IDs, decisions, reports, ledgers
     psi/                  # target-neutral Terminal-Psi-derived optimizer
       analyses/
@@ -3171,20 +3179,20 @@ files under `source/omega-rust/omega/`:
 
 ```text
 omega/
-  foundation/omega-optimization-core/
+  representations/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/
-  representations/omega-terminal-legalized-operations/
-  representations/omega-terminal-selected-instructions/
-  pipeline/omega-terminal-target-operations-to-selected-instructions/
+  representations/omega-legalized-operations/
+  representations/omega-selected-instructions/
+  pipeline/omega-optimization-run-to-abstract-operations/
+  pipeline/omega-target-operations-to-selected-instructions/
   optimization/
     omega-psi-optimizer/
-    omega-lowering-optimizer/
     omega-regalloc/
     omega-machine-optimizer/
     omega-optimization-validation/
     omega-optimization-policy/
-  orchestration/omega-optimization-pipeline/
+    omega-optimization-pipeline/
 ```
 
 Keep each crate broad enough to own a coherent responsibility. Individual
@@ -3221,7 +3229,8 @@ invalid transformation.
 
 - Rewriting or republishing canonical Terminal Psi as an optimized semantic
   artifact.
-- Adding optimization to the legacy `StateGraph`/`ControlFlowPlan` boundary.
+- Reintroducing a checked-tree, `StateGraph`, or `ControlFlowPlan` optimization
+  boundary beside Terminal Psi.
 - Treating agreement with LLVM, a model, an SMT solver, or the Rust compiler as
   authority.
 - Letting target packages teach the compiler arbitrary encodings through
@@ -3245,5 +3254,5 @@ invalid transformation.
 - ML/search may choose among or propose candidates but never defines legality.
 - Register allocation is a first-class verified stage, replacing fixed scratch
   cycling.
-- Durable work targets the Terminal lane; legacy adapters are allowed only for
+- Durable work targets the Omega realization pipeline; legacy adapters are allowed only for
   genuinely reusable backend machinery.

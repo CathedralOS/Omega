@@ -1,0 +1,211 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "level",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "xp",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "level"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 2
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "xp"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 21
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "level_up"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "xp"
+                    },
+                    "operator": ">=",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "integer",
+                        "value": 10
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "level"
+                        },
+                        "operator": "*",
+                        "right": {
+                          "kind": "integer",
+                          "value": 5
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "done"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 4
+          },
+          {
+            "name": "level_up",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          },
+          {
+            "name": "done",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 15,
+    "statement_count": 4,
+    "type_reference_count": 5
+  }
+}

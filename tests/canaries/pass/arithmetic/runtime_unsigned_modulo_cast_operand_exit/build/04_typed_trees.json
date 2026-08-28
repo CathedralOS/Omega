@@ -1,0 +1,504 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "RandomState",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "seed",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "u64"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Random",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "rng",
+            "type_reference": {
+              "kind": "named",
+              "name": "Random"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Random::step",
+        "attached_data": "Random",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "step",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "state",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "state"
+                    ]
+                  },
+                  "member": "seed"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "state"
+                        ]
+                      },
+                      "member": "seed"
+                    },
+                    "operator": "*",
+                    "right": {
+                      "kind": "integer",
+                      "value": 6364136223846793005
+                    }
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1442695040888963407
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "random",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "RandomState"
+                },
+                "initial_value": null
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "random"
+                    ]
+                  },
+                  "member": "seed"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 2
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "rng"
+                ],
+                "target": "step",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "random"
+                      ]
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "verify"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "mutable",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "random"
+                        ]
+                      }
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "verify",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "random",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "roll",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "cast",
+                    "value": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "random"
+                          ]
+                        },
+                        "member": "seed"
+                      },
+                      "operator": ">>",
+                      "right": {
+                        "kind": "integer",
+                        "value": 32
+                      }
+                    },
+                    "target_type": [
+                      "u32"
+                    ]
+                  },
+                  "operator": "%",
+                  "right": {
+                    "kind": "integer",
+                    "value": 199
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "unsigned_modulo"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "roll"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "integer",
+                      "value": 158
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "signed_misfire"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "roll"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "integer",
+                      "value": 4294967209
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "unexpected_value"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "unsigned_modulo",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 70
+                }
+              }
+            ]
+          },
+          {
+            "name": "signed_misfire",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 71
+                }
+              }
+            ]
+          },
+          {
+            "name": "unexpected_value",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 0,
+    "data_member_count": 2,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 6,
+    "state_parameter_count": 8,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 31,
+    "expression_struct_field_count": 0,
+    "statement_count": 12,
+    "transition_target_count": 4,
+    "type_reference_count": 20,
+    "type_constraint_count": 1
+  }
+}

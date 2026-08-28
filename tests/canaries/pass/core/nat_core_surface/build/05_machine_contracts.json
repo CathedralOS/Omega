@@ -1,0 +1,1109 @@
+{
+  "machines": [
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x386edc4e60e54e44",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "add",
+      "contract": {
+        "fingerprint": "0x721b39ba1523d7d0",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul",
+      "contract": {
+        "fingerprint": "0x721b39ba1523d7d0",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "zero",
+      "contract": {
+        "fingerprint": "0x5b27eb3b871a7206",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "one",
+      "contract": {
+        "fingerprint": "0x5b27eb3b871a7206",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "add_zero_left",
+      "contract": {
+        "fingerprint": "0x837111622dfbcd0c",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "add_zero_right",
+      "contract": {
+        "fingerprint": "0xef4cb5f0048c05b0",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "add_one_right",
+      "contract": {
+        "fingerprint": "0x4e3ffa018f969524",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_zero_left",
+      "contract": {
+        "fingerprint": "0x4565b8f0f76adee1",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "add_succ_law",
+      "contract": {
+        "fingerprint": "0x6218f6dd966cf26d",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "add_comm",
+      "contract": {
+        "fingerprint": "0x42afd8385a1e14f9",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "comm_base", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "comm_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "add_assoc",
+      "contract": {
+        "fingerprint": "0x760c2c069a115941",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_zero_right",
+      "contract": {
+        "fingerprint": "0xa607d8117550cad3",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_succ_right",
+      "contract": {
+        "fingerprint": "0xba0dec575ab1ae3c",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_identity",
+      "contract": {
+        "fingerprint": "0xe28c3a5c135cd6e6",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "mul_distributes",
+      "contract": {
+        "fingerprint": "0x32b2b30ae5dd429f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_distributes_right",
+      "contract": {
+        "fingerprint": "0x7602cd32f926414f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_assoc",
+      "contract": {
+        "fingerprint": "0xc38e3794bd5be5cc",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "ma_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_one_left",
+      "contract": {
+        "fingerprint": "0x9e498828ee619735",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "mul_one_right",
+      "contract": {
+        "fingerprint": "0xff89e801bdb7aced",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "mul_comm",
+      "contract": {
+        "fingerprint": "0x51c417212a1e9d0b",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "mc_base", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "mc_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "add_cancel",
+      "contract": {
+        "fingerprint": "0x716dc2be5efb7f6b",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "ac_base", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "ac_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["c"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "pred",
+      "contract": {
+        "fingerprint": "0x76e678e952679e27",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "sub",
+      "contract": {
+        "fingerprint": "0x721b39ba1523d7d0",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "sub_zero_right",
+      "contract": {
+        "fingerprint": "0xe568383fb837425f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "succ_sub_succ",
+      "contract": {
+        "fingerprint": "0xeb46cae9b15aec87",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "sss_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "sub_zero_left",
+      "contract": {
+        "fingerprint": "0xf1df182228f67a80",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "szl_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "sub_self",
+      "contract": {
+        "fingerprint": "0xe39249faa5bc5c2b",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "ss_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "add_sub_cancel",
+      "contract": {
+        "fingerprint": "0x4a55422cda0c4f85",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "asc_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "le_of_succ_le",
+      "contract": {
+        "fingerprint": "0xb1ad45569ab45bbf",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "losl_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "pred_le_left",
+      "contract": {
+        "fingerprint": "0x6cd5cea5dca7c8cf",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "pll_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "sub_le",
+      "contract": {
+        "fingerprint": "0xb0e66b5de0307cd5",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "sle_zero", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "sle_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "sub_lt_succ",
+      "contract": {
+        "fingerprint": "0x7f68f3b167eea1b3",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "slt_body", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "sub_lt_of_le",
+      "contract": {
+        "fingerprint": "0xffe9ffe26edb33fd",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "slol_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "sub_lt",
+      "contract": {
+        "fingerprint": "0x5efb0d1a502e26c7",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "slt_of", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "mod",
+      "contract": {
+        "fingerprint": "0xee09a2a9ec9f8e95",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "mod_rec", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "mod_done", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "pred_eq_succ",
+      "contract": {
+        "fingerprint": "0xda2afb938fe47813",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "sub_eq_add",
+      "contract": {
+        "fingerprint": "0x0ce3bb641aaadf92",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "sea_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "le_add",
+      "contract": {
+        "fingerprint": "0x25c03dea6d22e927",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "la_zero", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "la_step", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "lt_of_sub_pos",
+      "contract": {
+        "fingerprint": "0x52c9365d3976ec28",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "lsp_body", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "le_one_succ",
+      "contract": {
+        "fingerprint": "0x10724ca18921c3cb",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "los_body", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "gcd",
+      "contract": {
+        "fingerprint": "0x056e742bc8b60c91",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "gcd_rec", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["b"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "div",
+      "contract": {
+        "fingerprint": "0xa7049d67496d9b07",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []},
+          {"state": "div_rec", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "",
+        "ranking_witness": {
+          "subjects": ["a"],
+          "view": "",
+          "view_arguments": []
+        }
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

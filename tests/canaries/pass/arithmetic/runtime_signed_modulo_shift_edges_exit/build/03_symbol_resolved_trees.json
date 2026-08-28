@@ -1,0 +1,1043 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "a",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "b",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "r1",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "r2",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "s",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "u",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "u32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "rs",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ru",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "u32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "base",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "n",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "shv",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "a"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 0
+                  },
+                  "operator": "-",
+                  "right": {
+                    "kind": "integer",
+                    "value": 7
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "b"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 3
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "r1"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "a"
+                  },
+                  "operator": "%",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "b"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "a"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 7
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "b"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 0
+                  },
+                  "operator": "-",
+                  "right": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "r2"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "a"
+                  },
+                  "operator": "%",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "b"
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "mod2"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "r1"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "-",
+                        "right": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 8
+          },
+          {
+            "name": "mod2",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "shifts"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "r2"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "shifts",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "s"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 0
+                  },
+                  "operator": "-",
+                  "right": {
+                    "kind": "integer",
+                    "value": 16
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "rs"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "s"
+                  },
+                  "operator": ">>",
+                  "right": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "u"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 16
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "ru"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "u"
+                  },
+                  "operator": ">>",
+                  "right": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "ushift"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "rs"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "-",
+                        "right": {
+                          "kind": "integer",
+                          "value": 4
+                        }
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 6
+          },
+          {
+            "name": "ushift",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "runtime_shift"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "ru"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 4
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "runtime_shift",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "base"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "n"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 5
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "shv"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "base"
+                  },
+                  "operator": "<<",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "n"
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "ok"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "shv"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 32
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 5
+          },
+          {
+            "name": "ok",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 11,
+    "expression_count": 99,
+    "statement_count": 25,
+    "type_reference_count": 31
+  }
+}

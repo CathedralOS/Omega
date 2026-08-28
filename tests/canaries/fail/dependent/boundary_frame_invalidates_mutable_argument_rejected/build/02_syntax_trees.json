@@ -1,0 +1,395 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Firmware",
+        "source_id": 0,
+        "start": 163,
+        "end": 171,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "get_size",
+            "source_id": 0,
+            "start": 186,
+            "end": 194,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "size",
+                "source_id": 0,
+                "start": 195,
+                "end": 199,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u32",
+                    "source_id": 0,
+                    "start": 206,
+                    "end": 209,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": [
+            {
+              "kind": {
+                "kind": "ensures"
+              },
+              "facts": [
+                {
+                  "kind": "expression",
+                  "expression": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "size",
+                          "source_id": 0,
+                          "start": 223,
+                          "end": 227,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less_or_equal",
+                    "right": {
+                      "kind": "integer",
+                      "text": "8"
+                    }
+                  }
+                }
+              ],
+              "token_count": 5
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "poke",
+            "source_id": 0,
+            "start": 247,
+            "end": 251,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "size",
+                "source_id": 0,
+                "start": 252,
+                "end": 256,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u32",
+                    "source_id": 0,
+                    "start": 263,
+                    "end": 266,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 277,
+        "end": 281,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "fw",
+            "source_id": 0,
+            "start": 288,
+            "end": 290,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Firmware",
+              "source_id": 0,
+              "start": 292,
+              "end": 300,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "n",
+            "source_id": 0,
+            "start": 306,
+            "end": 307,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 309,
+              "end": 312,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "result",
+            "source_id": 0,
+            "start": 318,
+            "end": 324,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 326,
+              "end": 329,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 348,
+            "end": 352,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "fw",
+                  "source_id": 0,
+                  "start": 375,
+                  "end": 377,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "get_size",
+                "source_id": 0,
+                "start": 378,
+                "end": 386,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "n",
+                      "source_id": 0,
+                      "start": 397,
+                      "end": 398,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "fw",
+                  "source_id": 0,
+                  "start": 410,
+                  "end": 412,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "poke",
+                "source_id": 0,
+                "start": 413,
+                "end": 417,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "n",
+                      "source_id": 0,
+                      "start": 428,
+                      "end": 429,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "result",
+                  "source_id": 0,
+                  "start": 441,
+                  "end": 447,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "n",
+                    "source_id": 0,
+                    "start": 455,
+                    "end": 456,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "text": "1"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

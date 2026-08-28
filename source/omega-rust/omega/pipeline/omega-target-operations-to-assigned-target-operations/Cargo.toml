@@ -9,12 +9,9 @@ name = "omega_target_operations_to_assigned_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-target = { path = "../../representations/omega-target" }
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
-omega-target = { path = "../../foundation/omega-target" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-
-[dev-dependencies]
-omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
-omega-control-flow = { path = "../../representations/omega-control-flow" }
-psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
-psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

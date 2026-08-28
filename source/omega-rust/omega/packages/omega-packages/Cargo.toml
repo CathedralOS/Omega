@@ -1,0 +1,36 @@
+[package]
+name = "omega-packages"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_packages"
+path = "src/lib.rs"
+
+[dependencies]
+omega-build-declarations = { path = "../../build/omega-build-declarations" }
+omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
+omega-build-provenance = { path = "../../build/omega-build-provenance" }
+omega-compiler = { path = "../../compiler/omega-compiler" }
+omega-package-review = { path = "../omega-package-review" }
+omega-package-compilation = { path = "../../build/omega-package-compilation" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
+psi-tokens = { path = "../../../psi/representations/psi-tokens" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+cap-fs-ext = "4.0.3"
+cap-std = "4.0.3"
+command-group = "5.0.1"
+sha1-checked = { version = "0.10.0", default-features = false }
+sha2 = "0.10.9"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.27", features = ["user"] }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+omega-platform-custody = { path = "../../tooling/omega-platform-custody" }

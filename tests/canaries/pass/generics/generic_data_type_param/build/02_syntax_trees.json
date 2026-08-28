@@ -1,0 +1,157 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Pair",
+        "source_id": 0,
+        "start": 218,
+        "end": 222,
+        "source_backed": true
+      },
+      "type_parameters": [
+        {
+          "name": {
+            "text": "A",
+            "source_id": 0,
+            "start": 223,
+            "end": 224,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        },
+        {
+          "name": {
+            "text": "B",
+            "source_id": 0,
+            "start": 226,
+            "end": 227,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "first",
+            "source_id": 0,
+            "start": 236,
+            "end": 241,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "A",
+              "source_id": 0,
+              "start": 243,
+              "end": 244,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "second",
+            "source_id": 0,
+            "start": 251,
+            "end": 257,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "B",
+              "source_id": 0,
+              "start": 259,
+              "end": 260,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 273,
+        "end": 277,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 300,
+            "end": 304,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

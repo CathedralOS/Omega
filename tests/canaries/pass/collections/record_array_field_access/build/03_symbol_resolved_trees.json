@@ -1,0 +1,605 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "CellId",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Empty"
+          },
+          {
+            "kind": "variant",
+            "name": "A1"
+          },
+          {
+            "kind": "variant",
+            "name": "A2"
+          }
+        ]
+      },
+      {
+        "name": "Exit",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "command",
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": "u8"
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "named",
+                    "name": "Utf8"
+                  }
+                ]
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "destination",
+            "type_reference": {
+              "kind": "named",
+              "name": "CellId"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Room",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "cell",
+            "type_reference": {
+              "kind": "named",
+              "name": "CellId"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "label",
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": "u8"
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "named",
+                    "name": "Utf8"
+                  }
+                ]
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "description",
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": "u8"
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "named",
+                    "name": "Utf8"
+                  }
+                ]
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "exits",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Exit"
+              },
+              "length": "2"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "room",
+            "type_reference": {
+              "kind": "named",
+              "name": "Room"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "selected_exit",
+            "type_reference": {
+              "kind": "named",
+              "name": "Exit"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "room"
+                  },
+                  "member": "cell"
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "CellId",
+                    "A1"
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "room"
+                  },
+                  "member": "label"
+                },
+                "value": {
+                  "kind": "string",
+                  "value": "A1"
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "room"
+                  },
+                  "member": "description"
+                },
+                "value": {
+                  "kind": "string",
+                  "value": "A1: a stone entry."
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "room"
+                    },
+                    "member": "exits"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Exit",
+                  "fields": [
+                    {
+                      "name": "command",
+                      "value": {
+                        "kind": "string",
+                        "value": "north"
+                      }
+                    },
+                    {
+                      "name": "destination",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "CellId",
+                          "A2"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "room"
+                    },
+                    "member": "exits"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Exit",
+                  "fields": [
+                    {
+                      "name": "command",
+                      "value": {
+                        "kind": "string",
+                        "value": "wait"
+                      }
+                    },
+                    {
+                      "name": "destination",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "CellId",
+                          "Empty"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "selected_exit"
+                },
+                "value": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "room"
+                    },
+                    "member": "exits"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "room"
+                    },
+                    "member": "label"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "room"
+                    },
+                    "member": "description"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "selected_exit"
+                    },
+                    "member": "command"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                ]
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            ],
+            "table_statement_count": 11
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "write_line",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          },
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 4,
+    "expression_count": 48,
+    "statement_count": 11,
+    "type_reference_count": 28
+  }
+}

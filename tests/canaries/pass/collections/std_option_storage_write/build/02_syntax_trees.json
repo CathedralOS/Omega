@@ -1,0 +1,251 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "std",
+          "source_id": 0,
+          "start": 21,
+          "end": 24,
+          "source_backed": true
+        },
+        {
+          "text": "option",
+          "source_id": 0,
+          "start": 26,
+          "end": 32,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 42,
+        "end": 46,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 54,
+            "end": 59,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "generic",
+            "base_name": {
+              "text": "Option",
+              "source_id": 0,
+              "start": 61,
+              "end": 67,
+              "source_backed": true
+            },
+            "arguments": [
+              {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 68,
+                  "end": 73,
+                  "source_backed": true
+                }
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 96,
+            "end": 100,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "value",
+                "source_id": 0,
+                "start": 112,
+                "end": 117,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Option",
+                  "source_id": 0,
+                  "start": 119,
+                  "end": 125,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "usize",
+                      "source_id": 0,
+                      "start": 126,
+                      "end": 131,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "value",
+                  "source_id": 0,
+                  "start": 146,
+                  "end": 151,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "value",
+                    "source_id": 0,
+                    "start": 154,
+                    "end": 159,
+                    "source_backed": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Option",
+        "source_id": 1,
+        "start": 430,
+        "end": 436,
+        "source_backed": true
+      },
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 1,
+            "start": 437,
+            "end": 438,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "None",
+            "source_id": 1,
+            "start": 452,
+            "end": 456,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Some",
+            "source_id": 1,
+            "start": 468,
+            "end": 472,
+            "source_backed": true
+          }
+        }
+      ]
+    }
+  ]
+}

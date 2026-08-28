@@ -1149,10 +1149,7 @@ fn captured_entry_parameter_type_reference(
     let ExpressionNode::Name(path) = program.expression_table.expression(expression) else {
         return None;
     };
-    let [name] = program
-        .expression_table
-        .name_path_members(path.members)
-    else {
+    let [name] = program.expression_table.name_path_members(path.members) else {
         return None;
     };
 

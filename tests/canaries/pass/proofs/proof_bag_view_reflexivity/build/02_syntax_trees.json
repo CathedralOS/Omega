@@ -1,0 +1,299 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "machine",
+      "name": {
+        "text": "bag_equality_carries",
+        "source_id": 0,
+        "start": 396,
+        "end": 416,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": {
+                    "text": "Bag",
+                    "source_id": 0,
+                    "start": 463,
+                    "end": 466,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 0,
+                          "start": 467,
+                          "end": 472,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": {
+                    "text": "Bag",
+                    "source_id": 0,
+                    "start": 477,
+                    "end": 480,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "before",
+                          "source_id": 0,
+                          "start": 481,
+                          "end": 487,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "token_count": 12
+        },
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": {
+                    "text": "Bag",
+                    "source_id": 0,
+                    "start": 503,
+                    "end": 506,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 0,
+                          "start": 507,
+                          "end": 512,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": {
+                    "text": "Bag",
+                    "source_id": 0,
+                    "start": 517,
+                    "end": 520,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "before",
+                          "source_id": 0,
+                          "start": 521,
+                          "end": 527,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "token_count": 12
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "before",
+                "source_id": 0,
+                "start": 417,
+                "end": 423,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u64",
+                      "source_id": 0,
+                      "start": 427,
+                      "end": 430,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "items",
+                "source_id": 0,
+                "start": 433,
+                "end": 438,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u64",
+                      "source_id": 0,
+                      "start": 442,
+                      "end": 445,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 543,
+        "end": 547,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 570,
+            "end": 574,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

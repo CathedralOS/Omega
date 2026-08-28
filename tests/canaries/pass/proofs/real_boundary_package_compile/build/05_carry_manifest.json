@@ -1,0 +1,22 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "Real",
+      "opaque": true,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "ByteRead",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ]
+}

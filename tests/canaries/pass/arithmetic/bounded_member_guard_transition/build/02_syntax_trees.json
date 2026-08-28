@@ -1,0 +1,281 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Room",
+        "source_id": 0,
+        "start": 5,
+        "end": 9,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "exit_count",
+            "source_id": 0,
+            "start": 17,
+            "end": 27,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 29,
+              "end": 32,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 45,
+        "end": 49,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 72,
+            "end": 76,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "room",
+                "source_id": 0,
+                "start": 107,
+                "end": 111,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Room",
+                  "source_id": 0,
+                  "start": 113,
+                  "end": 117,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Room",
+                  "source_id": 0,
+                  "start": 120,
+                  "end": 124,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "exit_count",
+                      "source_id": 0,
+                      "start": 127,
+                      "end": 137,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "value": 1
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "append",
+                    "source_id": 0,
+                    "start": 196,
+                    "end": 202,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "room",
+                          "source_id": 0,
+                          "start": 203,
+                          "end": 207,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "exit_count",
+                      "source_id": 0,
+                      "start": 208,
+                      "end": 218,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "room",
+                          "source_id": 0,
+                          "start": 173,
+                          "end": 177,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "exit_count",
+                      "source_id": 0,
+                      "start": 178,
+                      "end": 188,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "greater",
+                  "right": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "append",
+            "source_id": 0,
+            "start": 240,
+            "end": 246,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "exit_count",
+                "source_id": 0,
+                "start": 277,
+                "end": 287,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 289,
+                  "end": 292,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

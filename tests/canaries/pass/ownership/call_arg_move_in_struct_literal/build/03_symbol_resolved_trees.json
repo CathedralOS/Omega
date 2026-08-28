@@ -1,0 +1,197 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Item",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Wrapper",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "inner",
+            "type_reference": {
+              "kind": "named",
+              "name": "Item"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "seed",
+            "type_reference": {
+              "kind": "named",
+              "name": "Item"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::wrap",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "wrap",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "item",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Item"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Item"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "item"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "wrapped",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Wrapper"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Wrapper",
+                  "fields": [
+                    {
+                      "name": "inner",
+                      "value": {
+                        "kind": "call",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "target": "wrap",
+                        "arguments": [
+                          {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "name",
+                              "path": [
+                                "self"
+                              ]
+                            },
+                            "member": "seed"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 6,
+    "statement_count": 2,
+    "type_reference_count": 8
+  }
+}

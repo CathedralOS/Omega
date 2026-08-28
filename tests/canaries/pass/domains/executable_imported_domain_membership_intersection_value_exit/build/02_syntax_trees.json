@@ -1,0 +1,688 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 15,
+        "end": 22,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 38,
+            "end": 50,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 51,
+                "end": 62,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 64,
+                  "end": 67,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Player",
+        "source_id": 0,
+        "start": 81,
+        "end": 87,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "health",
+            "source_id": 0,
+            "start": 95,
+            "end": 101,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 103,
+              "end": 106,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Player::Valid",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Player",
+          "source_id": 0,
+          "start": 121,
+          "end": 127,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "health",
+                "source_id": 0,
+                "start": 147,
+                "end": 153,
+                "source_backed": true
+              }
+            },
+            "operator": "greater_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Player::Alive",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Player",
+          "source_id": 0,
+          "start": 173,
+          "end": 179,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "membership",
+          "value": {
+            "kind": "self_value"
+          },
+          "domain": [
+            {
+              "text": "Player",
+              "source_id": 0,
+              "start": 202,
+              "end": 208,
+              "source_backed": true
+            },
+            {
+              "text": "Valid",
+              "source_id": 0,
+              "start": 210,
+              "end": 215,
+              "source_backed": true
+            }
+          ]
+        },
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "health",
+                "source_id": 0,
+                "start": 227,
+                "end": 233,
+                "source_backed": true
+              }
+            },
+            "operator": "greater",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 18
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Player::Critical",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Player",
+          "source_id": 0,
+          "start": 252,
+          "end": 258,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "health",
+                "source_id": 0,
+                "start": 281,
+                "end": 287,
+                "source_backed": true
+              }
+            },
+            "operator": "less_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 5
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 305,
+        "end": 309,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 317,
+            "end": 324,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 326,
+              "end": 333,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "player",
+            "source_id": 0,
+            "start": 340,
+            "end": 346,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Player",
+              "source_id": 0,
+              "start": 348,
+              "end": 354,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 376,
+            "end": 380,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "player",
+                    "source_id": 0,
+                    "start": 404,
+                    "end": 410,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "health",
+                  "source_id": 0,
+                  "start": 411,
+                  "end": 417,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 3
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "ok",
+                "source_id": 0,
+                "start": 434,
+                "end": 436,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 438,
+                  "end": 442,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "player",
+                      "source_id": 0,
+                      "start": 450,
+                      "end": 456,
+                      "source_backed": true
+                    }
+                  },
+                  "domain": [
+                    {
+                      "text": "Player",
+                      "source_id": 0,
+                      "start": 460,
+                      "end": 466,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Alive",
+                      "source_id": 0,
+                      "start": 468,
+                      "end": 473,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "and",
+                "right": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "player",
+                      "source_id": 0,
+                      "start": 450,
+                      "end": 456,
+                      "source_backed": true
+                    }
+                  },
+                  "domain": [
+                    {
+                      "text": "Player",
+                      "source_id": 0,
+                      "start": 476,
+                      "end": 482,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Critical",
+                      "source_id": 0,
+                      "start": 484,
+                      "end": 492,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 536,
+                    "end": 540,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "ok",
+                        "source_id": 0,
+                        "start": 512,
+                        "end": 514,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 557,
+                    "end": 560,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 583,
+            "end": 587,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 615,
+                  "end": 622,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 623,
+                "end": 635,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 217
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 662,
+            "end": 665,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 693,
+                  "end": 700,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 701,
+                "end": 713,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 218
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

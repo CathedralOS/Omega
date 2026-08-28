@@ -1,8 +1,8 @@
-use omega_optimization_core::OptimizationUnitIdentity;
-use omega_terminal_abstract_operations::{
-    TerminalAbstractFunctionResult, TerminalAbstractOperation, TerminalAbstractSuccessor,
-    TerminalCompletionClaimSource, TerminalValueBinding,
+use omega_abstract_operations::{
+    AbstractFunctionResult, AbstractOperation, AbstractSuccessor, CompletionClaimSource,
+    ValueBinding,
 };
+use omega_optimization_core::OptimizationUnitIdentity;
 use psi_core::{
     ByteSequenceStructuralField, CanonicalStructuralPathSegment, ContentAlgebra,
     ContentAlgebraKind, ContentConservation, ContentPlaceSegment, ContentPlaceVersion,
@@ -50,8 +50,8 @@ pub fn recompute_psi_optimization_unit_identity(
 ) -> OptimizationUnitIdentity {
     let mut bytes = CanonicalBytes::default();
     bytes.bytes(UNIT_IDENTITY_DOMAIN);
-    bytes.u16(unit.terminal_psi.vocabulary_marker.get());
-    bytes.bytes(unit.terminal_psi.program_fingerprint.as_bytes());
+    bytes.u16(unit.psi.vocabulary_marker.get());
+    bytes.bytes(unit.psi.program_fingerprint.as_bytes());
     bytes.u32(unit.fuel_schedule.marker());
     bytes.id(unit.entry);
     bytes.slice(&unit.structural_types, encode_structural_type);
@@ -147,8 +147,8 @@ impl CanonicalBytes {
 
 fn encode_accepted_fact(bytes: &mut CanonicalBytes, fact: &AcceptedObligationFact) {
     bytes.bytes(&fact.identity.bytes());
-    bytes.u16(fact.terminal_psi.vocabulary_marker.get());
-    bytes.bytes(fact.terminal_psi.program_fingerprint.as_bytes());
+    bytes.u16(fact.psi.vocabulary_marker.get());
+    bytes.bytes(fact.psi.program_fingerprint.as_bytes());
     bytes.bytes(&fact.proof_bundle_fingerprint);
     bytes.id(fact.machine);
     bytes.id(fact.operation);
@@ -234,8 +234,8 @@ fn encode_proof_question(bytes: &mut CanonicalBytes, question: &ProofQuestion) {
 
 fn encode_ownership_frontier_fact(bytes: &mut CanonicalBytes, fact: &OwnershipFrontierFact) {
     bytes.bytes(&fact.identity.bytes());
-    bytes.u16(fact.terminal_psi.vocabulary_marker.get());
-    bytes.bytes(fact.terminal_psi.program_fingerprint.as_bytes());
+    bytes.u16(fact.psi.vocabulary_marker.get());
+    bytes.bytes(fact.psi.program_fingerprint.as_bytes());
     bytes.id(fact.machine);
     match fact.site {
         OwnershipFrontierSite::BlockEntry(id) => {
@@ -327,14 +327,14 @@ fn encode_function(bytes: &mut CanonicalBytes, function: &PsiOptimizationFunctio
     }
 }
 
-fn encode_function_result(bytes: &mut CanonicalBytes, result: &TerminalAbstractFunctionResult) {
+fn encode_function_result(bytes: &mut CanonicalBytes, result: &AbstractFunctionResult) {
     match result {
-        TerminalAbstractFunctionResult::Unit => bytes.u8(1),
-        TerminalAbstractFunctionResult::Scalar(result) => {
+        AbstractFunctionResult::Unit => bytes.u8(1),
+        AbstractFunctionResult::Scalar(result) => {
             bytes.u8(2);
             encode_abstract_result(bytes, *result);
         }
-        TerminalAbstractFunctionResult::Structural(result) => {
+        AbstractFunctionResult::Structural(result) => {
             bytes.u8(3);
             encode_structural_result(bytes, result);
         }
@@ -480,8 +480,8 @@ fn encode_fact(bytes: &mut CanonicalBytes, fact: &OptimizationFact) {
     }
 }
 
-fn encode_operation(bytes: &mut CanonicalBytes, operation: &TerminalAbstractOperation) {
-    use TerminalAbstractOperation as O;
+fn encode_operation(bytes: &mut CanonicalBytes, operation: &AbstractOperation) {
+    use AbstractOperation as O;
     match operation {
         O::EstablishPayloadlessCase {
             psi_operation,
@@ -1283,13 +1283,13 @@ fn encode_shift(
     bytes.id(count);
 }
 
-fn encode_binding(bytes: &mut CanonicalBytes, binding: &TerminalValueBinding) {
+fn encode_binding(bytes: &mut CanonicalBytes, binding: &ValueBinding) {
     bytes.id(binding.parameter);
     bytes.id(binding.argument);
     encode_scalar_type(bytes, binding.scalar_type);
 }
 
-fn encode_successor(bytes: &mut CanonicalBytes, successor: &TerminalAbstractSuccessor) {
+fn encode_successor(bytes: &mut CanonicalBytes, successor: &AbstractSuccessor) {
     bytes.id(successor.psi_edge);
     bytes.id(successor.target);
     bytes.slice(&successor.bindings, encode_binding);
@@ -1316,7 +1316,7 @@ fn encode_ids<T: PsiSemanticId>(bytes: &mut CanonicalBytes, ids: &[T]) {
 
 fn encode_abstract_result(
     bytes: &mut CanonicalBytes,
-    result: omega_terminal_abstract_operations::TerminalAbstractResult,
+    result: omega_abstract_operations::AbstractResult,
 ) {
     bytes.id(result.value);
     encode_scalar_type(bytes, result.scalar_type);
@@ -1719,10 +1719,7 @@ fn encode_structural_operation_result(
     }
 }
 
-fn encode_completion_claim_source(
-    bytes: &mut CanonicalBytes,
-    source: &TerminalCompletionClaimSource,
-) {
+fn encode_completion_claim_source(bytes: &mut CanonicalBytes, source: &CompletionClaimSource) {
     bytes.id(source.claim);
     encode_optional(bytes, source.entry.as_ref(), encode_entry_claim);
     encode_optional(bytes, source.content.as_ref(), encode_content_entry_claim);

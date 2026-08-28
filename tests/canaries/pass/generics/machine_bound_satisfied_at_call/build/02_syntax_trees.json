@@ -1,0 +1,586 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Light",
+        "source_id": 0,
+        "start": 397,
+        "end": 402,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "weight",
+            "source_id": 0,
+            "start": 417,
+            "end": 423,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 425,
+              "end": 428,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 441,
+        "end": 445,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "l",
+            "source_id": 0,
+            "start": 453,
+            "end": 454,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Light",
+              "source_id": 0,
+              "start": 456,
+              "end": 461,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "n",
+            "source_id": 0,
+            "start": 468,
+            "end": 469,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 471,
+              "end": 474,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "copy_free",
+        "source_id": 0,
+        "start": 490,
+        "end": 499,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 0,
+            "start": 500,
+            "end": 501,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "x",
+                "source_id": 0,
+                "start": 510,
+                "end": 511,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 0,
+                    "start": 514,
+                    "end": 515,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::copy_it",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 0,
+            "start": 547,
+            "end": 548,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "copy_it",
+            "source_id": 0,
+            "start": 539,
+            "end": 546,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "x",
+                "source_id": 0,
+                "start": 564,
+                "end": 565,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 0,
+                    "start": 568,
+                    "end": 569,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::wrap",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [
+        {
+          "name": {
+            "text": "U",
+            "source_id": 0,
+            "start": 598,
+            "end": 599,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "wrap",
+            "source_id": 0,
+            "start": 593,
+            "end": 597,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "y",
+                "source_id": 0,
+                "start": 615,
+                "end": 616,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "U",
+                    "source_id": 0,
+                    "start": 619,
+                    "end": 620,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "copy_it",
+                "source_id": 0,
+                "start": 634,
+                "end": 641,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "y",
+                      "source_id": 0,
+                      "start": 642,
+                      "end": 643,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 666,
+            "end": 670,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "copy_it",
+                "source_id": 0,
+                "start": 694,
+                "end": 701,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "l",
+                    "source_id": 0,
+                    "start": 708,
+                    "end": 709,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "copy_it",
+                "source_id": 0,
+                "start": 722,
+                "end": 729,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "n",
+                    "source_id": 0,
+                    "start": 736,
+                    "end": 737,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "wrap",
+                "source_id": 0,
+                "start": 750,
+                "end": 754,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "l",
+                    "source_id": 0,
+                    "start": 761,
+                    "end": 762,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [],
+              "target": {
+                "text": "copy_free",
+                "source_id": 0,
+                "start": 770,
+                "end": 779,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "l",
+                    "source_id": 0,
+                    "start": 786,
+                    "end": 787,
+                    "source_backed": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

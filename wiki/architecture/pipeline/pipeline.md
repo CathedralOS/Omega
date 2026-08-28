@@ -9,9 +9,8 @@ Omega-file parsing and every target-neutral stage through immutable terminal
 Psi. Omega consumes terminal Psi and owns installation, optimization, ABI and
 storage realization, target operations, and native artifacts. See
 [Terminal Psi Architecture](terminal_psi.md). The stage list and matrix below
-describe both the terminal lane and the bootstrap paths that remain while
-unsupported slices migrate. They are not a commitment to preserve
-`StateGraph` and `ControlFlowPlan` as public representations.
+describe the one production path. Unsupported Terminal-Psi vocabulary rejects;
+the compiler does not retain a second source-shaped backend as a fallback.
 
 The same semantic nouns should be recognizable across stages, but their data
 shape changes as they become more resolved. Source-shaped IR can only say "this
@@ -61,8 +60,6 @@ Use this rule when a pass starts to sprawl:
 - If it decides type/signature compatibility, it belongs near typing.
 - If it proves obligations, records facts, creates loans, or validates reach,
   it belongs near checked trees.
-- If it schedules already-checked events into graph/control form, it belongs in
-  graph or control-flow lowering.
 - If it chooses storage, ABI, instruction, relocation, or image form, it belongs
   in the backend lowering stages.
 
@@ -119,7 +116,7 @@ semantics or duplicating policy through every representation stage.
 
 `RequestedCompileProduct::NativeArtifact` is a distinct stopping boundary. It
 runs the Psi-owned checked frontend and canonical Terminal producer, then gives
-that complete artifact to the source-free Terminal-native realization path
+that complete artifact to the source-free native realization path
 shared with component staging. It returns exactly one non-clonable payload
 owning the canonical Terminal identity, checked target, selected-provider
 projection, object and relocation evidence, encoded text, and independently
@@ -143,15 +140,10 @@ Current preferred shapes:
   contiguous storage are the main concerns, for example `TypedTrees`.
 - Checked representations use a source/program root plus a facts root, for
   example `CheckedTrees { typed, facts }`.
-- Graph/control/backend representations use a code/shape root plus a semantic
-  evidence root, for example `StateGraph { code, semantics }`,
-  `ControlFlowPlan { code, semantics }`, and backend operation plans.
-- Aggregate backend artifacts use their own artifact root, for example
-  `BackendArtifactRoots`, and orchestration should construct empty artifact
-  spines or explicit artifact bundles through that root instead of
-  hand-assembling machine, object, or relocation internals. Artifact roots
-  should expose semantic-summary accessors when the evidence lives beside
-  physical artifacts rather than inside each physical artifact.
+- Omega operation and artifact representations use a code/shape root plus the
+  retained evidence needed to replay the next boundary. Orchestration passes
+  complete typed artifacts between stages rather than rebuilding semantic facts
+  from source-shaped trees.
 
 This is not ceremony. It makes it obvious whether a pass is changing executable
 shape, preserving semantic evidence, or doing both. If a stage starts reaching
@@ -182,44 +174,26 @@ the stage and the noun: `none`, `syntax`, `identity`, `typed`, `checked`,
 | Typed Trees To Checked Trees | checked | checked | checked | checked | checked | checked | checked | checked | checked | checked |
 | Checked Trees To Terminal Psi | lowered | lowered | preserved | lowered | lowered | lowered | lowered | lowered | preserved | lowered |
 | Terminal Psi To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
-| Checked Trees To State Graph | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | scheduled | graph | scheduled | scheduled |
-| State Graph To Control Flow | lowered | lowered | preserved | preserved | lowered | lowered | control flow | control flow | preserved | control flow |
-| Control Flow To Abstract Operations | lowered | lowered | metadata | assertion | abstract op | abstract op | abstract op | abstract op | op metadata | metadata |
+| Optimization Run To Abstract Operations | projected | projected | validated metadata | assertion | projected op | projected op | projected op | projected op | projected metadata | validated metadata |
 | Abstract Operations To Target Operations | target | target | metadata | assertion | target op | target op | target op | target op | target op | target metadata |
+| Target Operations To Selected Instructions | selected | selected | metadata | none | selected | selected | selected | selected | selected | selected metadata |
+| Selected Instructions Through Allocation | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
 | Target Operations To Assigned Target Operations | assigned | assigned | metadata | none | assigned | assigned | assigned | assigned | assigned | assigned metadata |
-| Target Operations To Machine Program | artifact | artifact | metadata | none | artifact | artifact | artifact | artifact | artifact | artifact metadata |
-| Assigned Target Operations To Machine Instructions | encoded | encoded | metadata | none | instruction | instruction | instruction | instruction | instruction | instruction metadata |
-| Machine Instructions To Machine Bytes | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
-| Machine Bytes To Object Plan | artifact | artifact | metadata | none | metadata | metadata | symbol metadata | section metadata | artifact | sibling metadata |
-| Object Plan To Relocations | artifact | artifact | metadata | none | metadata | metadata | relocation records | relocation records | artifact | sibling metadata |
-| Object Relocations To Final Image | final | final | final layout | none | metadata | metadata | final import/fixup | final branch fixup | final artifact | final metadata |
+| Assigned Operations To Machine Code | encoded | encoded | metadata | none | metadata | metadata | encoded call bytes | encoded branch bytes | encoded bytes | encoded metadata |
+| Machine Code To Native Artifact | final | final | final layout | none | metadata | metadata | final import/fixup | final branch fixup | final artifact | final metadata |
 
 Current deliberate gaps:
 
-- Terminal Psi is the expression-lowering boundary for the migrated scalar,
-  control, call, crash, contract, and content-conservation slices. Unsupported
-  aggregate, cleanup, transfer, boundary, loop, suspension, and ordering slices
-  reject for retained native artifacts and still use the bootstrap
-  `StateGraph`/`ControlFlowPlan` path only for the not-yet-cut-over installed
-  output product. That path's typed expression references prevent it from
-  becoming a portable boundary. Each completed terminal slice retires its
-  corresponding tree consumer.
+- Terminal Psi is the sole Psi/Omega boundary. Unsupported aggregate, cleanup,
+  transfer, boundary, loop, suspension, and ordering slices reject until their
+  canonical lowering exists; they do not revive a tree-consuming backend.
 
 - Moves and drops now have durable checked/control-flow event plumbing, but
   event production still needs type-aware precision plus transition and nested
   call coverage.
-- Checked values now preserve through state graph, control flow, abstract
-  operations, target operations, assigned target operations, symbolic machine
-  instructions, encoded machine bytes, and the current machine-program
-  artifact, but still need
-  type-aware ownership kind, drop policy, storage consequences, and backend
-  lowering beyond metadata.
-- Source-level boundary trait calls now preserve as checked, graph,
-  control-flow, and abstract source boundary edges. Abstract/backend boundary
-  summaries also preserve lowered host-operation edges, source-to-lowered
-  links, and target policy-check records. Exact source policy path matching is
-  still pending because target `boundary ...` declarations are not yet carried
-  in the semantic spine.
+- Checked values preserve through Terminal Psi, abstract operations, target
+  operations, physical assignment, machine code, and native artifacts. Missing
+  semantic slices fail at their owning stage.
 
 ## Stages
 
@@ -230,11 +204,9 @@ Current deliberate gaps:
 - [Syntax Trees To Symbol Resolved Trees](stages/syntax_trees_to_symbol_resolved_trees.md)
 - [Symbol Resolved Trees To Typed Trees](stages/symbol_resolved_trees_to_typed_trees.md)
 - [Typed Trees To Checked Trees](stages/typed_trees_to_checked_trees.md)
-- [Checked Trees To State Graph](stages/checked_trees_to_state_graph.md)
-- [State Graph To Control Flow](stages/state_graph_to_control_flow.md)
-- [Control Flow To Abstract Operations](stages/control_flow_to_abstract_operations.md)
+- [Optimization Run To Abstract Operations](stages/optimization_run_to_abstract_operations.md)
 - [Abstract Operations To Target Operations](stages/abstract_operations_to_target_operations.md)
-- [Terminal Target Operations To Selected Instructions](stages/terminal_target_operations_to_selected_instructions.md)
+- [Target Operations To Selected Instructions](stages/target_operations_to_selected_instructions.md)
 - [Selected Instructions To Liveness](stages/selected_instructions_to_liveness.md)
 - [Liveness To Live Ranges](stages/liveness_to_live_ranges.md)
 - [Live Ranges To Allocation Legality](stages/live_ranges_to_allocation_legality.md)
@@ -242,8 +214,3 @@ Current deliberate gaps:
 - [Fixed-View Copies To Reanalyzed Legality](stages/fixed_view_copies_to_reanalyzed_legality.md)
 - [Allocation Legality To Register Homes](stages/allocation_legality_to_register_homes.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
-- [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
-- [Machine Instructions To Machine Bytes](stages/machine_instructions_to_machine_bytes.md)
-- [Machine Bytes To Object Plan](stages/machine_bytes_to_object_plan.md)
-- [Object Plan To Relocations](stages/object_plan_to_relocations.md)
-- [Object Relocations To Final Image](stages/object_relocations_to_final_image.md)

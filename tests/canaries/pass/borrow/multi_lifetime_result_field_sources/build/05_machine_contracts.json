@@ -1,0 +1,72 @@
+{
+  "machines": [
+    {
+      "machine": "pair",
+      "contract": {
+        "fingerprint": "0x6b6f94583a4e1791",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "exercise",
+      "contract": {
+        "fingerprint": "0x60f0102265437bd8",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x386edc4e60e54e44",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

@@ -1,0 +1,270 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Light",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "weight",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "l",
+            "type_reference": {
+              "kind": "named",
+              "name": "Light"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::weigh",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "weigh",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "x",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "T"
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "a",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "weigh",
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "l"
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "a"
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 1,
+    "data_member_count": 3,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 2,
+    "state_parameter_count": 4,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 6,
+    "expression_struct_field_count": 0,
+    "statement_count": 3,
+    "transition_target_count": 1,
+    "type_reference_count": 12,
+    "type_constraint_count": 2
+  }
+}

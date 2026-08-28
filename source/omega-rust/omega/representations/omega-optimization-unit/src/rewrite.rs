@@ -480,7 +480,7 @@ pub struct NonAdjacentBlockMergeRewrite {
 /// removing that target. The terminal occurrence is cloned onto the selected
 /// incoming path and remains at the target for every other incoming path.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct SharedTerminalJumpFusionRewrite {
+pub struct SharedJumpFusionRewrite {
     pub predecessor: NodeLocation,
     pub incoming_edge: EdgeId,
     pub target: BlockId,
@@ -612,7 +612,7 @@ pub enum PsiRewritePatch {
     ThreadPathQualifiedEmptyBlock(PathQualifiedEmptyBlockRewrite),
     MergeAdjacentBlock(AdjacentBlockMergeRewrite),
     MergeNonAdjacentBlock(NonAdjacentBlockMergeRewrite),
-    FuseSharedTerminalJump(SharedTerminalJumpFusionRewrite),
+    FuseSharedTerminalJump(SharedJumpFusionRewrite),
     RemoveDeadScalarNode(DeadScalarNodeRewrite),
     EliminateLocalScalarCommonSubexpression(LocalScalarCommonSubexpressionRewrite),
     EliminateDominatedScalarCommonSubexpression(DominatingScalarCommonSubexpressionRewrite),
@@ -943,14 +943,14 @@ impl PsiRewriteCandidate {
     }
 
     #[allow(clippy::too_many_arguments)]
-    pub fn new_shared_terminal_jump_fusion(
+    pub fn new_shared_jump_fusion(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
         affected_blocks: Vec<BlockId>,
         substitutions: Vec<ScalarSubstitution>,
         provenance: Vec<ProvenanceRewrite>,
         predicted_cost_delta: i64,
-        patch: SharedTerminalJumpFusionRewrite,
+        patch: SharedJumpFusionRewrite,
     ) -> Result<Self, PsiRewriteCandidateError> {
         Self::new(
             input,

@@ -1,0 +1,362 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "domain",
+      "name": {
+        "text": "i32::Degrees",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "i32",
+          "source_id": 0,
+          "start": 389,
+          "end": 392,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "self_value"
+            },
+            "operator": "greater_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [
+        {
+          "is_boundary": false,
+          "name": [
+            {
+              "text": "add",
+              "source_id": 0,
+              "start": 436,
+              "end": 439,
+              "source_backed": true
+            }
+          ],
+          "type_parameters": [],
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 440,
+                "end": 444,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 446,
+                  "end": 449,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 451,
+                "end": 456,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 458,
+                  "end": 461,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 466,
+              "end": 469,
+              "source_backed": true
+            }
+          },
+          "contracts": [],
+          "spelling": "+",
+          "provider": null,
+          "token_count": 23
+        }
+      ],
+      "body_token_count": 32
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 493,
+        "end": 497,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::rotate",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "rotate",
+            "source_id": 0,
+            "start": 520,
+            "end": 526,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "value",
+                "source_id": 0,
+                "start": 534,
+                "end": 539,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 541,
+                    "end": 544,
+                    "source_backed": true
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "arithmetic_domain",
+                    "domain": "Wrapping"
+                  }
+                ]
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "delta",
+                "source_id": 0,
+                "start": 558,
+                "end": 563,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 565,
+                    "end": 568,
+                    "source_backed": true
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "arithmetic_domain",
+                    "domain": "Wrapping"
+                  }
+                ]
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "sum",
+                "source_id": 0,
+                "start": 593,
+                "end": 596,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 598,
+                    "end": 601,
+                    "source_backed": true
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "arithmetic_domain",
+                    "domain": "Wrapping"
+                  }
+                ]
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "value",
+                      "source_id": 0,
+                      "start": 616,
+                      "end": 621,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "delta",
+                      "source_id": 0,
+                      "start": 624,
+                      "end": 629,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 651,
+            "end": 655,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

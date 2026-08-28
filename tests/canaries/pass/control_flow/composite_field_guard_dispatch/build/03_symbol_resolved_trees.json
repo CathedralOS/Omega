@@ -1,0 +1,419 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "EventKind",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Quiet"
+          },
+          {
+            "kind": "variant",
+            "name": "Treasure"
+          }
+        ]
+      },
+      {
+        "name": "Event",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "kind",
+            "type_reference": {
+              "kind": "named",
+              "name": "EventKind"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "consumed",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "event",
+            "type_reference": {
+              "kind": "named",
+              "name": "Event"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "event"
+                  },
+                  "member": "kind"
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "EventKind",
+                    "Treasure"
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "event"
+                  },
+                  "member": "consumed"
+                },
+                "value": {
+                  "kind": "boolean",
+                  "value": false
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "describe_reward"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "event"
+                        },
+                        "member": "kind"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "name",
+                        "path": [
+                          "EventKind",
+                          "Treasure"
+                        ]
+                      }
+                    },
+                    "operator": "&&",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "event"
+                        },
+                        "member": "consumed"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "boolean",
+                        "value": false
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "describe_quiet"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 4
+          },
+          {
+            "name": "describe_reward",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "string",
+                    "value": "reward"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "describe_quiet",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "string",
+                    "value": "quiet"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "write_line",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          },
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 25,
+    "statement_count": 8,
+    "type_reference_count": 14
+  }
+}

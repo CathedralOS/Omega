@@ -1,0 +1,130 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "branch_id",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "consume"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "name",
+                        "path": [
+                          "branch_id"
+                        ]
+                      },
+                      "operator": "+",
+                      "right": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 1
+          },
+          {
+            "name": "consume",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "amount",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 3,
+    "statement_count": 1,
+    "type_reference_count": 5
+  }
+}

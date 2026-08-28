@@ -1,0 +1,1425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>typed_trees</title>
+<style>
+
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+  --edge: #52616f;
+  --sequence: #7fb4ff;
+  --match: #ffd166;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; overflow: hidden; }
+body {
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  font: 14px/1.4 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+body.has-scopes {
+  grid-template-columns: minmax(280px, 22vw) 1fr minmax(280px, 24vw);
+}
+#panel,
+#scope-panel {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  padding: 18px;
+  overflow: auto;
+  box-shadow: 12px 0 40px rgba(0, 0, 0, 0.25);
+  z-index: 2;
+}
+#scope-panel {
+  border-left: 1px solid var(--panel-border);
+  border-right: 0;
+  box-shadow: -12px 0 40px rgba(0, 0, 0, 0.22);
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+h2 {
+  color: var(--muted);
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  margin: 0 0 12px;
+  text-transform: uppercase;
+}
+input[type="search"] {
+  width: 100%;
+  border: 1px solid #354459;
+  border-radius: 10px;
+  background: #0d1117;
+  color: var(--text);
+  padding: 10px 12px;
+  outline: none;
+}
+input[type="search"]:focus { border-color: var(--match); }
+.buttons { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin: 12px 0; }
+button {
+  border: 1px solid #354459;
+  border-radius: 10px;
+  background: #212b38;
+  color: var(--text);
+  padding: 8px 10px;
+  cursor: pointer;
+}
+button:hover { background: #2b3747; }
+label { display: block; color: var(--muted); margin: 10px 0; }
+#counts { color: var(--muted); }
+#scope-outline {
+  border: 1px solid #283343;
+  border-radius: 12px;
+  background: #0d1117;
+  margin: 12px 0;
+  max-height: 34vh;
+  overflow: auto;
+  padding: 8px;
+}
+#scope-outline {
+  max-height: calc(100vh - 150px);
+}
+#scope-outline button {
+  width: 100%;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #d8e2ef;
+  display: block;
+  font: inherit;
+  overflow: hidden;
+  padding: 5px 7px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#scope-outline button:hover { background: #202a38; }
+#scope-outline button.scoped { background: #263247; color: #ffffff; }
+#scope-outline summary {
+  color: var(--muted);
+  cursor: pointer;
+  margin: 3px 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#scope-outline details { margin-left: 12px; }
+#scope-outline summary {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -4px 0 14px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
+#details {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  border: 1px solid #283343;
+  border-radius: 12px;
+  background: #0d1117;
+  color: #d8e2ef;
+  padding: 12px;
+  min-height: 120px;
+}
+#details-actions {
+  display: flex;
+  gap: 8px;
+  margin: 10px 0;
+}
+#details-actions.hidden { display: none; }
+#effect-filter {
+  border: 1px solid #283343;
+  border-radius: 12px;
+  background: #0d1117;
+  margin: 12px 0;
+  padding: 10px;
+}
+#effect-filter.hidden { display: none; }
+#effect-filter h2 { margin-bottom: 8px; }
+#effect-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+#effect-buttons button {
+  border-radius: 999px;
+  font-size: 11px;
+  padding: 6px 8px;
+}
+#effect-buttons button.active {
+  border-color: var(--match);
+  color: #ffffff;
+}
+main { min-width: 0; min-height: 0; position: relative; }
+#canvas {
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  user-select: none;
+}
+#canvas.dragging { cursor: grabbing; }
+.edge { stroke: var(--edge); stroke-width: 1.2; fill: none; opacity: 0.45; pointer-events: none; }
+.edge.sequence { stroke: var(--sequence); opacity: 0.55; stroke-dasharray: 6 5; }
+.edge.field_type { stroke: #75b57c; opacity: 0.75; stroke-dasharray: 2 4; }
+.edge.owned_data { stroke: #ffd166; opacity: 0.8; }
+.edge.contained_object { stroke: #ff9f7f; opacity: 0.72; }
+.edge.implements_data { stroke: #b089f0; opacity: 0.82; stroke-dasharray: 10 5; }
+.edge.satisfies_trait { stroke: #4dd4c6; opacity: 0.82; stroke-dasharray: 8 3; }
+.edge.requires_trait { stroke: #ffcf5c; opacity: 0.82; stroke-dasharray: 3 3; }
+.edge.call { stroke: #ff9f7f; opacity: 0.9; stroke-width: 1.8; stroke-dasharray: 8 2 2 2; }
+.edge.transition_target { stroke: #4dd4c6; opacity: 0.85; stroke-width: 1.8; stroke-dasharray: 12 4 2 4; }
+.edge.transition_continuation { stroke: #8ab4ff; opacity: 0.78; stroke-width: 1.6; stroke-dasharray: 5 4; }
+.edge.transition_target_loopback { stroke: #73f7b8; opacity: 0.95; stroke-width: 2.2; stroke-dasharray: 3 3; }
+.edge.transition_continuation_loopback { stroke: #a2c7ff; opacity: 0.9; stroke-width: 2; stroke-dasharray: 2 6; }
+.node rect {
+  fill: #151c26;
+  stroke: #405168;
+  stroke-width: 1;
+  rx: 10;
+}
+.node { cursor: pointer; pointer-events: all; }
+.node.root rect { fill: #263247; stroke: #8ab4ff; }
+.node.data rect { fill: #1b2a22; stroke: #75b57c; }
+.node.domain rect { fill: #272517; stroke: #d8b65c; }
+.node.trait rect { fill: #162b33; stroke: #4dd4c6; }
+.node.machine rect { fill: #272132; stroke: #b089f0; }
+.node.object rect { fill: #2e291b; stroke: #ffd166; }
+.node.external_call rect { fill: #302816; stroke: #ffcf5c; stroke-dasharray: 7 4; }
+.node.machine_ref rect { fill: #302816; stroke: #ffcf5c; stroke-dasharray: 7 4; }
+.node.state rect { fill: #1f2b3d; stroke: #70a5d8; }
+.node.state_block rect { fill: #142637; stroke: #6fbce6; }
+.node.statement rect { fill: #241e1c; stroke: #db8f61; }
+.node.scoped_block rect { fill: #1c1715; stroke: #c47b52; stroke-dasharray: 6 3; }
+.node.external rect {
+  stroke: #ffcf5c;
+  stroke-dasharray: 7 4;
+}
+.node text { fill: var(--text); font-size: 12px; pointer-events: none; }
+.node .subtitle { fill: var(--muted); font-size: 11px; }
+.node text tspan.token-number { fill: #f0c674; }
+.node text tspan.token-symbol { fill: #8fc7ff; }
+.node text tspan.token-borrow { fill: #79dfb4; font-weight: 600; }
+.node text tspan.token-keyword { fill: #c7d2e3; }
+.node text tspan.token-muted { fill: #91a3bb; }
+.node.dim { opacity: 0.16; }
+.edge.dim { opacity: 0.05; }
+.node.unrelated { opacity: 0.24; }
+.edge.unrelated { opacity: 0.04; }
+.edge.related {
+  opacity: 1;
+  stroke-width: 3;
+  filter: drop-shadow(0 0 5px rgba(77, 212, 198, 0.65));
+}
+.edge.related.transition_target {
+  stroke: #6fffea;
+  stroke-width: 4;
+}
+.edge.related.transition_target_loopback,
+.edge.related.transition_continuation_loopback {
+  stroke-width: 4;
+}
+.node.related rect {
+  stroke: #6fffea;
+  stroke-width: 2.4;
+}
+.node.hovered rect {
+  stroke: #ffffff;
+  stroke-width: 3.4;
+}
+.node.match rect { stroke: var(--match); stroke-width: 3; }
+.node.selected rect { stroke: #ffffff; stroke-width: 3; }
+.hidden { display: none; }
+</style>
+</head>
+<body>
+<aside id="panel">
+<h1>typed_trees</h1>
+<nav class="phase-nav" aria-label="Pipeline stages"><a target="_top" href="00_pipeline.html">Index</a><a target="_top" href="00_pipeline.html#timings"><span>00</span> Timings</a><a target="_top" href="00_pipeline.html#syntax"><span>02</span> Syntax</a><a target="_top" href="00_pipeline.html#symbols"><span>03</span> Symbols</a><a target="_top" href="00_pipeline.html#typed"><span>04</span> Typed</a><a target="_top" href="00_pipeline.html#checked"><span>05</span> Checked</a><a target="_top" href="00_pipeline.html#capabilities"><span>cap</span> Capabilities</a><a target="_top" href="00_pipeline.html#state-graph"><span>06</span> State Graph</a><a target="_top" href="00_pipeline.html#control-flow"><span>07</span> Control Flow</a><a target="_top" href="00_pipeline.html#abstract-operations"><span>08</span> Abstract Operations</a><a target="_top" href="00_pipeline.html#target-operations"><span>09</span> Target Operations</a><a target="_top" href="00_pipeline.html#assigned-target-operations"><span>10</span> Assigned Target Operations</a><a target="_top" href="00_pipeline.html#machine-instructions"><span>11</span> Machine Instructions</a><a target="_top" href="00_pipeline.html#emission"><span>12</span> Emission</a></nav>
+<input id="search" type="search" placeholder="Search labels, symbols, states..." autocomplete="off">
+<div class="buttons"><button id="fit">Fit</button><button id="reset">Reset</button><button id="clear-scope">Clear Scope</button></div>
+<label><input id="show-sequence" type="checkbox" checked> Statement flow</label>
+<label><input id="show-data" type="checkbox" checked> Data definitions</label>
+<div id="effect-filter" class="hidden"><h2>Effects</h2><div id="effect-buttons"></div></div>
+<p id="counts"></p>
+<div id="details-actions" class="hidden"></div>
+<pre id="details">Click a node for details.</pre>
+</aside>
+<main><svg id="canvas" role="img" aria-label="Phase graph"><g id="viewport"><g id="edges"></g><g id="nodes"></g></g></svg></main>
+<aside id="scope-panel">
+<h2 id="scope-title">Scopes</h2>
+<input id="scope-search" type="search" placeholder="Filter scopes..." autocomplete="off">
+<nav id="scope-outline" aria-label="Primary scopes"></nav>
+</aside>
+<script>
+const GRAPH = {"title":"typed_trees","nodes":[{"id":"data_0","label":"data Main\nsymbol: #46\nmembers: 1","kind":"data","rank":1},{"id":"data_1","label":"data IntPair\nsymbol: #47\nmembers: 2","kind":"data","rank":1},{"id":"data_2","label":"data ByteRead\nsymbol: #48\nmembers: 2","kind":"data","rank":1},{"id":"data_3","label":"data Nat\nsymbol: #49\nmembers: 2","kind":"data","rank":1},{"id":"trait_0","label":"boundary trait Console\nsymbol: #119\nrequires: 0\nmachines: 6","kind":"trait","rank":1},{"id":"trait_0_machine_0","label":"machine write_line\nsymbol: #479\nparams: 1\neffects: stdout_io","kind":"state","rank":2},{"id":"trait_0_machine_1","label":"machine write\nsymbol: #480\nparams: 1\neffects: stdout_io","kind":"state","rank":2},{"id":"trait_0_machine_2","label":"machine read_line\nsymbol: #481\nparams: 1\neffects: stdin_io","kind":"state","rank":2},{"id":"trait_0_machine_3","label":"machine read_byte\nsymbol: #482\nparams: 0\neffects: stdin_io","kind":"state","rank":2},{"id":"trait_0_machine_4","label":"machine write_byte\nsymbol: #483\nparams: 1\neffects: stdout_io","kind":"state","rank":2},{"id":"trait_0_machine_5","label":"machine exit_process\nsymbol: #484\nparams: 1\neffects: process_exit","kind":"state","rank":2},{"id":"trait_1","label":"trait CommutativeSemiring\nsymbol: #120\nrequires: 0\nmachines: 11","kind":"trait","rank":1},{"id":"trait_1_machine_0","label":"machine zero\nsymbol: #490\nparams: 0","kind":"state","rank":2},{"id":"trait_1_machine_1","label":"machine one\nsymbol: #491\nparams: 0","kind":"state","rank":2},{"id":"trait_1_machine_2","label":"machine add\nsymbol: #492\nparams: 2","kind":"state","rank":2},{"id":"trait_1_machine_3","label":"machine mul\nsymbol: #493\nparams: 2","kind":"state","rank":2},{"id":"trait_1_machine_4","label":"machine add_comm\nsymbol: #494\nparams: 2\ncontracts: 1 / facts: 1\n  contract 0: add(a, b) == add(b, a)","kind":"state","rank":2},{"id":"trait_1_machine_5","label":"machine add_assoc\nsymbol: #495\nparams: 3\ncontracts: 1 / facts: 1\n  contract 0: add(add(a, b), c) == add(a, add(b, c))","kind":"state","rank":2},{"id":"trait_1_machine_6","label":"machine add_identity\nsymbol: #496\nparams: 1\ncontracts: 1 / facts: 1\n  contract 0: add(a, zero()) == a","kind":"state","rank":2},{"id":"trait_1_machine_7","label":"machine mul_comm\nsymbol: #497\nparams: 2\ncontracts: 1 / facts: 1\n  contract 0: mul(a, b) == mul(b, a)","kind":"state","rank":2},{"id":"trait_1_machine_8","label":"machine mul_assoc\nsymbol: #498\nparams: 3\ncontracts: 1 / facts: 1\n  contract 0: mul(mul(a, b), c) == mul(a, mul(b, c))","kind":"state","rank":2},{"id":"trait_1_machine_9","label":"machine mul_identity\nsymbol: #499\nparams: 1\ncontracts: 1 / facts: 1\n  contract 0: mul(a, one()) == a","kind":"state","rank":2},{"id":"trait_1_machine_10","label":"machine mul_distributes\nsymbol: #500\nparams: 3\ncontracts: 1 / facts: 1\n  contract 0: mul(a, add(b, c)) == add(mul(a, b), mul(a, c))","kind":"state","rank":2},{"id":"machine_0_129","label":"machine Main::main\nsymbol: #50\nattached data: Main\nsatisfies: 0\nreached effects: process_exit [0x0000000000000100]\n  0: call exit_process | target: #484 | args: 1","kind":"machine","rank":1,"effects":["process_exit"]},{"id":"machine_1_131","label":"machine int_comm_consumer\nsymbol: #51\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: add_int(a, b) == add_int(b, a)\n  0: call add_int_comm | target: #146 | args: 2\n  1: local __hoist_0: IntPair | symbol: #134\n  2: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_2_135","label":"machine int_mul_consumer\nsymbol: #52\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul_int(a, b) == mul_int(b, a)\n  0: call mul_int_comm | target: #164 | args: 2\n  1: local __hoist_1: IntPair | symbol: #138\n  2: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_3_139","label":"machine add_int\nsymbol: #53\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_4_142","label":"machine zero_int\nsymbol: #54\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_5_143","label":"machine one_int\nsymbol: #55\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_6_144","label":"machine neg_int\nsymbol: #56\nattached data: \u003cnone\u003e\nsatisfies: 0\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_7_146","label":"machine add_int_comm\nsymbol: #57\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: add_int(a, b) == add_int(b, a)\n  0: call add_comm | target: #263 | args: 2\n  1: call add_comm | target: #263 | args: 2\n  2: local __hoist_2: IntPair | symbol: #149\n  3: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_8_150","label":"machine add_int_assoc\nsymbol: #58\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: add_int(add_int(a, b), c) == add_int(a, add_int(b, c))\n  0: call add_assoc | target: #272 | args: 3\n  1: call add_assoc | target: #272 | args: 3\n  2: local __hoist_3: IntPair | symbol: #154\n  3: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_9_155","label":"machine cross_sum\nsymbol: #59\nattached data: \u003cnone\u003e\nsatisfies: 0\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_10_157","label":"machine add_int_neg\nsymbol: #60\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: add_int(a, neg_int(a)) == cross_sum(a)\n  0: local negated: IntPair | symbol: #159\n  1: local __hoist_4: IntPair | symbol: #160\n  2: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_11_161","label":"machine mul_int\nsymbol: #61\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_12_164","label":"machine mul_int_comm\nsymbol: #62\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul_int(a, b) == mul_int(b, a)\n  0: call mul_comm | target: #310 | args: 2\n  1: call mul_comm | target: #310 | args: 2\n  2: call mul_comm | target: #310 | args: 2\n  3: call mul_comm | target: #310 | args: 2\n  4: local __hoist_5: IntPair | symbol: #167\n  5: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_13_168","label":"machine mul_int_assoc\nsymbol: #63\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul_int(mul_int(a, b), c) == mul_int(a, mul_int(b, c))\n  0: local __hoist_6: IntPair | symbol: #172\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_14_173","label":"machine mul_int_distributes\nsymbol: #64\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul_int(a, add_int(b, c)) == add_int(mul_int(a, b), mul_int(a, c))\n  0: local __hoist_7: IntPair | symbol: #177\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_15_178","label":"machine add_int_respects_eq\nsymbol: #65\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: add(a.pos, a2.neg) == add(a2.pos, a.neg)\n  contract 1: add(add(a.pos, b.pos), add(a2.neg, b.neg)) == add(add(a2.pos, b.pos), add(a.neg, b.neg))\n  0: local __hoist_8: IntPair | symbol: #182\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_16_183","label":"machine int_eq_symmetric\nsymbol: #66\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: add(a.pos, b.neg) == add(b.pos, a.neg)\n  contract 1: add(b.pos, a.neg) == add(a.pos, b.neg)\n  0: local __hoist_9: IntPair | symbol: #186\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_17_187","label":"machine mul_int_respects_eq\nsymbol: #67\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: add(a.pos, a2.neg) == add(a2.pos, a.neg)\n  contract 1: add(add(mul(a.pos, b.pos), mul(a.neg, b.neg)), add(mul(a2.pos, b.neg), mul(a2.neg, b.pos))) == add(add(mul(a2.pos, b.pos), mul(a2.neg, b.neg)), add(mul(a.pos, b.neg), mul(a.neg, b.pos)))\n  0: local __hoist_10: IntPair | symbol: #191\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_18_192","label":"machine int_eq_transitive\nsymbol: #68\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 3\n  contract 0: add(a.pos, b.neg) == add(b.pos, a.neg) | add(b.pos, c.neg) == add(c.pos, b.neg)\n  contract 1: add(a.pos, c.neg) == add(c.pos, a.neg)\n  0: call add_cancel | target: #319 | args: 3\n  1: local __hoist_11: IntPair | symbol: #196\n  2: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_19_197","label":"machine add_int_identity\nsymbol: #69\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: add_int(a, zero_int()) == a\n  0: call add_zero_right | target: #250 | args: 1\n  1: call add_zero_right | target: #250 | args: 1\n  2: local z: IntPair | symbol: #199\n  3: local __hoist_12: IntPair | symbol: #200\n  4: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_20_201","label":"machine mul_int_identity\nsymbol: #70\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul_int(a, one_int()) == a\n  0: call mul_zero_right | target: #277 | args: 1\n  1: call mul_zero_right | target: #277 | args: 1\n  2: call mul_one_right | target: #307 | args: 1\n  3: call mul_one_right | target: #307 | args: 1\n  4: call add_zero_left | target: #247 | args: 1\n  5: call add_zero_right | target: #250 | args: 1\n  6: local unit: IntPair | symbol: #203\n  7: local __hoist_13: IntPair | symbol: #204\n  8: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_21_205","label":"machine neg_int_involution\nsymbol: #71\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: neg_int(neg_int(a)) == a\n  0: local flipped: IntPair | symbol: #207\n  1: local __hoist_14: IntPair | symbol: #208\n  2: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_22_209","label":"machine neg_int_respects_eq\nsymbol: #72\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: add(a.pos, a2.neg) == add(a2.pos, a.neg)\n  contract 1: add(a.neg, a2.pos) == add(a2.neg, a.pos)\n  0: local __hoist_15: IntPair | symbol: #212\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_23_213","label":"machine console_write_bytes\nsymbol: #73\nattached data: \u003cnone\u003e\nsatisfies: 0\ndirect effects: stdout_io [0x0000000000000008]\nreached effects: stdout_io [0x0000000000000008]\n  0: transition emit(4) | guard: when\n  1: transition finish(2) | guard: when","kind":"machine","rank":1,"effects":["stdout_io"]},{"id":"state_23_214","label":"state emit\nsymbol: #214\nparams: 4\nreached effects: stdout_io [0x0000000000000008]\n  0: local output: u8 | symbol: #225\n  1: call write_byte | target: #483 | args: 1\n  2: transition emit(4) | guard: when\n  3: transition finish(2) | guard: when","kind":"state","rank":2,"effects":["stdout_io"]},{"id":"state_23_215","label":"state finish\nsymbol: #215\nparams: 2\n  0: transition emit_newline(2) | guard: when\n  1: transition done(0) | guard: when","kind":"state","rank":2},{"id":"state_23_216","label":"state emit_newline\nsymbol: #216\nparams: 2\nreached effects: stdout_io [0x0000000000000008]\n  0: local output: u8 | symbol: #230\n  1: call write_byte | target: #483 | args: 1","kind":"state","rank":2,"effects":["stdout_io"]},{"id":"state_23_217","label":"state done\nsymbol: #217\nparams: 0","kind":"state","rank":2},{"id":"machine_24_231","label":"machine console_write\nsymbol: #74\nattached data: \u003cnone\u003e\nsatisfies: 1\ndirect effects: stdout_io [0x0000000000000008]\nreached effects: stdout_io [0x0000000000000008]\n  0: call console_write_bytes | target: #213 | args: 3","kind":"machine","rank":1,"effects":["stdout_io"]},{"id":"machine_25_234","label":"machine console_write_line\nsymbol: #75\nattached data: \u003cnone\u003e\nsatisfies: 1\ndirect effects: stdout_io [0x0000000000000008]\nreached effects: stdout_io [0x0000000000000008]\n  0: call console_write_bytes | target: #213 | args: 3","kind":"machine","rank":1,"effects":["stdout_io"]},{"id":"machine_26_237","label":"machine add\nsymbol: #76\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: local __arm_destructure#V=Succ#prev#~subject=690: () | symbol: #240\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_27_241","label":"machine mul\nsymbol: #77\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: local __arm_destructure#V=Succ#prev#~subject=706: () | symbol: #244\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_28_245","label":"machine zero\nsymbol: #78\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_29_246","label":"machine one\nsymbol: #79\nattached data: \u003cnone\u003e\nsatisfies: 1\n  0: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_30_247","label":"machine add_zero_left\nsymbol: #80\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: result == b\n  0: local __hoist_16: Nat | symbol: #249\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_31_250","label":"machine add_zero_right\nsymbol: #81\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 2\n  contract 0: result == a | add(a, Nat::Zero) == a\n  0: local __arm_destructure#V=Succ#prev#~subject=744: () | symbol: #252\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_32_253","label":"machine add_one_right\nsymbol: #82\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: add(a, Nat) == Nat\n  0: local __arm_destructure#V=Succ#prev#~subject=766: () | symbol: #255\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_33_256","label":"machine mul_zero_left\nsymbol: #83\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: result == Nat::Zero\n  0: local __hoist_17: Nat | symbol: #258\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_34_259","label":"machine add_succ_law\nsymbol: #84\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: add(a, Nat) == Nat\n  0: local __arm_destructure#V=Succ#prev#~subject=800: () | symbol: #262\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_35_263","label":"machine add_comm\nsymbol: #85\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: add(a, b) == add(b, a)\n  0: local __arm_destructure#V=Succ#prev#~subject=825: () | symbol: #268\n  1: transition comm_base(1) | guard: when\n  2: transition comm_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_35_264","label":"state comm_base\nsymbol: #264\nparams: 1\n  0: call add_zero_right | target: #250 | args: 1\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"state_35_265","label":"state comm_step\nsymbol: #265\nparams: 2\n  0: call add_succ_law | target: #259 | args: 2\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_36_272","label":"machine add_assoc\nsymbol: #86\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: add(add(a, b), c) == add(a, add(b, c))\n  0: local __arm_destructure#V=Succ#prev#~subject=869: () | symbol: #276\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_37_277","label":"machine mul_zero_right\nsymbol: #87\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul(a, Nat::Zero) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=893: () | symbol: #279\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_38_280","label":"machine mul_succ_right\nsymbol: #88\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul(a, Nat) == add(a, mul(a, b))\n  0: local __arm_destructure#V=Succ#prev#~subject=920: () | symbol: #283\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_39_284","label":"machine mul_identity\nsymbol: #89\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 2\n  contract 0: result == a | mul(a, one()) == a\n  0: call mul_succ_right | target: #280 | args: 2\n  1: call mul_zero_right | target: #277 | args: 1\n  2: call add_zero_right | target: #250 | args: 1\n  3: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_40_286","label":"machine mul_distributes\nsymbol: #90\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul(a, add(b, c)) == add(mul(a, b), mul(a, c))\n  0: local __arm_destructure#V=Succ#prev#~subject=975: () | symbol: #290\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_41_291","label":"machine mul_distributes_right\nsymbol: #91\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul(add(a, b), c) == add(mul(a, c), mul(b, c))\n  0: local __arm_destructure#V=Succ#prev#~subject=1011: () | symbol: #295\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_42_296","label":"machine mul_assoc\nsymbol: #92\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul(mul(a, b), c) == mul(a, mul(b, c))\n  0: local __arm_destructure#V=Succ#prev#~subject=1044: () | symbol: #301\n  1: transition value | guard: when\n  2: transition ma_step(3) | guard: when","kind":"machine","rank":1},{"id":"state_42_297","label":"state ma_step\nsymbol: #297\nparams: 3\n  0: call mul_distributes_right | target: #291 | args: 3\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_43_305","label":"machine mul_one_left\nsymbol: #93\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul(Nat, b) == b\n  0: call add_zero_right | target: #250 | args: 1\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_44_307","label":"machine mul_one_right\nsymbol: #94\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: mul(a, Nat) == a\n  0: local __arm_destructure#V=Succ#prev#~subject=1092: () | symbol: #309\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_45_310","label":"machine mul_comm\nsymbol: #95\nattached data: \u003cnone\u003e\nsatisfies: 1\ncontracts: 1 / facts: 1\n  contract 0: mul(a, b) == mul(b, a)\n  0: local __arm_destructure#V=Succ#prev#~subject=1115: () | symbol: #315\n  1: transition mc_base(1) | guard: when\n  2: transition mc_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_45_311","label":"state mc_base\nsymbol: #311\nparams: 1\n  0: call mul_zero_right | target: #277 | args: 1\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"state_45_312","label":"state mc_step\nsymbol: #312\nparams: 2\n  0: call mul_succ_right | target: #280 | args: 2\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_46_319","label":"machine add_cancel\nsymbol: #96\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: add(c, a) == add(c, b)\n  contract 1: a == b\n  0: local __arm_destructure#V=Succ#prev#~subject=1156: () | symbol: #325\n  1: transition ac_base(2) | guard: when\n  2: transition ac_step(3) | guard: when","kind":"machine","rank":1},{"id":"state_46_320","label":"state ac_base\nsymbol: #320\nparams: 2\n  0: transition value | guard: always","kind":"state","rank":2},{"id":"state_46_321","label":"state ac_step\nsymbol: #321\nparams: 3\n  0: local __hoist_18: Nat | symbol: #331\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_47_332","label":"machine pred\nsymbol: #97\nattached data: \u003cnone\u003e\nsatisfies: 0\n  0: local __arm_destructure#V=Succ#prev#~subject=1179: () | symbol: #334\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_48_335","label":"machine sub\nsymbol: #98\nattached data: \u003cnone\u003e\nsatisfies: 0\n  0: local __arm_destructure#V=Succ#prev#~subject=1187: () | symbol: #338\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_49_339","label":"machine sub_zero_right\nsymbol: #99\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 2\n  contract 0: result == a | sub(a, Nat::Zero) == a\n  0: local __hoist_19: Nat | symbol: #341\n  1: transition value | guard: always","kind":"machine","rank":1},{"id":"machine_50_342","label":"machine succ_sub_succ\nsymbol: #100\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat, Nat) == sub(a, b)\n  0: local __arm_destructure#V=Succ#prev#~subject=1227: () | symbol: #346\n  1: transition value | guard: when\n  2: transition sss_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_50_343","label":"state sss_step\nsymbol: #343\nparams: 2\n  0: local __hoist_20: Nat | symbol: #349\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_51_350","label":"machine sub_zero_left\nsymbol: #101\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat::Zero, b) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1250: () | symbol: #353\n  1: transition value | guard: when\n  2: transition szl_step(1) | guard: when","kind":"machine","rank":1},{"id":"state_51_351","label":"state szl_step\nsymbol: #351\nparams: 1\n  0: local __hoist_21: Nat | symbol: #355\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_52_356","label":"machine sub_self\nsymbol: #102\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(a, a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1270: () | symbol: #359\n  1: transition value | guard: when\n  2: transition ss_step(1) | guard: when","kind":"machine","rank":1},{"id":"state_52_357","label":"state ss_step\nsymbol: #357\nparams: 1\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: local __hoist_22: Nat | symbol: #361\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_53_362","label":"machine add_sub_cancel\nsymbol: #103\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(add(b, a), b) == a\n  0: local __arm_destructure#V=Succ#prev#~subject=1297: () | symbol: #366\n  1: transition value | guard: when\n  2: transition asc_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_53_363","label":"state asc_step\nsymbol: #363\nparams: 2\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: local __hoist_23: Nat | symbol: #369\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_54_370","label":"machine le_of_succ_le\nsymbol: #104\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(Nat, a) == Nat::Zero\n  contract 1: sub(r, a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1333: () | symbol: #374\n  1: transition value | guard: when\n  2: transition losl_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_54_371","label":"state losl_step\nsymbol: #371\nparams: 2\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_55_377","label":"machine pred_le_left\nsymbol: #105\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(x, a) == Nat::Zero\n  contract 1: sub(pred(x), a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1364: () | symbol: #381\n  1: transition value | guard: when\n  2: transition pll_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_55_378","label":"state pll_step\nsymbol: #378\nparams: 2\n  0: call le_of_succ_le | target: #370 | args: 2\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_56_384","label":"machine sub_le\nsymbol: #106\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(sub(a, b), a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1391: () | symbol: #389\n  1: transition sle_zero(1) | guard: when\n  2: transition sle_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_56_385","label":"state sle_zero\nsymbol: #385\nparams: 1\n  0: call sub_self | target: #356 | args: 1\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"state_56_386","label":"state sle_step\nsymbol: #386\nparams: 2\n  0: call pred_le_left | target: #377 | args: 2\n  1: local __hoist_24: Nat | symbol: #393\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_57_394","label":"machine sub_lt_succ\nsymbol: #107\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat, Nat) == Nat::Zero\n  0: transition slt_body(2) | guard: always","kind":"machine","rank":1},{"id":"state_57_395","label":"state slt_body\nsymbol: #395\nparams: 2\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: call succ_sub_succ | target: #342 | args: 2\n  2: call sub_le | target: #384 | args: 2\n  3: transition value | guard: always","kind":"state","rank":2},{"id":"machine_58_400","label":"machine sub_lt_of_le\nsymbol: #108\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(Nat, a) == Nat::Zero\n  contract 1: sub(Nat, a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1471: () | symbol: #404\n  1: transition value | guard: when\n  2: transition slol_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_58_401","label":"state slol_step\nsymbol: #401\nparams: 2\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: call succ_sub_succ | target: #342 | args: 2\n  2: call sub_le | target: #384 | args: 2\n  3: transition value | guard: always","kind":"state","rank":2},{"id":"machine_59_407","label":"machine sub_lt\nsymbol: #109\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 3\n  contract 0: sub(Nat, b) == Nat::Zero | sub(b, a) == Nat::Zero\n  contract 1: sub(Nat, a) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1522: () | symbol: #411\n  1: transition value | guard: when\n  2: transition slt_of(2) | guard: when","kind":"machine","rank":1},{"id":"state_59_408","label":"state slt_of\nsymbol: #408\nparams: 2\n  0: call sub_lt_of_le | target: #400 | args: 2\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_60_414","label":"machine mod\nsymbol: #110\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(Nat, b) == Nat::Zero\n  contract 1: sub(Nat, b) == Nat::Zero\n  0: transition mod_rec(2) | guard: when\n  1: transition mod_done(2) | guard: when","kind":"machine","rank":1},{"id":"state_60_415","label":"state mod_rec\nsymbol: #415\nparams: 2\n  0: call sub_lt | target: #407 | args: 2\n  1: local next: Nat | symbol: #421\n  2: local __hoist_25: Nat | symbol: #422\n  3: transition value | guard: always","kind":"state","rank":2},{"id":"state_60_416","label":"state mod_done\nsymbol: #416\nparams: 2\n  0: call lt_of_sub_pos | target: #449 | args: 3\n  1: transition value | guard: always","kind":"state","rank":2},{"id":"machine_61_425","label":"machine pred_eq_succ\nsymbol: #111\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: pred(x) == Nat\n  contract 1: x == Nat\n  0: local __arm_destructure#V=Succ#prev#~subject=1618: () | symbol: #428\n  1: transition value | guard: when\n  2: transition value | guard: when","kind":"machine","rank":1},{"id":"machine_62_429","label":"machine sub_eq_add\nsymbol: #112\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(b, a) == Nat\n  contract 1: b == add(a, Nat)\n  0: local __arm_destructure#V=Succ#prev#~subject=1640: () | symbol: #434\n  1: transition value | guard: when\n  2: transition sea_step(3) | guard: when","kind":"machine","rank":1},{"id":"state_62_430","label":"state sea_step\nsymbol: #430\nparams: 3\n  0: call pred_eq_succ | target: #425 | args: 2\n  1: call add_succ_law | target: #259 | args: 2\n  2: local __hoist_26: Nat | symbol: #438\n  3: transition value | guard: always","kind":"state","rank":2},{"id":"machine_63_439","label":"machine le_add\nsymbol: #113\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat, add(a, Nat)) == Nat::Zero\n  0: local __arm_destructure#V=Succ#prev#~subject=1684: () | symbol: #444\n  1: transition la_zero(1) | guard: when\n  2: transition la_step(2) | guard: when","kind":"machine","rank":1},{"id":"state_63_440","label":"state la_zero\nsymbol: #440\nparams: 1\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: call sub_zero_left | target: #350 | args: 1\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"state_63_441","label":"state la_step\nsymbol: #441\nparams: 2\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: local __hoist_27: Nat | symbol: #448\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_64_449","label":"machine lt_of_sub_pos\nsymbol: #114\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 2 / facts: 2\n  contract 0: sub(b, a) == Nat\n  contract 1: sub(Nat, b) == Nat::Zero\n  0: transition lsp_body(3) | guard: always","kind":"machine","rank":1},{"id":"state_64_450","label":"state lsp_body\nsymbol: #450\nparams: 3\n  0: call sub_eq_add | target: #429 | args: 3\n  1: call le_add | target: #439 | args: 2\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_65_457","label":"machine le_one_succ\nsymbol: #115\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat, Nat) == Nat::Zero\n  0: transition los_body(1) | guard: always","kind":"machine","rank":1},{"id":"state_65_458","label":"state los_body\nsymbol: #458\nparams: 1\n  0: call succ_sub_succ | target: #342 | args: 2\n  1: call sub_zero_left | target: #350 | args: 1\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_66_461","label":"machine gcd\nsymbol: #116\nattached data: \u003cnone\u003e\nsatisfies: 0\n  0: local __arm_destructure#V=Succ#prev#~subject=1768: () | symbol: #465\n  1: transition value | guard: when\n  2: transition gcd_rec(3) | guard: when","kind":"machine","rank":1},{"id":"state_66_462","label":"state gcd_rec\nsymbol: #462\nparams: 3\n  0: call le_one_succ | target: #457 | args: 1\n  1: local next: Nat | symbol: #469\n  2: local __hoist_28: Nat | symbol: #470\n  3: transition value | guard: always","kind":"state","rank":2},{"id":"machine_67_471","label":"machine div\nsymbol: #117\nattached data: \u003cnone\u003e\nsatisfies: 0\ncontracts: 1 / facts: 1\n  contract 0: sub(Nat, b) == Nat::Zero\n  0: transition div_rec(2) | guard: when\n  1: transition value | guard: when","kind":"machine","rank":1},{"id":"state_67_472","label":"state div_rec\nsymbol: #472\nparams: 2\n  0: call sub_lt | target: #407 | args: 2\n  1: local next: Nat | symbol: #477\n  2: transition value | guard: always","kind":"state","rank":2},{"id":"machine_ref_1_131_0","label":"add_int_comm::entry\ncall add_int_comm | target: #146 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_7_146"},{"id":"machine_ref_2_135_0","label":"mul_int_comm::entry\ncall mul_int_comm | target: #164 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_12_164"},{"id":"machine_ref_7_146_0","label":"add_comm::entry\ncall add_comm | target: #263 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_35_263"},{"id":"machine_ref_7_146_1","label":"add_comm::entry\ncall add_comm | target: #263 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_35_263"},{"id":"machine_ref_8_150_0","label":"add_assoc::entry\ncall add_assoc | target: #272 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_36_272"},{"id":"machine_ref_8_150_1","label":"add_assoc::entry\ncall add_assoc | target: #272 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_36_272"},{"id":"machine_ref_12_164_0","label":"mul_comm::entry\ncall mul_comm | target: #310 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_45_310"},{"id":"machine_ref_12_164_1","label":"mul_comm::entry\ncall mul_comm | target: #310 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_45_310"},{"id":"machine_ref_12_164_2","label":"mul_comm::entry\ncall mul_comm | target: #310 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_45_310"},{"id":"machine_ref_12_164_3","label":"mul_comm::entry\ncall mul_comm | target: #310 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_45_310"},{"id":"machine_ref_18_192_0","label":"add_cancel::entry\ncall add_cancel | target: #319 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_46_319"},{"id":"machine_ref_19_197_0","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_19_197_1","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_20_201_0","label":"mul_zero_right::entry\ncall mul_zero_right | target: #277 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_37_277"},{"id":"machine_ref_20_201_1","label":"mul_zero_right::entry\ncall mul_zero_right | target: #277 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_37_277"},{"id":"machine_ref_20_201_2","label":"mul_one_right::entry\ncall mul_one_right | target: #307 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_44_307"},{"id":"machine_ref_20_201_3","label":"mul_one_right::entry\ncall mul_one_right | target: #307 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_44_307"},{"id":"machine_ref_20_201_4","label":"add_zero_left::entry\ncall add_zero_left | target: #247 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_30_247"},{"id":"machine_ref_20_201_5","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_24_231_0","label":"console_write_bytes::entry\ncall console_write_bytes | target: #213 | args: 3\nreaches effects: stdout_io [0x0000000000000008]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"effects":["stdout_io"],"scopeTarget":"machine_23_213"},{"id":"machine_ref_25_234_0","label":"console_write_bytes::entry\ncall console_write_bytes | target: #213 | args: 3\nreaches effects: stdout_io [0x0000000000000008]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"effects":["stdout_io"],"scopeTarget":"machine_23_213"},{"id":"machine_ref_35_264_0","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_35_265_0","label":"add_succ_law::entry\ncall add_succ_law | target: #259 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_34_259"},{"id":"machine_ref_39_284_0","label":"mul_succ_right::entry\ncall mul_succ_right | target: #280 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_38_280"},{"id":"machine_ref_39_284_1","label":"mul_zero_right::entry\ncall mul_zero_right | target: #277 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_37_277"},{"id":"machine_ref_39_284_2","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_42_297_0","label":"mul_distributes_right::entry\ncall mul_distributes_right | target: #291 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_41_291"},{"id":"machine_ref_43_305_0","label":"add_zero_right::entry\ncall add_zero_right | target: #250 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_31_250"},{"id":"machine_ref_45_311_0","label":"mul_zero_right::entry\ncall mul_zero_right | target: #277 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_37_277"},{"id":"machine_ref_45_312_0","label":"mul_succ_right::entry\ncall mul_succ_right | target: #280 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_38_280"},{"id":"machine_ref_52_357_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_53_363_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_54_371_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_55_378_0","label":"le_of_succ_le::entry\ncall le_of_succ_le | target: #370 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_54_370"},{"id":"machine_ref_56_385_0","label":"sub_self::entry\ncall sub_self | target: #356 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_52_356"},{"id":"machine_ref_56_386_0","label":"pred_le_left::entry\ncall pred_le_left | target: #377 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_55_377"},{"id":"machine_ref_57_395_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_57_395_1","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_57_395_2","label":"sub_le::entry\ncall sub_le | target: #384 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_56_384"},{"id":"machine_ref_58_401_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_58_401_1","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_58_401_2","label":"sub_le::entry\ncall sub_le | target: #384 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_56_384"},{"id":"machine_ref_59_408_0","label":"sub_lt_of_le::entry\ncall sub_lt_of_le | target: #400 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_58_400"},{"id":"machine_ref_60_415_0","label":"sub_lt::entry\ncall sub_lt | target: #407 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_59_407"},{"id":"machine_ref_60_416_0","label":"lt_of_sub_pos::entry\ncall lt_of_sub_pos | target: #449 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_64_449"},{"id":"machine_ref_62_430_0","label":"pred_eq_succ::entry\ncall pred_eq_succ | target: #425 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_61_425"},{"id":"machine_ref_62_430_1","label":"add_succ_law::entry\ncall add_succ_law | target: #259 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_34_259"},{"id":"machine_ref_63_440_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_63_440_1","label":"sub_zero_left::entry\ncall sub_zero_left | target: #350 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_51_350"},{"id":"machine_ref_63_441_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_64_450_0","label":"sub_eq_add::entry\ncall sub_eq_add | target: #429 | args: 3\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_62_429"},{"id":"machine_ref_64_450_1","label":"le_add::entry\ncall le_add | target: #439 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_63_439"},{"id":"machine_ref_65_458_0","label":"succ_sub_succ::entry\ncall succ_sub_succ | target: #342 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_50_342"},{"id":"machine_ref_65_458_1","label":"sub_zero_left::entry\ncall sub_zero_left | target: #350 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_51_350"},{"id":"machine_ref_66_462_0","label":"le_one_succ::entry\ncall le_one_succ | target: #457 | args: 1\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_65_457"},{"id":"machine_ref_67_472_0","label":"sub_lt::entry\ncall sub_lt | target: #407 | args: 2\nreaches effects: \u003cnone\u003e [0x0000000000000000]\n\ndouble-click to scope target","kind":"machine_ref","rank":2,"scopeTarget":"machine_59_407"}],"edges":[{"from":"trait_0","to":"trait_0_machine_0","kind":"contains"},{"from":"trait_0","to":"trait_0_machine_1","kind":"contains"},{"from":"trait_0","to":"trait_0_machine_2","kind":"contains"},{"from":"trait_0","to":"trait_0_machine_3","kind":"contains"},{"from":"trait_0","to":"trait_0_machine_4","kind":"contains"},{"from":"trait_0","to":"trait_0_machine_5","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_0","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_1","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_2","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_3","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_4","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_5","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_6","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_7","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_8","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_9","kind":"contains"},{"from":"trait_1","to":"trait_1_machine_10","kind":"contains"},{"from":"data_0","to":"trait_0","kind":"field_type"},{"from":"data_1","to":"data_3","kind":"field_type"},{"from":"data_1","to":"data_3","kind":"field_type"},{"from":"data_0","to":"machine_0_129","kind":"implements_data"},{"from":"machine_3_139","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_4_142","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_5_143","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_7_146","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_8_150","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_11_161","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_12_164","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_13_168","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_14_173","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_19_197","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_20_201","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_23_213","to":"state_23_214","kind":"contains"},{"from":"state_23_214","to":"state_23_214","kind":"transition_target"},{"from":"machine_23_213","to":"state_23_215","kind":"contains"},{"from":"machine_23_213","to":"state_23_216","kind":"contains"},{"from":"machine_23_213","to":"state_23_217","kind":"contains"},{"from":"machine_23_213","to":"state_23_214","kind":"transition_target"},{"from":"machine_23_213","to":"state_23_215","kind":"transition_target"},{"from":"machine_24_231","to":"trait_0","kind":"satisfies_trait"},{"from":"machine_25_234","to":"trait_0","kind":"satisfies_trait"},{"from":"machine_26_237","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_27_241","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_28_245","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_29_246","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_31_250","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_35_263","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_35_263","to":"state_35_264","kind":"contains"},{"from":"machine_35_263","to":"state_35_265","kind":"contains"},{"from":"machine_35_263","to":"state_35_264","kind":"transition_target"},{"from":"machine_35_263","to":"state_35_265","kind":"transition_target"},{"from":"machine_36_272","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_39_284","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_40_286","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_42_296","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_42_296","to":"state_42_297","kind":"contains"},{"from":"machine_42_296","to":"state_42_297","kind":"transition_target"},{"from":"machine_45_310","to":"trait_1","kind":"satisfies_trait"},{"from":"machine_45_310","to":"state_45_311","kind":"contains"},{"from":"machine_45_310","to":"state_45_312","kind":"contains"},{"from":"machine_45_310","to":"state_45_311","kind":"transition_target"},{"from":"machine_45_310","to":"state_45_312","kind":"transition_target"},{"from":"machine_46_319","to":"state_46_320","kind":"contains"},{"from":"machine_46_319","to":"state_46_321","kind":"contains"},{"from":"machine_46_319","to":"state_46_320","kind":"transition_target"},{"from":"machine_46_319","to":"state_46_321","kind":"transition_target"},{"from":"machine_50_342","to":"state_50_343","kind":"contains"},{"from":"machine_50_342","to":"state_50_343","kind":"transition_target"},{"from":"machine_51_350","to":"state_51_351","kind":"contains"},{"from":"machine_51_350","to":"state_51_351","kind":"transition_target"},{"from":"machine_52_356","to":"state_52_357","kind":"contains"},{"from":"machine_52_356","to":"state_52_357","kind":"transition_target"},{"from":"machine_53_362","to":"state_53_363","kind":"contains"},{"from":"machine_53_362","to":"state_53_363","kind":"transition_target"},{"from":"machine_54_370","to":"state_54_371","kind":"contains"},{"from":"machine_54_370","to":"state_54_371","kind":"transition_target"},{"from":"machine_55_377","to":"state_55_378","kind":"contains"},{"from":"machine_55_377","to":"state_55_378","kind":"transition_target"},{"from":"machine_56_384","to":"state_56_385","kind":"contains"},{"from":"machine_56_384","to":"state_56_386","kind":"contains"},{"from":"machine_56_384","to":"state_56_385","kind":"transition_target"},{"from":"machine_56_384","to":"state_56_386","kind":"transition_target"},{"from":"machine_57_394","to":"state_57_395","kind":"contains"},{"from":"machine_57_394","to":"state_57_395","kind":"transition_target"},{"from":"machine_58_400","to":"state_58_401","kind":"contains"},{"from":"machine_58_400","to":"state_58_401","kind":"transition_target"},{"from":"machine_59_407","to":"state_59_408","kind":"contains"},{"from":"machine_59_407","to":"state_59_408","kind":"transition_target"},{"from":"machine_60_414","to":"state_60_415","kind":"contains"},{"from":"machine_60_414","to":"state_60_416","kind":"contains"},{"from":"machine_60_414","to":"state_60_415","kind":"transition_target"},{"from":"machine_60_414","to":"state_60_416","kind":"transition_target"},{"from":"machine_62_429","to":"state_62_430","kind":"contains"},{"from":"machine_62_429","to":"state_62_430","kind":"transition_target"},{"from":"machine_63_439","to":"state_63_440","kind":"contains"},{"from":"machine_63_439","to":"state_63_441","kind":"contains"},{"from":"machine_63_439","to":"state_63_440","kind":"transition_target"},{"from":"machine_63_439","to":"state_63_441","kind":"transition_target"},{"from":"machine_64_449","to":"state_64_450","kind":"contains"},{"from":"machine_64_449","to":"state_64_450","kind":"transition_target"},{"from":"machine_65_457","to":"state_65_458","kind":"contains"},{"from":"machine_65_457","to":"state_65_458","kind":"transition_target"},{"from":"machine_66_461","to":"state_66_462","kind":"contains"},{"from":"machine_66_461","to":"state_66_462","kind":"transition_target"},{"from":"machine_67_471","to":"state_67_472","kind":"contains"},{"from":"machine_67_471","to":"state_67_472","kind":"transition_target"},{"from":"machine_1_131","to":"machine_ref_1_131_0","kind":"call"},{"from":"machine_1_131","to":"machine_ref_1_131_0","kind":"contains"},{"from":"machine_2_135","to":"machine_ref_2_135_0","kind":"call"},{"from":"machine_2_135","to":"machine_ref_2_135_0","kind":"contains"},{"from":"machine_7_146","to":"machine_ref_7_146_0","kind":"call"},{"from":"machine_7_146","to":"machine_ref_7_146_0","kind":"contains"},{"from":"machine_7_146","to":"machine_ref_7_146_1","kind":"call"},{"from":"machine_7_146","to":"machine_ref_7_146_1","kind":"contains"},{"from":"machine_8_150","to":"machine_ref_8_150_0","kind":"call"},{"from":"machine_8_150","to":"machine_ref_8_150_0","kind":"contains"},{"from":"machine_8_150","to":"machine_ref_8_150_1","kind":"call"},{"from":"machine_8_150","to":"machine_ref_8_150_1","kind":"contains"},{"from":"machine_12_164","to":"machine_ref_12_164_0","kind":"call"},{"from":"machine_12_164","to":"machine_ref_12_164_0","kind":"contains"},{"from":"machine_12_164","to":"machine_ref_12_164_1","kind":"call"},{"from":"machine_12_164","to":"machine_ref_12_164_1","kind":"contains"},{"from":"machine_12_164","to":"machine_ref_12_164_2","kind":"call"},{"from":"machine_12_164","to":"machine_ref_12_164_2","kind":"contains"},{"from":"machine_12_164","to":"machine_ref_12_164_3","kind":"call"},{"from":"machine_12_164","to":"machine_ref_12_164_3","kind":"contains"},{"from":"machine_18_192","to":"machine_ref_18_192_0","kind":"call"},{"from":"machine_18_192","to":"machine_ref_18_192_0","kind":"contains"},{"from":"machine_19_197","to":"machine_ref_19_197_0","kind":"call"},{"from":"machine_19_197","to":"machine_ref_19_197_0","kind":"contains"},{"from":"machine_19_197","to":"machine_ref_19_197_1","kind":"call"},{"from":"machine_19_197","to":"machine_ref_19_197_1","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_0","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_0","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_1","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_1","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_2","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_2","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_3","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_3","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_4","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_4","kind":"contains"},{"from":"machine_20_201","to":"machine_ref_20_201_5","kind":"call"},{"from":"machine_20_201","to":"machine_ref_20_201_5","kind":"contains"},{"from":"machine_24_231","to":"machine_ref_24_231_0","kind":"call"},{"from":"machine_24_231","to":"machine_ref_24_231_0","kind":"contains"},{"from":"machine_25_234","to":"machine_ref_25_234_0","kind":"call"},{"from":"machine_25_234","to":"machine_ref_25_234_0","kind":"contains"},{"from":"state_35_264","to":"machine_ref_35_264_0","kind":"call"},{"from":"state_35_264","to":"machine_ref_35_264_0","kind":"contains"},{"from":"state_35_265","to":"machine_ref_35_265_0","kind":"call"},{"from":"state_35_265","to":"machine_ref_35_265_0","kind":"contains"},{"from":"machine_39_284","to":"machine_ref_39_284_0","kind":"call"},{"from":"machine_39_284","to":"machine_ref_39_284_0","kind":"contains"},{"from":"machine_39_284","to":"machine_ref_39_284_1","kind":"call"},{"from":"machine_39_284","to":"machine_ref_39_284_1","kind":"contains"},{"from":"machine_39_284","to":"machine_ref_39_284_2","kind":"call"},{"from":"machine_39_284","to":"machine_ref_39_284_2","kind":"contains"},{"from":"state_42_297","to":"machine_ref_42_297_0","kind":"call"},{"from":"state_42_297","to":"machine_ref_42_297_0","kind":"contains"},{"from":"machine_43_305","to":"machine_ref_43_305_0","kind":"call"},{"from":"machine_43_305","to":"machine_ref_43_305_0","kind":"contains"},{"from":"state_45_311","to":"machine_ref_45_311_0","kind":"call"},{"from":"state_45_311","to":"machine_ref_45_311_0","kind":"contains"},{"from":"state_45_312","to":"machine_ref_45_312_0","kind":"call"},{"from":"state_45_312","to":"machine_ref_45_312_0","kind":"contains"},{"from":"state_52_357","to":"machine_ref_52_357_0","kind":"call"},{"from":"state_52_357","to":"machine_ref_52_357_0","kind":"contains"},{"from":"state_53_363","to":"machine_ref_53_363_0","kind":"call"},{"from":"state_53_363","to":"machine_ref_53_363_0","kind":"contains"},{"from":"state_54_371","to":"machine_ref_54_371_0","kind":"call"},{"from":"state_54_371","to":"machine_ref_54_371_0","kind":"contains"},{"from":"state_55_378","to":"machine_ref_55_378_0","kind":"call"},{"from":"state_55_378","to":"machine_ref_55_378_0","kind":"contains"},{"from":"state_56_385","to":"machine_ref_56_385_0","kind":"call"},{"from":"state_56_385","to":"machine_ref_56_385_0","kind":"contains"},{"from":"state_56_386","to":"machine_ref_56_386_0","kind":"call"},{"from":"state_56_386","to":"machine_ref_56_386_0","kind":"contains"},{"from":"state_57_395","to":"machine_ref_57_395_0","kind":"call"},{"from":"state_57_395","to":"machine_ref_57_395_0","kind":"contains"},{"from":"state_57_395","to":"machine_ref_57_395_1","kind":"call"},{"from":"state_57_395","to":"machine_ref_57_395_1","kind":"contains"},{"from":"state_57_395","to":"machine_ref_57_395_2","kind":"call"},{"from":"state_57_395","to":"machine_ref_57_395_2","kind":"contains"},{"from":"state_58_401","to":"machine_ref_58_401_0","kind":"call"},{"from":"state_58_401","to":"machine_ref_58_401_0","kind":"contains"},{"from":"state_58_401","to":"machine_ref_58_401_1","kind":"call"},{"from":"state_58_401","to":"machine_ref_58_401_1","kind":"contains"},{"from":"state_58_401","to":"machine_ref_58_401_2","kind":"call"},{"from":"state_58_401","to":"machine_ref_58_401_2","kind":"contains"},{"from":"state_59_408","to":"machine_ref_59_408_0","kind":"call"},{"from":"state_59_408","to":"machine_ref_59_408_0","kind":"contains"},{"from":"state_60_415","to":"machine_ref_60_415_0","kind":"call"},{"from":"state_60_415","to":"machine_ref_60_415_0","kind":"contains"},{"from":"state_60_416","to":"machine_ref_60_416_0","kind":"call"},{"from":"state_60_416","to":"machine_ref_60_416_0","kind":"contains"},{"from":"state_62_430","to":"machine_ref_62_430_0","kind":"call"},{"from":"state_62_430","to":"machine_ref_62_430_0","kind":"contains"},{"from":"state_62_430","to":"machine_ref_62_430_1","kind":"call"},{"from":"state_62_430","to":"machine_ref_62_430_1","kind":"contains"},{"from":"state_63_440","to":"machine_ref_63_440_0","kind":"call"},{"from":"state_63_440","to":"machine_ref_63_440_0","kind":"contains"},{"from":"state_63_440","to":"machine_ref_63_440_1","kind":"call"},{"from":"state_63_440","to":"machine_ref_63_440_1","kind":"contains"},{"from":"state_63_441","to":"machine_ref_63_441_0","kind":"call"},{"from":"state_63_441","to":"machine_ref_63_441_0","kind":"contains"},{"from":"state_64_450","to":"machine_ref_64_450_0","kind":"call"},{"from":"state_64_450","to":"machine_ref_64_450_0","kind":"contains"},{"from":"state_64_450","to":"machine_ref_64_450_1","kind":"call"},{"from":"state_64_450","to":"machine_ref_64_450_1","kind":"contains"},{"from":"state_65_458","to":"machine_ref_65_458_0","kind":"call"},{"from":"state_65_458","to":"machine_ref_65_458_0","kind":"contains"},{"from":"state_65_458","to":"machine_ref_65_458_1","kind":"call"},{"from":"state_65_458","to":"machine_ref_65_458_1","kind":"contains"},{"from":"state_66_462","to":"machine_ref_66_462_0","kind":"call"},{"from":"state_66_462","to":"machine_ref_66_462_0","kind":"contains"},{"from":"state_67_472","to":"machine_ref_67_472_0","kind":"call"},{"from":"state_67_472","to":"machine_ref_67_472_0","kind":"contains"}]};
+const EFFECT_NAMES = ["alloc","dealloc","stdin_io","stdout_io","stderr_io","filesystem_io","network_io","process_spawn","process_exit","process_signal","env_read","env_write","clock_read","random_read","thread_spawn","sync_wake","device_io","memory_map","dynamic_link","host_boundary","machine_control"];
+
+const svg = document.getElementById("canvas");
+const viewport = document.getElementById("viewport");
+const edgeLayer = document.getElementById("edges");
+const nodeLayer = document.getElementById("nodes");
+const search = document.getElementById("search");
+const details = document.getElementById("details");
+const detailsActions = document.getElementById("details-actions");
+const counts = document.getElementById("counts");
+const effectFilter = document.getElementById("effect-filter");
+const effectButtons = document.getElementById("effect-buttons");
+const scopePanel = document.getElementById("scope-panel");
+const scopeTitle = document.getElementById("scope-title");
+const scopeSearch = document.getElementById("scope-search");
+const scopeOutline = document.getElementById("scope-outline");
+const showSequence = document.getElementById("show-sequence");
+const showData = document.getElementById("show-data");
+const clearScope = document.getElementById("clear-scope");
+const NS = "http://www.w3.org/2000/svg";
+
+const nodeById = new Map(GRAPH.nodes.map(node => [node.id, node]));
+const containmentChildren = new Map();
+const containmentParent = new Map();
+for (const edge of GRAPH.edges) {
+  if (edge.kind === "contains") {
+    if (!containmentChildren.has(edge.from)) containmentChildren.set(edge.from, []);
+    containmentChildren.get(edge.from).push(edge.to);
+    containmentParent.set(edge.to, edge.from);
+  }
+}
+
+const NODE_W = 250;
+const NODE_H = 76;
+const NODE_MAX_W = 560;
+const NODE_MAX_LINES = 14;
+const LINE_H = 16;
+const RANK_GAP = 70;
+const ROW_GAP = 18;
+const TREE_LEVEL_GAP = 96;
+const TREE_SIBLING_GAP = 34;
+const LEFT = 80;
+const TOP = 60;
+const SECTION_GAP_Y = 70;
+const OWNER_COLUMNS = 2;
+const DATA_COLUMNS = 4;
+const nodeBoxes = new Map();
+const positions = new Map();
+let graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
+let selectedId = null;
+let hoveredId = null;
+let scopedId = null;
+let visibleNodeIds = new Set(GRAPH.nodes.map(node => node.id));
+let transform = { x: 0, y: 0, scale: 1 };
+let lastActivation = { id: null, time: 0 };
+let activeEffect = null;
+
+function displayLabel(node) {
+  if (node.scopedLabel && scopedId && containedNodeSet(scopedId).has(node.id)) {
+    return node.scopedLabel;
+  }
+  return node.label;
+}
+
+function isExpandedScopedLabel(node) {
+  return Boolean(node.scopedLabel && scopedId && containedNodeSet(scopedId).has(node.id));
+}
+
+function layoutGraph(allowedIds = null) {
+  positions.clear();
+  const allowed = allowedIds && allowedIds.size > 0
+    ? new Set(Array.from(allowedIds).filter(id => nodeById.has(id)))
+    : new Set(GRAPH.nodes.map(node => node.id));
+  if (allowed.size === 0) return fallbackLayout(allowed);
+
+  const roots = Array.from(allowed)
+    .filter(id => !hasContainmentParentIn(id, allowed))
+    .sort((a, b) => (nodeById.get(a)?.rank || 0) - (nodeById.get(b)?.rank || 0));
+  const hasTreeShape = roots.some(id => containmentChildrenFor(id, allowed).length > 0);
+  if (!hasTreeShape) return fallbackLayout(allowed);
+
+  if (roots.length === 1) {
+    const rootId = roots[0];
+    layoutSubtree(rootId, LEFT, TOP, new Set(), allowed);
+    return;
+  }
+
+  let cursorY = TOP;
+  for (const rootId of roots) {
+    layoutSubtree(rootId, LEFT, cursorY, new Set(), allowed);
+    cursorY += layoutSubtreeHeight(rootId, new Set(), allowed) + SECTION_GAP_Y;
+  }
+}
+
+function containmentChildrenFor(id, allowed) {
+  return (containmentChildren.get(id) || [])
+    .filter(childId => allowed.has(childId) && nodeById.has(childId));
+}
+
+function hasContainmentParentIn(id, allowed) {
+  for (const [parent, children] of containmentChildren.entries()) {
+    if (!allowed.has(parent)) continue;
+    if (children.some(childId => childId === id && allowed.has(childId))) return true;
+  }
+  return false;
+}
+
+function usesContainedGraphLayout(id, children) {
+  if (children.length === 0) return false;
+  const node = nodeById.get(id);
+  if (!node || node.kind !== "state_block") return false;
+  return children.every(childId => nodeById.get(childId)?.kind === "scoped_block");
+}
+
+function graphChildrenLayout(children, allowed) {
+  const childSet = new Set(children.filter(childId => allowed.has(childId) && nodeById.has(childId)));
+  if (childSet.size === 0) {
+    return { positions: new Map(), width: 0, height: 0 };
+  }
+
+  const outgoing = new Map(Array.from(childSet, id => [id, []]));
+  const incomingCount = new Map(Array.from(childSet, id => [id, 0]));
+  for (const edge of GRAPH.edges) {
+    if (!childSet.has(edge.from) || !childSet.has(edge.to)) continue;
+    if (edge.kind === "contains") continue;
+    outgoing.get(edge.from).push(edge.to);
+    incomingCount.set(edge.to, (incomingCount.get(edge.to) || 0) + 1);
+  }
+
+  const ranks = new Map();
+  const roots = Array.from(childSet).filter(id => (incomingCount.get(id) || 0) === 0);
+  const pendingRoots = roots.length > 0 ? roots : Array.from(childSet).slice(0, 1);
+
+  for (const root of pendingRoots) assignFallbackRanks(root, 0, ranks, outgoing);
+  for (const id of childSet) {
+    if (!ranks.has(id)) assignFallbackRanks(id, 0, ranks, outgoing);
+  }
+
+  const ids = Array.from(childSet).sort((a, b) => {
+    const rankDiff = (ranks.get(a) || 0) - (ranks.get(b) || 0);
+    if (rankDiff !== 0) return rankDiff;
+    return a.localeCompare(b);
+  });
+
+  const columns = new Map();
+  for (const id of ids) {
+    const rank = ranks.get(id) || 0;
+    const column = columns.get(rank) || [];
+    column.push(id);
+    columns.set(rank, column);
+  }
+
+  const orderedRanks = Array.from(columns.keys()).sort((a, b) => a - b);
+  const columnWidths = orderedRanks.map(rank => maxNodeWidth(columns.get(rank) || []));
+  const positions = new Map();
+  let cursorX = 0;
+  let totalHeight = 0;
+
+  orderedRanks.forEach((rank, rankIndex) => {
+    const idsInColumn = columns.get(rank) || [];
+    const columnWidth = columnWidths[rankIndex] || NODE_W;
+    let cursorY = 0;
+    idsInColumn.forEach((childId, childIndex) => {
+      const box = nodeBox(childId);
+      positions.set(childId, {
+        x: cursorX + Math.max(0, (columnWidth - box.width) / 2),
+        y: cursorY,
+        width: box.width,
+        height: box.height
+      });
+      cursorY += box.height + (childIndex + 1 < idsInColumn.length ? ROW_GAP : 0);
+    });
+    totalHeight = Math.max(totalHeight, cursorY);
+    cursorX += columnWidth + (rankIndex + 1 < orderedRanks.length ? RANK_GAP : 0);
+  });
+
+  return {
+    positions,
+    width: Math.max(0, cursorX),
+    height: totalHeight
+  };
+}
+
+function layoutSubtreeWidth(id, seen, allowed) {
+  if (seen.has(id)) {
+    return nodeBox(id).width;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = containmentChildrenFor(id, allowed);
+
+  if (children.length === 0) {
+    seen.delete(id);
+    return box.width;
+  }
+
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    seen.delete(id);
+    return Math.max(box.width, graph.width);
+  }
+
+  const childrenWidth = children
+    .map(childId => layoutSubtreeWidth(childId, seen, allowed))
+    .reduce((sum, width) => sum + width, 0)
+    + TREE_SIBLING_GAP * (children.length - 1);
+  seen.delete(id);
+  return Math.max(box.width, childrenWidth);
+}
+
+function layoutSubtreeHeight(id, seen, allowed) {
+  if (seen.has(id)) {
+    return nodeBox(id).height;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = containmentChildrenFor(id, allowed);
+  if (children.length === 0) {
+    seen.delete(id);
+    return box.height;
+  }
+
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    seen.delete(id);
+    return box.height + TREE_LEVEL_GAP + graph.height;
+  }
+
+  const childHeight = Math.max(...children.map(childId => layoutSubtreeHeight(childId, seen, allowed)));
+  seen.delete(id);
+  return box.height + TREE_LEVEL_GAP + childHeight;
+}
+
+function layoutSubtree(id, x, y, seen, allowed) {
+  if (seen.has(id)) {
+    placeNode(id, x, y);
+    return nodeBox(id).width;
+  }
+  seen.add(id);
+
+  const box = nodeBox(id);
+  const children = containmentChildrenFor(id, allowed);
+  const subtreeWidth = layoutSubtreeWidth(id, new Set(), allowed);
+  placeNode(id, x + Math.max(0, (subtreeWidth - box.width) / 2), y);
+
+  if (children.length === 0) {
+    seen.delete(id);
+    return subtreeWidth;
+  }
+
+  if (usesContainedGraphLayout(id, children)) {
+    const graph = graphChildrenLayout(children, allowed);
+    const childY = y + box.height + TREE_LEVEL_GAP;
+    const graphX = x + Math.max(0, (subtreeWidth - graph.width) / 2);
+    for (const childId of children) {
+      const relative = graph.positions.get(childId);
+      if (!relative) continue;
+      placeNode(childId, graphX + relative.x, childY + relative.y);
+    }
+    seen.delete(id);
+    return subtreeWidth;
+  }
+
+  let cursorX = x;
+  const childY = y + box.height + TREE_LEVEL_GAP;
+  for (const childId of children) {
+    const childWidth = layoutSubtreeWidth(childId, seen, allowed);
+    layoutSubtree(childId, cursorX, childY, seen, allowed);
+    cursorX += childWidth + TREE_SIBLING_GAP;
+  }
+
+  seen.delete(id);
+  return subtreeWidth;
+}
+
+function fallbackLayout(allowedIds = null) {
+  const allowed = allowedIds && allowedIds.size > 0
+    ? allowedIds
+    : new Set(GRAPH.nodes.map(node => node.id));
+  const ids = Array.from(allowed).filter(id => nodeById.has(id));
+  const outgoing = new Map(ids.map(id => [id, []]));
+  const incomingCount = new Map(ids.map(id => [id, 0]));
+  for (const edge of GRAPH.edges) {
+    if (!allowed.has(edge.from) || !allowed.has(edge.to)) continue;
+    if (!outgoing.has(edge.from) || !incomingCount.has(edge.to)) continue;
+    outgoing.get(edge.from).push(edge.to);
+    incomingCount.set(edge.to, incomingCount.get(edge.to) + 1);
+  }
+
+  const ranks = new Map();
+  const roots = ids.filter(id => (incomingCount.get(id) || 0) === 0);
+  const pendingRoots = roots.length > 0 ? roots : ids.slice(0, 1);
+
+  for (const root of pendingRoots) assignFallbackRanks(root, 0, ranks, outgoing);
+  for (const id of ids) {
+    const node = nodeById.get(id);
+    if (!ranks.has(id)) assignFallbackRanks(id, node.rank, ranks, outgoing);
+  }
+
+  const rowsByRank = new Map();
+  const rowHeightsByRank = new Map();
+  ids.forEach(id => {
+    const node = nodeById.get(id);
+    const rank = ranks.get(node.id) || 0;
+    const row = rowsByRank.get(rank) || 0;
+    rowsByRank.set(rank, row + 1);
+    const rankHeights = rowHeightsByRank.get(rank) || [];
+    rankHeights[row] = Math.max(rankHeights[row] || 0, nodeBox(node.id).height);
+    rowHeightsByRank.set(rank, rankHeights);
+  });
+
+  ids.forEach(id => {
+    const node = nodeById.get(id);
+    const rank = ranks.get(node.id) || 0;
+    const rankHeights = rowHeightsByRank.get(rank) || [];
+    const placedInRank = Array.from(positions.keys())
+      .filter(id => (ranks.get(id) || 0) === rank)
+      .length;
+    placeNode(
+      node.id,
+      LEFT + rank * (NODE_MAX_W + RANK_GAP),
+      TOP + rowOffset(rankHeights, placedInRank)
+    );
+  });
+}
+
+function measureNode(node) {
+  const lines = displayLabel(node).split("\n");
+  const measuredLines = isExpandedScopedLabel(node) ? lines : lines.slice(0, NODE_MAX_LINES);
+  const shownLines = measuredLines.length;
+  const maxChars = measuredLines.reduce((max, line) => Math.max(max, line.length), 0);
+  return {
+    width: Math.min(NODE_MAX_W, Math.max(NODE_W, 28 + maxChars * 7.2)),
+    height: Math.max(
+      NODE_H,
+      30 + shownLines * LINE_H + (!isExpandedScopedLabel(node) && lines.length > NODE_MAX_LINES ? LINE_H : 0)
+    )
+  };
+}
+
+function refreshNodePresentation() {
+  for (const node of GRAPH.nodes) {
+    const box = measureNode(node);
+    nodeBoxes.set(node.id, box);
+    const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+    if (!element) continue;
+    const rect = element.querySelector("rect");
+    if (rect) {
+      rect.setAttribute("width", box.width);
+      rect.setAttribute("height", box.height);
+    }
+    const title = element.querySelector("title");
+    const label = displayLabel(node);
+    if (title) title.textContent = label;
+    element.querySelectorAll("text").forEach(text => text.remove());
+    populateNodeText(element, node, box, label);
+  }
+}
+
+function nodeBox(id) {
+  return nodeBoxes.get(id) || { width: NODE_W, height: NODE_H };
+}
+
+function placeNode(id, x, y) {
+  const box = nodeBox(id);
+  const positioned = { x, y, width: box.width, height: box.height };
+  positions.set(id, positioned);
+  return positioned;
+}
+
+function maxNodeWidth(ids) {
+  return ids.reduce((max, id) => Math.max(max, nodeBox(id).width), NODE_W);
+}
+
+function rowOffset(rowHeights, row) {
+  let offset = 0;
+  for (let index = 0; index < row; index += 1) offset += (rowHeights[index] || NODE_H) + ROW_GAP;
+  return offset;
+}
+
+function assignFallbackRanks(root, rootRank, ranks, outgoing) {
+  const queue = [{ id: root, rank: rootRank }];
+  while (queue.length > 0) {
+    const next = queue.shift();
+    if (ranks.has(next.id)) continue;
+    ranks.set(next.id, next.rank);
+    for (const target of outgoing.get(next.id) || []) {
+      queue.push({ id: target, rank: next.rank + 1 });
+    }
+  }
+}
+
+refreshNodePresentation();
+layoutGraph();
+
+function calculateBounds() {
+  calculateBoundsFor(visibleNodeIds);
+}
+
+function calculateBoundsFor(nodeIds) {
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  const ids = nodeIds && nodeIds.size > 0 ? nodeIds : new Set(GRAPH.nodes.map(node => node.id));
+  for (const id of ids) {
+    const box = positions.get(id);
+    if (!box) continue;
+    minX = Math.min(minX, box.x);
+    minY = Math.min(minY, box.y);
+    maxX = Math.max(maxX, box.x + box.width);
+    maxY = Math.max(maxY, box.y + box.height);
+  }
+  if (!Number.isFinite(minX)) {
+    graphBounds = { x: 0, y: 0, width: 1000, height: 800 };
+    return;
+  }
+  graphBounds = {
+    x: minX - 80,
+    y: minY - 80,
+    width: maxX - minX + 160,
+    height: maxY - minY + 160
+  };
+}
+
+function el(name, attrs = {}) {
+  const node = document.createElementNS(NS, name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  return node;
+}
+
+function render() {
+  edgeLayer.replaceChildren();
+  nodeLayer.replaceChildren();
+  for (const edge of GRAPH.edges) drawEdge(edge);
+  for (const node of GRAPH.nodes) drawNode(node);
+  renderEffectFilters();
+  renderScopeOutline();
+  calculateBounds();
+  applyFilters();
+}
+
+function renderEffectFilters() {
+  effectButtons.replaceChildren();
+  const presentEffects = EFFECT_NAMES.filter(effect =>
+    GRAPH.nodes.some(node => (node.effects || []).includes(effect))
+  );
+  effectFilter.classList.toggle("hidden", presentEffects.length === 0);
+  if (presentEffects.length === 0) return;
+
+  const allButton = document.createElement("button");
+  allButton.textContent = "all";
+  allButton.classList.toggle("active", !activeEffect);
+  allButton.addEventListener("click", () => {
+    activeEffect = null;
+    renderEffectFilters();
+    applyFilters();
+  });
+  effectButtons.appendChild(allButton);
+
+  for (const effect of presentEffects) {
+    const button = document.createElement("button");
+    button.textContent = effect;
+    button.classList.toggle("active", activeEffect === effect);
+    button.addEventListener("click", () => {
+      activeEffect = activeEffect === effect ? null : effect;
+      renderEffectFilters();
+      applyFilters();
+    });
+    effectButtons.appendChild(button);
+  }
+}
+
+function renderScopeOutline() {
+  scopeOutline.replaceChildren();
+  const primary = primaryScopes();
+  scopeTitle.textContent = primary.title;
+  scopeSearch.placeholder = primary.placeholder;
+  document.body.classList.toggle("has-scopes", primary.ids.length > 0);
+  scopePanel.classList.toggle("hidden", primary.ids.length === 0);
+  if (primary.ids.length === 0) return;
+
+  const query = scopeSearch.value.trim().toLowerCase();
+  const visibleIds = primary.ids.filter(id => {
+    const path = scopePath(id);
+    return !query || path.join("/").toLowerCase().includes(query);
+  });
+  if (visibleIds.length === 0) {
+    const empty = document.createElement("p");
+    empty.textContent = "No matching scopes.";
+    scopeOutline.appendChild(empty);
+    return;
+  }
+
+  const tree = buildScopeTree(visibleIds);
+  appendScopeTree(scopeOutline, tree, 0, Boolean(query));
+}
+
+function primaryScopes() {
+  const fileIds = GRAPH.nodes.filter(node => node.kind === "file").map(node => node.id);
+  if (fileIds.length > 0) {
+    return { title: "Files", placeholder: "Filter files...", ids: fileIds };
+  }
+
+  if (nodeById.has("root")) {
+    const topLevel = (containmentChildren.get("root") || [])
+      .filter(id => nodeById.has(id) && nodeById.get(id).kind !== "root");
+    if (topLevel.length > 0) {
+      return { title: "Scopes", placeholder: "Filter scopes...", ids: topLevel };
+    }
+  }
+
+  const fragments = GRAPH.nodes
+    .filter(node => ["data", "trait", "machine", "file"].includes(node.kind))
+    .map(node => node.id);
+  if (fragments.length > 0) {
+    return { title: "Scopes", placeholder: "Filter scopes...", ids: fragments };
+  }
+
+  const stateBlocks = GRAPH.nodes
+    .filter(node => node.kind === "state_block")
+    .map(node => node.id);
+  if (stateBlocks.length > 0) {
+    return { title: "Blocks", placeholder: "Filter blocks...", ids: stateBlocks };
+  }
+
+  const fallback = GRAPH.nodes
+    .filter(node => node.id !== "root")
+    .map(node => node.id);
+  return { title: "Scopes", placeholder: "Filter scopes...", ids: fallback };
+}
+
+function buildScopeTree(ids) {
+  const root = { name: "", dirs: new Map(), files: [] };
+  for (const id of ids) {
+    const parts = scopePath(id);
+    const name = parts.pop() || outlineLabel(nodeById.get(id));
+    let branch = root;
+    for (const part of parts) {
+      if (!branch.dirs.has(part)) {
+        branch.dirs.set(part, { name: part, dirs: new Map(), files: [] });
+      }
+      branch = branch.dirs.get(part);
+    }
+    branch.files.push({ id, name, path: scopePath(id).join("/") });
+  }
+  return root;
+}
+
+function appendScopeTree(parent, tree, depth, forceOpen) {
+  const dirs = Array.from(tree.dirs.values()).sort((a, b) => a.name.localeCompare(b.name));
+  for (const dir of dirs) {
+    const detailsElement = document.createElement("details");
+    detailsElement.open = forceOpen || depth < 1;
+    const summary = document.createElement("summary");
+    summary.textContent = dir.name;
+    detailsElement.appendChild(summary);
+    appendScopeTree(detailsElement, dir, depth + 1, forceOpen);
+    parent.appendChild(detailsElement);
+  }
+
+  const entries = tree.files.sort((a, b) => a.name.localeCompare(b.name));
+  for (const entry of entries) {
+    const button = scopeButton(entry.id, nodeById.get(entry.id));
+    button.textContent = entry.name;
+    button.title = entry.path;
+    parent.appendChild(button);
+  }
+}
+
+function scopeButton(id, node) {
+  const button = document.createElement("button");
+  button.textContent = scopePath(id).slice(-1)[0] || outlineLabel(node);
+  button.title = node.label;
+  button.dataset.scopeId = id;
+  button.addEventListener("click", event => {
+    if (event.metaKey || event.ctrlKey) {
+      selectNode(id, true);
+    } else {
+      setScope(id, true);
+    }
+  });
+  return button;
+}
+
+function outlineLabel(node) {
+  return node.label.split("\n")[0];
+}
+
+function fileLabel(node) {
+  const firstLine = outlineLabel(node);
+  return firstLine.startsWith("file ") ? firstLine.slice(5) : firstLine;
+}
+
+function scopePath(id) {
+  const node = nodeById.get(id);
+  if (!node) return [id];
+  if (node.kind === "file") {
+    return fileLabel(node).split(/[\\/]+/).filter(Boolean);
+  }
+
+  const label = outlineLabel(node);
+  if (node.kind === "state_block" && label.includes("::")) {
+    const [owner, rest] = label.split("::", 2);
+    return [owner, rest];
+  }
+
+  const stripped = label.replace(/^(boundary trait|trait|data|machine|state)\s+/, "");
+  return [scopeKindLabel(node.kind), stripped];
+}
+
+function scopeKindLabel(kind) {
+  switch (kind) {
+    case "data": return "Data";
+    case "trait": return "Traits";
+    case "machine": return "Machines";
+    case "state":
+    case "state_block": return "States";
+    case "object": return "Objects";
+    default: return "Other";
+  }
+}
+
+function edgePath(from, to, kind) {
+  const a = positions.get(from);
+  const b = positions.get(to);
+  if (!a || !b) return "";
+  const ax = a.x + a.width / 2;
+  const ay = a.y + a.height;
+  const bx = b.x + b.width / 2;
+  const by = b.y;
+  if (kind === "call") {
+    const targetOnRight = bx >= ax;
+    const sx = targetOnRight ? a.x + a.width : a.x;
+    const sy = a.y + a.height / 2;
+    const tx = targetOnRight ? b.x : b.x + b.width;
+    const ty = b.y + b.height / 2;
+    const dx = Math.max(42, Math.abs(tx - sx) * 0.35);
+    const c1x = sx + (targetOnRight ? dx : -dx);
+    const c2x = tx - (targetOnRight ? dx : -dx);
+    return `M ${sx} ${sy} C ${c1x} ${sy}, ${c2x} ${ty}, ${tx} ${ty}`;
+  }
+  if (kind === "sequence") {
+    const sx = a.x + a.width / 2;
+    const sy = a.y + a.height;
+    const tx = b.x + b.width / 2;
+    return `M ${sx} ${sy} C ${sx} ${sy + 18}, ${tx} ${by - 18}, ${tx} ${b.y}`;
+  }
+  const midY = ay + Math.max(34, (by - ay) / 2);
+  return `M ${ax} ${ay} C ${ax} ${midY}, ${bx} ${midY}, ${bx} ${by}`;
+}
+
+function drawEdge(edge) {
+  const path = el("path", {
+    "class": `edge ${edge.kind}`,
+    "data-from": edge.from,
+    "data-to": edge.to,
+    "data-kind": edge.kind,
+    "d": edgePath(edge.from, edge.to, edge.kind)
+  });
+  edgeLayer.appendChild(path);
+}
+
+function drawNode(node) {
+  const box = positions.get(node.id);
+  if (!box) return;
+  const group = el("g", {
+    "class": `node ${node.kind}`,
+    "data-id": node.id,
+    "data-kind": node.kind,
+    "transform": `translate(${box.x} ${box.y})`
+  });
+  group.appendChild(el("rect", { width: box.width, height: box.height }));
+  const title = el("title");
+  const label = displayLabel(node);
+  title.textContent = label;
+  group.appendChild(title);
+  populateNodeText(group, node, box, label);
+  group.addEventListener("pointerdown", event => {
+    event.stopPropagation();
+  });
+  group.addEventListener("mousedown", event => {
+    event.stopPropagation();
+    if (event.detail >= 2) {
+      activateNode(node.id);
+    }
+  });
+  group.addEventListener("mouseup", event => {
+    event.stopPropagation();
+    if (event.detail <= 1) {
+      selectNode(node.id, false);
+    }
+  });
+  group.addEventListener("click", event => {
+    event.stopPropagation();
+    if (event.detail >= 2) {
+      activateNode(node.id);
+      return;
+    }
+    selectNode(node.id, false);
+  });
+  group.addEventListener("dblclick", event => {
+    event.stopPropagation();
+    activateNode(node.id);
+  });
+  group.addEventListener("pointerenter", () => {
+    hoveredId = node.id;
+    applyRelationshipHighlight();
+  });
+  group.addEventListener("pointerleave", () => {
+    if (hoveredId === node.id) hoveredId = null;
+    applyRelationshipHighlight();
+  });
+  nodeLayer.appendChild(group);
+}
+
+function populateNodeText(group, node, box, label) {
+  const allLines = label.split("\n");
+  const lines = isExpandedScopedLabel(node)
+    ? allLines
+    : allLines.slice(0, NODE_MAX_LINES);
+  if (!isExpandedScopedLabel(node) && allLines.length > NODE_MAX_LINES) {
+    lines.push(`... ${allLines.length - NODE_MAX_LINES} more lines`);
+  }
+  const maxChars = Math.max(8, Math.floor((box.width - 28) / 7.2));
+  lines.forEach((line, index) => {
+    const text = el("text", {
+      x: 14,
+      y: 22 + index * 16,
+      "class": index === 0 ? "" : "subtitle"
+    });
+    appendStyledLine(text, fitLine(line, maxChars));
+    group.appendChild(text);
+  });
+}
+
+function fitLine(line, max) {
+  return line.length > max ? line.slice(0, max - 1) + "..." : line;
+}
+
+const LABEL_TOKEN_RE = /(active loan|borrow call|activation|weakening|borrow|contracts?|params|ops|transitions|direct effects|reached effects|attached data|states|contains|owned data|mutable params|created|last use|instructions|control|calls|terminator|call|ctrl|data)|(0x[0-9a-fA-F]+|#\d+(?:\.\d+)?|\b\d+\b)|((?:self|mut)\b)|([A-Za-z_][A-Za-z0-9_]*(?:(?:::[A-Za-z_][A-Za-z0-9_]*)|(?:\.[A-Za-z_][A-Za-z0-9_]*)|(?:\[[^\]]*\]))+)/g;
+
+function appendStyledLine(textNode, line) {
+  let lastIndex = 0;
+  LABEL_TOKEN_RE.lastIndex = 0;
+  for (const match of line.matchAll(LABEL_TOKEN_RE)) {
+    const index = match.index || 0;
+    if (index > lastIndex) {
+      textNode.appendChild(document.createTextNode(line.slice(lastIndex, index)));
+    }
+    const token = match[0];
+    let className = "";
+    if (match[1]) {
+      className = /borrow|loan|activation|weakening/.test(token)
+        ? "token-borrow"
+        : "token-keyword";
+    } else if (match[2]) {
+      className = "token-number";
+    } else if (match[3]) {
+      className = "token-muted";
+    } else if (match[4]) {
+      className = "token-symbol";
+    }
+    if (className) {
+      const span = el("tspan", { "class": className });
+      span.textContent = token;
+      textNode.appendChild(span);
+    } else {
+      textNode.appendChild(document.createTextNode(token));
+    }
+    lastIndex = index + token.length;
+  }
+  if (lastIndex < line.length) {
+    textNode.appendChild(document.createTextNode(line.slice(lastIndex)));
+  }
+}
+
+function activateNode(id) {
+  const now = performance.now();
+  if (lastActivation.id === id && now - lastActivation.time < 300) return;
+  lastActivation = { id, time: now };
+  const scopeTarget = scopeTargetFor(id);
+  const kind = nodeById.get(id)?.kind;
+  if (kind === "external_call" && scopeTarget) {
+    if (scopedId) {
+      setScope(scopeTarget, true);
+    } else {
+      selectNode(scopeTarget, true);
+    }
+    return;
+  }
+
+  if (scopeTarget && scopeTarget !== scopedId && isScopeNode(id)) {
+    setScope(scopeTarget, true);
+    return;
+  }
+
+  const targetId = followTargetFor(id);
+  if (targetId) {
+    selectNode(targetId, true);
+    return;
+  }
+
+  if (scopeTarget && scopeTarget !== scopedId) {
+    setScope(scopeTarget, true);
+    return;
+  }
+
+  selectNode(id, true);
+}
+
+function selectNode(id, center) {
+  selectedId = id;
+  markSelectedNode(id);
+  const node = nodeById.get(id);
+  const targetId = followTargetFor(id);
+  const targetText = targetId ? `\n\nfollow target: ${outlineLabel(nodeById.get(targetId))}` : "";
+  const body = node.details || node.label;
+  details.textContent = `${node.id}\nkind: ${node.kind}\nrank: ${node.rank}${targetText}\n\n${body}`;
+  renderDetailsActions(id);
+  if (center) centerOn(id);
+}
+
+function markSelectedNode(id) {
+  document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
+  const element = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+  if (element) element.classList.add("selected");
+}
+
+function setScope(id, fit) {
+  scopedId = id === "root" ? null : id;
+  selectedId = id;
+  details.textContent = scopeDetails(id);
+  renderDetailsActions(id);
+  applyFilters();
+  markSelectedNode(id);
+  if (fit) fitGraph();
+}
+
+function clearGraphScope(fit) {
+  scopedId = null;
+  selectedId = null;
+  details.textContent = "Full graph scope. Click a scope item to focus a slice.";
+  detailsActions.replaceChildren();
+  detailsActions.classList.add("hidden");
+  applyFilters();
+  if (fit) fitGraph();
+}
+
+function renderDetailsActions(id) {
+  detailsActions.replaceChildren();
+  const actions = [];
+  const scopeTarget = scopeTargetFor(id);
+  if (scopeTarget && scopeTarget !== scopedId) {
+    actions.push({ label: "Open Scope", action: () => setScope(scopeTarget, true) });
+  }
+
+  const targetId = followTargetFor(id);
+  if (targetId) actions.push({ label: "Follow", action: () => selectNode(targetId, true) });
+
+  if (scopedId) actions.push({ label: "Clear Scope", action: () => clearGraphScope(true) });
+
+  detailsActions.classList.toggle("hidden", actions.length === 0);
+  for (const action of actions) {
+    const button = document.createElement("button");
+    button.textContent = action.label;
+    button.addEventListener("click", event => {
+      event.stopPropagation();
+      action.action();
+    });
+    detailsActions.appendChild(button);
+  }
+}
+
+function defaultScopeId() {
+  const primary = primaryScopes();
+  if (primary.ids.length === 0) return null;
+  const mainFile = primary.ids
+    .map(id => nodeById.get(id))
+    .find(node => node?.kind === "file" && (outlineLabel(node).endsWith("/main.omg") || outlineLabel(node).endsWith(" main.omg")));
+  if (mainFile) return mainFile.id;
+  return primary.ids[0];
+}
+
+function scopeDetails(id) {
+  const node = nodeById.get(id);
+  const scopedNodes = scopedNodeSet(id);
+  return `Scope:\n  ${outlineLabel(node)}\n\n${scopedNodes.size} nodes visible including one-hop relationships\n\n${node.id}\nkind: ${node.kind}\nrank: ${node.rank}\n\n${node.label}`;
+}
+
+function containedNodeSet(id) {
+  if (!id || id === "root") return new Set(GRAPH.nodes.map(node => node.id));
+  const result = new Set();
+  const stack = [id];
+  while (stack.length > 0) {
+    const next = stack.pop();
+    if (result.has(next)) continue;
+    result.add(next);
+    for (const childId of containmentChildren.get(next) || []) stack.push(childId);
+  }
+  return result;
+}
+
+function scopedNodeSet(id) {
+  const result = containedNodeSet(id);
+  if (!id || id === "root") return result;
+  const contained = new Set(result);
+  for (const edge of GRAPH.edges) {
+    if (edge.kind === "contains" || edge.kind === "sequence") continue;
+    if (contained.has(edge.from)) result.add(edge.to);
+    if (contained.has(edge.to)) result.add(edge.from);
+  }
+  return result;
+}
+
+function isExternalInCurrentScope(id) {
+  return scopedId && visibleNodeIds.has(id) && !containedNodeSet(scopedId).has(id);
+}
+
+function scopeTargetFor(id) {
+  const explicitTarget = nodeById.get(id)?.scopeTarget;
+  if (explicitTarget && nodeById.has(explicitTarget)) return explicitTarget;
+  let current = id;
+  while (current && !isScopeNode(current)) {
+    const parent = containmentParent.get(current);
+    if (!parent || isGraphRoot(parent)) break;
+    current = parent;
+  }
+  return current;
+}
+
+function isGraphRoot(id) {
+  return id === "root" || nodeById.get(id)?.kind === "root";
+}
+
+function isScopeNode(id) {
+  const kind = nodeById.get(id)?.kind;
+  return ["file", "data", "trait", "machine", "state_block", "object"].includes(kind);
+}
+
+function updateGeometry() {
+  for (const node of GRAPH.nodes) {
+    const box = positions.get(node.id);
+    const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+    if (element && box) element.setAttribute("transform", `translate(${box.x} ${box.y})`);
+  }
+  for (const edgeElement of document.querySelectorAll(".edge")) {
+    edgeElement.setAttribute(
+      "d",
+      edgePath(edgeElement.dataset.from, edgeElement.dataset.to, edgeElement.dataset.kind)
+    );
+  }
+}
+
+function applyFilters() {
+  refreshNodePresentation();
+  const query = search.value.trim().toLowerCase();
+  const showDataNodes = showData.checked;
+  const scopedNodes = scopedNodeSet(scopedId);
+  const containedNodes = containedNodeSet(scopedId);
+  const matched = new Set();
+  visibleNodeIds = new Set();
+  for (const node of GRAPH.nodes) {
+    const inScope = scopedNodes.has(node.id);
+    const requiresExplicitScope = node.kind === "scoped_block";
+    const scopeAllowsNode = !requiresExplicitScope || (scopedId && containedNodes.has(node.id));
+    const visible = inScope
+      && scopeAllowsNode
+      && (showDataNodes || node.kind !== "data")
+      && (!activeEffect || (node.effects || []).includes(activeEffect));
+    const isMatch = !query || node.id.toLowerCase().includes(query) || node.label.toLowerCase().includes(query);
+    const element = document.querySelector(`.node[data-id="${CSS.escape(node.id)}"]`);
+    if (!element) continue;
+    element.classList.toggle("hidden", !visible);
+    element.classList.toggle("dim", query && !isMatch);
+    element.classList.toggle("match", query && isMatch);
+    element.classList.toggle("selected", node.id === selectedId);
+    element.classList.toggle("external", Boolean(scopedId) && visible && !containedNodes.has(node.id));
+    if (visible) visibleNodeIds.add(node.id);
+    if (isMatch && visible) matched.add(node.id);
+  }
+  for (const edgeElement of document.querySelectorAll(".edge")) {
+    const kind = edgeElement.dataset.kind;
+    const visibleKind = kind !== "sequence" || showSequence.checked;
+    const fromVisible = visibleNodeIds.has(edgeElement.dataset.from);
+    const toVisible = visibleNodeIds.has(edgeElement.dataset.to);
+    const visibleSearch = !query || matched.has(edgeElement.dataset.from) || matched.has(edgeElement.dataset.to);
+    edgeElement.classList.toggle("hidden", !visibleKind || !fromVisible || !toVisible);
+    edgeElement.classList.toggle("dim", query && !visibleSearch);
+  }
+  scopeOutline.querySelectorAll("button[data-scope-id]").forEach(button => {
+    button.classList.toggle("scoped", button.dataset.scopeId === scopedId);
+  });
+  layoutGraph(visibleNodeIds);
+  updateGeometry();
+  calculateBounds();
+  const visibleEdges = Array.from(document.querySelectorAll(".edge")).filter(edge => !edge.classList.contains("hidden")).length;
+  const scopeLabel = scopedId ? ` scoped to ${outlineLabel(nodeById.get(scopedId))}` : "";
+  const effectLabel = activeEffect ? ` effect ${activeEffect}` : "";
+  counts.textContent = `${visibleNodeIds.size}/${GRAPH.nodes.length} nodes, ${visibleEdges}/${GRAPH.edges.length} edges${scopeLabel}${effectLabel}`;
+  applyRelationshipHighlight();
+}
+
+function followTargetFor(id) {
+  const transitionTarget = GRAPH.edges.find(
+    edge => edge.kind.startsWith("transition_target") && edge.from === id
+  )?.to;
+  if (transitionTarget) return transitionTarget;
+  return null;
+}
+
+function activeFocusId() {
+  return hoveredId || selectedId;
+}
+
+function applyRelationshipHighlight() {
+  const focusId = activeFocusId();
+  const proxyFocusIds = focusIdsForRelationship(focusId);
+  document.querySelectorAll(".node").forEach(node => {
+    node.classList.remove("hovered", "related", "unrelated");
+  });
+  document.querySelectorAll(".edge").forEach(edge => {
+    edge.classList.remove("related", "unrelated");
+  });
+  if (!focusId) return;
+
+  const relatedNodeIds = new Set(proxyFocusIds);
+  const relatedEdgeElements = [];
+  for (const edge of document.querySelectorAll(".edge")) {
+    if (edge.classList.contains("hidden")) continue;
+    const related = proxyFocusIds.has(edge.dataset.from) || proxyFocusIds.has(edge.dataset.to);
+    if (!related) continue;
+    relatedEdgeElements.push(edge);
+    relatedNodeIds.add(edge.dataset.from);
+    relatedNodeIds.add(edge.dataset.to);
+  }
+
+  for (const node of document.querySelectorAll(".node")) {
+    if (node.classList.contains("hidden")) continue;
+    const id = node.dataset.id;
+    node.classList.toggle("hovered", proxyFocusIds.has(id));
+    node.classList.toggle("related", relatedNodeIds.has(id) && !proxyFocusIds.has(id));
+    node.classList.toggle("unrelated", !relatedNodeIds.has(id));
+  }
+  for (const edge of document.querySelectorAll(".edge")) {
+    if (edge.classList.contains("hidden")) continue;
+    const related = relatedEdgeElements.includes(edge);
+    edge.classList.toggle("related", related);
+    edge.classList.toggle("unrelated", !related);
+    if (related) edgeLayer.appendChild(edge);
+  }
+  for (const id of relatedNodeIds) {
+    const node = document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    if (node) nodeLayer.appendChild(node);
+  }
+}
+
+function focusIdsForRelationship(id) {
+  const result = new Set();
+  if (!id) return result;
+  result.add(id);
+  const explicitTarget = nodeById.get(id)?.scopeTarget;
+  if (explicitTarget && nodeById.has(explicitTarget)) {
+    result.add(explicitTarget);
+  }
+  return result;
+}
+
+function setTransform(next) {
+  transform = next;
+  viewport.setAttribute("transform", `translate(${transform.x} ${transform.y}) scale(${transform.scale})`);
+}
+
+function fitGraph() {
+  const rect = svg.getBoundingClientRect();
+  const scale = Math.min(rect.width / graphBounds.width, rect.height / graphBounds.height) * 0.92;
+  setTransform({
+    scale,
+    x: (rect.width - graphBounds.width * scale) / 2 - graphBounds.x * scale,
+    y: (rect.height - graphBounds.height * scale) / 2 - graphBounds.y * scale
+  });
+}
+
+function centerOn(id) {
+  const box = positions.get(id);
+  if (!box) return;
+  const rect = svg.getBoundingClientRect();
+  setTransform({
+    ...transform,
+    x: rect.width / 2 - (box.x + box.width / 2) * transform.scale,
+    y: rect.height / 2 - (box.y + box.height / 2) * transform.scale
+  });
+}
+
+let drag = null;
+svg.addEventListener("pointerdown", event => {
+  if (isNodeEventTarget(event.target)) return;
+  drag = { x: event.clientX, y: event.clientY, tx: transform.x, ty: transform.y };
+  svg.setPointerCapture(event.pointerId);
+  svg.classList.add("dragging");
+});
+svg.addEventListener("pointermove", event => {
+  if (!drag) return;
+  setTransform({
+    ...transform,
+    x: drag.tx + event.clientX - drag.x,
+    y: drag.ty + event.clientY - drag.y
+  });
+});
+svg.addEventListener("pointerup", () => {
+  drag = null;
+  svg.classList.remove("dragging");
+});
+svg.addEventListener("wheel", event => {
+  event.preventDefault();
+  const rect = svg.getBoundingClientRect();
+  const mx = event.clientX - rect.left;
+  const my = event.clientY - rect.top;
+  const factor = Math.exp(-event.deltaY * 0.003);
+  const scale = Math.min(8, Math.max(0.02, transform.scale * factor));
+  const gx = (mx - transform.x) / transform.scale;
+  const gy = (my - transform.y) / transform.scale;
+  setTransform({ scale, x: mx - gx * scale, y: my - gy * scale });
+}, { passive: false });
+
+svg.addEventListener("click", () => {
+  selectedId = null;
+  document.querySelectorAll(".node.selected").forEach(node => node.classList.remove("selected"));
+  applyRelationshipHighlight();
+});
+
+function isNodeEventTarget(target) {
+  return Boolean(target?.closest?.(".node"));
+}
+search.addEventListener("input", applyFilters);
+scopeSearch.addEventListener("input", () => {
+  renderScopeOutline();
+  applyFilters();
+});
+showSequence.addEventListener("change", applyFilters);
+showData.addEventListener("change", applyFilters);
+document.getElementById("fit").addEventListener("click", fitGraph);
+document.getElementById("reset").addEventListener("click", () => setTransform({ x: 0, y: 0, scale: 1 }));
+clearScope.addEventListener("click", () => clearGraphScope(true));
+window.addEventListener("resize", fitGraph);
+
+render();
+fitGraph();
+
+</script>
+</body>
+</html>

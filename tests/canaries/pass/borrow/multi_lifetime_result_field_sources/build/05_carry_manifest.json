@@ -1,0 +1,41 @@
+{
+  "data": [
+    {
+      "type": "Pair",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "safe_point_crossings": [
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "pair",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "exercise",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

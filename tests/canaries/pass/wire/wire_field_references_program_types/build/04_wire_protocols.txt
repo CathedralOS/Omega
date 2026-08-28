@@ -1,0 +1,16 @@
+# Omega Wire Protocols
+
+wire data schemas: 2
+
+## wire data RoomHeader
+encoding: (default)
+current era: 0
+fields:
+  0 label RoomLabel
+
+## wire data RoomMessage
+encoding: (default)
+current era: 0
+fields:
+  0 header RoomHeader
+  1 depth i32

@@ -1,0 +1,1599 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 1072,
+        "end": 1079,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 1095,
+            "end": 1107,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 1108,
+                "end": 1119,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1121,
+                  "end": 1124,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1138,
+        "end": 1142,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1150,
+            "end": 1157,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1159,
+              "end": 1166,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1188,
+            "end": 1192,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 1215,
+                "end": 1216,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1218,
+                  "end": 1221,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "2.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 1238,
+                "end": 1239,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1241,
+                  "end": 1244,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "c",
+                "source_id": 0,
+                "start": 1321,
+                "end": 1322,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1324,
+                  "end": 1327,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 1330,
+                      "end": 1331,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 1334,
+                      "end": 1335,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_sub",
+                    "source_id": 0,
+                    "start": 1381,
+                    "end": 1390,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1353,
+                          "end": 1354,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "4.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1411,
+                    "end": 1414,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1353,
+                          "end": 1354,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "4.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_sub",
+            "source_id": 0,
+            "start": 1437,
+            "end": 1446,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 1473,
+                "end": 1474,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1476,
+                  "end": 1479,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "2.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 1500,
+                "end": 1501,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1503,
+                  "end": 1506,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "c",
+                "source_id": 0,
+                "start": 1527,
+                "end": 1528,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1530,
+                  "end": 1533,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 1536,
+                      "end": 1537,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "subtract",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 1540,
+                      "end": 1541,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_mul",
+                    "source_id": 0,
+                    "start": 1602,
+                    "end": 1611,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1570,
+                          "end": 1571,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "1.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1636,
+                    "end": 1639,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1570,
+                          "end": 1571,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "1.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_mul",
+            "source_id": 0,
+            "start": 1671,
+            "end": 1680,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 1707,
+                "end": 1708,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1710,
+                  "end": 1713,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "2.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 1734,
+                "end": 1735,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1737,
+                  "end": 1740,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "c",
+                "source_id": 0,
+                "start": 1761,
+                "end": 1762,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1764,
+                  "end": 1767,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 1770,
+                      "end": 1771,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "multiply",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 1774,
+                      "end": 1775,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_div",
+                    "source_id": 0,
+                    "start": 1838,
+                    "end": 1847,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1805,
+                          "end": 1806,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "3.75"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1872,
+                    "end": 1875,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 1805,
+                          "end": 1806,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "3.75"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_div",
+            "source_id": 0,
+            "start": 1907,
+            "end": 1916,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 1943,
+                "end": 1944,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1946,
+                  "end": 1949,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "6.0"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 1970,
+                "end": 1971,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 1973,
+                  "end": 1976,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "c",
+                "source_id": 0,
+                "start": 1997,
+                "end": 1998,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2000,
+                  "end": 2003,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 2006,
+                      "end": 2007,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "divide",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 2010,
+                      "end": 2011,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_compare",
+                    "source_id": 0,
+                    "start": 2072,
+                    "end": 2085,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 2040,
+                          "end": 2041,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "4.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2110,
+                    "end": 2113,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "c",
+                          "source_id": 0,
+                          "start": 2040,
+                          "end": 2041,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "float",
+                      "text": "4.0"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_compare",
+            "source_id": 0,
+            "start": 2145,
+            "end": 2158,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 2269,
+                "end": 2270,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2272,
+                  "end": 2275,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 2296,
+                "end": 2297,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2299,
+                  "end": 2302,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "2.5"
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_cast",
+                    "source_id": 0,
+                    "start": 2359,
+                    "end": 2369,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "a",
+                          "source_id": 0,
+                          "start": 2330,
+                          "end": 2331,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "b",
+                          "source_id": 0,
+                          "start": 2334,
+                          "end": 2335,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2394,
+                    "end": 2397,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "a",
+                          "source_id": 0,
+                          "start": 2330,
+                          "end": 2331,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "b",
+                          "source_id": 0,
+                          "start": 2334,
+                          "end": 2335,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_cast",
+            "source_id": 0,
+            "start": 2429,
+            "end": 2439,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 2543,
+                "end": 2544,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2546,
+                  "end": 2549,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "2.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 2570,
+                "end": 2571,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2573,
+                  "end": 2576,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "float",
+                "text": "1.5"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "c",
+                "source_id": 0,
+                "start": 2597,
+                "end": 2598,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "f32",
+                  "source_id": 0,
+                  "start": 2600,
+                  "end": 2603,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 2606,
+                      "end": 2607,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 2610,
+                      "end": 2611,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "n",
+                "source_id": 0,
+                "start": 2636,
+                "end": 2637,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 2639,
+                  "end": 2642,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "cast",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "c",
+                      "source_id": 0,
+                      "start": 2645,
+                      "end": 2646,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "target_type": [
+                  {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 2650,
+                    "end": 2653,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 2710,
+                    "end": 2714,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "n",
+                          "source_id": 0,
+                          "start": 2680,
+                          "end": 2681,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 4
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2739,
+                    "end": 2742,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "n",
+                          "source_id": 0,
+                          "start": 2680,
+                          "end": 2681,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 4
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 2776,
+            "end": 2780,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2808,
+                  "end": 2815,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2816,
+                "end": 2828,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 2852,
+            "end": 2855,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2883,
+                  "end": 2890,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2891,
+                "end": 2903,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

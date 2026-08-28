@@ -1,0 +1,17 @@
+# Omega Emission Plan
+
+image format: Coff
+entry symbol: main
+sections: 3
+symbols: 34
+host bindings: 22
+host calls: 2
+data bytes: 368
+selected instructions: 122
+instruction operands: 2
+machine code bytes: 23533
+encoded machine bytes: 23533
+relocations: 114
+blockers: 0
+
+status: ready to emit

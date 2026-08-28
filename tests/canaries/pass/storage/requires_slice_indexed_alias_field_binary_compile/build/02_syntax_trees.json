@@ -1,0 +1,298 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Exit",
+        "source_id": 0,
+        "start": 5,
+        "end": 9,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "count",
+            "source_id": 0,
+            "start": 17,
+            "end": 22,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 24,
+              "end": 27,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 40,
+        "end": 44,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "index",
+                      "source_id": 0,
+                      "start": 150,
+                      "end": 155,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "less",
+                "right": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "exits",
+                        "source_id": 0,
+                        "start": 158,
+                        "end": 163,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "len",
+                    "source_id": 0,
+                    "start": 164,
+                    "end": 167,
+                    "source_backed": true
+                  }
+                }
+              }
+            }
+          ],
+          "token_count": 8
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 67,
+            "end": 71,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "exits",
+                "source_id": 0,
+                "start": 94,
+                "end": 99,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Exit",
+                      "source_id": 0,
+                      "start": 107,
+                      "end": 111,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "index",
+                "source_id": 0,
+                "start": 119,
+                "end": 124,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 126,
+                  "end": 131,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "exits",
+                        "source_id": 0,
+                        "start": 176,
+                        "end": 181,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "index": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 0,
+                        "start": 182,
+                        "end": 187,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                },
+                "member": {
+                  "text": "count",
+                  "source_id": 0,
+                  "start": 189,
+                  "end": 194,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "exits",
+                          "source_id": 0,
+                          "start": 197,
+                          "end": 202,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "index",
+                          "source_id": 0,
+                          "start": 203,
+                          "end": 208,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  "member": {
+                    "text": "count",
+                    "source_id": 0,
+                    "start": 210,
+                    "end": 215,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

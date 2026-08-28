@@ -1,0 +1,92 @@
+{
+  "data": [
+    {
+      "type": "CommandParser",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "GameView",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Dungeon",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "ByteRead",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "GameView::render_title",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "GameView::render_prompt",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "GameView::render_line",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Dungeon::enter_room",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 11,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 50,
+      "unnamed_strict_values": 6
+    },
+    {
+      "machine": "console_write_bytes",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write_line",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+# Omega Wire Protocols
+
+wire data schemas: 1
+
+## wire data VersionedMessage
+encoding: (default)
+current era: 1
+fields:
+  1 counter u32
+reserved: 0
+
+### version v1 (era 0)
+fields:
+  0 counter i32
+
+### compatibility v1 -> current
+compatible:
+  added field 1 counter u32
+requires migration:
+  none
+reserved:
+  field 0 counter retired; number reserved
+incompatible:
+  none

@@ -1,0 +1,363 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Receipt",
+        "source_id": 0,
+        "start": 222,
+        "end": 229,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "code",
+            "source_id": 0,
+            "start": 241,
+            "end": 245,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 247,
+              "end": 250,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "ReceiptState",
+        "source_id": 0,
+        "start": 260,
+        "end": 272,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Empty",
+            "source_id": 0,
+            "start": 284,
+            "end": 289,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Live",
+            "source_id": 0,
+            "start": 300,
+            "end": 304,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "ReceiptState::settle",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "ReceiptState",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "settle",
+            "source_id": 0,
+            "start": 349,
+            "end": 355,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 371,
+        "end": 375,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 394,
+            "end": 397,
+            "source_backed": true
+          },
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 403,
+              "end": 406,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "empty",
+                "source_id": 0,
+                "start": 417,
+                "end": 422,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "ReceiptState",
+                  "source_id": 0,
+                  "start": 424,
+                  "end": 436,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "ReceiptState",
+                    "source_id": 0,
+                    "start": 439,
+                    "end": 451,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "Empty",
+                    "source_id": 0,
+                    "start": 453,
+                    "end": 458,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "receipt",
+                "source_id": 0,
+                "start": 468,
+                "end": 475,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 477,
+                  "end": 484,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 487,
+                  "end": 494,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "code",
+                      "source_id": 0,
+                      "start": 497,
+                      "end": 501,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "text": "7"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "live",
+                "source_id": 0,
+                "start": 516,
+                "end": 520,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "ReceiptState",
+                  "source_id": 0,
+                  "start": 522,
+                  "end": 534,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "ReceiptState",
+                  "source_id": 0,
+                  "start": 537,
+                  "end": 549,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "receipt",
+                      "source_id": 0,
+                      "start": 558,
+                      "end": 565,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "receipt",
+                          "source_id": 0,
+                          "start": 567,
+                          "end": 574,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "ReceiptState",
+                  "source_id": 0,
+                  "start": 582,
+                  "end": 594,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "settle",
+                "source_id": 0,
+                "start": 596,
+                "end": 602,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "live",
+                      "source_id": 0,
+                      "start": 603,
+                      "end": 607,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "text": "0"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

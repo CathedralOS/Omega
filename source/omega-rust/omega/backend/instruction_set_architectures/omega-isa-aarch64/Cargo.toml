@@ -9,17 +9,14 @@ name = "omega_isa_aarch64"
 path = "src/lib.rs"
 
 [dependencies]
-omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
-omega-target = { path = "../../../foundation/omega-target" }
-psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-register-model = { path = "../../../representations/omega-register-model" }
+omega-target = { path = "../../../representations/omega-target" }
+omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
+omega-selected-instructions = { path = "../../../representations/omega-selected-instructions" }
+psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
-psi-language-core = { path = "../../../../psi/foundation/psi-language-core" }
-psi-language-semantics = { path = "../../../../psi/foundation/psi-language-semantics" }
 psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
-psi-numerics = { path = "../../../../psi/foundation/psi-numerics" }
-omega-target-operations = { path = "../../../representations/omega-target-operations" }
-omega-terminal-installation-evidence = { path = "../../../representations/omega-terminal-installation-evidence" }
-omega-terminal-isa-aarch64 = { path = "../omega-terminal-isa-aarch64" }
 
 [dev-dependencies]
-psi-core = { path = "../../../../psi/foundation/psi-core" }
+omega-optimization-core = { path = "../../../representations/omega-optimization-core" }

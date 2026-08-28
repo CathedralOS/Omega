@@ -1,0 +1,1333 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Point",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "x",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "y",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Trapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Tag",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Found",
+            "payload": [
+              {
+                "name": "v",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Trapping"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "kind": "variant",
+            "name": "Missing",
+            "payload": []
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::add",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "add",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "a"
+                    ]
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "name",
+                    "path": [
+                      "b"
+                    ]
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::mk_point",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "mk_point",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Point"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Point",
+                  "fields": [
+                    {
+                      "name": "x",
+                      "value": {
+                        "kind": "integer",
+                        "value": 30
+                      }
+                    },
+                    {
+                      "name": "y",
+                      "value": {
+                        "kind": "integer",
+                        "value": 12
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::mk_tag",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "mk_tag",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Tag"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Tag",
+                  "fields": [
+                    {
+                      "name": "v",
+                      "value": {
+                        "kind": "integer",
+                        "value": 28
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::positive",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "positive",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "x",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Trapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "x"
+                    ]
+                  },
+                  "operator": ">",
+                  "right": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "s",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "add",
+                  "arguments": [
+                    {
+                      "kind": "integer",
+                      "value": 30
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 40
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "p",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Point"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "mk_point",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "t",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Tag"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "mk_tag",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "positive",
+                  "arguments": [
+                    {
+                      "kind": "integer",
+                      "value": 5
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "inner",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "add",
+                  "arguments": [
+                    {
+                      "kind": "integer",
+                      "value": 1
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "nested",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "add",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "inner"
+                      ]
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_point"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "p"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "nested"
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "name",
+                        "path": [
+                          "s"
+                        ]
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 70
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_point",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "p",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Point"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "t",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Tag"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "nested",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_bool"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "nested"
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "p"
+                          ]
+                        },
+                        "member": "x"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 30
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_bool",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "t",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Tag"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "nested",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_nested"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "nested"
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_nested",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "t",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Tag"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "nested",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_tag"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "name",
+                        "path": [
+                          "nested"
+                        ]
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 6
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_tag",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "t",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Tag"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_v"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "t"
+                        ]
+                      },
+                      "member": "v"
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Tag",
+                        "Found"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "t"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Tag",
+                        "Missing"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "check_v",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "v",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Trapping"
+                    }
+                  ]
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "good"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "name",
+                        "path": [
+                          "v"
+                        ]
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 28
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "good",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 0,
+    "data_member_count": 5,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 5,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 12,
+    "state_parameter_count": 27,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 74,
+    "expression_struct_field_count": 3,
+    "statement_count": 24,
+    "transition_target_count": 12,
+    "type_reference_count": 55,
+    "type_constraint_count": 14
+  }
+}

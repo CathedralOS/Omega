@@ -1,0 +1,343 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "RealProvider",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "MissingProvider",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Subsystem",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Console",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Gui",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "EfiApplication",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Unspecified",
+            "payload": [
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u16"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Build",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "subsystem",
+            "type_reference": {
+              "kind": "named",
+              "name": "Subsystem"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "freestanding",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "RealProvider::choose",
+        "attached_data": "RealProvider",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "choose",
+            "parameters": [],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "text": "1"
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "build",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Build"
+                  },
+                  "is_mutable": true
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "b"
+                ],
+                "target": "select_provider#Pick#MissingProvider",
+                "machine_arguments": [],
+                "arguments": []
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Build::depend",
+        "attached_data": "Build",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "depend",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "alias",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "location",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "path",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "location",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "String"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "location"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "traits": [
+      {
+        "name": "Pick",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "choose",
+            "is_default": false,
+            "parameters": [],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 5,
+    "data_type_parameter_count": 0,
+    "data_member_count": 6,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 5,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 5,
+    "state_parameter_count": 6,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 2,
+    "expression_struct_field_count": 0,
+    "statement_count": 3,
+    "transition_target_count": 2,
+    "type_reference_count": 13,
+    "type_constraint_count": 0
+  }
+}

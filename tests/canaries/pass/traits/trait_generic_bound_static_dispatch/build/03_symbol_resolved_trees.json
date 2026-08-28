@@ -1,0 +1,224 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Counter",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Scheduler",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Counter::increment",
+        "attached_data": "Counter",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "increment",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "value"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "value"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Scheduler::step",
+        "attached_data": "Scheduler",
+        "abi": null,
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "step",
+            "parameters": [
+              {
+                "name": "subject",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "T"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "subject"
+                ],
+                "target": "increment",
+                "arguments": []
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Incrementable",
+        "is_boundary": false,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "increment",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 6,
+    "statement_count": 2,
+    "type_reference_count": 7
+  }
+}

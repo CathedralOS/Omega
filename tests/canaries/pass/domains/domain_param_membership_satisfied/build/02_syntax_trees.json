@@ -1,0 +1,338 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Blob",
+        "source_id": 0,
+        "start": 380,
+        "end": 384,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "payload",
+            "source_id": 0,
+            "start": 391,
+            "end": 398,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 400,
+              "end": 403,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Blob::Scanned",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Blob",
+          "source_id": 0,
+          "start": 415,
+          "end": 419,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "payload",
+                "source_id": 0,
+                "start": 440,
+                "end": 447,
+                "source_backed": true
+              }
+            },
+            "operator": "greater",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 461,
+        "end": 465,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "blob",
+            "source_id": 0,
+            "start": 472,
+            "end": 476,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Blob",
+              "source_id": 0,
+              "start": 478,
+              "end": 482,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::consume",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "consume",
+            "source_id": 0,
+            "start": 501,
+            "end": 508,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "item",
+                "source_id": 0,
+                "start": 509,
+                "end": 513,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Blob",
+                    "source_id": 0,
+                    "start": 515,
+                    "end": 519,
+                    "source_backed": true
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "Scanned",
+                      "source_id": 0,
+                      "start": 523,
+                      "end": 530,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "blob",
+                  "source_id": 0,
+                  "start": 585,
+                  "end": 589,
+                  "source_backed": true
+                }
+              },
+              "domain": [
+                {
+                  "text": "Blob",
+                  "source_id": 0,
+                  "start": 593,
+                  "end": 597,
+                  "source_backed": true
+                },
+                {
+                  "text": "Scanned",
+                  "source_id": 0,
+                  "start": 599,
+                  "end": 606,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 10
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 551,
+            "end": 555,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "consume",
+                "source_id": 0,
+                "start": 618,
+                "end": 625,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "blob",
+                    "source_id": 0,
+                    "start": 631,
+                    "end": 635,
+                    "source_backed": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

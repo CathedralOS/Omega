@@ -1,0 +1,353 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "arena",
+          "source_id": 0,
+          "start": 27,
+          "end": 32,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 416,
+        "end": 420,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 443,
+            "end": 447,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 1,
+          "start": 1482,
+          "end": 1487,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 1,
+          "start": 1489,
+          "end": 1497,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 1,
+          "start": 1499,
+          "end": 1503,
+          "source_backed": true
+        },
+        {
+          "text": "extent",
+          "source_id": 1,
+          "start": 1505,
+          "end": 1511,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Arena",
+        "source_id": 1,
+        "start": 1529,
+        "end": 1534,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "parents": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "allocate",
+            "source_id": 1,
+            "start": 1549,
+            "end": 1557,
+            "source_backed": true
+          },
+          "type_parameters": [],
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "size",
+                "source_id": 1,
+                "start": 1558,
+                "end": 1562,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u64",
+                  "source_id": 1,
+                  "start": 1564,
+                  "end": 1567,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "align",
+                "source_id": 1,
+                "start": 1569,
+                "end": 1574,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u64",
+                  "source_id": 1,
+                  "start": 1576,
+                  "end": 1579,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Extent",
+              "source_id": 1,
+              "start": 1584,
+              "end": 1590,
+              "source_backed": true
+            }
+          },
+          "effects": [
+            {
+              "text": "alloc",
+              "source_id": 1,
+              "start": 1611,
+              "end": 1616,
+              "source_backed": true
+            }
+          ],
+          "suspends": false,
+          "blocks": false,
+          "contracts": [],
+          "default_body": []
+        },
+        {
+          "name": {
+            "text": "deallocate",
+            "source_id": 1,
+            "start": 1631,
+            "end": 1641,
+            "source_backed": true
+          },
+          "type_parameters": [],
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "extent",
+                "source_id": 1,
+                "start": 1642,
+                "end": 1648,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Extent",
+                  "source_id": 1,
+                  "start": 1650,
+                  "end": 1656,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "dealloc",
+              "source_id": 1,
+              "start": 1678,
+              "end": 1685,
+              "source_backed": true
+            }
+          ],
+          "suspends": false,
+          "blocks": false,
+          "contracts": [],
+          "default_body": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Extent",
+        "source_id": 2,
+        "start": 628,
+        "end": 634,
+        "source_backed": true
+      },
+      "supply": "boundary_opaque",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "linear",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "ExtentSlot",
+        "source_id": 2,
+        "start": 651,
+        "end": 661,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Empty",
+            "source_id": 2,
+            "start": 673,
+            "end": 678,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Live",
+            "source_id": 2,
+            "start": 689,
+            "end": 693,
+            "source_backed": true
+          }
+        }
+      ]
+    }
+  ]
+}

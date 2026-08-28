@@ -1,0 +1,1161 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 977,
+        "end": 984,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 999,
+            "end": 1011,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 1012,
+                "end": 1023,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1025,
+                  "end": 1028,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "wire_data",
+      "name": {
+        "text": "CounterMessage",
+        "source_id": 0,
+        "start": 1039,
+        "end": 1053,
+        "source_backed": true
+      },
+      "encoding": null,
+      "members": [
+        {
+          "kind": "field",
+          "number": 0,
+          "name": {
+            "text": "counter",
+            "source_id": 0,
+            "start": 1063,
+            "end": 1070,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 1072,
+              "end": 1075,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "number": 1,
+          "name": {
+            "text": "delta",
+            "source_id": 0,
+            "start": 1084,
+            "end": 1089,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1091,
+              "end": 1094,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "number": 2,
+          "name": {
+            "text": "flag",
+            "source_id": 0,
+            "start": 1103,
+            "end": 1107,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 1109,
+              "end": 1113,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "CounterSample",
+        "source_id": 0,
+        "start": 1123,
+        "end": 1136,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "counter",
+            "source_id": 0,
+            "start": 1143,
+            "end": 1150,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 1152,
+              "end": 1155,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "delta",
+            "source_id": 0,
+            "start": 1161,
+            "end": 1166,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1168,
+              "end": 1171,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "flag",
+            "source_id": 0,
+            "start": 1177,
+            "end": 1181,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 1183,
+              "end": 1187,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "WireVerdict",
+        "source_id": 0,
+        "start": 1340,
+        "end": 1351,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Invalid",
+            "source_id": 0,
+            "start": 1363,
+            "end": 1370,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Sound",
+            "source_id": 0,
+            "start": 1381,
+            "end": 1386,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1396,
+        "end": 1400,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1407,
+            "end": 1414,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1416,
+              "end": 1423,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "buffer",
+            "source_id": 0,
+            "start": 1429,
+            "end": 1435,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "u8",
+                "source_id": 0,
+                "start": 1438,
+                "end": 1440,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 64
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "written",
+            "source_id": 0,
+            "start": 1451,
+            "end": 1458,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 1460,
+              "end": 1465,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "read",
+            "source_id": 0,
+            "start": 1471,
+            "end": 1475,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 1477,
+              "end": 1482,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "verdict",
+            "source_id": 0,
+            "start": 1488,
+            "end": 1495,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "WireVerdict",
+              "source_id": 0,
+              "start": 1497,
+              "end": 1508,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1527,
+            "end": 1531,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "msg",
+                "source_id": 0,
+                "start": 1553,
+                "end": 1556,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "CounterSample",
+                  "source_id": 0,
+                  "start": 1558,
+                  "end": 1571,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "CounterSample",
+                  "source_id": 0,
+                  "start": 1574,
+                  "end": 1587,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "counter",
+                      "source_id": 0,
+                      "start": 1598,
+                      "end": 1605,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "value": 300
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "delta",
+                      "source_id": 0,
+                      "start": 1620,
+                      "end": 1625,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "integer",
+                        "value": 0
+                      },
+                      "operator": "subtract",
+                      "right": {
+                        "kind": "integer",
+                        "value": 2
+                      }
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "flag",
+                      "source_id": 0,
+                      "start": 1642,
+                      "end": 1646,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "CounterMessage",
+                  "source_id": 0,
+                  "start": 1665,
+                  "end": 1679,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "encode",
+                "source_id": 0,
+                "start": 1681,
+                "end": 1687,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "msg",
+                      "source_id": 0,
+                      "start": 1689,
+                      "end": 1692,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "buffer",
+                      "source_id": 0,
+                      "start": 1704,
+                      "end": 1710,
+                      "source_backed": true
+                    }
+                  }
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "written",
+                      "source_id": 0,
+                      "start": 1722,
+                      "end": 1729,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "decoded",
+                "source_id": 0,
+                "start": 1741,
+                "end": 1748,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "CounterSample",
+                  "source_id": 0,
+                  "start": 1750,
+                  "end": 1763,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "CounterSample",
+                  "source_id": 0,
+                  "start": 1766,
+                  "end": 1779,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "counter",
+                      "source_id": 0,
+                      "start": 1790,
+                      "end": 1797,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "delta",
+                      "source_id": 0,
+                      "start": 1810,
+                      "end": 1815,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "flag",
+                      "source_id": 0,
+                      "start": 1828,
+                      "end": 1832,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "CounterMessage",
+                  "source_id": 0,
+                  "start": 1852,
+                  "end": 1866,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "decode",
+                "source_id": 0,
+                "start": 1868,
+                "end": 1874,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "decoded",
+                        "source_id": 0,
+                        "start": 1880,
+                        "end": 1887,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                },
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "buffer",
+                    "source_id": 0,
+                    "start": 1895,
+                    "end": 1901,
+                    "source_backed": true
+                  }
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "read",
+                      "source_id": 0,
+                      "start": 1913,
+                      "end": 1917,
+                      "source_backed": true
+                    }
+                  }
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "verdict",
+                      "source_id": 0,
+                      "start": 1929,
+                      "end": 1936,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "matches",
+                "source_id": 0,
+                "start": 1948,
+                "end": 1955,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1957,
+                  "end": 1961,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "binary",
+                          "left": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "self_value"
+                            },
+                            "member": {
+                              "text": "verdict",
+                              "source_id": 0,
+                              "start": 1969,
+                              "end": 1976,
+                              "source_backed": true
+                            }
+                          },
+                          "operator": "equal",
+                          "right": {
+                            "kind": "name",
+                            "path": [
+                              {
+                                "text": "WireVerdict",
+                                "source_id": 0,
+                                "start": 1980,
+                                "end": 1991,
+                                "source_backed": true
+                              },
+                              {
+                                "text": "Sound",
+                                "source_id": 0,
+                                "start": 1993,
+                                "end": 1998,
+                                "source_backed": true
+                              }
+                            ]
+                          }
+                        },
+                        "operator": "and",
+                        "right": {
+                          "kind": "binary",
+                          "left": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "self_value"
+                            },
+                            "member": {
+                              "text": "written",
+                              "source_id": 0,
+                              "start": 2015,
+                              "end": 2022,
+                              "source_backed": true
+                            }
+                          },
+                          "operator": "equal",
+                          "right": {
+                            "kind": "integer",
+                            "value": 8
+                          }
+                        }
+                      },
+                      "operator": "and",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "read",
+                            "source_id": 0,
+                            "start": 2044,
+                            "end": 2048,
+                            "source_backed": true
+                          }
+                        },
+                        "operator": "equal",
+                        "right": {
+                          "kind": "integer",
+                          "value": 8
+                        }
+                      }
+                    },
+                    "operator": "and",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            {
+                              "text": "decoded",
+                              "source_id": 0,
+                              "start": 2065,
+                              "end": 2072,
+                              "source_backed": true
+                            }
+                          ]
+                        },
+                        "member": {
+                          "text": "counter",
+                          "source_id": 0,
+                          "start": 2073,
+                          "end": 2080,
+                          "source_backed": true
+                        }
+                      },
+                      "operator": "equal",
+                      "right": {
+                        "kind": "integer",
+                        "value": 300
+                      }
+                    }
+                  },
+                  "operator": "and",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "decoded",
+                            "source_id": 0,
+                            "start": 2099,
+                            "end": 2106,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "delta",
+                        "source_id": 0,
+                        "start": 2107,
+                        "end": 2112,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "integer",
+                        "value": 0
+                      },
+                      "operator": "subtract",
+                      "right": {
+                        "kind": "integer",
+                        "value": 2
+                      }
+                    }
+                  }
+                },
+                "operator": "and",
+                "right": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "decoded",
+                        "source_id": 0,
+                        "start": 2133,
+                        "end": 2140,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "flag",
+                    "source_id": 0,
+                    "start": 2141,
+                    "end": 2145,
+                    "source_backed": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 2188,
+                    "end": 2192,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "matches",
+                        "source_id": 0,
+                        "start": 2162,
+                        "end": 2169,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2212,
+                    "end": 2215,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "matches",
+                        "source_id": 0,
+                        "start": 2162,
+                        "end": 2169,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 2235,
+            "end": 2239,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2266,
+                  "end": 2273,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2274,
+                "end": 2286,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 2309,
+            "end": 2312,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2339,
+                  "end": 2346,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2347,
+                "end": 2359,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

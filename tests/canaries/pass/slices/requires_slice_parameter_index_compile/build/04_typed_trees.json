@@ -1,0 +1,188 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entry",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "index"
+                    ]
+                  },
+                  "operator": "<",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "entries"
+                      ]
+                    },
+                    "member": "len"
+                  }
+                }
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "entries",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "index",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "chosen",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Entry"
+                },
+                "initial_value": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "entries"
+                    ]
+                  },
+                  "index": {
+                    "kind": "name",
+                    "path": [
+                      "index"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "chosen"
+                    ]
+                  },
+                  "member": "value"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 1,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 3,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 9,
+    "expression_struct_field_count": 0,
+    "statement_count": 2,
+    "transition_target_count": 0,
+    "type_reference_count": 8,
+    "type_constraint_count": 0
+  }
+}

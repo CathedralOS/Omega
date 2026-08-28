@@ -1,0 +1,1559 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 837,
+        "end": 844,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 860,
+            "end": 872,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 873,
+                "end": 884,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 886,
+                  "end": 889,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "CellId",
+        "source_id": 0,
+        "start": 903,
+        "end": 909,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "R00",
+            "source_id": 0,
+            "start": 917,
+            "end": 920,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "R01",
+            "source_id": 0,
+            "start": 927,
+            "end": 930,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "R02",
+            "source_id": 0,
+            "start": 937,
+            "end": 940,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "R03",
+            "source_id": 0,
+            "start": 947,
+            "end": 950,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Room",
+        "source_id": 0,
+        "start": 962,
+        "end": 966,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "cell",
+            "source_id": 0,
+            "start": 974,
+            "end": 978,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "CellId",
+              "source_id": 0,
+              "start": 980,
+              "end": 986,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "depth",
+            "source_id": 0,
+            "start": 993,
+            "end": 998,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 1000,
+              "end": 1003,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Level",
+        "source_id": 0,
+        "start": 1016,
+        "end": 1021,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "rooms",
+            "source_id": 0,
+            "start": 1029,
+            "end": 1034,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Room",
+                "source_id": 0,
+                "start": 1037,
+                "end": 1041,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 4
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "room_count",
+            "source_id": 0,
+            "start": 1052,
+            "end": 1062,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 1064,
+              "end": 1069,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Builder",
+        "source_id": 0,
+        "start": 1082,
+        "end": 1089,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Builder::room_mut",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Builder",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "room_mut",
+            "source_id": 0,
+            "start": 1115,
+            "end": 1123,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "level",
+                "source_id": 0,
+                "start": 1135,
+                "end": 1140,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Level",
+                    "source_id": 0,
+                    "start": 1147,
+                    "end": 1152,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "cell",
+                "source_id": 0,
+                "start": 1154,
+                "end": 1158,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "CellId",
+                  "source_id": 0,
+                  "start": 1160,
+                  "end": 1166,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "Room",
+                "source_id": 0,
+                "start": 1176,
+                "end": 1180,
+                "source_backed": true
+              }
+            },
+            "is_mutable": true,
+            "is_relaxed": false
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "rooms",
+                "source_id": 0,
+                "start": 1192,
+                "end": 1197,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Room",
+                      "source_id": 0,
+                      "start": 1205,
+                      "end": 1209,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "level",
+                        "source_id": 0,
+                        "start": 1213,
+                        "end": 1218,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "rooms",
+                    "source_id": 0,
+                    "start": 1219,
+                    "end": 1224,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "as_mut_slice",
+                  "source_id": 0,
+                  "start": 1225,
+                  "end": 1237,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "rooms",
+                          "source_id": 0,
+                          "start": 1293,
+                          "end": 1298,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "cell",
+                        "source_id": 0,
+                        "start": 1257,
+                        "end": 1261,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "CellId",
+                      "source_id": 0,
+                      "start": 1273,
+                      "end": 1279,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "R00",
+                      "source_id": 0,
+                      "start": 1281,
+                      "end": 1284,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "rooms",
+                          "source_id": 0,
+                          "start": 1331,
+                          "end": 1336,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 1
+                    }
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "cell",
+                        "source_id": 0,
+                        "start": 1257,
+                        "end": 1261,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "CellId",
+                      "source_id": 0,
+                      "start": 1311,
+                      "end": 1317,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "R01",
+                      "source_id": 0,
+                      "start": 1319,
+                      "end": 1322,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "rooms",
+                          "source_id": 0,
+                          "start": 1369,
+                          "end": 1374,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "cell",
+                        "source_id": 0,
+                        "start": 1257,
+                        "end": 1261,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "CellId",
+                      "source_id": 0,
+                      "start": 1349,
+                      "end": 1355,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "R02",
+                      "source_id": 0,
+                      "start": 1357,
+                      "end": 1360,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "rooms",
+                          "source_id": 0,
+                          "start": 1397,
+                          "end": 1402,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Builder::carve",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Builder",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "carve",
+            "source_id": 0,
+            "start": 1436,
+            "end": 1441,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "level",
+                "source_id": 0,
+                "start": 1453,
+                "end": 1458,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Level",
+                    "source_id": 0,
+                    "start": 1465,
+                    "end": 1470,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "cell",
+                "source_id": 0,
+                "start": 1472,
+                "end": 1476,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "CellId",
+                  "source_id": 0,
+                  "start": 1478,
+                  "end": 1484,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "depth",
+                "source_id": 0,
+                "start": 1486,
+                "end": 1491,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1493,
+                  "end": 1496,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "room",
+                "source_id": 0,
+                "start": 1509,
+                "end": 1513,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Room",
+                    "source_id": 0,
+                    "start": 1520,
+                    "end": 1524,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "room_mut",
+                  "source_id": 0,
+                  "start": 1532,
+                  "end": 1540,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "level",
+                        "source_id": 0,
+                        "start": 1541,
+                        "end": 1546,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "cell",
+                        "source_id": 0,
+                        "start": 1548,
+                        "end": 1552,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 1560,
+                      "end": 1564,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "cell",
+                  "source_id": 0,
+                  "start": 1565,
+                  "end": 1569,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "cell",
+                    "source_id": 0,
+                    "start": 1572,
+                    "end": 1576,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 1583,
+                      "end": 1587,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "depth",
+                  "source_id": 0,
+                  "start": 1588,
+                  "end": 1593,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "depth",
+                    "source_id": 0,
+                    "start": 1596,
+                    "end": 1601,
+                    "source_backed": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Builder::build",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Builder",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "build",
+            "source_id": 0,
+            "start": 1626,
+            "end": 1631,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "level",
+                "source_id": 0,
+                "start": 1643,
+                "end": 1648,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Level",
+                    "source_id": 0,
+                    "start": 1655,
+                    "end": 1660,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "hall1",
+                    "source_id": 0,
+                    "start": 1696,
+                    "end": 1701,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "level",
+                        "source_id": 0,
+                        "start": 1702,
+                        "end": 1707,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "hall1",
+            "source_id": 0,
+            "start": 1727,
+            "end": 1732,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "level",
+                "source_id": 0,
+                "start": 1744,
+                "end": 1749,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Level",
+                    "source_id": 0,
+                    "start": 1756,
+                    "end": 1761,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "carve",
+                "source_id": 0,
+                "start": 1779,
+                "end": 1784,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "level",
+                      "source_id": 0,
+                      "start": 1785,
+                      "end": 1790,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "CellId",
+                      "source_id": 0,
+                      "start": 1792,
+                      "end": 1798,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "R01",
+                      "source_id": 0,
+                      "start": 1800,
+                      "end": 1803,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "integer",
+                  "value": 1
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1827,
+        "end": 1831,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1839,
+            "end": 1846,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1848,
+              "end": 1855,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "builder",
+            "source_id": 0,
+            "start": 1862,
+            "end": 1869,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Builder",
+              "source_id": 0,
+              "start": 1871,
+              "end": 1878,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "level",
+            "source_id": 0,
+            "start": 1885,
+            "end": 1890,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Level",
+              "source_id": 0,
+              "start": 1892,
+              "end": 1897,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1919,
+            "end": 1923,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "builder",
+                  "source_id": 0,
+                  "start": 1947,
+                  "end": 1954,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "build",
+                "source_id": 0,
+                "start": 1955,
+                "end": 1960,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "level",
+                      "source_id": 0,
+                      "start": 1971,
+                      "end": 1976,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 2045,
+                    "end": 2049,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "self_value"
+                            },
+                            "member": {
+                              "text": "level",
+                              "source_id": 0,
+                              "start": 2000,
+                              "end": 2005,
+                              "source_backed": true
+                            }
+                          },
+                          "member": {
+                            "text": "rooms",
+                            "source_id": 0,
+                            "start": 2006,
+                            "end": 2011,
+                            "source_backed": true
+                          }
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      },
+                      "member": {
+                        "text": "depth",
+                        "source_id": 0,
+                        "start": 2015,
+                        "end": 2020,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 1
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 2066,
+                    "end": 2069,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 2090,
+            "end": 2094,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2113,
+                  "end": 2120,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2121,
+                "end": 2133,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 2152,
+            "end": 2155,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2174,
+                  "end": 2181,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2182,
+                "end": 2194,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

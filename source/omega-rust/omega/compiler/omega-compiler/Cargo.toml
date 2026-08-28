@@ -1,0 +1,75 @@
+[package]
+name = "omega-compiler"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_compiler"
+path = "src/lib.rs"
+
+[dependencies]
+omega-build-declarations = { path = "../../build/omega-build-declarations" }
+omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
+omega-build-output = { path = "../../build/omega-build-output" }
+omega-compilation-report = { path = "../omega-compilation-report" }
+omega-package-compilation = { path = "../../build/omega-package-compilation" }
+omega-provider-planning = { path = "../../build/omega-provider-planning" }
+omega-source-profile = { path = "../../tooling/omega-source-profile" }
+omega-trust-ledger = { path = "../../build/omega-trust-ledger" }
+omega-core = { path = "../../representations/omega-core" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-optimization-pipeline = { path = "../../pipeline/optimization/omega-optimization-pipeline" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-syntax-trees = { path = "../../../psi/representations/psi-syntax-trees" }
+psi-generic-instances = { path = "../../../psi/pipeline/psi-generic-instances" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+psi-access-plans = { path = "../../../psi/foundation/psi-access-plans" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-extents = { path = "../../../psi/foundation/psi-extents" }
+psi-layout-plans = { path = "../../../psi/foundation/psi-layout-plans" }
+psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
+omega-task-plans = { path = "../../representations/omega-task-plans" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-tokens = { path = "../../../psi/representations/psi-tokens" }
+omega-backend-plan = { path = "../../backend/plans/omega-backend-plan" }
+omega-artifacts = { path = "../../tooling/omega-artifacts" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
+psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }
+omega-effects = { path = "../../representations/omega-effects" }
+psi-effects = { path = "../../../psi/representations/psi-effects" }
+psi-symbol-resolved-trees = { path = "../../../psi/representations/psi-symbol-resolved-trees" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+psi-facts = { path = "../../../psi/representations/psi-facts" }
+omega-target = { path = "../../representations/omega-target" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+omega-visualizations = { path = "../../tooling/omega-visualizations" }
+psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+omega-terminal-psi-to-native-artifact = { path = "../../pipeline/omega-terminal-psi-to-native-artifact" }
+omega-selected-dispatch = { path = "../../build/omega-selected-dispatch" }
+sha2 = "0.10.9"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[dev-dependencies]
+omega-executable-installation = { path = "../../backend/runtime/omega-executable-installation" }
+omega-external-roots = { path = "../../backend/runtime/omega-external-roots" }
+omega-layout = { path = "../../backend/omega-layout" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-package-compilation = { path = "../../build/omega-package-compilation", features = ["test-support"] }
+omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
+psi-facts = { path = "../../../psi/representations/psi-facts" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

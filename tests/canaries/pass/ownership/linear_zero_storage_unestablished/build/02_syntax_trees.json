@@ -1,0 +1,128 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Receipt",
+        "source_id": 0,
+        "start": 161,
+        "end": 168,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "code",
+            "source_id": 0,
+            "start": 184,
+            "end": 188,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 190,
+              "end": 193,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 203,
+        "end": 207,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 226,
+            "end": 229,
+            "source_backed": true
+          },
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 235,
+              "end": 238,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "receipt",
+                "source_id": 0,
+                "start": 249,
+                "end": 256,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 258,
+                  "end": 265,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "name",
+                "path": []
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "text": "0"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>backend_report</title>
+<style>
+
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+}
+* { box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+aside {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  min-height: 100vh;
+  padding: 18px;
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
+main {
+  min-width: 0;
+  overflow: auto;
+  padding: 28px;
+}
+pre {
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid #283343;
+  border-radius: 18px;
+  color: #d8e2ef;
+  line-height: 1.45;
+  margin: 0;
+  min-height: calc(100vh - 56px);
+  overflow: auto;
+  padding: 24px;
+  white-space: pre;
+}
+</style>
+</head>
+<body>
+<aside>
+<h1>backend_report</h1>
+<nav class="phase-nav" aria-label="Pipeline stages"><a target="_top" href="00_pipeline.html">Index</a><a target="_top" href="00_pipeline.html#timings"><span>00</span> Timings</a><a target="_top" href="00_pipeline.html#syntax"><span>02</span> Syntax</a><a target="_top" href="00_pipeline.html#symbols"><span>03</span> Symbols</a><a target="_top" href="00_pipeline.html#typed"><span>04</span> Typed</a><a target="_top" href="00_pipeline.html#checked"><span>05</span> Checked</a><a target="_top" href="00_pipeline.html#capabilities"><span>cap</span> Capabilities</a><a target="_top" href="00_pipeline.html#state-graph"><span>06</span> State Graph</a><a target="_top" href="00_pipeline.html#control-flow"><span>07</span> Control Flow</a><a target="_top" href="00_pipeline.html#abstract-operations"><span>08</span> Abstract Operations</a><a target="_top" href="00_pipeline.html#target-operations"><span>09</span> Target Operations</a><a target="_top" href="00_pipeline.html#assigned-target-operations"><span>10</span> Assigned Target Operations</a><a target="_top" href="00_pipeline.html#machine-instructions"><span>11</span> Machine Instructions</a><a target="_top" href="00_pipeline.html#emission"><span>12</span> Emission</a></nav>
+</aside>
+<main><pre># Omega Backend Plan
+
+target: NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
+entry: Main::main.main as `main`
+
+## Backend Subphases
+subphase                        time    share  allocs   allocated
+--------------------------  --------  -------  ------  ----------
+host abi                    0.030 ms    3.04%     193   21.83 KiB
+layout/host calls           0.102 ms   10.34%     117  113.39 KiB
+runtime flow/seed           0.010 ms    1.01%      18    1.51 KiB
+state calls/seed            0.030 ms    3.04%      14    3.11 KiB
+state dispatch              0.022 ms    2.23%      22   23.80 KiB
+alias flow                  0.001 ms    0.10%       0         0 B
+state storage/values        0.139 ms   14.10%     123  164.73 KiB
+runtime bodies              0.216 ms   21.91%      50  166.24 KiB
+runtime storage             0.085 ms    8.62%      63  135.60 KiB
+state guards                0.036 ms    3.65%      55    6.64 KiB
+runtime loop                0.023 ms    2.33%      20    7.60 KiB
+runtime branching           0.008 ms    0.81%       0         0 B
+runtime text                0.008 ms    0.81%      21    2.90 KiB
+target data                 0.006 ms    0.61%       1        16 B
+abstract operations         0.150 ms   15.21%     127   17.49 KiB
+target operations           0.013 ms    1.32%      26    4.34 KiB
+assigned target operations  0.014 ms    1.42%      26    4.31 KiB
+machine instructions        0.010 ms    1.01%      16    3.37 KiB
+machine emission            0.054 ms    5.48%      43    6.83 KiB
+object plan                 0.006 ms    0.61%      46    2.60 KiB
+relocations                 0.023 ms    2.33%      15    3.59 KiB
+--------------------------  --------  -------  ------  ----------
+total                       0.986 ms  100.00%     996  689.89 KiB
+
+## Backend String Storage
+This counts `String` fields still carried by backend planning structures.
+Identity strings are compiler debt; payload and generated symbols are expected later-stage text.
+
+category           strings     bytes  note
+-----------------  -------  --------  ----
+identity                89     426 B  machine/state/name strings still used as identity
+payload                  0       0 B  program text literals copied into backend structures
+generated symbols       44     417 B  labels, object symbols, and section names
+report                  21     315 B  diagnostic/report-only strings
+total                  154  1.13 KiB  all counted backend strings
+
+## Checked Semantics
+proof obligations: 5
+- BoundedAssignment: machine `Main::main` state `main`
+- BoundedAssignment: machine `Main::main` state `main`
+- BoundedAssignment: machine `Main::main` state `main`
+- GuardedTransition: machine `Main::main` state `main`
+- GuardedTransition: machine `Main::main` state `main`
+invariants: 0
+none
+
+## Artifact Semantic Spine
+values: 11
+moves: 0
+drops: 0
+boundary policy checks: 2
+- MissingSourceBoundary `omega::host::targets::windows` operation HostOperationKey { capability: Process, operation: ExitProcess }
+- MissingSourceBoundary `omega::host::targets::windows` operation HostOperationKey { capability: Process, operation: ExitProcess }
+
+## Host ABI
+bindings: 37
+- Stdin.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stdin.read_file import Kernel32.dll!ReadFile boundary `omega::host::targets::windows`
+- Stdin.read import Kernel32.dll!ReadFile boundary `omega::host::targets::windows`
+- Stdout.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stdout.write import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stdout.write_file import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stderr.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stderr.write import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stderr.write_file import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Process.exit_process import Kernel32.dll!ExitProcess boundary `omega::host::targets::windows`
+- Clock.sleep import Kernel32.dll!Sleep boundary `omega::host::targets::windows`
+- Clock.tick_count import Kernel32.dll!GetTickCount64 boundary `omega::host::targets::windows`
+- Input.key_state import User32.dll!GetAsyncKeyState boundary `omega::host::targets::windows`
+- Gui.dc_create import Gdi32.dll!CreateCompatibleDC boundary `omega::host::targets::windows`
+- Gui.get_dc import User32.dll!GetDC boundary `omega::host::targets::windows`
+- Gui.window_create import User32.dll!CreateWindowExA boundary `omega::host::targets::windows`
+- Gui.blit import Gdi32.dll!StretchDIBits boundary `omega::host::targets::windows`
+- Gui.msg_peek import User32.dll!PeekMessageW boundary `omega::host::targets::windows`
+- Gui.msg_translate import User32.dll!TranslateMessage boundary `omega::host::targets::windows`
+- Gui.msg_dispatch import User32.dll!DispatchMessageW boundary `omega::host::targets::windows`
+- Gui.is_window import User32.dll!IsWindow boundary `omega::host::targets::windows`
+- Gui.window_destroy import User32.dll!DestroyWindow boundary `omega::host::targets::windows`
+- Filesystem.open import msvcrt.dll!_open boundary `omega::host::targets::windows`
+- Filesystem.open_create import msvcrt.dll!_open boundary `omega::host::targets::windows`
+- Filesystem.creat import msvcrt.dll!_creat boundary `omega::host::targets::windows`
+- Filesystem.read import msvcrt.dll!_read boundary `omega::host::targets::windows`
+- Filesystem.write import msvcrt.dll!_write boundary `omega::host::targets::windows`
+- Filesystem.close import msvcrt.dll!_close boundary `omega::host::targets::windows`
+- Filesystem.unlink import msvcrt.dll!_unlink boundary `omega::host::targets::windows`
+- Filesystem.lseek import msvcrt.dll!_lseeki64 boundary `omega::host::targets::windows`
+- Filesystem.mkdir import msvcrt.dll!_mkdir boundary `omega::host::targets::windows`
+- Filesystem.rmdir import msvcrt.dll!_rmdir boundary `omega::host::targets::windows`
+- Filesystem.rename import msvcrt.dll!rename boundary `omega::host::targets::windows`
+- Filesystem.dup import msvcrt.dll!_dup boundary `omega::host::targets::windows`
+- Filesystem.fsync import msvcrt.dll!_commit boundary `omega::host::targets::windows`
+- Filesystem.chmod import msvcrt.dll!_chmod boundary `omega::host::targets::windows`
+- Filesystem.read_errno import msvcrt.dll!_errno boundary `omega::host::targets::windows`
+platform lowerings: 34
+- *.write_line =&gt; Stdout.get_std_handle -&gt; Stdout.write_file data first_text_argument append_newline=true
+- *.write =&gt; Stdout.get_std_handle -&gt; Stdout.write_file data first_text_argument append_newline=false
+- *.write_error_line =&gt; Stderr.get_std_handle -&gt; Stderr.write_file data first_text_argument append_newline=true
+- *.write_error =&gt; Stderr.get_std_handle -&gt; Stderr.write_file data first_text_argument append_newline=false
+- *.read_line =&gt; Stdin.get_std_handle -&gt; Stdin.read_file data mutable_output_buffer byte_capacity=256
+- *.exit_process =&gt; Process.exit_process
+- *.tick_count =&gt; Clock.tick_count
+- *.key_state =&gt; Input.key_state
+- *.sleep =&gt; Clock.sleep
+- *.dc_create =&gt; Gui.dc_create
+- *.get_dc =&gt; Gui.get_dc
+- *.window_create =&gt; Gui.window_create
+- *.blit =&gt; Gui.blit
+- *.msg_peek =&gt; Gui.msg_peek
+- *.msg_translate =&gt; Gui.msg_translate
+- *.msg_dispatch =&gt; Gui.msg_dispatch
+- *.is_window =&gt; Gui.is_window
+- *.window_destroy =&gt; Gui.window_destroy
+- FilesystemHost.open =&gt; Filesystem.open
+- FilesystemHost.open_create =&gt; Filesystem.open_create
+- FilesystemHost.create =&gt; Filesystem.creat
+- FilesystemHost.read =&gt; Filesystem.read
+- FilesystemHost.write =&gt; Filesystem.write
+- FilesystemHost.close =&gt; Filesystem.close
+- FilesystemHost.remove =&gt; Filesystem.unlink
+- FilesystemHost.seek =&gt; Filesystem.lseek
+- FilesystemHost.create_dir =&gt; Filesystem.mkdir
+- FilesystemHost.remove_dir =&gt; Filesystem.rmdir
+- FilesystemHost.rename =&gt; Filesystem.rename
+- FilesystemHost.duplicate =&gt; Filesystem.dup
+- FilesystemHost.sync =&gt; Filesystem.fsync
+- FilesystemHost.sync_data =&gt; Filesystem.fsync
+- FilesystemHost.set_permissions =&gt; Filesystem.chmod
+- FilesystemHost.errno =&gt; Filesystem.read_errno
+
+## Host Call Lowering
+calls: 2
+unsupported calls: 0
+operations: 2
+- Main::main.yes statement 0 `*.exit_process`
+  arguments:
+  - integer 1
+  operations:
+  - Process.exit_process
+- Main::main.no statement 0 `*.exit_process`
+  arguments:
+  - integer 2
+  operations:
+  - Process.exit_process
+
+## State Call Lowering
+calls: 0
+none
+
+## Alias Flow
+aliases: 0
+none
+
+## State Storage
+locals: 1
+- Main::main.main statement 2 local `__hoist_0`: i32[1 constraint] required true
+mutations: 3
+- Main::main.main statement 0 MachineOwned/NeedsMachineOwnedWrite: `self.cells[2].v` = `9` required true
+- Main::main.main statement 1 MachineOwned/NeedsMachineOwnedWrite: `self.k` = `2` required true
+- Main::main.main statement 3 MachineOwned/NeedsMachineOwnedWrite: `self.x` = `__hoist_0 + 5` required true
+
+## Runtime Storage
+frame slots: 1
+- #1 Main::main.main statement 2 local `__hoist_0`: i32[1 constraint] offset 0 bytes 4 align 4
+writes: 3
+- #1 Main::main.main statement 0 MachineOwned/NeedsMachineOwnedWrite: `self.cells[2].v` = `9`
+- #1 Main::main.main statement 1 MachineOwned/NeedsMachineOwnedWrite: `self.k` = `2`
+- #1 Main::main.main statement 3 MachineOwned/NeedsMachineOwnedWrite: `self.x` = `__hoist_0 + 5`
+
+## State Values
+values: 8
+- Main::main.main statement 0 AssignmentTarget/Place: `self.cells[2].v` required true
+- Main::main.main statement 0 AssignmentValue/Literal: `9` required true
+- Main::main.main statement 1 AssignmentTarget/Place: `self.k` required true
+- Main::main.main statement 1 AssignmentValue/Literal: `2` required true
+- Main::main.main statement 3 AssignmentTarget/Place: `self.x` required true
+- Main::main.main statement 3 AssignmentValue/Binary: `__hoist_0 + 5` required true
+- Main::main.yes statement 0 CallArgument/Literal: `1` required true
+- Main::main.no statement 0 CallArgument/Literal: `2` required true
+
+## Runtime Text
+uses: 0
+buffers: 0
+slots: 0
+writes: 0
+builders: 0
+builder segments: 0
+uses: none
+buffers: none
+slots: none
+writes: none
+builders: none
+
+## Native Data
+objects: 0
+bytes: 0
+none
+
+## Abstract Operations
+functions: 1
+instructions: 26
+operands: 2
+
+## Target Operations
+functions: 1
+instructions: 26
+operands: 2
+- function  from Main::main.main
+  instructions:
+    - statement 0: enter function
+    - statement 0: enter dispatch loop entry #1 terminal #0
+    - statement 0: enter dispatch case #1 `omega_state_symbol35_symbol47`
+    - statement 0: write runtime storage integer omega_machine_Main::main_storage@8 bytes 4 value 9
+    - statement 1: write runtime storage integer omega_machine_Main::main_storage@16 bytes 8 value 2
+    - statement 2: copy runtime-machine indexed base@0 index@16(Machine) elem 4 field +0 -&gt; omega_runtime_frame_storage@0 bytes 4
+    - statement 3: write runtime storage binary omega_machine_Main::main_storage@24 bytes 4 omega_runtime_frame_storage@0/4 Add 5
+    - statement 4: evaluate dispatch guard CompareStaticValue/Equal Machine offset 24 bytes 4 expected 14
+    - statement 4: set dispatch state #2
+    - statement 5: evaluate dispatch guard CompareStaticValue/NotEqual Machine offset 24 bytes 4 expected 14
+    - statement 5: set dispatch state #3
+    - statement 0: evaluate dispatch guard NoOp/None
+    - statement 0: terminate dispatch
+    - statement 0: leave dispatch case
+    - statement 0: enter dispatch case #2 `omega_state_symbol35_symbol48`
+    - statement 0: begin platform call `*.exit_process`
+    - statement 0: call host operation Process.exit_process(1)
+    - statement 0: terminate dispatch
+    - statement 0: leave dispatch case
+    - statement 0: enter dispatch case #3 `omega_state_symbol35_symbol49`
+    - statement 0: begin platform call `*.exit_process`
+    - statement 0: call host operation Process.exit_process(2)
+    - statement 0: terminate dispatch
+    - statement 0: leave dispatch case
+    - statement 0: leave dispatch loop
+    - statement 0: leave function
+
+## Assigned Target Operations
+functions: 1
+instructions: 26
+runtime value homes: 2
+scratch homes: 0
+homes:
+  - #1 omega_runtime_frame_storage@0/4 =&gt; stack slot frame@0/4
+  - #2 5 =&gt; immediate
+
+## Machine Instructions
+functions: 1
+instructions: 26
+encoded bytes: 383
+bytes: 383
+- function 
+  instructions:
+    - selected #1 NoOp encoded none
+    - selected #2 DispatchLoopEnter encoded 41 bc 01 00 00 00
+    - selected #3 DispatchCaseEnter encoded 41 81 fc 01 00 00 00 0f 85 0d 01 00 00
+    - selected #4 RuntimeMachineIntegerWrite encoded 49 bf 00 00 00 00 00 00 00 00 48 b8 09 00 00 00 00 00 00 00 41 89 87 08 00 00 00
+    - selected #5 RuntimeMachineIntegerWrite encoded 49 bf 00 00 00 00 00 00 00 00 48 b8 02 00 00 00 00 00 00 00 49 89 87 10 00 00 00
+    - selected #6 RuntimeStorageCopyFromRuntimeMachineIndexed encoded 49 bf 00 00 00 00 00 00 00 00 41 8b 87 10 00 00 00 48 69 c0 04 00 00 00 49 01 c7 49 8b 87 00 00 00 00 49 bf 00 00 00 00 00 00 00 00 41 89 87 00 00 00 00
+    - selected #7 RuntimeStorageBinaryWrite encoded 49 be 00 00 00 00 00 00 00 00 49 bf 00 00 00 00 00 00 00 00 45 8b 97 00 00 00 00 41 52 49 ba 05 00 00 00 00 00 00 00 4d 89 d3 41 5a 4d 01 da 45 89 96 18 00 00 00
+    - selected #8 DispatchGuardCompareStatic encoded 49 bf 00 00 00 00 00 00 00 00 45 8b 97 18 00 00 00 49 bb 0e 00 00 00 00 00 00 00 45 39 da 0f 85 0b 00 00 00
+    - selected #9 DispatchStateWrite encoded 41 bc 02 00 00 00 e9 3a 00 00 00
+    - selected #10 DispatchGuardCompareStatic encoded 49 bf 00 00 00 00 00 00 00 00 45 8b 97 18 00 00 00 49 bb 0e 00 00 00 00 00 00 00 45 39 da 0f 84 0b 00 00 00
+    - selected #11 DispatchStateWrite encoded 41 bc 03 00 00 00 e9 0b 00 00 00
+    - selected #12 NoOp encoded none
+    - selected #13 DispatchTerminate encoded 41 bc 00 00 00 00 e9 63 00 00 00
+    - selected #14 DispatchCaseLeave encoded e9 e6 fe ff ff
+    - selected #15 DispatchCaseEnter encoded 41 81 fc 02 00 00 00 0f 85 22 00 00 00
+    - selected #16 NoOp encoded none
+    - selected #17 HostCallSequence encoded 48 83 ec 28 b9 01 00 00 00 e8 00 00 00 00 48 83 c4 28
+    - selected #18 DispatchTerminate encoded 41 bc 00 00 00 00 e9 34 00 00 00
+    - selected #19 DispatchCaseLeave encoded e9 b7 fe ff ff
+    - selected #20 DispatchCaseEnter encoded 41 81 fc 03 00 00 00 0f 85 22 00 00 00
+    - selected #21 NoOp encoded none
+    - selected #22 HostCallSequence encoded 48 83 ec 28 b9 02 00 00 00 e8 00 00 00 00 48 83 c4 28
+    - selected #23 DispatchTerminate encoded 41 bc 00 00 00 00 e9 05 00 00 00
+    - selected #24 DispatchCaseLeave encoded e9 88 fe ff ff
+    - selected #25 NoOp encoded none
+    - selected #26 Return encoded c3
+
+## Source Native Surface
+entry candidates: 1
+- entry Main::main.main
+platforms: 0
+machines: 1
+- machine Main::main: contains 0, owned data 0, states 3
+
+## State Schedule
+status: blocked
+reason: Main::main.main has a guard native emission cannot evaluate statically yet
+
+## Runtime State Flow
+states: 3
+edges: 3
+cycles: 0
+states:
+- Main::main.main
+- Main::main.yes
+- Main::main.no
+edges:
+- Main::main.main -&gt; Main::main.yes when self.x == 14 == true
+- Main::main.main -&gt; Main::main.no when self.x == 14 == false
+- Main::main.main -&gt; terminal always
+
+## Runtime Dispatch
+states: 3
+edges: 3
+- #1 Main::main.main label `omega_state_symbol35_symbol47`
+  edges:
+    - -&gt; #2 Main::main.yes when self.x == 14 == true
+    - -&gt; #3 Main::main.no when self.x == 14 == false
+    - -&gt; #0 terminal always
+- #2 Main::main.yes label `omega_state_symbol35_symbol48`
+  edges: none
+- #3 Main::main.no label `omega_state_symbol35_symbol49`
+  edges: none
+
+## Runtime Guards
+guards: 3
+operands: 4
+- #1 Main::main.main edge 0 -&gt; #2 Main::main.yes RuntimeEquality/Equal/CompareStaticValue `self.x == 14`
+  - operand `self.x` Place MachineOwned offset 24 bytes 4
+  - operand `14` Literal Unknown offset 0 bytes 0
+    resolved value: 14
+- #1 Main::main.main edge 1 -&gt; #3 Main::main.no RuntimeInequality/NotEqual/CompareStaticValue `self.x != 14`
+  - operand `self.x` Place MachineOwned offset 24 bytes 4
+  - operand `14` Literal Unknown offset 0 bytes 0
+    resolved value: 14
+- #1 Main::main.main edge 2 -&gt; #0 terminal Always/None/NoOp
+
+## Runtime Dispatch Loop
+needed: true
+entry dispatch index: #1
+terminal dispatch index: #0
+cases: 3
+edges: 3
+- #1 Main::main.main label `omega_state_symbol35_symbol47` operations 4
+  edges:
+    - #0 -&gt; #2 Main::main.yes CompareStaticValue/EnterState when self.x == 14 storage offset 24 bytes 4 expected 14
+    - #1 -&gt; #3 Main::main.no CompareStaticValue/EnterState when self.x != 14 storage offset 24 bytes 4 expected 14
+    - #2 -&gt; #0 terminal NoOp/Terminate always
+- #2 Main::main.yes label `omega_state_symbol35_symbol48` operations 1
+  edges: none
+- #3 Main::main.no label `omega_state_symbol35_symbol49` operations 1
+  edges: none
+
+## Runtime Bodies
+bodies: 3
+operations: 6
+- #1 Main::main.main
+  operations:
+    - Main::main.main statement 0 Mutation { mutation_kind: MachineOwned, lowering: NeedsMachineOwnedWrite }
+    - Main::main.main statement 1 Mutation { mutation_kind: MachineOwned, lowering: NeedsMachineOwnedWrite }
+    - Main::main.main statement 2 LocalStorage { symbol: Handle { arena_index: 51, generation: 1 }, name: &quot;__hoist_0&quot;, type_symbol: Handle { arena_index: 0, generation: 0 }, type_reference: Handle { arena_index: 2, generation: 1 }, invariant_names: HandleSpan { start: Handle { arena_index: 0, generation: 0 }, count: 0 } }
+    - Main::main.main statement 3 Mutation { mutation_kind: MachineOwned, lowering: NeedsMachineOwnedWrite }
+- #2 Main::main.yes
+  operations:
+    - Main::main.yes statement 0 HostCall
+- #3 Main::main.no
+  operations:
+    - Main::main.no statement 0 HostCall
+
+## Runtime Branching Calls
+calls: 0
+edges: 0
+none
+
+## Runtime Leaf Branch Expansions
+expansions: 0
+operations: 0
+bindings: 0
+none
+
+## Runtime Straight-Line Branch Expansions
+expansions: 0
+operations: 0
+bindings: 0
+none
+
+## Layouts
+data layouts: 2
+machine layouts: 1
+fields: 9
+
+variants: 0
+
+- data Cell: size 4, align 4
+  fields:
+    - v @0: i32[0..=9] size 4, align 4
+- data Main: size 32, align 8
+  fields:
+    - console @0: Console size 0, align 1
+    - cells @0: [Cell; 4] size 16, align 4
+    - k @16: usize[0..=3] size 8, align 8
+    - x @24: i32[0..=14] size 4, align 4
+- machine Main::main: attached Main, size 32, align 8
+  fields:
+    - console @0: Console size 0, align 1
+    - cells @0: [Cell; 4] size 16, align 4
+    - k @16: usize[0..=3] size 8, align 8
+    - x @24: i32[0..=14] size 4, align 4
+
+## Object
+sections: 3
+- section .text Text: size 383, align 16
+- section .data Data: size 0, align 8
+- section .bss Bss: size 40, align 8
+symbols: 40
+- symbol main Function: section .text, offset 0, size 383
+- symbol omega_machine_Main::main_storage Object: section .bss, offset 0, size 32
+- symbol omega_runtime_frame_storage Object: section .bss, offset 32, size 8
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol ReadFile Import: section none, offset 0, size 0
+- symbol ReadFile Import: section none, offset 0, size 0
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol ExitProcess Import: section none, offset 0, size 0
+- symbol Sleep Import: section none, offset 0, size 0
+- symbol GetTickCount64 Import: section none, offset 0, size 0
+- symbol GetAsyncKeyState Import: section none, offset 0, size 0
+- symbol CreateCompatibleDC Import: section none, offset 0, size 0
+- symbol GetDC Import: section none, offset 0, size 0
+- symbol CreateWindowExA Import: section none, offset 0, size 0
+- symbol StretchDIBits Import: section none, offset 0, size 0
+- symbol PeekMessageW Import: section none, offset 0, size 0
+- symbol TranslateMessage Import: section none, offset 0, size 0
+- symbol DispatchMessageW Import: section none, offset 0, size 0
+- symbol IsWindow Import: section none, offset 0, size 0
+- symbol DestroyWindow Import: section none, offset 0, size 0
+- symbol _open Import: section none, offset 0, size 0
+- symbol _open Import: section none, offset 0, size 0
+- symbol _creat Import: section none, offset 0, size 0
+- symbol _read Import: section none, offset 0, size 0
+- symbol _write Import: section none, offset 0, size 0
+- symbol _close Import: section none, offset 0, size 0
+- symbol _unlink Import: section none, offset 0, size 0
+- symbol _lseeki64 Import: section none, offset 0, size 0
+- symbol _mkdir Import: section none, offset 0, size 0
+- symbol _rmdir Import: section none, offset 0, size 0
+- symbol rename Import: section none, offset 0, size 0
+- symbol _dup Import: section none, offset 0, size 0
+- symbol _commit Import: section none, offset 0, size 0
+- symbol _chmod Import: section none, offset 0, size 0
+- symbol _errno Import: section none, offset 0, size 0
+
+## Relocations
+records: 10
+- X86_64Absolute64  text @21 width 8 instruction #4 -&gt; omega_machine_Main::main_storage
+- X86_64Absolute64  text @48 width 8 instruction #5 -&gt; omega_machine_Main::main_storage
+- X86_64Absolute64  text @75 width 8 instruction #6 -&gt; omega_machine_Main::main_storage
+- X86_64Absolute64  text @109 width 8 instruction #6 -&gt; omega_runtime_frame_storage
+- X86_64Absolute64  text @126 width 8 instruction #7 -&gt; omega_machine_Main::main_storage
+- X86_64Absolute64  text @136 width 8 instruction #7 -&gt; omega_runtime_frame_storage
+- X86_64Absolute64  text @180 width 8 instruction #8 -&gt; omega_machine_Main::main_storage
+- X86_64Absolute64  text @227 width 8 instruction #10 -&gt; omega_machine_Main::main_storage
+- X86_64Relative32  text @311 width 4 instruction #17 -&gt; ExitProcess
+- X86_64Relative32  text @358 width 4 instruction #22 -&gt; ExitProcess
+</pre></main>
+</body>
+</html>

@@ -1,0 +1,7 @@
+{
+  "entry_machine": "Main::main",
+  "entry_state": "main",
+  "effect_bits": "0x0000000000200020",
+  "effects": ["filesystem_io", "host_boundary"],
+  "capability_flows": {"uses": 79, "returns": 0, "acquires": 128, "stores": 79, "derives": 0}
+}

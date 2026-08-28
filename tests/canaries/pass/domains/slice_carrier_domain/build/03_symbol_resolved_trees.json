@@ -1,0 +1,236 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::take_slice",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "take_slice",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::take_generic",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "take_generic",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 2,
+    "expression_count": 2,
+    "statement_count": 0,
+    "type_reference_count": 15
+  }
+}

@@ -580,7 +580,7 @@ substitutions, schema/arity/plan drift, and missing exact-family members reject.
 The result retains the selected provider closure, plan, concrete applications,
 and complete coverage assertion, but it neither derives the demand or coverage
 total from verified artifacts nor binds an issuance occurrence. Those
-derivation, composition, and installation joins remain open. Terminal native
+derivation, composition, and installation joins remain open. native
 realization commits the exact nonzero selected-closure identity next to the
 source-free provider-plan projection, and component-candidate replay requires
 both to match. Consequently indexed coverage or resolved-reach drift cannot

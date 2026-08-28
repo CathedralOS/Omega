@@ -1,6 +1,6 @@
 # Abstract Operations To Target Operations
 
-[Pipeline](../pipeline.md) | Previous: [Control Flow To Abstract Operations](control_flow_to_abstract_operations.md) | Next: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md)
+[Pipeline](../pipeline.md) | Previous: Terminal Psi To Abstract Operations | Next: [Target Operations To Assigned Target Operations](target_operations_to_assigned_target_operations.md)
 
 This stage legalizes abstract operations against target, layout, ABI, ISA, and calling-convention constraints.
 
@@ -14,44 +14,12 @@ Primary responsibility: legalize operations using target, layout, ABI, ISA, and 
 
 ## Implementation Map
 
-- `translator.rs` owns the conveyor from abstract operation arenas into target operation arenas and preserves semantic metadata summaries across the stage boundary.
-- `semantics.rs` owns target semantic summary assembly. It should join value,
-  boundary, and ownership roots through the shared semantic-summary constructor,
-  with boundary policy validation isolated to the boundary root.
-- `instructions.rs` owns abstract instruction legalization, including host-operation remapping into target operation keys.
-- `operands.rs` owns instruction operand translation and abstract data-handle remapping.
-- `values.rs` owns runtime value operand translation and runtime value handle remapping.
-- `remap.rs` owns handle/span remapping when arena ordering is preserved across the lowering boundary.
-- `host.rs` owns lowered host operation key resolution and host ABI binding
-  reconciliation. For opted-in custom/unknown registrar operations it resolves
-  the exact retained source-call handle to one occurrence and boundary edge and
-  preserves the ordered formal/native-parameter abstract-to-target operand map;
-  coarse coordinate lookup cannot select that path.
-- `boundary_policy.rs` owns first-pass target boundary validation: it records
-  whether each lowered host operation is linked to a source boundary edge and
-  whether the target ABI has a binding/policy for that operation. It also
-  checks that the binding policy is allowed by the selected target ABI policy
-  set. Linked-edge discovery, unlinked-edge discovery, and policy-check record
-  construction should stay separate so later diagnostics can grow without
-  re-matching boundary summaries by hand.
-- `omega-target-operations/src/instruction/function.rs` owns target operation function plans.
-- `omega-target-operations/src/instruction/operation.rs` owns target operation records and source coordinates.
-- `omega-target-operations/src/instruction/operation_kind.rs` owns target operation kinds.
-- `omega-target-operations/src/instruction/abstract_conversions.rs` owns abstract-operation to target-operation conversion.
-- `omega-target-operations/src/instruction/plan.rs` owns the representation
-  root: executable target operation shape and host bindings live under
-  `TargetOperationCode`, while preserved semantic evidence lives under
-  `TargetSemanticSummary`.
-- `omega-target-operations/src/instruction/semantics.rs` owns the target-stage
-  semantic aliases. `TargetSemanticSummary` is the preserved abstract semantic
-  spine, not a second copy of the same values/boundaries/ownership shape.
-- `omega-target-operations/src/instruction/value.rs` owns target value operands.
-- `omega-target-operations/src/instruction/operand.rs` owns target instruction operands.
-- `tests.rs` owns stage-level preservation canaries for values, ownership,
-  boundary edges, and the exact identity-only outbound host-call/native-formal
-  catalogs. Target legalization preserves those catalogs unchanged and does
-  not reinterpret them as ABI placement or relocation authority.
-
+- `omega-abstract-operations-to-target-operations/src/lib.rs` owns the stage
+  boundary and common legalization dispatch.
+- `conditional_control.rs`, `conditional_scalar.rs`, `structural_result.rs`, and
+  `structural_scalar.rs` own their corresponding closed operation families.
+- `omega-target-operations/src/lib.rs` owns the target-aware output vocabulary.
+- `tests.rs` owns exact stage-boundary and rejection canaries.
 ## Semantic Ownership
 
 | Noun | Ownership |

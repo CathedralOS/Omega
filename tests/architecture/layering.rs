@@ -1,8 +1,9 @@
 //! Architecture-enforcement guard for the Omega workspace.
 //!
 //! Omega/Psi is a nanopass compiler workspace. The crates are organised on disk
-//! into architectural *layers* (foundation, representations, semantics,
-//! pipeline, isa, object, images, backend, orchestration, product). This test
+//! into a small architectural vocabulary (representations, pipeline, backend,
+//! tooling, build, compiler, packages, and product). Psi retains its lower
+//! foundation and semantics layers. This test
 //! reads the *actual* workspace dependency graph from `cargo metadata` and
 //! asserts that the inter-layer dependency edges respect a declared
 //! "depend downward" policy.
@@ -14,9 +15,9 @@
 //! (i.e. it depends *down* the stack, or sideways within its own layer). An
 //! edge where `rank(S) < rank(D)` is an *upward* edge and is forbidden.
 //!
-//! The ranks were derived from the CURRENT graph so that the graph passes
-//! today: the goal is to lock in the present architecture and block *new*
-//! cross-layer regressions, not to refactor anything.
+//! The ranks express desired ownership. They are not a snapshot of whichever
+//! dependency graph happened to compile when this test was written; a broad
+//! top-ranked junk-drawer layer would defeat the point of the guard.
 //!
 //! Known exceptions
 //! ----------------
@@ -36,20 +37,21 @@ use serde_json::Value;
 /// rank is `<=` its own; depending on a strictly higher rank is "upward" and
 /// forbidden (unless allowlisted in `KNOWN_EXCEPTIONS`).
 ///
-/// The order was chosen so that every cross-layer relationship that is
-/// *strictly one-directional* in the current graph points downward, leaving
-/// only the genuinely cyclic pairs as upward edges. See module docs.
 const LAYER_RANK: &[(&str, u32)] = &[
     ("foundation", 0),
     ("representations", 1),
     ("semantics", 2),
     ("pipeline", 3),
-    ("isa", 4),
-    ("object", 5),
-    ("images", 6),
-    ("backend", 7),
-    ("orchestration", 8),
-    ("product", 9),
+    // Pipeline transformations may consume backend primitives, while backend
+    // implementations may consume earlier pipeline products. Cargo enforces
+    // an acyclic crate graph; the two physical directories are peer roles,
+    // not artificial directory ranks.
+    ("backend", 3),
+    ("tooling", 4),
+    ("build", 5),
+    ("compiler", 6),
+    ("packages", 7),
+    ("product", 8),
 ];
 
 /// Upward (`rank(from) < rank(to)`) layer-pairs that exist in the current
@@ -59,21 +61,7 @@ const LAYER_RANK: &[(&str, u32)] = &[
 /// exists and is the dominant, downward direction). They are recorded here so
 /// the policy is green on `main` while still blocking any genuinely NEW
 /// upward dependency between two layers.
-const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[
-    // `representations` crates still reach UP into genuine backend helper crates
-    // (omega-layout, omega-runtime-*, omega-state-*, omega-platform-interface)
-    // for shared lowering types. (The former target-description root cause -
-    // omega-target / omega-calling-conventions - was relocated to `foundation`.)
-    ("representations", "backend"),
-    // Same as above: pipeline passes reach into runtime-* / state-* / selection
-    // backend helper crates.
-    ("pipeline", "backend"),
-    // The object/relocation layer depends on backend crates omega-layout and
-    // omega-instruction-selection.
-    ("object", "backend"),
-    // `omega-backend-plan` (a representation) depends on `omega-object-file`.
-    ("representations", "object"),
-];
+const KNOWN_EXCEPTIONS: &[(&str, &str)] = &[];
 
 /// Exact upward crate edges whose ownership is documented but whose layer pair
 /// must remain closed to every other crate.
@@ -104,11 +92,9 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
     let p = manifest_path.replace('\\', "/");
     let m = |needle: &str| p.contains(needle);
 
-    // Order matters: the most specific backend sub-groups are checked before
-    // the generic Rust product `backend/` catch-all.
     if p.ends_with("/source/omega-rust/omega/Cargo.toml") {
         Some("product")
-    } else if m("/source/omega-rust/omega/foundation/") || m("/source/omega-rust/psi/foundation/") {
+    } else if m("/source/omega-rust/psi/foundation/") {
         Some("foundation")
     } else if m("/source/omega-rust/omega/representations/")
         || m("/source/omega-rust/psi/representations/")
@@ -116,21 +102,18 @@ fn layer_of(manifest_path: &str) -> Option<&'static str> {
         Some("representations")
     } else if m("/source/omega-rust/omega/semantics/") || m("/source/omega-rust/psi/semantics/") {
         Some("semantics")
-    } else if m("/source/omega-rust/omega/pipeline/")
-        || m("/source/omega-rust/omega/optimization/")
-        || m("/source/omega-rust/psi/pipeline/")
-    {
+    } else if m("/source/omega-rust/omega/pipeline/") || m("/source/omega-rust/psi/pipeline/") {
         Some("pipeline")
-    } else if m("/source/omega-rust/omega/orchestration/") {
-        Some("orchestration")
-    } else if m("/source/omega-rust/omega/backend/instruction_set_architectures/") {
-        Some("isa")
-    } else if m("/source/omega-rust/omega/backend/images/") {
-        Some("images")
-    } else if m("/source/omega-rust/omega/backend/object/") {
-        Some("object")
     } else if m("/source/omega-rust/omega/backend/") {
         Some("backend")
+    } else if m("/source/omega-rust/omega/tooling/") {
+        Some("tooling")
+    } else if m("/source/omega-rust/omega/build/") {
+        Some("build")
+    } else if m("/source/omega-rust/omega/compiler/") {
+        Some("compiler")
+    } else if m("/source/omega-rust/omega/packages/") {
+        Some("packages")
     } else {
         // This crate itself lives under the Rust product architecture/ and is not part
         // of the governed graph; ditto anything else unrecognised.
@@ -312,7 +295,7 @@ fn workspace_layering_is_respected() {
 /// Sanity check: every governed crate maps to a layer that has a rank, and the
 /// rank table has no duplicate layer names.
 #[test]
-fn every_layer_has_a_unique_rank() {
+fn every_layer_has_a_declared_rank() {
     let mut names = BTreeSet::new();
     for (name, _) in LAYER_RANK {
         assert!(names.insert(*name), "duplicate layer in LAYER_RANK: {name}");
@@ -352,26 +335,26 @@ fn psi_does_not_depend_on_omega() {
 fn frontend_implementation_is_psi_owned() {
     let root = workspace_root();
     for relative in [
-        "source/omega-rust/omega/foundation/omega-core/src/arithmetic.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/arena/mod.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/atomic.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/bignum.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/byte_predicates.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/cast_form.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/const_value.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/content.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/diagnostics/mod.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/float_semantics.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/inline_assembly.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/literals.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/operator_spelling.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/semantics.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/source",
-        "source/omega-rust/omega/foundation/omega-core/src/span.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/symbols/mod.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/trust.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/value_domain.rs",
-        "source/omega-rust/omega/foundation/omega-core/src/wire.rs",
+        "source/omega-rust/omega/representations/omega-core/src/arithmetic.rs",
+        "source/omega-rust/omega/representations/omega-core/src/arena/mod.rs",
+        "source/omega-rust/omega/representations/omega-core/src/atomic.rs",
+        "source/omega-rust/omega/representations/omega-core/src/bignum.rs",
+        "source/omega-rust/omega/representations/omega-core/src/byte_predicates.rs",
+        "source/omega-rust/omega/representations/omega-core/src/cast_form.rs",
+        "source/omega-rust/omega/representations/omega-core/src/const_value.rs",
+        "source/omega-rust/omega/representations/omega-core/src/content.rs",
+        "source/omega-rust/omega/representations/omega-core/src/diagnostics/mod.rs",
+        "source/omega-rust/omega/representations/omega-core/src/float_semantics.rs",
+        "source/omega-rust/omega/representations/omega-core/src/inline_assembly.rs",
+        "source/omega-rust/omega/representations/omega-core/src/literals.rs",
+        "source/omega-rust/omega/representations/omega-core/src/operator_spelling.rs",
+        "source/omega-rust/omega/representations/omega-core/src/semantics.rs",
+        "source/omega-rust/omega/representations/omega-core/src/source",
+        "source/omega-rust/omega/representations/omega-core/src/span.rs",
+        "source/omega-rust/omega/representations/omega-core/src/symbols/mod.rs",
+        "source/omega-rust/omega/representations/omega-core/src/trust.rs",
+        "source/omega-rust/omega/representations/omega-core/src/value_domain.rs",
+        "source/omega-rust/omega/representations/omega-core/src/wire.rs",
     ] {
         assert!(
             !root.join(relative).exists(),
@@ -409,14 +392,13 @@ fn retired_omega_frontend_adapters_do_not_return() {
 #[test]
 fn compiler_entry_is_rooted_thin_and_owns_no_domain_model() {
     let root = workspace_root();
-    let compiler =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler.rs");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler.rs");
     let source = std::fs::read_to_string(&compiler)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler.display()));
 
     assert!(
         !root
-            .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compiler.rs")
+            .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/compiler.rs")
             .exists(),
         "the compiler entry must not return to the pipeline dumping ground"
     );
@@ -440,7 +422,7 @@ fn compiler_entry_is_rooted_thin_and_owns_no_domain_model() {
         source.lines().count() <= 100,
         "compiler.rs must remain a reviewable coordinator, not another semantic owner"
     );
-    for child in ["request.rs", "harness.rs", "execution.rs"] {
+    for child in ["request.rs", "options.rs", "execution.rs"] {
         assert!(
             compiler.with_file_name("compiler").join(child).is_file(),
             "compiler support owner is missing: {child}"
@@ -451,7 +433,7 @@ fn compiler_entry_is_rooted_thin_and_owns_no_domain_model() {
 #[test]
 fn compiler_crate_root_remains_a_small_api_map() {
     let root = workspace_root();
-    let lib_path = root.join("source/omega-rust/omega/orchestration/omega-compiler/src/lib.rs");
+    let lib_path = root.join("source/omega-rust/omega/compiler/omega-compiler/src/lib.rs");
     let lib = std::fs::read_to_string(&lib_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", lib_path.display()));
     assert!(
@@ -466,7 +448,7 @@ fn compiler_crate_root_remains_a_small_api_map() {
 #[test]
 fn compiler_crate_owns_no_product_binaries() {
     let root = workspace_root();
-    let compiler_bins = root.join("source/omega-rust/omega/orchestration/omega-compiler/src/bin");
+    let compiler_bins = root.join("source/omega-rust/omega/compiler/omega-compiler/src/bin");
     let rust_bins = std::fs::read_dir(&compiler_bins)
         .into_iter()
         .flatten()
@@ -493,13 +475,13 @@ fn compiler_crate_owns_no_product_binaries() {
 #[test]
 fn source_profile_analysis_is_not_owned_by_the_compiler() {
     let root = workspace_root();
-    let retired = root
-        .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/source_profile");
+    let retired =
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/source_profile");
     assert!(
         !retired.join("census.rs").exists() && !retired.join("catalog.rs").exists(),
         "source profile schema and census must not return to omega-compiler"
     );
-    let owner = root.join("source/omega-rust/omega/orchestration/omega-source-profile/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/tooling/omega-source-profile/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-source-profile must own the analysis"
@@ -509,8 +491,8 @@ fn source_profile_analysis_is_not_owned_by_the_compiler() {
 #[test]
 fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler/src");
-    let owner = root.join("source/omega-rust/omega/orchestration/omega-trust-ledger/src/lib.rs");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler/src");
+    let owner = root.join("source/omega-rust/omega/build/omega-trust-ledger/src/lib.rs");
 
     assert!(
         owner.is_file(),
@@ -539,14 +521,14 @@ fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn package_review_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     assert!(
         !compiler.join("src/pipeline/package/review.rs").exists()
             && !compiler.join("src/pipeline/package/review").exists(),
         "package review projection and evidence schemas must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/orchestration/omega-package-review/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/packages/omega-package-review/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-review must own package review"
@@ -570,7 +552,7 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     assert!(
         !compiler
             .join("src/pipeline/package/compilation.rs")
@@ -581,8 +563,7 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
         "package graph and source-consumption custody must not return to omega-compiler"
     );
 
-    let owner =
-        root.join("source/omega-rust/omega/orchestration/omega-package-compilation/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/build/omega-package-compilation/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-package-compilation must own package compilation inputs"
@@ -606,7 +587,7 @@ fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn compiler_executable_review_identity_is_build_provenance_owned() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     assert!(
         !compiler
             .join("src/pipeline/compiler_executable_commitment.rs")
@@ -614,7 +595,7 @@ fn compiler_executable_review_identity_is_build_provenance_owned() {
         "review-only compiler executable identity must not return to omega-compiler"
     );
     assert!(
-        root.join("source/omega-rust/omega/orchestration/omega-build-provenance/src/lib.rs")
+        root.join("source/omega-rust/omega/build/omega-build-provenance/src/lib.rs")
             .is_file(),
         "omega-build-provenance must own the compiler executable review identity"
     );
@@ -627,7 +608,7 @@ fn compiler_executable_review_identity_is_build_provenance_owned() {
 #[test]
 fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     assert!(
         !compiler
             .join("src/pipeline/build/staged_output.rs")
@@ -635,7 +616,7 @@ fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
         "retained build-output custody must not return to omega-compiler"
     );
 
-    let owner = root.join("source/omega-rust/omega/orchestration/omega-build-output/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/build/omega-build-output/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-build-output must own retained build output"
@@ -659,7 +640,7 @@ fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
 #[test]
 fn provider_planning_is_not_owned_by_the_compiler() {
     let root = workspace_root();
-    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let compiler = root.join("source/omega-rust/omega/compiler/omega-compiler");
     let retired = compiler.join("src/pipeline/provider");
     for file in [
         "approval.rs",
@@ -674,14 +655,13 @@ fn provider_planning_is_not_owned_by_the_compiler() {
         );
     }
 
-    let owner =
-        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/build/omega-provider-planning/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-provider-planning must own provider selection and realization"
     );
     let manifest = std::fs::read_to_string(
-        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/Cargo.toml"),
+        root.join("source/omega-rust/omega/build/omega-provider-planning/Cargo.toml"),
     )
     .expect("read provider-planning manifest");
     assert!(
@@ -695,23 +675,21 @@ fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
     let root = workspace_root();
     assert!(
         !root
-            .join(
-                "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage"
-            )
+            .join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/program_storage")
             .exists(),
         "program-storage domain ownership must not return to omega-compiler"
     );
     assert!(
         root.join(
-            "source/omega-rust/omega/orchestration/omega-program-storage/src/source_signature.rs"
+            "source/omega-rust/omega/backend/plans/omega-program-entry-plan/src/source_signature.rs"
         )
         .is_file(),
-        "omega-program-storage must own the shared source-signature contract"
+        "omega-program-entry-plan must own the shared source-signature contract"
     );
     let manifest = std::fs::read_to_string(
-        root.join("source/omega-rust/omega/orchestration/omega-program-storage/Cargo.toml"),
+        root.join("source/omega-rust/omega/backend/plans/omega-program-entry-plan/Cargo.toml"),
     )
-    .expect("read program-storage manifest");
+    .expect("read program-entry-plan manifest");
     assert!(
         !manifest.contains("omega-compiler"),
         "program storage must not depend back on the compiler coordinator"
@@ -726,20 +704,19 @@ fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
 fn build_evaluation_is_not_owned_by_the_compiler() {
     let root = workspace_root();
     let compiler_build =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/build");
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/build");
     assert!(
         !compiler_build.exists(),
         "build evaluation, observations, and replay records must not return to omega-compiler"
     );
 
-    let owner =
-        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/build/omega-build-evaluation/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-build-evaluation must own build execution"
     );
     let manifest = std::fs::read_to_string(
-        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/Cargo.toml"),
+        root.join("source/omega-rust/omega/build/omega-build-evaluation/Cargo.toml"),
     )
     .expect("read build-evaluation manifest");
     assert!(
@@ -753,18 +730,17 @@ fn compilation_report_is_not_owned_by_the_compiler() {
     let root = workspace_root();
     assert!(
         !root
-            .join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/report.rs")
+            .join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/report.rs")
             .exists(),
         "compiler coordination must not own its product report domain"
     );
-    let owner =
-        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
+    let owner = root.join("source/omega-rust/omega/compiler/omega-compilation-report/src/lib.rs");
     assert!(
         owner.is_file(),
         "omega-compilation-report must own compile results"
     );
     let manifest = std::fs::read_to_string(
-        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/Cargo.toml"),
+        root.join("source/omega-rust/omega/compiler/omega-compilation-report/Cargo.toml"),
     )
     .expect("read compilation-report manifest");
     assert!(
@@ -823,13 +799,13 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
     );
 
     let omega_approval =
-        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/approval.rs");
+        root.join("source/omega-rust/omega/build/omega-provider-planning/src/approval.rs");
     let omega_source = std::fs::read_to_string(&omega_approval)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
     assert!(
         omega_source.contains("build_boundary_provider_approval_registry")
             && omega_source.contains("audit_boundary_provider_calls"),
-        "Omega orchestration must retain boundary-provider admission after Psi checking"
+        "Omega realization must retain boundary-provider admission after Psi checking"
     );
 }
 
@@ -884,7 +860,7 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
                 .deps
                 .iter()
                 .any(|dependency| dependency == stale_adapter),
-            "Omega orchestration must invoke Psi directly instead of depending on frontend compatibility package {stale_adapter}"
+            "Omega compiler coordination must invoke Psi directly instead of depending on frontend compatibility package {stale_adapter}"
         );
     }
 
@@ -908,7 +884,7 @@ fn omega_driver_invokes_the_psi_frontend_directly() {
                 .deps
                 .iter()
                 .any(|dependency| dependency == psi_stage),
-            "Omega orchestration must invoke Psi-owned frontend stage {psi_stage} directly"
+            "Omega compiler coordination must invoke Psi-owned frontend stage {psi_stage} directly"
         );
     }
 }
@@ -1044,7 +1020,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
         "selected concrete provider plans must remain in the Omega provider subsystem"
     );
     let omega_task_carrier =
-        root.join("source/omega-rust/omega/foundation/omega-task-plans/src/lib.rs");
+        root.join("source/omega-rust/omega/representations/omega-task-plans/src/lib.rs");
     let task_source = std::fs::read_to_string(&omega_task_carrier)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_task_carrier.display()));
     assert!(
@@ -1054,7 +1030,7 @@ fn checked_semantics_are_psi_owned_without_provider_realization() {
 }
 
 #[test]
-fn first_terminal_psi_source_slice_stays_fail_closed() {
+fn first_psi_source_slice_stays_fail_closed() {
     let root = workspace_root();
     let path = root.join("source/omega-rust/psi/pipeline/psi-checked-trees-to-terminal/src/lib.rs");
     let source = std::fs::read_to_string(&path)
@@ -1105,7 +1081,7 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
     );
 
     let realization_path = root
-        .join("source/omega-rust/omega/orchestration/omega-terminal-native-realization/src/lib.rs");
+        .join("source/omega-rust/omega/pipeline/omega-terminal-psi-to-native-artifact/src/lib.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
     let production_realization = realization
@@ -1113,17 +1089,15 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .next()
         .expect("native realization has a production source prefix");
     assert!(
-        production_realization.contains("pub fn realize_terminal_native_artifact(")
+        production_realization.contains("pub fn realize_native_artifact(")
             && production_realization
-                .contains("terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
+                .contains("artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
         "Omega native realization must receive the complete Psi-owned artifact by value"
     );
     assert!(
-        production_realization.contains("optimize_verified_terminal_input(")
+        production_realization.contains("optimize_verified_psi_input(")
             && production_realization
-                .contains("stage_optimized_assignment_with_provider_executions")
-            && production_realization
-                .contains("stage_optimized_verified_physical_pipeline_with_provider_executions"),
+                .contains("stage_optimized_native_continuation_with_provider_executions"),
         "Omega native realization must traverse the canonical optimizer, route selected work through its verified physical continuation, and retain the transitional identity-assignment continuation only for the publishable baseline"
     );
     for forbidden in [
@@ -1140,12 +1114,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             "Omega native realization reopened pre-Terminal state through `{forbidden}`"
         );
     }
-    let component_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-terminal-component-candidate/src/lib.rs",
-    );
+    let component_path =
+        root.join("source/omega-rust/omega/backend/artifacts/omega-component-candidate/src/lib.rs");
     let component = std::fs::read_to_string(&component_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
-    assert!(component.contains("native_artifact: TerminalNativeArtifact"));
+    assert!(component.contains("native_artifact: NativeArtifact"));
     for forbidden in [
         "lower_artifact_sections(",
         "lower_to_target_operations",
@@ -1160,17 +1133,81 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
 }
 
 #[test]
+fn optimization_projection_stops_before_target_realization() {
+    let root = workspace_root();
+    let projection_root =
+        root.join("source/omega-rust/omega/pipeline/omega-optimization-run-to-abstract-operations");
+    let manifest_path = projection_root.join("Cargo.toml");
+    let manifest = std::fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest_path.display()));
+    let production_dependencies = manifest
+        .split("[dev-dependencies]")
+        .next()
+        .expect("projection manifest has a production dependency prefix");
+    for forbidden in [
+        "omega-abstract-operations-to-target-operations",
+        "omega-target =",
+        "omega-target-operations",
+    ] {
+        assert!(
+            !production_dependencies.contains(forbidden),
+            "OptimizationRun-to-abstract projection depends on target realization through `{forbidden}`"
+        );
+    }
+
+    let projection_source_path = projection_root.join("src/lib.rs");
+    let projection_source =
+        std::fs::read_to_string(&projection_source_path).unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                projection_source_path.display()
+            )
+        });
+    for forbidden in [
+        "pub struct ValidatedOptimizedTargetOperations",
+        "pub fn lower_optimized_to_target_operations(",
+    ] {
+        assert!(
+            !projection_source
+                .split("#[cfg(test)]")
+                .next()
+                .expect("projection source has a production prefix")
+                .contains(forbidden),
+            "projection stage reopened target custody through `{forbidden}`"
+        );
+    }
+
+    let realization_path = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/src/stages/selection/optimized_target_operations.rs",
+    );
+    let realization = std::fs::read_to_string(&realization_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
+    assert!(
+        realization.contains("pub struct ValidatedOptimizedTargetOperations")
+            && realization.contains("pub fn lower_optimized_to_target_operations("),
+        "optimization realization must own the optimized-abstract to target-custody join"
+    );
+
+    assert!(
+        !root
+            .join("source/omega-rust/omega/pipeline/optimization/omega-lowering-optimizer")
+            .exists(),
+        "the retired hybrid lowering optimizer must not return"
+    );
+}
+
+#[test]
 fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
     let driver_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/driver.rs");
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/driver.rs");
     let driver = std::fs::read_to_string(&driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
     let legacy_driver_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/harness.rs",
+        "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/compatibility/harness.rs",
     );
     let request_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/request.rs");
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/compiler/request.rs");
     let request = std::fs::read_to_string(&request_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
@@ -1203,10 +1240,10 @@ fn retained_native_product_enters_only_terminal_realization() {
                 .split_once("fn native_report")
                 .map(|(_, native)| native)
         })
-        .expect("compiler must retain one dedicated Terminal-native stop");
+        .expect("compiler must retain one dedicated native stop");
     for required in [
         "produce_terminal_artifact(",
-        "realize_terminal_native_artifact(",
+        "realize_native_artifact(",
         "from_retained_native_artifact(",
     ] {
         assert!(
@@ -1227,13 +1264,13 @@ fn retained_native_product_enters_only_terminal_realization() {
     }
 
     let report_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
+        root.join("source/omega-rust/omega/compiler/omega-compilation-report/src/lib.rs");
     let report = std::fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
     let production = report
         .split_once("#[cfg(test)]")
         .map_or(report.as_str(), |(production, _)| production);
-    assert!(production.contains("TerminalNativeArtifact as RetainedNativeArtifact"));
+    assert!(production.contains("NativeArtifact as RetainedNativeArtifact"));
     assert!(!production.contains("pub struct RetainedNativeArtifact"));
 }
 
@@ -1241,7 +1278,7 @@ fn retained_native_product_enters_only_terminal_realization() {
 fn shared_frontend_stages_stop_at_checked_psi() {
     let root = workspace_root();
     let stages_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs");
+        root.join("source/omega-rust/omega/compiler/omega-compiler/src/pipeline/stages.rs");
     let stages = std::fs::read_to_string(&stages_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", stages_path.display()));
     for forbidden in [
@@ -1257,7 +1294,7 @@ fn shared_frontend_stages_stop_at_checked_psi() {
     }
 
     let legacy_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/stages.rs",
+        "source/omega-rust/omega/compiler/omega-compiler/src/pipeline/compatibility/stages.rs",
     );
     assert!(
         !legacy_path.exists(),
@@ -1268,8 +1305,7 @@ fn shared_frontend_stages_stop_at_checked_psi() {
 #[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
-    let path =
-        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/plans.rs");
+    let path = root.join("source/omega-rust/omega/build/omega-provider-planning/src/plans.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 
@@ -1286,45 +1322,6 @@ fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
         source.contains("let handoff = self.admit_acknowledgement_handoff")
             && source.contains("Ok(execute(handoff))"),
         "checked-body execution must occur only after the exact occurrence/prologue join"
-    );
-}
-
-#[test]
-fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
-    let root = workspace_root();
-    let path =
-        root.join("source/omega-rust/omega/orchestration/omega-program-storage/src/entry.rs");
-    let source = std::fs::read_to_string(&path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
-
-    assert!(
-        source.contains("pub fn dispatch_source_continuation_executor"),
-        "the program-storage bridge must expose its checked executor gate"
-    );
-    assert!(
-        source.contains("execute: impl for<'handoff> FnOnce("),
-        "executor output must be lifetime-independent from the borrowed handoff"
-    );
-    assert!(
-        !source.contains("pub fn into_receiver(")
-            && !source.contains("pub fn into_handoff(")
-            && !source.contains("pub fn prepare_source_continuation_handoff("),
-        "the receiver activation and source-continuation handoff must not detach from dispatch"
-    );
-    let activation = source
-        .find("let mut activation = install_and_activate_program_storage_entry_receiver")
-        .expect("dispatch must first construct the checked receiver activation");
-    let execute = source[activation..]
-        .find("let output = execute(ProgramStorageEntrySourceContinuationHandoff")
-        .map(|offset| activation + offset)
-        .expect("dispatch must invoke the executor with its sealed borrowed handoff");
-    let finish = source[execute..]
-        .find("let roots = activation.finish()")
-        .map(|offset| execute + offset)
-        .expect("dispatch must finish the activation after the executor returns");
-    assert!(
-        activation < execute && execute < finish,
-        "executor dispatch must remain inside the checked activation lifetime"
     );
 }
 
@@ -1350,7 +1347,7 @@ fn typed_frontend_does_not_retain_concrete_calling_conventions() {
 }
 
 #[test]
-fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
+fn psi_reference_execution_ownership_and_production_realization_are_enforced() {
     let root = workspace_root();
     assert!(
         root.join("source/omega-rust/psi/semantics/psi-terminal-interpreter/src/lib.rs")
@@ -1363,31 +1360,33 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
         "transitional checked-tree reference execution must remain Psi-owned"
     );
     assert!(
-        !root
-            .join("source/omega-rust/omega/orchestration/omega-interpreter")
-            .exists(),
-        "the retired production Omega interpreter must not return"
+        !root.join("source/omega-rust/omega/orchestration").exists(),
+        "the retired orchestration junk drawer must not return"
     );
     assert!(
-        root.join(
-            "source/omega-rust/omega/orchestration/omega-native-differential-test/src/lib.rs"
-        )
-        .is_file(),
+        root.join("tests/native-differential/src/lib.rs").is_file(),
         "cross-layer interpreter/native comparisons must remain a test-only Omega harness"
     );
 
     let graph = load_graph();
+    assert!(
+        graph
+            .keys()
+            .all(|name| !name.starts_with("omega-terminal-target-")),
+        "target-operation packages must not misuse Terminal Psi naming"
+    );
     let roots = [
         "omega-optimization-core",
         "omega-optimization-pipeline",
-        "omega-terminal-abstract-operations",
-        "omega-terminal-psi-to-abstract-operations",
-        "omega-terminal-abstract-operations-to-target-operations",
-        "omega-terminal-target-operations",
-        "omega-terminal-machine-emission",
-        "omega-terminal-machine-code",
-        "omega-terminal-image-emission",
-        "omega-terminal-native-artifact",
+        "omega-abstract-operations",
+        "omega-psi-to-abstract-operations",
+        "omega-abstract-operations-to-target-operations",
+        "omega-target-operations",
+        "omega-machine-emission",
+        "omega-machine-code",
+        "omega-image-emission",
+        "omega-native-artifact",
+        "omega-terminal-psi-to-native-artifact",
         "psi-terminal-interpreter",
     ];
     let forbidden = BTreeSet::from([
@@ -1397,15 +1396,6 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
         "omega-typed-trees",
         "omega-checked-trees",
         "omega-state-graph",
-        "omega-control-flow",
-        "omega-abstract-operations",
-        "omega-target-operations",
-        "psi-source-loader",
-        "psi-tokens",
-        "psi-syntax-trees",
-        "psi-symbol-resolved-trees",
-        "psi-typed-trees",
-        "psi-checked-trees",
     ]);
     let mut pending = roots.iter().map(ToString::to_string).collect::<Vec<_>>();
     let mut visited = BTreeSet::new();
@@ -1414,7 +1404,7 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
     while let Some(name) = pending.pop() {
         assert!(
             graph.contains_key(&name),
-            "clean terminal crate missing: {name}"
+            "production realization crate missing: {name}"
         );
         if !visited.insert(name.clone()) {
             continue;
@@ -1432,13 +1422,41 @@ fn psi_reference_execution_ownership_and_terminal_lane_are_enforced() {
 
     assert!(
         violations.is_empty(),
-        "the terminal-Psi realization lane must not recover source-shaped or legacy lowering state:\n{}",
+        "the production realization must not recover retired Omega source-shaped lowering state:\n{}",
         violations.join("\n")
     );
 }
 
 #[test]
-fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
+fn omega_product_uses_the_small_physical_vocabulary() {
+    let omega = workspace_root().join("source/omega-rust/omega");
+    let actual = std::fs::read_dir(&omega)
+        .expect("Omega product root must be readable")
+        .filter_map(Result::ok)
+        .filter(|entry| entry.file_type().is_ok_and(|kind| kind.is_dir()))
+        .map(|entry| entry.file_name().to_string_lossy().into_owned())
+        .collect::<BTreeSet<_>>();
+    let expected = BTreeSet::from([
+        "backend".to_owned(),
+        "build".to_owned(),
+        "compiler".to_owned(),
+        "packages".to_owned(),
+        "pipeline".to_owned(),
+        "representations".to_owned(),
+        "src".to_owned(),
+        // Cargo's conventional product integration-test root is not an
+        // architectural subsystem.
+        "tests".to_owned(),
+        "tooling".to_owned(),
+    ]);
+    assert_eq!(
+        actual, expected,
+        "Omega's product root must not grow another responsibility-shaped top-level bucket"
+    );
+}
+
+#[test]
+fn optimizer_register_models_remain_on_the_production_isa_lane() {
     let root = workspace_root();
     let isa_root = root.join("source/omega-rust/omega/backend/instruction_set_architectures");
     let model_source =
@@ -1447,7 +1465,8 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         model_source.is_file(),
         "the canonical register-model vocabulary must remain representation-owned"
     );
-    let facade_source = root.join("source/omega-rust/omega/optimization/omega-regalloc/src/lib.rs");
+    let facade_source =
+        root.join("source/omega-rust/omega/pipeline/optimization/omega-regalloc/src/lib.rs");
     let facade = std::fs::read_to_string(&facade_source)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", facade_source.display()));
     assert!(
@@ -1460,14 +1479,13 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         "canonical register-model declarations must not drift back into omega-regalloc"
     );
     let regalloc_manifest =
-        root.join("source/omega-rust/omega/optimization/omega-regalloc/Cargo.toml");
+        root.join("source/omega-rust/omega/pipeline/optimization/omega-regalloc/Cargo.toml");
     let regalloc_manifest_source = std::fs::read_to_string(&regalloc_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", regalloc_manifest.display()));
     for forbidden in [
         "omega-assigned-target-operations",
-        "omega-terminal-assigned-target-operations",
-        "omega-terminal-isa-x86_64",
-        "omega-terminal-isa-aarch64",
+        "omega-isa-x86_64",
+        "omega-isa-aarch64",
         "omega-optimization-pipeline",
     ] {
         assert!(
@@ -1481,85 +1499,67 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
     for architecture in ["x86_64", "aarch64"] {
         assert!(
             isa_root
-                .join(format!(
-                    "omega-terminal-isa-{architecture}/src/register_model.rs"
-                ))
-                .is_file(),
-            "{architecture} register model must remain owned by its clean Terminal ISA crate"
-        );
-        assert!(
-            !isa_root
                 .join(format!("omega-isa-{architecture}/src/register_model.rs"))
-                .exists(),
-            "{architecture} register model must not drift back into the legacy broad ISA crate"
+                .is_file(),
+            "{architecture} register model must remain owned by its Omega ISA crate"
         );
-        let manifest = isa_root.join(format!("omega-terminal-isa-{architecture}/Cargo.toml"));
+        let manifest = isa_root.join(format!("omega-isa-{architecture}/Cargo.toml"));
         let manifest_source = std::fs::read_to_string(&manifest)
             .unwrap_or_else(|error| panic!("failed to read {}: {error}", manifest.display()));
         assert!(
             manifest_source.contains("omega-register-model"),
-            "clean Terminal {architecture} ISA must consume the representation-owned model"
+            "production {architecture} ISA must consume the representation-owned model"
         );
         assert!(
             !manifest_source.contains("omega-regalloc"),
-            "clean Terminal {architecture} ISA must not depend upward on omega-regalloc"
+            "production {architecture} ISA must not depend upward on omega-regalloc"
         );
     }
 
-    let pipeline_manifest =
-        root.join("source/omega-rust/omega/orchestration/omega-optimization-pipeline/Cargo.toml");
+    let pipeline_manifest = root.join(
+        "source/omega-rust/omega/pipeline/optimization/omega-optimization-pipeline/Cargo.toml",
+    );
     let manifest_source = std::fs::read_to_string(&pipeline_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", pipeline_manifest.display()));
-    for dependency in ["omega-terminal-isa-x86_64", "omega-terminal-isa-aarch64"] {
+    for dependency in ["omega-isa-x86_64", "omega-isa-aarch64"] {
         assert!(
             manifest_source.contains(dependency),
-            "optimizer orchestration must retain its clean {dependency} dependency"
-        );
-    }
-    for forbidden in ["omega-isa-x86_64", "omega-isa-aarch64"] {
-        assert!(
-            !manifest_source
-                .lines()
-                .any(|line| line.trim_start().starts_with(forbidden)),
-            "optimizer orchestration must not depend directly on legacy {forbidden}"
+            "optimized-native realization must retain its clean {dependency} dependency"
         );
     }
 
     let selection_manifest = root.join(
-        "source/omega-rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/Cargo.toml",
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/Cargo.toml",
     );
     let selection_manifest_source = std::fs::read_to_string(&selection_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selection_manifest.display()));
-    for forbidden in [
-        "omega-regalloc",
-        "omega-terminal-isa-x86_64",
-        "omega-terminal-isa-aarch64",
-        "omega-isa-x86_64",
-        "omega-isa-aarch64",
-    ] {
+    let selection_dependencies = selection_manifest_source
+        .split("[dev-dependencies]")
+        .next()
+        .expect("selection manifest has a production dependency prefix");
+    for forbidden in ["omega-regalloc", "omega-isa-x86_64", "omega-isa-aarch64"] {
         assert!(
-            !selection_manifest_source
+            !selection_dependencies
                 .lines()
                 .any(|line| line.trim_start().starts_with(forbidden)),
-            "target-neutral selected-instruction pipeline must receive target semantics from orchestration, not depend upward on {forbidden}"
+            "target-neutral selected-instruction pipeline must receive target semantics from its caller, not depend upward on {forbidden}"
         );
     }
     assert!(
-        selection_manifest_source.contains("omega-terminal-legalized-operations"),
+        selection_manifest_source.contains("omega-legalized-operations"),
         "instruction selection must consume the explicit legalized-operation representation"
     );
 
-    let legalized_manifest = root.join(
-        "source/omega-rust/omega/representations/omega-terminal-legalized-operations/Cargo.toml",
-    );
+    let legalized_manifest =
+        root.join("source/omega-rust/omega/representations/omega-legalized-operations/Cargo.toml");
     let legalized_manifest_source = std::fs::read_to_string(&legalized_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legalized_manifest.display()));
     for forbidden in [
         "omega-register-model",
-        "omega-terminal-selected-instructions",
+        "omega-selected-instructions",
         "omega-regalloc",
-        "omega-terminal-isa-x86_64",
-        "omega-terminal-isa-aarch64",
+        "omega-isa-x86_64",
+        "omega-isa-aarch64",
     ] {
         assert!(
             !legalized_manifest_source
@@ -1569,9 +1569,8 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         );
     }
 
-    let legalized_representation = root.join(
-        "source/omega-rust/omega/representations/omega-terminal-legalized-operations/src/lib.rs",
-    );
+    let legalized_representation =
+        root.join("source/omega-rust/omega/representations/omega-legalized-operations/src/lib.rs");
     let legalized_representation_source = std::fs::read_to_string(&legalized_representation)
         .unwrap_or_else(|error| {
             panic!(
@@ -1580,9 +1579,9 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             )
         });
     for forbidden in [
-        "fn legalize_terminal_target_operations",
-        "fn validate_terminal_legalized_operations",
-        "ValidatedTerminalLegalizedOperations",
+        "fn legalize_target_operations",
+        "fn validate_legalized_operations",
+        "ValidatedLegalizedOperations",
     ] {
         assert!(
             !legalized_representation_source.contains(forbidden),
@@ -1591,7 +1590,7 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
     }
 
     let legalization_replay = root.join(
-        "source/omega-rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/src/legalization_replay.rs",
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/legalization_replay.rs",
     );
     let legalization_replay_source =
         std::fs::read_to_string(&legalization_replay).unwrap_or_else(|error| {
@@ -1602,7 +1601,7 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         "crate::source",
         "source::",
         "omega_register_model",
-        "omega_terminal_selected_instructions",
+        "omega_selected_instructions",
     ] {
         assert!(
             !legalization_replay_source.contains(forbidden),
@@ -1610,11 +1609,11 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         );
     }
     assert!(
-        selection_manifest_source.contains("omega-terminal-legalized-operations"),
+        selection_manifest_source.contains("omega-legalized-operations"),
         "the checked legalization/selection pipeline must retain its legalized representation dependency"
     );
     let selection_source = std::fs::read_to_string(root.join(
-        "source/omega-rust/omega/pipeline/omega-terminal-target-operations-to-selected-instructions/src/lib.rs",
+        "source/omega-rust/omega/pipeline/omega-target-operations-to-selected-instructions/src/lib.rs",
     ))
     .expect("read target legalization and selection pipeline");
     assert!(
@@ -1623,9 +1622,8 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         "public legalized-plan validation must call the independent replay"
     );
 
-    let selected_representation = root.join(
-        "source/omega-rust/omega/representations/omega-terminal-selected-instructions/src/lib.rs",
-    );
+    let selected_representation =
+        root.join("source/omega-rust/omega/representations/omega-selected-instructions/src/lib.rs");
     let selected_representation_source = std::fs::read_to_string(&selected_representation)
         .unwrap_or_else(|error| {
             panic!(
@@ -1634,22 +1632,21 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             )
         });
     for forbidden in [
-        "fn select_terminal_instructions",
-        "fn validate_terminal_selected_instructions",
-        "ValidatedTerminalSelectedInstructions",
+        "fn select_instructions",
+        "fn validate_selected_instructions",
+        "ValidatedSelectedInstructions",
     ] {
         assert!(
             !selected_representation_source.contains(forbidden),
             "selected-instruction representation must remain data-only; found {forbidden}"
         );
     }
-    let selected_manifest = root.join(
-        "source/omega-rust/omega/representations/omega-terminal-selected-instructions/Cargo.toml",
-    );
+    let selected_manifest =
+        root.join("source/omega-rust/omega/representations/omega-selected-instructions/Cargo.toml");
     let selected_manifest_source = std::fs::read_to_string(&selected_manifest)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", selected_manifest.display()));
     assert!(
-        selected_manifest_source.contains("omega-terminal-legalized-operations"),
+        selected_manifest_source.contains("omega-legalized-operations"),
         "selected virtual-register origins must consume canonical legalization-temporary identities"
     );
     assert!(
@@ -1665,7 +1662,7 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
     );
     assert_eq!(
         graph
-            .get("omega-terminal-legalized-operations")
+            .get("omega-legalized-operations")
             .map(|krate| krate.layer),
         Some("representations"),
         "target-legal operations must stay in the representation layer"
@@ -1679,20 +1676,18 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
     assert!(
         graph["omega-regalloc"]
             .deps
-            .contains(&"omega-terminal-target-operations-to-selected-instructions".to_string()),
+            .contains(&"omega-target-operations-to-selected-instructions".to_string()),
         "bounded liveness must consume the opaque validated selected-instruction carrier"
     );
     assert!(
         graph["omega-optimization-pipeline"]
             .deps
             .contains(&"omega-regalloc".to_string()),
-        "optimizer orchestration must retain liveness custody above omega-regalloc"
+        "optimized-native realization must retain liveness custody above omega-regalloc"
     );
 
     for root_name in graph.iter().filter_map(|(name, krate)| {
-        ((name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
-            && krate.layer != "orchestration")
-            .then_some(name)
+        (name.contains("selected-instruction") && krate.layer != "realization").then_some(name)
     }) {
         let mut pending = vec![root_name.clone()];
         let mut visited = BTreeSet::new();
@@ -1702,7 +1697,7 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             }
             assert_ne!(
                 name, "omega-regalloc",
-                "selected/Terminal representation root {root_name} must not depend upward on omega-regalloc"
+                "selected-instruction representation root {root_name} must not depend upward on omega-regalloc"
             );
             if let Some(krate) = graph.get(&name) {
                 pending.extend(krate.deps.iter().cloned());

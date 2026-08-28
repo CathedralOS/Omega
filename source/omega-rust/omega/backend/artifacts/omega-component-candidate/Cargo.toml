@@ -1,0 +1,16 @@
+[package]
+name = "omega-component-candidate"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_component_candidate"
+path = "src/lib.rs"
+
+[dependencies]
+omega-effects = { path = "../../../representations/omega-effects" }
+omega-native-artifact = { path = "../omega-native-artifact" }
+omega-target = { path = "../../../representations/omega-target" }
+omega-image-emission = { path = "../../images/omega-image-emission" }
+psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }

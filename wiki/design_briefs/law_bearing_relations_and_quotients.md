@@ -937,7 +937,7 @@ representation validation independently reconstructs the structural theorem
 and correspondence shape, re-encodes each identity, and rejects invalid,
 duplicate, or reordered rows. The explicit proof-only Terminal producer
 attachment consumes the extractor's complete batch transactionally and is not
-an ordinary machine-lowering path. The rows still own no Terminal machine or
+an ordinary machine-lowering path. The rows still own no machine or
 operation, normal validation continues to reject every quotient operation, and
 a batch with one unsupported request yields no partial rows. This is a
 source-erasure, module-retention, and replay prerequisite, not executable

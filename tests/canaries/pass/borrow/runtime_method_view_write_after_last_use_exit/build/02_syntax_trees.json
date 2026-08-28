@@ -1,0 +1,876 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 508,
+        "end": 515,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 531,
+            "end": 543,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 544,
+                "end": 555,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 557,
+                  "end": 560,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Cell",
+        "source_id": 0,
+        "start": 574,
+        "end": 578,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 586,
+            "end": 591,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 593,
+              "end": 596,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Bag",
+        "source_id": 0,
+        "start": 609,
+        "end": 612,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "cells",
+            "source_id": 0,
+            "start": 620,
+            "end": 625,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Cell",
+                "source_id": 0,
+                "start": 628,
+                "end": 632,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 4
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "other",
+            "source_id": 0,
+            "start": 643,
+            "end": 648,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 650,
+              "end": 653,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Bag::pick",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Bag",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "pick",
+            "source_id": 0,
+            "start": 674,
+            "end": 678,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "Cell",
+                "source_id": 0,
+                "start": 698,
+                "end": 702,
+                "source_backed": true
+              }
+            },
+            "is_mutable": true,
+            "is_relaxed": false
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "slots",
+                "source_id": 0,
+                "start": 714,
+                "end": 719,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Cell",
+                      "source_id": 0,
+                      "start": 727,
+                      "end": 731,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "cells",
+                    "source_id": 0,
+                    "start": 740,
+                    "end": 745,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "as_mut_slice",
+                  "source_id": 0,
+                  "start": 746,
+                  "end": 758,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "slots",
+                          "source_id": 0,
+                          "start": 799,
+                          "end": 804,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  }
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 826,
+        "end": 830,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 838,
+            "end": 845,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 847,
+              "end": 854,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "bag",
+            "source_id": 0,
+            "start": 861,
+            "end": 864,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Bag",
+              "source_id": 0,
+              "start": 866,
+              "end": 869,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 891,
+            "end": 895,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "cell",
+                "source_id": 0,
+                "start": 918,
+                "end": 922,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Cell",
+                    "source_id": 0,
+                    "start": 929,
+                    "end": 933,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "bag",
+                    "source_id": 0,
+                    "start": 941,
+                    "end": 944,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "pick",
+                  "source_id": 0,
+                  "start": 945,
+                  "end": 949,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "cell",
+                      "source_id": 0,
+                      "start": 958,
+                      "end": 962,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "value",
+                  "source_id": 0,
+                  "start": 963,
+                  "end": 968,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 7
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "bag",
+                    "source_id": 0,
+                    "start": 1055,
+                    "end": 1058,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "other",
+                  "source_id": 0,
+                  "start": 1059,
+                  "end": 1064,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 63
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1153,
+                    "end": 1157,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "indexed",
+                          "collection": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "member",
+                              "receiver": {
+                                "kind": "self_value"
+                              },
+                              "member": {
+                                "text": "bag",
+                                "source_id": 0,
+                                "start": 1092,
+                                "end": 1095,
+                                "source_backed": true
+                              }
+                            },
+                            "member": {
+                              "text": "cells",
+                              "source_id": 0,
+                              "start": 1096,
+                              "end": 1101,
+                              "source_backed": true
+                            }
+                          },
+                          "index": {
+                            "kind": "integer",
+                            "value": 2
+                          }
+                        },
+                        "member": {
+                          "text": "value",
+                          "source_id": 0,
+                          "start": 1105,
+                          "end": 1110,
+                          "source_backed": true
+                        }
+                      },
+                      "operator": "add",
+                      "right": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "bag",
+                            "source_id": 0,
+                            "start": 1118,
+                            "end": 1121,
+                            "source_backed": true
+                          }
+                        },
+                        "member": {
+                          "text": "other",
+                          "source_id": 0,
+                          "start": 1122,
+                          "end": 1127,
+                          "source_backed": true
+                        }
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 70
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1178,
+                    "end": 1181,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "indexed",
+                          "collection": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "member",
+                              "receiver": {
+                                "kind": "self_value"
+                              },
+                              "member": {
+                                "text": "bag",
+                                "source_id": 0,
+                                "start": 1092,
+                                "end": 1095,
+                                "source_backed": true
+                              }
+                            },
+                            "member": {
+                              "text": "cells",
+                              "source_id": 0,
+                              "start": 1096,
+                              "end": 1101,
+                              "source_backed": true
+                            }
+                          },
+                          "index": {
+                            "kind": "integer",
+                            "value": 2
+                          }
+                        },
+                        "member": {
+                          "text": "value",
+                          "source_id": 0,
+                          "start": 1105,
+                          "end": 1110,
+                          "source_backed": true
+                        }
+                      },
+                      "operator": "add",
+                      "right": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "self_value"
+                          },
+                          "member": {
+                            "text": "bag",
+                            "source_id": 0,
+                            "start": 1118,
+                            "end": 1121,
+                            "source_backed": true
+                          }
+                        },
+                        "member": {
+                          "text": "other",
+                          "source_id": 0,
+                          "start": 1122,
+                          "end": 1127,
+                          "source_backed": true
+                        }
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 70
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 1202,
+            "end": 1206,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1234,
+                  "end": 1241,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1242,
+                "end": 1254,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 1278,
+            "end": 1281,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1309,
+                  "end": 1316,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1317,
+                "end": 1329,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

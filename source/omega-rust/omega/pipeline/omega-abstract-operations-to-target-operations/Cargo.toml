@@ -9,15 +9,10 @@ name = "omega_abstract_operations_to_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-target = { path = "../../representations/omega-target" }
 omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
-omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
-psi-arena = { path = "../../../psi/foundation/psi-arena" }
-psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
-psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
-omega-platform-interface = { path = "../../backend/omega-platform-interface" }
-omega-target = { path = "../../foundation/omega-target" }
+omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
-
-[dev-dependencies]
-omega-control-flow = { path = "../../representations/omega-control-flow" }
-psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

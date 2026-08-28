@@ -64,9 +64,9 @@ machine emission remain unsupported.
 
 ## Implementation Map
 
-- `optimization/omega-regalloc/src/home_assignment_*` owns production,
+- `pipeline/optimization/omega-regalloc/src/home_assignment_*` owns production,
   independent replay, the opaque validated artifact, and content identity.
-- `orchestration/omega-optimization-pipeline/src/register_homes.rs` owns nested
+- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes.rs` owns nested
   cross-stage custody.
 - `omega-register-model` remains the sole authority for views, aliases, write
   footprints, constraints, and active reservations.

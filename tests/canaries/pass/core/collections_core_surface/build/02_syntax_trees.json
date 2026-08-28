@@ -1,0 +1,2632 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "array",
+          "source_id": 0,
+          "start": 27,
+          "end": 32,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 38,
+          "end": 43,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 45,
+          "end": 53,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 55,
+          "end": 59,
+          "source_backed": true
+        },
+        {
+          "text": "vec",
+          "source_id": 0,
+          "start": 61,
+          "end": 64,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 73,
+        "end": 77,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 100,
+            "end": 104,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 1,
+          "start": 919,
+          "end": 924,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 1,
+          "start": 926,
+          "end": 934,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 1,
+          "start": 936,
+          "end": 940,
+          "source_backed": true
+        },
+        {
+          "text": "array_views",
+          "source_id": 1,
+          "start": 942,
+          "end": 953,
+          "source_backed": true
+        }
+      ],
+      "category": "DescriptorConstruction"
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Array",
+            "source_id": 1,
+            "start": 1205,
+            "end": 1210,
+            "source_backed": true
+          },
+          {
+            "text": "Length",
+            "source_id": 1,
+            "start": 1212,
+            "end": 1218,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1219,
+              "end": 1220,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 1228,
+              "end": 1229,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1231,
+                "end": 1234,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 1236,
+              "end": 1241,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 1,
+                    "start": 1245,
+                    "end": 1246,
+                    "source_backed": true
+                  }
+                },
+                "length": {
+                  "kind": "const_parameter",
+                  "name": {
+                    "text": "N",
+                    "source_id": 1,
+                    "start": 1248,
+                    "end": 1249,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "u64",
+            "source_id": 1,
+            "start": 1255,
+            "end": 1258,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 32
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Array",
+            "source_id": 1,
+            "start": 1279,
+            "end": 1284,
+            "source_backed": true
+          },
+          {
+            "text": "index",
+            "source_id": 1,
+            "start": 1286,
+            "end": 1291,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1292,
+              "end": 1293,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 1301,
+              "end": 1302,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1304,
+                "end": 1307,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 1309,
+              "end": 1314,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 1,
+                    "start": 1318,
+                    "end": 1319,
+                    "source_backed": true
+                  }
+                },
+                "length": {
+                  "kind": "const_parameter",
+                  "name": {
+                    "text": "N",
+                    "source_id": 1,
+                    "start": 1321,
+                    "end": 1322,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 1,
+              "start": 1325,
+              "end": 1330,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1332,
+                "end": 1335,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "T",
+            "source_id": 1,
+            "start": 1340,
+            "end": 1341,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 1,
+                        "start": 1355,
+                        "end": 1360,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 1363,
+                          "end": 1368,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1369,
+                      "end": 1372,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 48
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Array",
+            "source_id": 1,
+            "start": 1393,
+            "end": 1398,
+            "source_backed": true
+          },
+          {
+            "text": "index_mut",
+            "source_id": 1,
+            "start": 1400,
+            "end": 1409,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1410,
+              "end": 1411,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 1419,
+              "end": 1420,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1422,
+                "end": 1425,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 1427,
+              "end": 1432,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 1,
+                    "start": 1440,
+                    "end": 1441,
+                    "source_backed": true
+                  }
+                },
+                "length": {
+                  "kind": "const_parameter",
+                  "name": {
+                    "text": "N",
+                    "source_id": 1,
+                    "start": 1443,
+                    "end": 1444,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 1,
+              "start": 1447,
+              "end": 1452,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1454,
+                "end": 1457,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "named",
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1467,
+              "end": 1468,
+              "source_backed": true
+            }
+          },
+          "is_mutable": true
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 1,
+                        "start": 1482,
+                        "end": 1487,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 1490,
+                          "end": 1495,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1496,
+                      "end": 1499,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 54
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Array",
+            "source_id": 1,
+            "start": 1595,
+            "end": 1600,
+            "source_backed": true
+          },
+          {
+            "text": "as_slice",
+            "source_id": 1,
+            "start": 1602,
+            "end": 1610,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1611,
+              "end": 1612,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 1620,
+              "end": 1621,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1623,
+                "end": 1626,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 1628,
+              "end": 1633,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 1,
+                    "start": 1637,
+                    "end": 1638,
+                    "source_backed": true
+                  }
+                },
+                "length": {
+                  "kind": "const_parameter",
+                  "name": {
+                    "text": "N",
+                    "source_id": 1,
+                    "start": 1640,
+                    "end": 1641,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 1,
+                "start": 1649,
+                "end": 1650,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": false
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "result",
+                          "source_id": 1,
+                          "start": 1708,
+                          "end": 1714,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1715,
+                      "end": 1718,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 1722,
+                          "end": 1727,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1728,
+                      "end": 1731,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": [
+          {
+            "text": "omega",
+            "source_id": 1,
+            "start": 1661,
+            "end": 1666,
+            "source_backed": true
+          },
+          {
+            "text": "language",
+            "source_id": 1,
+            "start": 1668,
+            "end": 1676,
+            "source_backed": true
+          },
+          {
+            "text": "core",
+            "source_id": 1,
+            "start": 1678,
+            "end": 1682,
+            "source_backed": true
+          },
+          {
+            "text": "array_views",
+            "source_id": 1,
+            "start": 1684,
+            "end": 1695,
+            "source_backed": true
+          }
+        ],
+        "token_count": 57
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Array",
+            "source_id": 1,
+            "start": 1752,
+            "end": 1757,
+            "source_backed": true
+          },
+          {
+            "text": "as_mut_slice",
+            "source_id": 1,
+            "start": 1759,
+            "end": 1771,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 1,
+              "start": 1772,
+              "end": 1773,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          },
+          {
+            "name": {
+              "text": "N",
+              "source_id": 1,
+              "start": 1781,
+              "end": 1782,
+              "source_backed": true
+            },
+            "kind": "const",
+            "const_type": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 1,
+                "start": 1784,
+                "end": 1787,
+                "source_backed": true
+              }
+            },
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 1,
+              "start": 1789,
+              "end": 1794,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "T",
+                    "source_id": 1,
+                    "start": 1802,
+                    "end": 1803,
+                    "source_backed": true
+                  }
+                },
+                "length": {
+                  "kind": "const_parameter",
+                  "name": {
+                    "text": "N",
+                    "source_id": 1,
+                    "start": 1805,
+                    "end": 1806,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 1,
+                "start": 1818,
+                "end": 1819,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": true
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "result",
+                          "source_id": 1,
+                          "start": 1877,
+                          "end": 1883,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1884,
+                      "end": 1887,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 1,
+                          "start": 1891,
+                          "end": 1896,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 1897,
+                      "end": 1900,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": [
+          {
+            "text": "omega",
+            "source_id": 1,
+            "start": 1830,
+            "end": 1835,
+            "source_backed": true
+          },
+          {
+            "text": "language",
+            "source_id": 1,
+            "start": 1837,
+            "end": 1845,
+            "source_backed": true
+          },
+          {
+            "text": "core",
+            "source_id": 1,
+            "start": 1847,
+            "end": 1851,
+            "source_backed": true
+          },
+          {
+            "text": "array_views",
+            "source_id": 1,
+            "start": 1853,
+            "end": 1864,
+            "source_backed": true
+          }
+        ],
+        "token_count": 61
+      }
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 2,
+          "start": 1237,
+          "end": 1242,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 2,
+          "start": 1244,
+          "end": 1252,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 2,
+          "start": 1254,
+          "end": 1258,
+          "source_backed": true
+        },
+        {
+          "text": "vec_views",
+          "source_id": 2,
+          "start": 1260,
+          "end": 1269,
+          "source_backed": true
+        }
+      ],
+      "category": "DescriptorConstruction"
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Vec",
+        "source_id": 2,
+        "start": 1534,
+        "end": 1537,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 2,
+            "start": 1538,
+            "end": 1539,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null,
+          "bounds": {
+            "multiplicity": "affine",
+            "zero_init": false
+          }
+        }
+      ],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Vec::as_slice",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Vec",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 2,
+            "start": 1805,
+            "end": 1806,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null,
+          "bounds": {
+            "multiplicity": "affine",
+            "zero_init": false
+          }
+        }
+      ],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "as_slice",
+            "source_id": 2,
+            "start": 1796,
+            "end": 1804,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "reference",
+            "referee": {
+              "kind": "slice",
+              "element_type": {
+                "kind": "named",
+                "name": {
+                  "text": "T",
+                  "source_id": 2,
+                  "start": 1820,
+                  "end": 1821,
+                  "source_backed": true
+                }
+              }
+            },
+            "is_mutable": false
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Vec::push",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Vec",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [
+        {
+          "name": {
+            "text": "T",
+            "source_id": 2,
+            "start": 1849,
+            "end": 1850,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null,
+          "bounds": {
+            "multiplicity": "affine",
+            "zero_init": false
+          }
+        }
+      ],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "push",
+            "source_id": 2,
+            "start": 1844,
+            "end": 1848,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "value",
+                "source_id": 2,
+                "start": 1863,
+                "end": 1868,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "T",
+                  "source_id": 2,
+                  "start": 1870,
+                  "end": 1871,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 1972,
+            "end": 1975,
+            "source_backed": true
+          },
+          {
+            "text": "Length",
+            "source_id": 2,
+            "start": 1977,
+            "end": 1983,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 1984,
+              "end": 1985,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 1987,
+              "end": 1992,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 1995,
+                  "end": 1998,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 1999,
+                      "end": 2000,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "u64",
+            "source_id": 2,
+            "start": 2006,
+            "end": 2009,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 23
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2114,
+            "end": 2117,
+            "source_backed": true
+          },
+          {
+            "text": "Capacity",
+            "source_id": 2,
+            "start": 2119,
+            "end": 2127,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2128,
+              "end": 2129,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2131,
+              "end": 2136,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2139,
+                  "end": 2142,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2143,
+                      "end": 2144,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "u64",
+            "source_id": 2,
+            "start": 2150,
+            "end": 2153,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "result",
+                        "source_id": 2,
+                        "start": 2168,
+                        "end": 2174,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "greater_or_equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 2178,
+                          "end": 2183,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2184,
+                      "end": 2187,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 32
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2210,
+            "end": 2213,
+            "source_backed": true
+          },
+          {
+            "text": "index",
+            "source_id": 2,
+            "start": 2215,
+            "end": 2220,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2221,
+              "end": 2222,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2224,
+              "end": 2229,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2232,
+                  "end": 2235,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2236,
+                      "end": 2237,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 2,
+              "start": 2240,
+              "end": 2245,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 2,
+                "start": 2247,
+                "end": 2250,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "T",
+            "source_id": 2,
+            "start": 2255,
+            "end": 2256,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 2,
+                        "start": 2271,
+                        "end": 2276,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 2279,
+                          "end": 2284,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2285,
+                      "end": 2288,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 38
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2311,
+            "end": 2314,
+            "source_backed": true
+          },
+          {
+            "text": "index_mut",
+            "source_id": 2,
+            "start": 2316,
+            "end": 2325,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2326,
+              "end": 2327,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2329,
+              "end": 2334,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2341,
+                  "end": 2344,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2345,
+                      "end": 2346,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 2,
+              "start": 2349,
+              "end": 2354,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "u64",
+                "source_id": 2,
+                "start": 2356,
+                "end": 2359,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "named",
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2369,
+              "end": 2370,
+              "source_backed": true
+            }
+          },
+          "is_mutable": true
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 2,
+                        "start": 2386,
+                        "end": 2391,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 2394,
+                          "end": 2399,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2400,
+                      "end": 2403,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 44
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2503,
+            "end": 2506,
+            "source_backed": true
+          },
+          {
+            "text": "as_slice",
+            "source_id": 2,
+            "start": 2508,
+            "end": 2516,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2517,
+              "end": 2518,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2520,
+              "end": 2525,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2528,
+                  "end": 2531,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2532,
+                      "end": 2533,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 2,
+                "start": 2541,
+                "end": 2542,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": false
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "result",
+                          "source_id": 2,
+                          "start": 2601,
+                          "end": 2607,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2608,
+                      "end": 2611,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 2615,
+                          "end": 2620,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2621,
+                      "end": 2624,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": [
+          {
+            "text": "omega",
+            "source_id": 2,
+            "start": 2554,
+            "end": 2559,
+            "source_backed": true
+          },
+          {
+            "text": "language",
+            "source_id": 2,
+            "start": 2561,
+            "end": 2569,
+            "source_backed": true
+          },
+          {
+            "text": "core",
+            "source_id": 2,
+            "start": 2571,
+            "end": 2575,
+            "source_backed": true
+          },
+          {
+            "text": "vec_views",
+            "source_id": 2,
+            "start": 2577,
+            "end": 2586,
+            "source_backed": true
+          }
+        ],
+        "token_count": 47
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2647,
+            "end": 2650,
+            "source_backed": true
+          },
+          {
+            "text": "as_mut_slice",
+            "source_id": 2,
+            "start": 2652,
+            "end": 2664,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2665,
+              "end": 2666,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2668,
+              "end": 2673,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2680,
+                  "end": 2683,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2684,
+                      "end": 2685,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 2,
+                "start": 2697,
+                "end": 2698,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": true
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "result",
+                          "source_id": 2,
+                          "start": 2757,
+                          "end": 2763,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2764,
+                      "end": 2767,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 2771,
+                          "end": 2776,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 2777,
+                      "end": 2780,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": [
+          {
+            "text": "omega",
+            "source_id": 2,
+            "start": 2710,
+            "end": 2715,
+            "source_backed": true
+          },
+          {
+            "text": "language",
+            "source_id": 2,
+            "start": 2717,
+            "end": 2725,
+            "source_backed": true
+          },
+          {
+            "text": "core",
+            "source_id": 2,
+            "start": 2727,
+            "end": 2731,
+            "source_backed": true
+          },
+          {
+            "text": "vec_views",
+            "source_id": 2,
+            "start": 2733,
+            "end": 2742,
+            "source_backed": true
+          }
+        ],
+        "token_count": 53
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 2957,
+            "end": 2960,
+            "source_backed": true
+          },
+          {
+            "text": "push",
+            "source_id": 2,
+            "start": 2962,
+            "end": 2966,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 2967,
+              "end": 2968,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 2970,
+              "end": 2975,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 2982,
+                  "end": 2985,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 2986,
+                      "end": 2987,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "value",
+              "source_id": 2,
+              "start": 2990,
+              "end": 2995,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "T",
+                "source_id": 2,
+                "start": 2997,
+                "end": 2998,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "unit"
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 3020,
+                          "end": 3025,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 3026,
+                      "end": 3029,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 3032,
+                          "end": 3037,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "capacity",
+                      "source_id": 2,
+                      "start": 3038,
+                      "end": 3046,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 9
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 45
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Vec",
+            "source_id": 2,
+            "start": 3208,
+            "end": 3211,
+            "source_backed": true
+          },
+          {
+            "text": "pop",
+            "source_id": 2,
+            "start": 3213,
+            "end": 3216,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [
+          {
+            "name": {
+              "text": "T",
+              "source_id": 2,
+              "start": 3217,
+              "end": 3218,
+              "source_backed": true
+            },
+            "kind": "type",
+            "const_type": null,
+            "bounds": {
+              "multiplicity": "affine",
+              "zero_init": false
+            }
+          }
+        ],
+        "parameters": [
+          {
+            "name": {
+              "text": "items",
+              "source_id": 2,
+              "start": 3220,
+              "end": 3225,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Vec",
+                  "source_id": 2,
+                  "start": 3232,
+                  "end": 3235,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "named",
+                    "name": {
+                      "text": "T",
+                      "source_id": 2,
+                      "start": 3236,
+                      "end": 3237,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "is_mutable": true
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "T",
+            "source_id": 2,
+            "start": 3243,
+            "end": 3244,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "items",
+                          "source_id": 2,
+                          "start": 3258,
+                          "end": 3263,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 2,
+                      "start": 3264,
+                      "end": 3267,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "greater",
+                  "right": {
+                    "kind": "integer",
+                    "text": "0"
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 34
+      }
+    }
+  ]
+}

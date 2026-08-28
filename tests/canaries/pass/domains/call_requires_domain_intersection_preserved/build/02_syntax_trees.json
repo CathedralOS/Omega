@@ -1,0 +1,1015 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Password",
+        "source_id": 0,
+        "start": 5,
+        "end": 13,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "length",
+            "source_id": 0,
+            "start": 21,
+            "end": 27,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 29,
+              "end": 32,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "score",
+            "source_id": 0,
+            "start": 39,
+            "end": 44,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 46,
+              "end": 49,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "salt",
+            "source_id": 0,
+            "start": 56,
+            "end": 60,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 62,
+                "end": 65,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Wrapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Password::Valid",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Password",
+          "source_id": 0,
+          "start": 92,
+          "end": 100,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "length",
+                "source_id": 0,
+                "start": 120,
+                "end": 126,
+                "source_backed": true
+              }
+            },
+            "operator": "greater",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Password::Secure",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Password",
+          "source_id": 0,
+          "start": 145,
+          "end": 153,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "score",
+                "source_id": 0,
+                "start": 174,
+                "end": 179,
+                "source_backed": true
+              }
+            },
+            "operator": "greater_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 8
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 197,
+        "end": 201,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "password",
+            "source_id": 0,
+            "start": 209,
+            "end": 217,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Password",
+              "source_id": 0,
+              "start": 219,
+              "end": 227,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::mark_valid",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "password",
+                    "source_id": 0,
+                    "start": 310,
+                    "end": 318,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "domain": [
+                {
+                  "text": "Password",
+                  "source_id": 0,
+                  "start": 322,
+                  "end": 330,
+                  "source_backed": true
+                },
+                {
+                  "text": "Valid",
+                  "source_id": 0,
+                  "start": 332,
+                  "end": 337,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 8
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "mark_valid",
+            "source_id": 0,
+            "start": 249,
+            "end": 259,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "password",
+                "source_id": 0,
+                "start": 271,
+                "end": 279,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Password",
+                    "source_id": 0,
+                    "start": 286,
+                    "end": 294,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 346,
+                      "end": 354,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "length",
+                  "source_id": 0,
+                  "start": 355,
+                  "end": 361,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 12
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::mark_secure",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "password",
+                    "source_id": 0,
+                    "start": 450,
+                    "end": 458,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "domain": [
+                {
+                  "text": "Password",
+                  "source_id": 0,
+                  "start": 462,
+                  "end": 470,
+                  "source_backed": true
+                },
+                {
+                  "text": "Secure",
+                  "source_id": 0,
+                  "start": 472,
+                  "end": 478,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 8
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "mark_secure",
+            "source_id": 0,
+            "start": 388,
+            "end": 399,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "password",
+                "source_id": 0,
+                "start": 411,
+                "end": 419,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Password",
+                    "source_id": 0,
+                    "start": 426,
+                    "end": 434,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 487,
+                      "end": 495,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "score",
+                  "source_id": 0,
+                  "start": 496,
+                  "end": 501,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 10
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::touch_salt",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "touch_salt",
+            "source_id": 0,
+            "start": 528,
+            "end": 538,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "password",
+                "source_id": 0,
+                "start": 550,
+                "end": 558,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Password",
+                    "source_id": 0,
+                    "start": 565,
+                    "end": 573,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 582,
+                      "end": 590,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "salt",
+                  "source_id": 0,
+                  "start": 591,
+                  "end": 595,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "password",
+                        "source_id": 0,
+                        "start": 598,
+                        "end": 606,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "salt",
+                    "source_id": 0,
+                    "start": 607,
+                    "end": 611,
+                    "source_backed": true
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::accept",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "password",
+                    "source_id": 0,
+                    "start": 679,
+                    "end": 687,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "domain": [
+                {
+                  "text": "Password",
+                  "source_id": 0,
+                  "start": 691,
+                  "end": 699,
+                  "source_backed": true
+                },
+                {
+                  "text": "Valid",
+                  "source_id": 0,
+                  "start": 701,
+                  "end": 706,
+                  "source_backed": true
+                }
+              ]
+            },
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "password",
+                    "source_id": 0,
+                    "start": 679,
+                    "end": 687,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "domain": [
+                {
+                  "text": "Password",
+                  "source_id": 0,
+                  "start": 709,
+                  "end": 717,
+                  "source_backed": true
+                },
+                {
+                  "text": "Secure",
+                  "source_id": 0,
+                  "start": 719,
+                  "end": 725,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 14
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "accept",
+            "source_id": 0,
+            "start": 637,
+            "end": 643,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "password",
+                "source_id": 0,
+                "start": 644,
+                "end": 652,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Password",
+                  "source_id": 0,
+                  "start": 654,
+                  "end": 662,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 749,
+            "end": 753,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "mark_valid",
+                "source_id": 0,
+                "start": 777,
+                "end": 787,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 798,
+                      "end": 806,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "mark_secure",
+                "source_id": 0,
+                "start": 819,
+                "end": 830,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 841,
+                      "end": 849,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "touch_salt",
+                "source_id": 0,
+                "start": 862,
+                "end": 872,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "password",
+                      "source_id": 0,
+                      "start": 883,
+                      "end": 891,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "accept",
+                "source_id": 0,
+                "start": 904,
+                "end": 910,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "password",
+                    "source_id": 0,
+                    "start": 916,
+                    "end": 924,
+                    "source_backed": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

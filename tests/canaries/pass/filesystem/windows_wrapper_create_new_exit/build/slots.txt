@@ -1,0 +1,29 @@
+# Omega frame-slot layout (region: omega_runtime_frame_storage)
+# absolute runtime address of a slot = (relocated region base) + byte_offset.
+# region base = the imm64 of the `movabsq $imm64,%r15` (frame storage) the dispatch
+#   loop loads, OR the address of the `omega_runtime_frame_storage` symbol in the image.
+# cdb (no-ASLR image base 0x140000000): bp <code>; g; dd (base+byte_offset) L<words>.
+# frame_scratch_base=100 frame_scratch_size=40
+# slots: 21
+# context  dispatch  stmt  machine#  state#  seg  kind                  name                  type                  offset    end       size
+0         1         0     52        253     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  UnitResult            0         8         8
+0         1         0     92        1846    0    local                 rc                    i32                   8         12        4
+0         1         0     92        1848    0    local                 kind                  ErrorKind             12        16        4
+0         1         0     92        1848    0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  ErrorKind             16        20        4
+0         1         1     52        253     0    call-result(AssignmentValue#0)  __call_result_1_AssignmentValue_0  OpenResult            20        28        8
+0         1         1     75        729     0    local                 fd                    i32                   28        32        4
+0         1         0     75        731     0    local                 kind                  ErrorKind             32        36        4
+0         1         0     75        731     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  ErrorKind             36        40        4
+0         2         -     52        254     0    param                 file                  File                  40        44        4
+0         2         0     52        254     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  i32                   44        48        4
+0         2         1     83        1219    0    local                 rc                    i32                   48        52        4
+0         3         0     52        255     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  OpenResult            52        60        8
+0         3         1     75        729     0    local                 fd                    i32                   60        64        4
+0         3         0     75        731     0    local                 kind                  ErrorKind             64        68        4
+0         3         0     75        731     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  ErrorKind             68        72        4
+0         4         -     52        256     0    param                 kind                  ErrorKind             72        76        4
+0         4         0     52        256     0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  UnitResult            76        84        8
+0         4         0     92        1846    0    local                 rc                    i32                   84        88        4
+0         4         0     92        1848    0    local                 kind                  ErrorKind             88        92        4
+0         4         0     92        1848    0    call-result(AssignmentValue#0)  __call_result_0_AssignmentValue_0  ErrorKind             92        96        4
+0         6         -     52        258     0    param                 code                  i32                   96        100       4

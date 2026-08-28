@@ -1,0 +1,165 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "level_depth",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "u32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "depth",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "level_depth"
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "next_depth",
+                "type_reference": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "constraints": [
+                    {
+                      "kind": "arithmetic_domain",
+                      "domain": "Wrapping"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "depth"
+                    ]
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "next_depth"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 1,
+    "data_type_parameter_count": 0,
+    "data_member_count": 1,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 1,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 6,
+    "expression_struct_field_count": 0,
+    "statement_count": 3,
+    "transition_target_count": 0,
+    "type_reference_count": 8,
+    "type_constraint_count": 3
+  }
+}

@@ -1,0 +1,56 @@
+{
+  "machines": [
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0xf80b186b5dceef1a",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "build",
+      "contract": {
+        "fingerprint": "0x53b76e7a7aedf21f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Build::depend",
+      "contract": {
+        "fingerprint": "0x53b76e7a7aedf21f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "path",
+      "contract": {
+        "fingerprint": "0x53b76e7a7aedf21f",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ]
+}

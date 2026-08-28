@@ -1,0 +1,391 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Folder",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Vault",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "desktop",
+            "type_reference": {
+              "kind": "named",
+              "name": "Desktop"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Backup",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "vault",
+            "type_reference": {
+              "kind": "named",
+              "name": "Vault"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "backup",
+            "type_reference": {
+              "kind": "named",
+              "name": "Backup"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "Folder::Writable",
+        "target_type": {
+          "kind": "named",
+          "name": "Folder"
+        },
+        "classifier": null,
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Vault::pick",
+        "attached_data": "Vault",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "filesystem_io"
+        ],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "pick",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Folder"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "desktop"
+                  },
+                  "target": "choose_folder",
+                  "arguments": [
+                    {
+                      "kind": "string",
+                      "value": "choose a backup folder"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Backup::stage",
+        "attached_data": "Backup",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "filesystem_io"
+        ],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "stage",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Folder"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "vault"
+                  },
+                  "target": "pick",
+                  "arguments": []
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "staged",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "backup"
+                  },
+                  "target": "stage",
+                  "arguments": []
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Desktop",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "choose_folder",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "prompt",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Folder"
+            },
+            "effects": [
+              "filesystem_io"
+            ],
+            "contracts": [
+              {
+                "kind": "ensures",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "result"
+                      ]
+                    },
+                    "domain": [
+                      "Folder",
+                      "Writable"
+                    ],
+                    "domain_symbol": 32
+                  }
+                ],
+                "token_count": 8
+              },
+              {
+                "kind": "requires",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "prompt"
+                      ]
+                    },
+                    "domain": [
+                      "[u8]",
+                      "Utf8"
+                    ],
+                    "domain_symbol": 31
+                  }
+                ],
+                "token_count": 0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 4,
+    "data_type_parameter_count": 0,
+    "data_member_count": 3,
+    "domain_definition_count": 2,
+    "invariant_definition_count": 0,
+    "machine_count": 3,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 4,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 14,
+    "expression_struct_field_count": 0,
+    "statement_count": 3,
+    "transition_target_count": 0,
+    "type_reference_count": 17,
+    "type_constraint_count": 1
+  }
+}

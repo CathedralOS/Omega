@@ -21,7 +21,6 @@ name = "validation_integration"
 path = "validation_integration.rs"
 
 [dev-dependencies]
-omega-control-flow = { path = "../../source/omega-rust/omega/representations/omega-control-flow" }
 psi-arena = { path = "../../source/omega-rust/psi/foundation/psi-arena" }
 psi-symbols = { path = "../../source/omega-rust/psi/foundation/psi-symbols" }
 omega-effects = { path = "../../source/omega-rust/omega/representations/omega-effects" }

@@ -1,0 +1,401 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "text",
+            "type_reference": {
+              "kind": "named",
+              "name": "String"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "String::NonEmpty",
+        "target_type": {
+          "kind": "named",
+          "name": "String"
+        },
+        "classifier": null,
+        "facts": [
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "len"
+              },
+              "operator": ">",
+              "right": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 9
+      },
+      {
+        "name": "String::NoNul",
+        "target_type": {
+          "kind": "named",
+          "name": "String"
+        },
+        "classifier": null,
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "String::Utf8",
+        "target_type": {
+          "kind": "named",
+          "name": "String"
+        },
+        "classifier": null,
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::consume",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "text"
+                  ]
+                },
+                "domain": [
+                  "String",
+                  "Utf8"
+                ],
+                "domain_symbol": 33
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "consume",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "String"
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "text"
+                ],
+                "target": "validate_utf8",
+                "arguments": []
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self"
+                ],
+                "target": "consume",
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "text"
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "Length"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 16
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "Capacity"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 16
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "as_view"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 17
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "with_capacity"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 15
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "push_str"
+        ],
+        "type_parameters": [],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 47
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "validate_utf8"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 29
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "validate_no_nul"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 41
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "from_utf8"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 28
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "String",
+          "from_no_nul"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 30
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Str",
+          "Length"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 16
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Str",
+          "bytes"
+        ],
+        "type_parameters": [],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 19
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Str",
+          "byte"
+        ],
+        "type_parameters": [],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 32
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Str",
+          "range"
+        ],
+        "type_parameters": [],
+        "parameter_count": 3,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 47
+      }
+    ],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 31,
+    "statement_count": 2,
+    "type_reference_count": 57
+  }
+}

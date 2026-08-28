@@ -1,0 +1,100 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "count",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "self_type"
+                  },
+                  "is_mutable": true
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "count"
+                },
+                "value": {
+                  "kind": "integer",
+                  "text": "7"
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 3,
+    "statement_count": 1,
+    "type_reference_count": 4
+  }
+}

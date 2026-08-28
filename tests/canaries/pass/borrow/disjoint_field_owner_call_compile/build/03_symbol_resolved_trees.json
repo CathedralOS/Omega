@@ -1,0 +1,282 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entry",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "left",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Entry"
+              },
+              "length": "2"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "right",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Entry"
+              },
+              "length": "2"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "view",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "left"
+                  },
+                  "target": "as_slice",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self"
+                ],
+                "target": "touch_right",
+                "arguments": []
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self"
+                ],
+                "target": "read_alias",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "view"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 3
+          }
+        ]
+      },
+      {
+        "name": "Main::touch_right",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "touch_right",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "right"
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Entry",
+                  "fields": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::read_alias",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "read_alias",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "entries",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 11,
+    "statement_count": 5,
+    "type_reference_count": 14
+  }
+}

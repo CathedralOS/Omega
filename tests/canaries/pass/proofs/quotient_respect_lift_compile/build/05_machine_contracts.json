@@ -1,0 +1,182 @@
+{
+  "machines": [
+    {
+      "machine": "equivalent",
+      "contract": {
+        "fingerprint": "0xb3e273e5b45658ae",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "equivalent_reflexive",
+      "contract": {
+        "fingerprint": "0x5a402a577cd00200",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "equivalent_symmetric",
+      "contract": {
+        "fingerprint": "0x548448e7da29d22e",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "equivalent_transitive",
+      "contract": {
+        "fingerprint": "0xaea40f831c213046",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "advance",
+      "contract": {
+        "fingerprint": "0x5e3f0627f0dc1de2",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "advance_respects",
+      "contract": {
+        "fingerprint": "0x913f047f3a0ec86c",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "lifted_advance",
+      "contract": {
+        "fingerprint": "0xefeab92c1f716eee",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "combine",
+      "contract": {
+        "fingerprint": "0xd7b1d5e949f16aef",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "combine_respects",
+      "contract": {
+        "fingerprint": "0xce0378e454550371",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "lifted_combine",
+      "contract": {
+        "fingerprint": "0x2afc9870e59b3592",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x7c8246f957e4e3cb",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

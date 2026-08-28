@@ -1,0 +1,1128 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Command",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Look",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Quit",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Invalid",
+            "payload": []
+          }
+        ]
+      },
+      {
+        "name": "Parser",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Game",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "line",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "fixed_array",
+                "element_type": {
+                  "kind": "named",
+                  "name": "u8"
+                },
+                "length": "16"
+              },
+              "constraints": [
+                {
+                  "kind": "named",
+                  "name": "Utf8"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "parser",
+            "type_reference": {
+              "kind": "named",
+              "name": "Parser"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "command",
+            "type_reference": {
+              "kind": "named",
+              "name": "Command"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "health",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "game",
+            "type_reference": {
+              "kind": "named",
+              "name": "Game"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "[u8; N]::Utf8",
+        "target_type": {
+          "kind": "fixed_array",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          },
+          "length": "16"
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Parser::resolve",
+        "attached_data": "Parser",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "line"
+                  ]
+                },
+                "domain": [
+                  "[u8]",
+                  "Utf8"
+                ],
+                "domain_symbol": 31
+              }
+            ],
+            "token_count": 0
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "resolve",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "line",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Command"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "Command",
+                      "Look"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "line"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "string",
+                      "value": "look"
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "Command",
+                      "Quit"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "line"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "string",
+                      "value": "quit"
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "Command",
+                      "Invalid"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Game::run",
+        "attached_data": "Game",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "health"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 10
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "prompt"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "prompt",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "dead"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "health"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "read_command"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "health"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "read_command",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "read_line",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "line"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "command"
+                },
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "parser"
+                  },
+                  "target": "resolve",
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "line"
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "look"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "command"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Command",
+                        "Look"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "finished"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "command"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Command",
+                        "Quit"
+                      ]
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "invalid"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "command"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        "Command",
+                        "Invalid"
+                      ]
+                    }
+                  }
+                }
+              }
+            ]
+          },
+          {
+            "name": "dead",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "string",
+                    "value": "dead"
+                  }
+                ]
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "name": "look",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "string",
+                    "value": "look"
+                  }
+                ]
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "prompt"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "invalid",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "write_line",
+                "arguments": [
+                  {
+                    "kind": "string",
+                    "value": "invalid"
+                  }
+                ]
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "prompt"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "finished",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "running"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "running",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "game"
+                ],
+                "target": "run",
+                "arguments": []
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "shutdown"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "shutdown",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "write_line",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "text",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": [
+              {
+                "kind": "requires",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "text"
+                      ]
+                    },
+                    "domain": [
+                      "[u8]",
+                      "Utf8"
+                    ],
+                    "domain_symbol": 31
+                  }
+                ],
+                "token_count": 0
+              }
+            ]
+          },
+          {
+            "name": "read_line",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "out_line",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "fixed_array",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      },
+                      "length": "16"
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": [
+              {
+                "kind": "requires",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "out_line"
+                      ]
+                    },
+                    "domain": [
+                      "[u8]",
+                      "Utf8"
+                    ],
+                    "domain_symbol": 31
+                  }
+                ],
+                "token_count": 0
+              }
+            ]
+          },
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 4,
+    "data_type_parameter_count": 0,
+    "data_member_count": 9,
+    "domain_definition_count": 2,
+    "invariant_definition_count": 0,
+    "machine_count": 3,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 11,
+    "state_parameter_count": 15,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 3,
+    "expression_count": 58,
+    "expression_struct_field_count": 0,
+    "statement_count": 22,
+    "transition_target_count": 13,
+    "type_reference_count": 40,
+    "type_constraint_count": 4
+  }
+}

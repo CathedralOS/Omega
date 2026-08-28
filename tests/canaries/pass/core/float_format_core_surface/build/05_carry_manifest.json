@@ -1,0 +1,33 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "FloatSpecialValues",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "FloatFormat",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "safe_point_crossings": [
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

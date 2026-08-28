@@ -1,0 +1,1687 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 866,
+        "end": 873,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 888,
+            "end": 900,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 901,
+                "end": 912,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 914,
+                  "end": 917,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Room",
+        "source_id": 0,
+        "start": 928,
+        "end": 932,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "id",
+            "source_id": 0,
+            "start": 939,
+            "end": 941,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 943,
+              "end": 946,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "tag",
+            "source_id": 0,
+            "start": 952,
+            "end": 955,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 957,
+              "end": 960,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Lookup",
+        "source_id": 0,
+        "start": 970,
+        "end": 976,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "rooms",
+            "source_id": 0,
+            "start": 983,
+            "end": 988,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Room",
+                "source_id": 0,
+                "start": 991,
+                "end": 995,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 4
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1009,
+        "end": 1013,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1020,
+            "end": 1027,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1029,
+              "end": 1036,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "lookup",
+            "source_id": 0,
+            "start": 1042,
+            "end": 1048,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Lookup",
+              "source_id": 0,
+              "start": 1050,
+              "end": 1056,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "out",
+            "source_id": 0,
+            "start": 1062,
+            "end": 1065,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Room",
+              "source_id": 0,
+              "start": 1067,
+              "end": 1071,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1090,
+            "end": 1094,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "lookup",
+                  "source_id": 0,
+                  "start": 1117,
+                  "end": 1123,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "search",
+                "source_id": 0,
+                "start": 1124,
+                "end": 1130,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 12
+                },
+                {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "out",
+                      "source_id": 0,
+                      "start": 1145,
+                      "end": 1148,
+                      "source_backed": true
+                    }
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1205,
+                    "end": 1209,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "out",
+                          "source_id": 0,
+                          "start": 1172,
+                          "end": 1175,
+                          "source_backed": true
+                        }
+                      },
+                      "member": {
+                        "text": "tag",
+                        "source_id": 0,
+                        "start": 1176,
+                        "end": 1179,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 122
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1225,
+                    "end": 1228,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 1247,
+            "end": 1251,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1270,
+                  "end": 1277,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1278,
+                "end": 1290,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 1308,
+            "end": 1311,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1330,
+                  "end": 1337,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1338,
+                "end": 1350,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Lookup::search",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Lookup",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "search",
+            "source_id": 0,
+            "start": 1377,
+            "end": 1383,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "wanted",
+                "source_id": 0,
+                "start": 1395,
+                "end": 1401,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1403,
+                  "end": 1406,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "out_room",
+                "source_id": 0,
+                "start": 1408,
+                "end": 1416,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Room",
+                    "source_id": 0,
+                    "start": 1423,
+                    "end": 1427,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1440,
+                      "end": 1445,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 1449,
+                  "end": 1451,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 10
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1463,
+                      "end": 1468,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 1472,
+                  "end": 1475,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 100
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1492,
+                      "end": 1497,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 1501,
+                  "end": 1503,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 11
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1515,
+                      "end": 1520,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 1524,
+                  "end": 1527,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 111
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1544,
+                      "end": 1549,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 1553,
+                  "end": 1555,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 12
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1567,
+                      "end": 1572,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 1576,
+                  "end": 1579,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 122
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1596,
+                      "end": 1601,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 1605,
+                  "end": 1607,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 13
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "rooms",
+                      "source_id": 0,
+                      "start": 1619,
+                      "end": 1624,
+                      "source_backed": true
+                    }
+                  },
+                  "index": {
+                    "kind": "integer",
+                    "value": 3
+                  }
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 1628,
+                  "end": 1631,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "value": 133
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "view",
+                "source_id": 0,
+                "start": 1647,
+                "end": 1651,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Room",
+                      "source_id": 0,
+                      "start": 1655,
+                      "end": 1659,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "rooms",
+                    "source_id": 0,
+                    "start": 1668,
+                    "end": 1673,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "as_slice",
+                  "source_id": 0,
+                  "start": 1674,
+                  "end": 1682,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "find_at",
+                    "source_id": 0,
+                    "start": 1709,
+                    "end": 1716,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "view",
+                        "source_id": 0,
+                        "start": 1717,
+                        "end": 1721,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "wanted",
+                        "source_id": 0,
+                        "start": 1723,
+                        "end": 1729,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "out_room",
+                        "source_id": 0,
+                        "start": 1731,
+                        "end": 1739,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "find_at",
+            "source_id": 0,
+            "start": 1757,
+            "end": 1764,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "view",
+                "source_id": 0,
+                "start": 1776,
+                "end": 1780,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Room",
+                      "source_id": 0,
+                      "start": 1784,
+                      "end": 1788,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "wanted",
+                "source_id": 0,
+                "start": 1791,
+                "end": 1797,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1799,
+                  "end": 1802,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "out_room",
+                "source_id": 0,
+                "start": 1804,
+                "end": 1812,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Room",
+                    "source_id": 0,
+                    "start": 1819,
+                    "end": 1823,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "index",
+                "source_id": 0,
+                "start": 1825,
+                "end": 1830,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 1832,
+                  "end": 1837,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "matched",
+                "source_id": 0,
+                "start": 1853,
+                "end": 1860,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1862,
+                  "end": 1866,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "view",
+                          "source_id": 0,
+                          "start": 1869,
+                          "end": 1873,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "index",
+                          "source_id": 0,
+                          "start": 1874,
+                          "end": 1879,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  "member": {
+                    "text": "id",
+                    "source_id": 0,
+                    "start": 1881,
+                    "end": 1883,
+                    "source_backed": true
+                  }
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "wanted",
+                      "source_id": 0,
+                      "start": 1887,
+                      "end": 1893,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "next_index",
+                "source_id": 0,
+                "start": 1907,
+                "end": 1917,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 1919,
+                  "end": 1924,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "index",
+                      "source_id": 0,
+                      "start": 1927,
+                      "end": 1932,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "has_next",
+                "source_id": 0,
+                "start": 1950,
+                "end": 1958,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1960,
+                  "end": 1964,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "next_index",
+                      "source_id": 0,
+                      "start": 1967,
+                      "end": 1977,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "less",
+                "right": {
+                  "kind": "integer",
+                  "value": 4
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "apply",
+                    "source_id": 0,
+                    "start": 2027,
+                    "end": 2032,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "view",
+                          "source_id": 0,
+                          "start": 2033,
+                          "end": 2037,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "index": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "index",
+                          "source_id": 0,
+                          "start": 2038,
+                          "end": 2043,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "out_room",
+                        "source_id": 0,
+                        "start": 2046,
+                        "end": 2054,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "matched",
+                      "source_id": 0,
+                      "start": 2016,
+                      "end": 2023,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "find_at",
+                    "source_id": 0,
+                    "start": 2080,
+                    "end": 2087,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "view",
+                        "source_id": 0,
+                        "start": 2088,
+                        "end": 2092,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "wanted",
+                        "source_id": 0,
+                        "start": 2094,
+                        "end": 2100,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "out_room",
+                        "source_id": 0,
+                        "start": 2102,
+                        "end": 2110,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "next_index",
+                        "source_id": 0,
+                        "start": 2112,
+                        "end": 2122,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "has_next",
+                      "source_id": 0,
+                      "start": 2068,
+                      "end": 2076,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "apply",
+            "source_id": 0,
+            "start": 2151,
+            "end": 2156,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "room",
+                "source_id": 0,
+                "start": 2168,
+                "end": 2172,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Room",
+                  "source_id": 0,
+                  "start": 2174,
+                  "end": 2178,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "out_room",
+                "source_id": 0,
+                "start": 2180,
+                "end": 2188,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Room",
+                    "source_id": 0,
+                    "start": 2195,
+                    "end": 2199,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "out_room",
+                      "source_id": 0,
+                      "start": 2211,
+                      "end": 2219,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 2220,
+                  "end": 2222,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 2225,
+                      "end": 2229,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "id",
+                  "source_id": 0,
+                  "start": 2230,
+                  "end": 2232,
+                  "source_backed": true
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "out_room",
+                      "source_id": 0,
+                      "start": 2242,
+                      "end": 2250,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 2251,
+                  "end": 2254,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "room",
+                      "source_id": 0,
+                      "start": 2257,
+                      "end": 2261,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "tag",
+                  "source_id": 0,
+                  "start": 2262,
+                  "end": 2265,
+                  "source_backed": true
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

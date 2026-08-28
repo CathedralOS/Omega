@@ -1,0 +1,133 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Real"
+            },
+            "statements": [],
+            "table_statement_count": 0
+          },
+          {
+            "name": "answer",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "raw",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Real"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "call",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "Real"
+                      ]
+                    },
+                    "target": "from",
+                    "arguments": [
+                      {
+                        "kind": "name",
+                        "path": [
+                          "raw"
+                        ]
+                      }
+                    ]
+                  },
+                  "operator": "/",
+                  "right": {
+                    "kind": "call",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "Real"
+                      ]
+                    },
+                    "target": "from",
+                    "arguments": [
+                      {
+                        "kind": "name",
+                        "path": [
+                          "u32",
+                          "MAX"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 7,
+    "statement_count": 1,
+    "type_reference_count": 5
+  }
+}

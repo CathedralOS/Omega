@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>phase_timings</title>
+<style>
+
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+}
+* { box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+aside {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  min-height: 100vh;
+  padding: 18px;
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
+main {
+  min-width: 0;
+  overflow: auto;
+  padding: 28px;
+}
+pre {
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid #283343;
+  border-radius: 18px;
+  color: #d8e2ef;
+  line-height: 1.45;
+  margin: 0;
+  min-height: calc(100vh - 56px);
+  overflow: auto;
+  padding: 24px;
+  white-space: pre;
+}
+</style>
+</head>
+<body>
+<aside>
+<h1>phase_timings</h1>
+<nav class="phase-nav" aria-label="Pipeline stages"><a target="_top" href="00_pipeline.html">Index</a><a target="_top" href="00_pipeline.html#timings"><span>00</span> Timings</a><a target="_top" href="00_pipeline.html#syntax"><span>02</span> Syntax</a><a target="_top" href="00_pipeline.html#symbols"><span>03</span> Symbols</a><a target="_top" href="00_pipeline.html#typed"><span>04</span> Typed</a><a target="_top" href="00_pipeline.html#checked"><span>05</span> Checked</a><a target="_top" href="00_pipeline.html#state-graph"><span>06</span> State Graph</a><a target="_top" href="00_pipeline.html#control-flow"><span>07</span> Control Flow</a><a target="_top" href="00_pipeline.html#abstract-operations"><span>08</span> Abstract Operations</a><a target="_top" href="00_pipeline.html#target-operations"><span>09</span> Target Operations</a><a target="_top" href="00_pipeline.html#assigned-target-operations"><span>10</span> Assigned Target Operations</a><a target="_top" href="00_pipeline.html#machine-instructions"><span>11</span> Machine Instructions</a><a target="_top" href="00_pipeline.html#emission"><span>12</span> Emission</a></nav>
+</aside>
+<main><pre># Omega Phase Timings
+
+## Summary
+
+phase count: 12
+total measured: 1.894 ms
+average phase: 0.157 ms
+allocation calls: 4,010 alloc / 3,487 free
+allocated bytes: 941.99 KiB allocated / 702.13 KiB freed / 239.87 KiB net
+slowest phase: Stage 05: TypedTrees -&gt; CheckedTrees (0.581 ms, 30.68%)
+allocation-heaviest phase: Stage 06: CheckedTrees -&gt; StateGraph (237.64 KiB in 119 allocation calls)
+
+## Phases
+
+phase                                                          time    share     raw  allocs   allocated         net
+---------------------------------------------------------  --------  -------  ------  ------  ----------  ----------
+Stage 01: SourceFiles -&gt; TokenStreams                      0.181 ms    9.56%  181 us      16  115.91 KiB   33.70 KiB
+Stage 02: TokenStreams -&gt; SyntaxTrees                      0.165 ms    8.71%  165 us     225   71.58 KiB    5.98 KiB
+Stage 03: SyntaxTrees -&gt; SymbolResolvedTrees               0.190 ms   10.03%  190 us     371  120.48 KiB   48.28 KiB
+Stage 04: SymbolResolvedTrees -&gt; TypedTrees                0.161 ms    8.50%  161 us     368   44.35 KiB  -12.85 KiB
+Stage 05: TypedTrees -&gt; CheckedTrees                       0.581 ms   30.68%  581 us   1,871  216.66 KiB   74.32 KiB
+Stage 06: CheckedTrees -&gt; StateGraph                       0.226 ms   11.93%  226 us     119  237.64 KiB   32.64 KiB
+Stage 07: StateGraph -&gt; ControlFlow                        0.036 ms    1.90%   36 us       9    8.15 KiB   -7.91 KiB
+Stage 08: ControlFlow -&gt; AbstractOperations                0.248 ms   13.09%  248 us     871   86.86 KiB   26.45 KiB
+Stage 09: AbstractOperations -&gt; TargetOperations           0.018 ms    0.95%   18 us      32   10.07 KiB   10.02 KiB
+Stage 10: TargetOperations -&gt; AssignedTargetOperations     0.015 ms    0.79%   15 us      32   10.69 KiB   10.63 KiB
+Stage 11: AssignedTargetOperations -&gt; MachineInstructions  0.010 ms    0.53%   10 us      22    7.69 KiB    7.68 KiB
+Output: BackendPlan -&gt; NativeImagePayload                  0.063 ms    3.33%   63 us      74   11.91 KiB   10.93 KiB
+---------------------------------------------------------  --------  -------  ------  ------  ----------  ----------
+total                                                      1.894 ms  100.00%  1,894 us   4,010  941.99 KiB  239.87 KiB
+</pre></main>
+</body>
+</html>

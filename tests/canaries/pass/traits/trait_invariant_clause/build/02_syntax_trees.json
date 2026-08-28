@@ -1,0 +1,325 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "CounterSnapshot",
+        "source_id": 0,
+        "start": 5,
+        "end": 20,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 28,
+            "end": 33,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 35,
+              "end": 38,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "BoundedCounter",
+        "source_id": 0,
+        "start": 52,
+        "end": 66,
+        "source_backed": true
+      },
+      "is_boundary": false,
+      "type_parameters": [],
+      "invariants": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "value",
+                  "source_id": 0,
+                  "start": 89,
+                  "end": 94,
+                  "source_backed": true
+                }
+              },
+              "operator": "greater_or_equal",
+              "right": {
+                "kind": "integer",
+                "value": 0
+              }
+            },
+            "operator": "and",
+            "right": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "value",
+                  "source_id": 0,
+                  "start": 89,
+                  "end": 94,
+                  "source_backed": true
+                }
+              },
+              "operator": "less_or_equal",
+              "right": {
+                "kind": "integer",
+                "value": 1000
+              }
+            }
+          }
+        }
+      ],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "increment",
+            "source_id": 0,
+            "start": 123,
+            "end": 132,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": [
+            {
+              "kind": {
+                "kind": "ensures"
+              },
+              "facts": [
+                {
+                  "kind": "expression",
+                  "expression": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "value",
+                          "source_id": 0,
+                          "start": 166,
+                          "end": 171,
+                          "source_backed": true
+                        }
+                      },
+                      "operator": "greater_or_equal",
+                      "right": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    "operator": "and",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "self_value"
+                        },
+                        "member": {
+                          "text": "value",
+                          "source_id": 0,
+                          "start": 166,
+                          "end": 171,
+                          "source_backed": true
+                        }
+                      },
+                      "operator": "less_or_equal",
+                      "right": {
+                        "kind": "integer",
+                        "value": 1000
+                      }
+                    }
+                  }
+                }
+              ],
+              "token_count": 9
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "snapshot",
+            "source_id": 0,
+            "start": 198,
+            "end": 206,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "out",
+                "source_id": 0,
+                "start": 214,
+                "end": 217,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "CounterSnapshot",
+                    "source_id": 0,
+                    "start": 224,
+                    "end": 239,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 253,
+        "end": 257,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 280,
+            "end": 284,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

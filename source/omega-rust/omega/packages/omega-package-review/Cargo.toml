@@ -1,0 +1,32 @@
+[package]
+name = "omega-package-review"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_package_review"
+path = "src/lib.rs"
+
+[dependencies]
+omega-build-evaluation = { path = "../../build/omega-build-evaluation" }
+omega-compiler = { path = "../../compiler/omega-compiler" }
+omega-package-compilation = { path = "../../build/omega-package-compilation" }
+omega-provider-planning = { path = "../../build/omega-provider-planning" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-target = { path = "../../representations/omega-target" }
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-effects = { path = "../../../psi/representations/psi-effects" }
+psi-facts = { path = "../../../psi/representations/psi-facts" }
+psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-typed-trees = { path = "../../../psi/representations/psi-typed-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }
+psi-validation = { path = "../../../psi/semantics/psi-validation" }
+sha2 = "0.10.9"

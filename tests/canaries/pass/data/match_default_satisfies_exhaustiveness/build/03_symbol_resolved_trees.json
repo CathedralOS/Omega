@@ -1,0 +1,205 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entity",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "None"
+          },
+          {
+            "kind": "variant",
+            "name": "Monster"
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "entity",
+            "type_reference": {
+              "kind": "named",
+              "name": "Entity"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "Entity::Dangerous",
+        "target_type": {
+          "kind": "named",
+          "name": "Entity"
+        },
+        "facts": [
+          {
+            "kind": "membership",
+            "value": {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            },
+            "domain": [
+              "Entity",
+              "Monster"
+            ],
+            "domain_symbol": 0
+          },
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "health"
+              },
+              "operator": ">",
+              "right": {
+                "kind": "integer",
+                "text": "0"
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 18
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "threat"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "entity"
+                    },
+                    "domain": [
+                      "Entity",
+                      "Dangerous"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "calm"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "calm",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          },
+          {
+            "name": "threat",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 8,
+    "statement_count": 2,
+    "type_reference_count": 6
+  }
+}

@@ -1,0 +1,224 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Guard",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "handle",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Guard::drop",
+        "attached_data": "Guard",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "drop",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "g",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Guard"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Guard",
+                  "fields": [
+                    {
+                      "name": "handle",
+                      "value": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "hold"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "g"
+                      ]
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "hold",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "guard",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Guard"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "done"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "done",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 1,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 4,
+    "state_parameter_count": 5,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 3,
+    "expression_struct_field_count": 1,
+    "statement_count": 3,
+    "transition_target_count": 2,
+    "type_reference_count": 7,
+    "type_constraint_count": 0
+  }
+}

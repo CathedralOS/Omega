@@ -1,0 +1,742 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "BurstValue",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "samples",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "length": "2"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "samples_count",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "read_overflow",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ok_overflow",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "read_hostile",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ok_hostile",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "count_capped",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "overflow_payload",
+                "type_reference": {
+                  "kind": "fixed_array",
+                  "element_type": {
+                    "kind": "named",
+                    "name": "u8"
+                  },
+                  "length": "6"
+                },
+                "initial_value": {
+                  "kind": "array_literal",
+                  "values": [
+                    {
+                      "kind": "integer",
+                      "value": 0
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 0
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 3
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "hostile_payload",
+                "type_reference": {
+                  "kind": "fixed_array",
+                  "element_type": {
+                    "kind": "named",
+                    "name": "u8"
+                  },
+                  "length": "6"
+                },
+                "initial_value": {
+                  "kind": "array_literal",
+                  "values": [
+                    {
+                      "kind": "integer",
+                      "value": 0
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 0
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 32
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "decoded",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "BurstValue"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "BurstValue",
+                  "fields": [
+                    {
+                      "name": "samples",
+                      "value": {
+                        "kind": "array_literal",
+                        "values": [
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "samples_count",
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "Burst"
+                ],
+                "target": "decode_wire",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "decoded"
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      "overflow_payload"
+                    ]
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "read_overflow"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_overflow"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "local_data",
+                "name": "capped",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "decoded"
+                      ]
+                    },
+                    "member": "samples_count"
+                  },
+                  "operator": "==",
+                  "right": {
+                    "kind": "integer",
+                    "value": 2
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "count_capped"
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "capped"
+                  ]
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "Burst"
+                ],
+                "target": "decode_wire",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "decoded"
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      "hostile_payload"
+                    ]
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "read_hostile"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_hostile"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_overflow"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_hostile"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_overflow"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 9
+          },
+          {
+            "name": "check_hostile",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_hostile"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "check_cap"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok_hostile"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "check_cap",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "good"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "count_capped"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "count_capped"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "good",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": [
+      {
+        "has_symbol": true,
+        "name": "Burst",
+        "encoding": null,
+        "members": [
+          {
+            "kind": "field",
+            "number": 0,
+            "name": "samples",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "length": "2"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 70,
+    "statement_count": 15,
+    "type_reference_count": 21
+  }
+}

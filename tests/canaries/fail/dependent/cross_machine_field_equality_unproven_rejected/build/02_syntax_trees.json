@@ -1,0 +1,396 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Shape",
+        "source_id": 0,
+        "start": 192,
+        "end": 197,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "rows",
+            "source_id": 0,
+            "start": 204,
+            "end": 208,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 210,
+              "end": 213,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "cols",
+            "source_id": 0,
+            "start": 219,
+            "end": 223,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 225,
+              "end": 228,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "consume",
+        "source_id": 0,
+        "start": 241,
+        "end": 248,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "left",
+                        "source_id": 0,
+                        "start": 291,
+                        "end": 295,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "cols",
+                    "source_id": 0,
+                    "start": 296,
+                    "end": 300,
+                    "source_backed": true
+                  }
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "right",
+                        "source_id": 0,
+                        "start": 304,
+                        "end": 309,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "rows",
+                    "source_id": 0,
+                    "start": 310,
+                    "end": 314,
+                    "source_backed": true
+                  }
+                }
+              }
+            }
+          ],
+          "token_count": 10
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 249,
+                "end": 253,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Shape",
+                    "source_id": 0,
+                    "start": 256,
+                    "end": 261,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 263,
+                "end": 268,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Shape",
+                    "source_id": 0,
+                    "start": 271,
+                    "end": 276,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "relay",
+        "source_id": 0,
+        "start": 328,
+        "end": 333,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 334,
+                "end": 335,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Shape",
+                    "source_id": 0,
+                    "start": 338,
+                    "end": 343,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 345,
+                "end": 346,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Shape",
+                    "source_id": 0,
+                    "start": 349,
+                    "end": 354,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [],
+              "target": {
+                "text": "consume",
+                "source_id": 0,
+                "start": 362,
+                "end": 369,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 370,
+                      "end": 371,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 373,
+                      "end": 374,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 385,
+        "end": 389,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 409,
+            "end": 413,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,289 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "region",
+          "source_id": 0,
+          "start": 27,
+          "end": 33,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 455,
+        "end": 459,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 482,
+            "end": 486,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Region",
+        "source_id": 1,
+        "start": 1263,
+        "end": 1269,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "allocate",
+            "source_id": 1,
+            "start": 1285,
+            "end": 1293,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "size",
+                "source_id": 1,
+                "start": 1294,
+                "end": 1298,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1300,
+                  "end": 1305,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "align",
+                "source_id": 1,
+                "start": 1307,
+                "end": 1312,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1314,
+                  "end": 1319,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 1,
+              "start": 1324,
+              "end": 1329,
+              "source_backed": true
+            }
+          },
+          "effects": [
+            {
+              "text": "alloc",
+              "source_id": 1,
+              "start": 1352,
+              "end": 1357,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "deallocate",
+            "source_id": 1,
+            "start": 1374,
+            "end": 1384,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "address",
+                "source_id": 1,
+                "start": 1385,
+                "end": 1392,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1394,
+                  "end": 1399,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "size",
+                "source_id": 1,
+                "start": 1401,
+                "end": 1405,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1407,
+                  "end": 1412,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "align",
+                "source_id": 1,
+                "start": 1414,
+                "end": 1419,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1421,
+                  "end": 1426,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [
+            {
+              "text": "dealloc",
+              "source_id": 1,
+              "start": 1450,
+              "end": 1457,
+              "source_backed": true
+            }
+          ],
+          "contracts": []
+        }
+      ]
+    }
+  ]
+}

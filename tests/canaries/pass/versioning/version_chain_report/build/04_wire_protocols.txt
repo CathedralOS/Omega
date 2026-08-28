@@ -1,0 +1,16 @@
+# Omega Wire Protocols
+
+wire data schemas: 0
+
+# Versioned Data
+
+versioned data types: 1
+
+## data Counter
+versions: v1, v2, current
+current era: 2
+migrations:
+  v1 -> current via `Counter::from_v1`
+  v2 -> current MISSING
+missing:
+  era v2 declared but no `Counter::from_v2` exists; `Versioned<Counter>` consumers must handle `Counter::v2` arms manually

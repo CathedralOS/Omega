@@ -1,0 +1,342 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Folder",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "File",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Worker",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "fs",
+            "type_reference": {
+              "kind": "named",
+              "name": "Filesystem"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "File::Writable",
+        "target_type": {
+          "kind": "named",
+          "name": "File"
+        },
+        "classifier": null,
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Worker::open_log",
+        "attached_data": "Worker",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "filesystem_io"
+        ],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "open_log",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "folder",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "File"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "fs"
+                  },
+                  "target": "open",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "folder"
+                      ]
+                    },
+                    {
+                      "kind": "string",
+                      "value": "log.txt"
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Worker::open_main_log",
+        "attached_data": "Worker",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "filesystem_io"
+        ],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "open_main_log",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "folder",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "File"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "open_log",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "folder"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Filesystem",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "open",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "folder",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "path",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "File"
+            },
+            "effects": [
+              "filesystem_io"
+            ],
+            "contracts": [
+              {
+                "kind": "ensures",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "result"
+                      ]
+                    },
+                    "domain": [
+                      "File",
+                      "Writable"
+                    ],
+                    "domain_symbol": 32
+                  }
+                ],
+                "token_count": 8
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 11,
+    "statement_count": 2,
+    "type_reference_count": 17
+  }
+}

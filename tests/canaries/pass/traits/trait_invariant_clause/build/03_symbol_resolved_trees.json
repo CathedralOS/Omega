@@ -1,0 +1,224 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "CounterSnapshot",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "BoundedCounter",
+        "is_boundary": false,
+        "type_parameters": [],
+        "invariants": [
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "value"
+                },
+                "operator": ">=",
+                "right": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              },
+              "operator": "&&",
+              "right": {
+                "kind": "binary",
+                "left": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "value"
+                },
+                "operator": "<=",
+                "right": {
+                  "kind": "integer",
+                  "value": 1000
+                }
+              }
+            }
+          }
+        ],
+        "requires": [],
+        "machines": [
+          {
+            "name": "increment",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": [
+              {
+                "kind": "ensures",
+                "facts": [
+                  {
+                    "kind": "expression",
+                    "value": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "value"
+                        },
+                        "operator": ">=",
+                        "right": {
+                          "kind": "integer",
+                          "value": 0
+                        }
+                      },
+                      "operator": "&&",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "value"
+                        },
+                        "operator": "<=",
+                        "right": {
+                          "kind": "integer",
+                          "value": 1000
+                        }
+                      }
+                    }
+                  }
+                ],
+                "token_count": 9
+              }
+            ]
+          },
+          {
+            "name": "snapshot",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "out",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "CounterSnapshot"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 18,
+    "statement_count": 0,
+    "type_reference_count": 6
+  }
+}

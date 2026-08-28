@@ -1,0 +1,5007 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 879,
+          "end": 884,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 886,
+          "end": 894,
+          "source_backed": true
+        },
+        {
+          "text": "std",
+          "source_id": 0,
+          "start": 896,
+          "end": 899,
+          "source_backed": true
+        },
+        {
+          "text": "filesystem_host",
+          "source_id": 0,
+          "start": 901,
+          "end": 916,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 936,
+        "end": 943,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 954,
+            "end": 966,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 967,
+                "end": 978,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 980,
+                  "end": 983,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 996,
+        "end": 1000,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 1008,
+            "end": 1015,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1017,
+              "end": 1024,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "raw",
+            "source_id": 0,
+            "start": 1031,
+            "end": 1034,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "FilesystemHost",
+              "source_id": 0,
+              "start": 1036,
+              "end": 1050,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "rc",
+            "source_id": 0,
+            "start": 1057,
+            "end": 1059,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1061,
+              "end": 1064,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::doit",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "doit",
+            "source_id": 0,
+            "start": 1086,
+            "end": 1090,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "path",
+                "source_id": 0,
+                "start": 1102,
+                "end": 1106,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 1110,
+                        "end": 1112,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 0,
+                        "start": 1117,
+                        "end": 1121,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 1126,
+              "end": 1129,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "fd",
+                "source_id": 0,
+                "start": 1141,
+                "end": 1143,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1145,
+                  "end": 1148,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "raw",
+                    "source_id": 0,
+                    "start": 1156,
+                    "end": 1159,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "open",
+                  "source_id": 0,
+                  "start": 1160,
+                  "end": 1164,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "path",
+                        "source_id": 0,
+                        "start": 1165,
+                        "end": 1169,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "integer",
+                    "text": "0"
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "fd",
+                      "source_id": 0,
+                      "start": 1203,
+                      "end": 1205,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1228,
+            "end": 1232,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "doit",
+                "source_id": 0,
+                "start": 1260,
+                "end": 1264,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "string",
+                  "text": "omega_absent_discard_probe.txt"
+                }
+              ]
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_errno",
+                    "source_id": 0,
+                    "start": 1331,
+                    "end": 1342,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "boolean",
+                    "value": true
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1350,
+                    "end": 1353,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "text": "72"
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_errno",
+            "source_id": 0,
+            "start": 1373,
+            "end": 1384,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "rc",
+                  "source_id": 0,
+                  "start": 1412,
+                  "end": 1414,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "raw",
+                    "source_id": 0,
+                    "start": 1422,
+                    "end": 1425,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "errno",
+                  "source_id": 0,
+                  "start": 1426,
+                  "end": 1431,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1478,
+                    "end": 1482,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "self_value"
+                      },
+                      "member": {
+                        "text": "rc",
+                        "source_id": 0,
+                        "start": 1460,
+                        "end": 1462,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "text": "2"
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1490,
+                    "end": 1493,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "text": "71"
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 1520,
+            "end": 1524,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1543,
+                  "end": 1550,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1551,
+                "end": 1563,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "text": "70"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 1582,
+            "end": 1585,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "code",
+                "source_id": 0,
+                "start": 1597,
+                "end": 1601,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 1603,
+                  "end": 1606,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1615,
+                  "end": 1622,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1623,
+                "end": 1635,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "code",
+                      "source_id": 0,
+                      "start": 1636,
+                      "end": 1640,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8]::Path",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "slice",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 1,
+            "start": 1068,
+            "end": 1070,
+            "source_backed": true
+          }
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "no_nul",
+          "source_id": 1,
+          "start": 1083,
+          "end": 1089,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "FilesystemHost",
+        "source_id": 1,
+        "start": 1119,
+        "end": 1133,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "create",
+            "source_id": 1,
+            "start": 1149,
+            "end": 1155,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 1156,
+                "end": 1160,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 1164,
+                        "end": 1166,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 1171,
+                        "end": 1175,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 1177,
+                "end": 1181,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1183,
+                  "end": 1186,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 1191,
+              "end": 1194,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "open",
+            "source_id": 1,
+            "start": 1209,
+            "end": 1213,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 1214,
+                "end": 1218,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 1222,
+                        "end": 1224,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 1229,
+                        "end": 1233,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "flags",
+                "source_id": 1,
+                "start": 1235,
+                "end": 1240,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1242,
+                  "end": 1245,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 1250,
+              "end": 1253,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "open_create",
+            "source_id": 1,
+            "start": 1719,
+            "end": 1730,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 1731,
+                "end": 1735,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 1739,
+                        "end": 1741,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 1746,
+                        "end": 1750,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "flags",
+                "source_id": 1,
+                "start": 1752,
+                "end": 1757,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1759,
+                  "end": 1762,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 1764,
+                "end": 1768,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1770,
+                  "end": 1773,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 1778,
+              "end": 1781,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read",
+            "source_id": 1,
+            "start": 1796,
+            "end": 1800,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 1801,
+                "end": 1803,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1805,
+                  "end": 1808,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 1810,
+                "end": 1816,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 1824,
+                      "end": 1826,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "count",
+                "source_id": 1,
+                "start": 1829,
+                "end": 1834,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 1836,
+                  "end": 1841,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 1846,
+              "end": 1849,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "write",
+            "source_id": 1,
+            "start": 1864,
+            "end": 1869,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 1870,
+                "end": 1872,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 1874,
+                  "end": 1877,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "bytes",
+                "source_id": 1,
+                "start": 1879,
+                "end": 1884,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 1888,
+                      "end": 1890,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 1896,
+              "end": 1899,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_at",
+            "source_id": 1,
+            "start": 2078,
+            "end": 2085,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 2086,
+                "end": 2088,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2090,
+                  "end": 2093,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 2095,
+                "end": 2101,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 2109,
+                      "end": 2111,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "count",
+                "source_id": 1,
+                "start": 2114,
+                "end": 2119,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 2121,
+                  "end": 2126,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "offset",
+                "source_id": 1,
+                "start": 2128,
+                "end": 2134,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i64",
+                  "source_id": 1,
+                  "start": 2136,
+                  "end": 2139,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 2144,
+              "end": 2147,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "write_at",
+            "source_id": 1,
+            "start": 2162,
+            "end": 2170,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 2171,
+                "end": 2173,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2175,
+                  "end": 2178,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "bytes",
+                "source_id": 1,
+                "start": 2180,
+                "end": 2185,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 2189,
+                      "end": 2191,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "offset",
+                "source_id": 1,
+                "start": 2194,
+                "end": 2200,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i64",
+                  "source_id": 1,
+                  "start": 2202,
+                  "end": 2205,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 2210,
+              "end": 2213,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "close",
+            "source_id": 1,
+            "start": 2228,
+            "end": 2233,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 2234,
+                "end": 2236,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2238,
+                  "end": 2241,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 2246,
+              "end": 2249,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "remove",
+            "source_id": 1,
+            "start": 2264,
+            "end": 2270,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 2271,
+                "end": 2275,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 2279,
+                        "end": 2281,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 2286,
+                        "end": 2290,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 2295,
+              "end": 2298,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "seek",
+            "source_id": 1,
+            "start": 2313,
+            "end": 2317,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 2318,
+                "end": 2320,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2322,
+                  "end": 2325,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "offset",
+                "source_id": 1,
+                "start": 2327,
+                "end": 2333,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i64",
+                  "source_id": 1,
+                  "start": 2335,
+                  "end": 2338,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "whence",
+                "source_id": 1,
+                "start": 2340,
+                "end": 2346,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2348,
+                  "end": 2351,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 2356,
+              "end": 2359,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "create_dir",
+            "source_id": 1,
+            "start": 2374,
+            "end": 2384,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 2385,
+                "end": 2389,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 2393,
+                        "end": 2395,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 2400,
+                        "end": 2404,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 2406,
+                "end": 2410,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2412,
+                  "end": 2415,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 2420,
+              "end": 2423,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "remove_dir",
+            "source_id": 1,
+            "start": 2438,
+            "end": 2448,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 2449,
+                "end": 2453,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 2457,
+                        "end": 2459,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 2464,
+                        "end": 2468,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 2473,
+              "end": 2476,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "create_dir_name",
+            "source_id": 1,
+            "start": 2876,
+            "end": 2891,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "name",
+                "source_id": 1,
+                "start": 2892,
+                "end": 2896,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 2900,
+                      "end": 2902,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 2905,
+                "end": 2909,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 2911,
+                  "end": 2914,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 2919,
+              "end": 2922,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "open_at",
+            "source_id": 1,
+            "start": 3546,
+            "end": 3553,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "dirfd",
+                "source_id": 1,
+                "start": 3554,
+                "end": 3559,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 3561,
+                  "end": 3564,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "name",
+                "source_id": 1,
+                "start": 3566,
+                "end": 3570,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 3574,
+                      "end": 3576,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "flags",
+                "source_id": 1,
+                "start": 3579,
+                "end": 3584,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 3586,
+                  "end": 3589,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 3594,
+              "end": 3597,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "unlink_at",
+            "source_id": 1,
+            "start": 3862,
+            "end": 3871,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "dirfd",
+                "source_id": 1,
+                "start": 3872,
+                "end": 3877,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 3879,
+                  "end": 3882,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "name",
+                "source_id": 1,
+                "start": 3884,
+                "end": 3888,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 3892,
+                      "end": 3894,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "flags",
+                "source_id": 1,
+                "start": 3897,
+                "end": 3902,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 3904,
+                  "end": 3907,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 3912,
+              "end": 3915,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "set_permissions",
+            "source_id": 1,
+            "start": 3930,
+            "end": 3945,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 3946,
+                "end": 3950,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 3954,
+                        "end": 3956,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 3961,
+                        "end": 3965,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 3967,
+                "end": 3971,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 1,
+                  "start": 3973,
+                  "end": 3976,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 3981,
+              "end": 3984,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "set_file_permissions",
+            "source_id": 1,
+            "start": 3999,
+            "end": 4019,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 4020,
+                "end": 4022,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 4024,
+                  "end": 4027,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "mode",
+                "source_id": 1,
+                "start": 4029,
+                "end": 4033,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 1,
+                  "start": 4035,
+                  "end": 4038,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 4043,
+              "end": 4046,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "rename",
+            "source_id": 1,
+            "start": 4061,
+            "end": 4067,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "from",
+                "source_id": 1,
+                "start": 4068,
+                "end": 4072,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4076,
+                        "end": 4078,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4083,
+                        "end": 4087,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "to",
+                "source_id": 1,
+                "start": 4089,
+                "end": 4091,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4095,
+                        "end": 4097,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4102,
+                        "end": 4106,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 4111,
+              "end": 4114,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "hard_link",
+            "source_id": 1,
+            "start": 4129,
+            "end": 4138,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "original",
+                "source_id": 1,
+                "start": 4139,
+                "end": 4147,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4151,
+                        "end": 4153,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4158,
+                        "end": 4162,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "link",
+                "source_id": 1,
+                "start": 4164,
+                "end": 4168,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4172,
+                        "end": 4174,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4179,
+                        "end": 4183,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 4188,
+              "end": 4191,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "symlink",
+            "source_id": 1,
+            "start": 4206,
+            "end": 4213,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "target",
+                "source_id": 1,
+                "start": 4214,
+                "end": 4220,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4224,
+                        "end": 4226,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4231,
+                        "end": 4235,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "link",
+                "source_id": 1,
+                "start": 4237,
+                "end": 4241,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4245,
+                        "end": 4247,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4252,
+                        "end": 4256,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 4261,
+              "end": 4264,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_link",
+            "source_id": 1,
+            "start": 4279,
+            "end": 4288,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 4289,
+                "end": 4293,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4297,
+                        "end": 4299,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4304,
+                        "end": 4308,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 4310,
+                "end": 4316,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 4324,
+                      "end": 4326,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "count",
+                "source_id": 1,
+                "start": 4329,
+                "end": 4334,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 4336,
+                  "end": 4341,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 4346,
+              "end": 4349,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "canonicalize",
+            "source_id": 1,
+            "start": 4696,
+            "end": 4708,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 4709,
+                "end": 4713,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 4717,
+                        "end": 4719,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 4724,
+                        "end": 4728,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 4730,
+                "end": 4736,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 4744,
+                      "end": 4746,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 4752,
+              "end": 4755,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_dir",
+            "source_id": 1,
+            "start": 5311,
+            "end": 5319,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 5320,
+                "end": 5322,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 5324,
+                  "end": 5327,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 5329,
+                "end": 5335,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 5343,
+                      "end": 5345,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "count",
+                "source_id": 1,
+                "start": 5348,
+                "end": 5353,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 1,
+                  "start": 5355,
+                  "end": 5360,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "position",
+                "source_id": 1,
+                "start": 5362,
+                "end": 5370,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i64",
+                    "source_id": 1,
+                    "start": 5377,
+                    "end": 5380,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 1,
+              "start": 5385,
+              "end": 5388,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_metadata",
+            "source_id": 1,
+            "start": 5556,
+            "end": 5569,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 5570,
+                "end": 5574,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 5578,
+                        "end": 5580,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 5585,
+                        "end": 5589,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 5591,
+                "end": 5597,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 5605,
+                      "end": 5607,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 5613,
+              "end": 5616,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_file_metadata",
+            "source_id": 1,
+            "start": 5791,
+            "end": 5809,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 5810,
+                "end": 5812,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 5814,
+                  "end": 5817,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 5819,
+                "end": 5825,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 5833,
+                      "end": 5835,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 5841,
+              "end": 5844,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "read_symlink_metadata",
+            "source_id": 1,
+            "start": 6051,
+            "end": 6072,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 6073,
+                "end": 6077,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 6081,
+                        "end": 6083,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 6088,
+                        "end": 6092,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "buffer",
+                "source_id": 1,
+                "start": 6094,
+                "end": 6100,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 6108,
+                      "end": 6110,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6116,
+              "end": 6119,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "set_len",
+            "source_id": 1,
+            "start": 6134,
+            "end": 6141,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 6142,
+                "end": 6144,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 6146,
+                  "end": 6149,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "length",
+                "source_id": 1,
+                "start": 6151,
+                "end": 6157,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i64",
+                  "source_id": 1,
+                  "start": 6159,
+                  "end": 6162,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6167,
+              "end": 6170,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "set_file_times",
+            "source_id": 1,
+            "start": 6442,
+            "end": 6456,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 6457,
+                "end": 6459,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 6461,
+                  "end": 6464,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "times",
+                "source_id": 1,
+                "start": 6466,
+                "end": 6471,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "u8",
+                      "source_id": 1,
+                      "start": 6479,
+                      "end": 6481,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6487,
+              "end": 6490,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "sync",
+            "source_id": 1,
+            "start": 6505,
+            "end": 6509,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 6510,
+                "end": 6512,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 6514,
+                  "end": 6517,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6522,
+              "end": 6525,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "sync_data",
+            "source_id": 1,
+            "start": 6680,
+            "end": 6689,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 6690,
+                "end": 6692,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 6694,
+                  "end": 6697,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6702,
+              "end": 6705,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "duplicate",
+            "source_id": 1,
+            "start": 6879,
+            "end": 6888,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 6889,
+                "end": 6891,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 6893,
+                  "end": 6896,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 6901,
+              "end": 6904,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "lock_file",
+            "source_id": 1,
+            "start": 7265,
+            "end": 7274,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 7275,
+                "end": 7277,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7279,
+                  "end": 7282,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "operation",
+                "source_id": 1,
+                "start": 7284,
+                "end": 7293,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7295,
+                  "end": 7298,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 7303,
+              "end": 7306,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "change_owner",
+            "source_id": 1,
+            "start": 7545,
+            "end": 7557,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 7558,
+                "end": 7562,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 7566,
+                        "end": 7568,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 7573,
+                        "end": 7577,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "uid",
+                "source_id": 1,
+                "start": 7579,
+                "end": 7582,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7584,
+                  "end": 7587,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "gid",
+                "source_id": 1,
+                "start": 7589,
+                "end": 7592,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7594,
+                  "end": 7597,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 7602,
+              "end": 7605,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "change_owner_no_follow",
+            "source_id": 1,
+            "start": 7735,
+            "end": 7757,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "path",
+                "source_id": 1,
+                "start": 7758,
+                "end": 7762,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 1,
+                        "start": 7766,
+                        "end": 7768,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Path",
+                        "source_id": 1,
+                        "start": 7773,
+                        "end": 7777,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "uid",
+                "source_id": 1,
+                "start": 7779,
+                "end": 7782,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7784,
+                  "end": 7787,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "gid",
+                "source_id": 1,
+                "start": 7789,
+                "end": 7792,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7794,
+                  "end": 7797,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 7802,
+              "end": 7805,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "change_file_owner",
+            "source_id": 1,
+            "start": 7949,
+            "end": 7966,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "fd",
+                "source_id": 1,
+                "start": 7967,
+                "end": 7969,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7971,
+                  "end": 7974,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "uid",
+                "source_id": 1,
+                "start": 7976,
+                "end": 7979,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7981,
+                  "end": 7984,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "gid",
+                "source_id": 1,
+                "start": 7986,
+                "end": 7989,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 1,
+                  "start": 7991,
+                  "end": 7994,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 7999,
+              "end": 8002,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        },
+        {
+          "name": {
+            "text": "errno",
+            "source_id": 1,
+            "start": 8180,
+            "end": 8185,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 1,
+              "start": 8191,
+              "end": 8194,
+              "source_backed": true
+            }
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "host_provider",
+      "target": {
+        "text": "windows_x64",
+        "source_id": 1,
+        "start": 8963,
+        "end": 8974,
+        "source_backed": true
+      },
+      "boundary_trait": [
+        {
+          "text": "FilesystemHost",
+          "source_id": 1,
+          "start": 8984,
+          "end": 8998,
+          "source_backed": true
+        }
+      ],
+      "mappings": [
+        {
+          "machine": {
+            "text": "O_WRONLY",
+            "source_id": 1,
+            "start": 9006,
+            "end": 9014,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 1
+        },
+        {
+          "machine": {
+            "text": "O_RDWR",
+            "source_id": 1,
+            "start": 9030,
+            "end": 9036,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 2
+        },
+        {
+          "machine": {
+            "text": "O_APPEND_BIT",
+            "source_id": 1,
+            "start": 9054,
+            "end": 9066,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 3
+        },
+        {
+          "machine": {
+            "text": "O_CREATE_BIT",
+            "source_id": 1,
+            "start": 9078,
+            "end": 9090,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 8
+        },
+        {
+          "machine": {
+            "text": "O_TRUNC_BIT",
+            "source_id": 1,
+            "start": 9102,
+            "end": 9113,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 9
+        },
+        {
+          "machine": {
+            "text": "O_EXCL_BIT",
+            "source_id": 1,
+            "start": 9126,
+            "end": 9136,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 10
+        },
+        {
+          "machine": {
+            "text": "O_BINARY",
+            "source_id": 1,
+            "start": 9151,
+            "end": 9159,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 32768
+        },
+        {
+          "machine": {
+            "text": "ST_DEV_OFF",
+            "source_id": 1,
+            "start": 9829,
+            "end": 9839,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_MODE_OFF",
+            "source_id": 1,
+            "start": 9854,
+            "end": 9865,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "ST_NLINK_OFF",
+            "source_id": 1,
+            "start": 9879,
+            "end": 9891,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 8
+        },
+        {
+          "machine": {
+            "text": "ST_RDEV_OFF",
+            "source_id": 1,
+            "start": 9904,
+            "end": 9915,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 16
+        },
+        {
+          "machine": {
+            "text": "ST_SIZE_OFF",
+            "source_id": 1,
+            "start": 9930,
+            "end": 9941,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 24
+        },
+        {
+          "machine": {
+            "text": "ST_ATIME_OFF",
+            "source_id": 1,
+            "start": 9956,
+            "end": 9968,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 32
+        },
+        {
+          "machine": {
+            "text": "ST_MTIME_OFF",
+            "source_id": 1,
+            "start": 9982,
+            "end": 9994,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 40
+        },
+        {
+          "machine": {
+            "text": "ST_BTIME_OFF",
+            "source_id": 1,
+            "start": 10008,
+            "end": 10020,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 48
+        },
+        {
+          "machine": {
+            "text": "ST_INO_OFF",
+            "source_id": 1,
+            "start": 10034,
+            "end": 10044,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 64
+        },
+        {
+          "machine": {
+            "text": "ST_UID_OFF",
+            "source_id": 1,
+            "start": 10060,
+            "end": 10070,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 72
+        },
+        {
+          "machine": {
+            "text": "ST_GID_OFF",
+            "source_id": 1,
+            "start": 10086,
+            "end": 10096,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 76
+        },
+        {
+          "machine": {
+            "text": "ST_CTIME_OFF",
+            "source_id": 1,
+            "start": 10112,
+            "end": 10124,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 80
+        },
+        {
+          "machine": {
+            "text": "ST_BLOCKS_OFF",
+            "source_id": 1,
+            "start": 10138,
+            "end": 10151,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 88
+        },
+        {
+          "machine": {
+            "text": "ST_BLKSIZE_OFF",
+            "source_id": 1,
+            "start": 10164,
+            "end": 10178,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 96
+        }
+      ]
+    },
+    {
+      "kind": "host_provider",
+      "target": {
+        "text": "macos_arm64",
+        "source_id": 1,
+        "start": 10190,
+        "end": 10201,
+        "source_backed": true
+      },
+      "boundary_trait": [
+        {
+          "text": "FilesystemHost",
+          "source_id": 1,
+          "start": 10211,
+          "end": 10225,
+          "source_backed": true
+        }
+      ],
+      "mappings": [
+        {
+          "machine": {
+            "text": "O_WRONLY",
+            "source_id": 1,
+            "start": 10233,
+            "end": 10241,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 1
+        },
+        {
+          "machine": {
+            "text": "O_RDWR",
+            "source_id": 1,
+            "start": 10257,
+            "end": 10263,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 2
+        },
+        {
+          "machine": {
+            "text": "O_APPEND_BIT",
+            "source_id": 1,
+            "start": 10281,
+            "end": 10293,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 3
+        },
+        {
+          "machine": {
+            "text": "O_CREATE_BIT",
+            "source_id": 1,
+            "start": 10305,
+            "end": 10317,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 9
+        },
+        {
+          "machine": {
+            "text": "O_TRUNC_BIT",
+            "source_id": 1,
+            "start": 10329,
+            "end": 10340,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 10
+        },
+        {
+          "machine": {
+            "text": "O_EXCL_BIT",
+            "source_id": 1,
+            "start": 10354,
+            "end": 10364,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 11
+        },
+        {
+          "machine": {
+            "text": "O_BINARY",
+            "source_id": 1,
+            "start": 10379,
+            "end": 10387,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_DEV_OFF",
+            "source_id": 1,
+            "start": 10613,
+            "end": 10623,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_MODE_OFF",
+            "source_id": 1,
+            "start": 10638,
+            "end": 10649,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 4
+        },
+        {
+          "machine": {
+            "text": "ST_NLINK_OFF",
+            "source_id": 1,
+            "start": 10663,
+            "end": 10675,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "ST_INO_OFF",
+            "source_id": 1,
+            "start": 10688,
+            "end": 10698,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 8
+        },
+        {
+          "machine": {
+            "text": "ST_UID_OFF",
+            "source_id": 1,
+            "start": 10713,
+            "end": 10723,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 16
+        },
+        {
+          "machine": {
+            "text": "ST_GID_OFF",
+            "source_id": 1,
+            "start": 10739,
+            "end": 10749,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 20
+        },
+        {
+          "machine": {
+            "text": "ST_RDEV_OFF",
+            "source_id": 1,
+            "start": 10765,
+            "end": 10776,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 24
+        },
+        {
+          "machine": {
+            "text": "ST_ATIME_OFF",
+            "source_id": 1,
+            "start": 10791,
+            "end": 10803,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 32
+        },
+        {
+          "machine": {
+            "text": "ST_MTIME_OFF",
+            "source_id": 1,
+            "start": 10817,
+            "end": 10829,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 48
+        },
+        {
+          "machine": {
+            "text": "ST_CTIME_OFF",
+            "source_id": 1,
+            "start": 10843,
+            "end": 10855,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 64
+        },
+        {
+          "machine": {
+            "text": "ST_BTIME_OFF",
+            "source_id": 1,
+            "start": 10869,
+            "end": 10881,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 80
+        },
+        {
+          "machine": {
+            "text": "ST_SIZE_OFF",
+            "source_id": 1,
+            "start": 10895,
+            "end": 10906,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 96
+        },
+        {
+          "machine": {
+            "text": "ST_BLOCKS_OFF",
+            "source_id": 1,
+            "start": 10921,
+            "end": 10934,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 104
+        },
+        {
+          "machine": {
+            "text": "ST_BLKSIZE_OFF",
+            "source_id": 1,
+            "start": 10948,
+            "end": 10962,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 112
+        }
+      ]
+    },
+    {
+      "kind": "host_provider",
+      "target": {
+        "text": "linux_x64",
+        "source_id": 1,
+        "start": 10975,
+        "end": 10984,
+        "source_backed": true
+      },
+      "boundary_trait": [
+        {
+          "text": "FilesystemHost",
+          "source_id": 1,
+          "start": 10994,
+          "end": 11008,
+          "source_backed": true
+        }
+      ],
+      "mappings": [
+        {
+          "machine": {
+            "text": "O_WRONLY",
+            "source_id": 1,
+            "start": 11016,
+            "end": 11024,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 1
+        },
+        {
+          "machine": {
+            "text": "O_RDWR",
+            "source_id": 1,
+            "start": 11040,
+            "end": 11046,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 2
+        },
+        {
+          "machine": {
+            "text": "O_APPEND_BIT",
+            "source_id": 1,
+            "start": 11064,
+            "end": 11076,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 10
+        },
+        {
+          "machine": {
+            "text": "O_CREATE_BIT",
+            "source_id": 1,
+            "start": 11089,
+            "end": 11101,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "O_TRUNC_BIT",
+            "source_id": 1,
+            "start": 11113,
+            "end": 11124,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 9
+        },
+        {
+          "machine": {
+            "text": "O_EXCL_BIT",
+            "source_id": 1,
+            "start": 11137,
+            "end": 11147,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 7
+        },
+        {
+          "machine": {
+            "text": "O_BINARY",
+            "source_id": 1,
+            "start": 11161,
+            "end": 11169,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_DEV_OFF",
+            "source_id": 1,
+            "start": 11569,
+            "end": 11579,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_MODE_OFF",
+            "source_id": 1,
+            "start": 11594,
+            "end": 11605,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 4
+        },
+        {
+          "machine": {
+            "text": "ST_NLINK_OFF",
+            "source_id": 1,
+            "start": 11619,
+            "end": 11631,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "ST_INO_OFF",
+            "source_id": 1,
+            "start": 11644,
+            "end": 11654,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 8
+        },
+        {
+          "machine": {
+            "text": "ST_UID_OFF",
+            "source_id": 1,
+            "start": 11669,
+            "end": 11679,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 16
+        },
+        {
+          "machine": {
+            "text": "ST_GID_OFF",
+            "source_id": 1,
+            "start": 11695,
+            "end": 11705,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 20
+        },
+        {
+          "machine": {
+            "text": "ST_RDEV_OFF",
+            "source_id": 1,
+            "start": 11721,
+            "end": 11732,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 24
+        },
+        {
+          "machine": {
+            "text": "ST_ATIME_OFF",
+            "source_id": 1,
+            "start": 11747,
+            "end": 11759,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 32
+        },
+        {
+          "machine": {
+            "text": "ST_MTIME_OFF",
+            "source_id": 1,
+            "start": 11773,
+            "end": 11785,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 48
+        },
+        {
+          "machine": {
+            "text": "ST_CTIME_OFF",
+            "source_id": 1,
+            "start": 11799,
+            "end": 11811,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 64
+        },
+        {
+          "machine": {
+            "text": "ST_BTIME_OFF",
+            "source_id": 1,
+            "start": 11825,
+            "end": 11837,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 80
+        },
+        {
+          "machine": {
+            "text": "ST_SIZE_OFF",
+            "source_id": 1,
+            "start": 11851,
+            "end": 11862,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 96
+        },
+        {
+          "machine": {
+            "text": "ST_BLOCKS_OFF",
+            "source_id": 1,
+            "start": 11877,
+            "end": 11890,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 104
+        },
+        {
+          "machine": {
+            "text": "ST_BLKSIZE_OFF",
+            "source_id": 1,
+            "start": 11904,
+            "end": 11918,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 112
+        }
+      ]
+    },
+    {
+      "kind": "host_provider",
+      "target": {
+        "text": "linux_arm64",
+        "source_id": 1,
+        "start": 11931,
+        "end": 11942,
+        "source_backed": true
+      },
+      "boundary_trait": [
+        {
+          "text": "FilesystemHost",
+          "source_id": 1,
+          "start": 11952,
+          "end": 11966,
+          "source_backed": true
+        }
+      ],
+      "mappings": [
+        {
+          "machine": {
+            "text": "O_WRONLY",
+            "source_id": 1,
+            "start": 11974,
+            "end": 11982,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 1
+        },
+        {
+          "machine": {
+            "text": "O_RDWR",
+            "source_id": 1,
+            "start": 11998,
+            "end": 12004,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 2
+        },
+        {
+          "machine": {
+            "text": "O_APPEND_BIT",
+            "source_id": 1,
+            "start": 12022,
+            "end": 12034,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 10
+        },
+        {
+          "machine": {
+            "text": "O_CREATE_BIT",
+            "source_id": 1,
+            "start": 12047,
+            "end": 12059,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "O_TRUNC_BIT",
+            "source_id": 1,
+            "start": 12071,
+            "end": 12082,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 9
+        },
+        {
+          "machine": {
+            "text": "O_EXCL_BIT",
+            "source_id": 1,
+            "start": 12095,
+            "end": 12105,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 7
+        },
+        {
+          "machine": {
+            "text": "O_BINARY",
+            "source_id": 1,
+            "start": 12119,
+            "end": 12127,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_DEV_OFF",
+            "source_id": 1,
+            "start": 12201,
+            "end": 12211,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 0
+        },
+        {
+          "machine": {
+            "text": "ST_MODE_OFF",
+            "source_id": 1,
+            "start": 12226,
+            "end": 12237,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 4
+        },
+        {
+          "machine": {
+            "text": "ST_NLINK_OFF",
+            "source_id": 1,
+            "start": 12251,
+            "end": 12263,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 6
+        },
+        {
+          "machine": {
+            "text": "ST_INO_OFF",
+            "source_id": 1,
+            "start": 12276,
+            "end": 12286,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 8
+        },
+        {
+          "machine": {
+            "text": "ST_UID_OFF",
+            "source_id": 1,
+            "start": 12301,
+            "end": 12311,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 16
+        },
+        {
+          "machine": {
+            "text": "ST_GID_OFF",
+            "source_id": 1,
+            "start": 12327,
+            "end": 12337,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 20
+        },
+        {
+          "machine": {
+            "text": "ST_RDEV_OFF",
+            "source_id": 1,
+            "start": 12353,
+            "end": 12364,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 24
+        },
+        {
+          "machine": {
+            "text": "ST_ATIME_OFF",
+            "source_id": 1,
+            "start": 12379,
+            "end": 12391,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 32
+        },
+        {
+          "machine": {
+            "text": "ST_MTIME_OFF",
+            "source_id": 1,
+            "start": 12405,
+            "end": 12417,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 48
+        },
+        {
+          "machine": {
+            "text": "ST_CTIME_OFF",
+            "source_id": 1,
+            "start": 12431,
+            "end": 12443,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 64
+        },
+        {
+          "machine": {
+            "text": "ST_BTIME_OFF",
+            "source_id": 1,
+            "start": 12457,
+            "end": 12469,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 80
+        },
+        {
+          "machine": {
+            "text": "ST_SIZE_OFF",
+            "source_id": 1,
+            "start": 12483,
+            "end": 12494,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 96
+        },
+        {
+          "machine": {
+            "text": "ST_BLOCKS_OFF",
+            "source_id": 1,
+            "start": 12509,
+            "end": 12522,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 104
+        },
+        {
+          "machine": {
+            "text": "ST_BLKSIZE_OFF",
+            "source_id": 1,
+            "start": 12536,
+            "end": 12550,
+            "source_backed": true
+          },
+          "kind": "value",
+          "value": 112
+        }
+      ]
+    }
+  ]
+}

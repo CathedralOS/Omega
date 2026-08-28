@@ -1,0 +1,449 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "interrupt",
+          "source_id": 0,
+          "start": 27,
+          "end": 36,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 44,
+        "end": 48,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 67,
+            "end": 71,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "forged",
+                "source_id": 0,
+                "start": 166,
+                "end": 172,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "InterruptAcknowledgement",
+                  "source_id": 0,
+                  "start": 174,
+                  "end": 198,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "InterruptAcknowledgement",
+                  "source_id": 0,
+                  "start": 201,
+                  "end": 225,
+                  "source_backed": true
+                },
+                "fields": []
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "InterruptMaskGuard",
+        "source_id": 1,
+        "start": 578,
+        "end": 596,
+        "source_backed": true
+      },
+      "supply": "boundary_opaque",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "linear",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "InterruptMaskControl",
+        "source_id": 1,
+        "start": 775,
+        "end": 795,
+        "source_backed": true
+      },
+      "supply": "boundary_opaque",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "InterruptMaskControl::save_and_mask",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "InterruptMaskControl",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "machine_control",
+          "source_id": 1,
+          "start": 892,
+          "end": 907,
+          "source_backed": true
+        }
+      ],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "boolean",
+                "value": true
+              }
+            }
+          ],
+          "token_count": 1
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "save_and_mask",
+            "source_id": 1,
+            "start": 837,
+            "end": 850,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "InterruptMaskGuard",
+              "source_id": 1,
+              "start": 865,
+              "end": 883,
+              "source_backed": true
+            }
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "InterruptMaskGuard::restore",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "InterruptMaskGuard",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "machine_control",
+          "source_id": 1,
+          "start": 982,
+          "end": 997,
+          "source_backed": true
+        }
+      ],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "boolean",
+                "value": true
+              }
+            }
+          ],
+          "token_count": 1
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "restore",
+            "source_id": 1,
+            "start": 960,
+            "end": 967,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "InterruptAcknowledgement",
+        "source_id": 1,
+        "start": 1027,
+        "end": 1051,
+        "source_backed": true
+      },
+      "supply": "boundary_opaque",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "linear",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "InterruptAcknowledgement::complete",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "InterruptAcknowledgement",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "device_io",
+          "source_id": 1,
+          "start": 1129,
+          "end": 1138,
+          "source_backed": true
+        }
+      ],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "boolean",
+                "value": true
+              }
+            }
+          ],
+          "token_count": 1
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "complete",
+            "source_id": 1,
+            "start": 1106,
+            "end": 1114,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,247 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "machine",
+      "name": {
+        "text": "add_one_congruence",
+        "source_id": 0,
+        "start": 230,
+        "end": 248,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "a",
+                      "source_id": 0,
+                      "start": 284,
+                      "end": 285,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 0,
+                      "start": 289,
+                      "end": 290,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ],
+          "token_count": 6
+        },
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "a",
+                        "source_id": 0,
+                        "start": 305,
+                        "end": 306,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "b",
+                        "source_id": 0,
+                        "start": 314,
+                        "end": 315,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              }
+            }
+          ],
+          "token_count": 14
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "a",
+                "source_id": 0,
+                "start": 249,
+                "end": 250,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 252,
+                  "end": 257,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 259,
+                "end": 260,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 262,
+                  "end": 267,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 334,
+        "end": 338,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 361,
+            "end": 365,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

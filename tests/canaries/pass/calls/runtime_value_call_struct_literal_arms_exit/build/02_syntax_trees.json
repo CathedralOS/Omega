@@ -1,0 +1,1785 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 727,
+        "end": 734,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 749,
+            "end": 761,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 762,
+                "end": 773,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 775,
+                  "end": 778,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Dir",
+        "source_id": 0,
+        "start": 789,
+        "end": 792,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "N",
+            "source_id": 0,
+            "start": 804,
+            "end": 805,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "S",
+            "source_id": 0,
+            "start": 816,
+            "end": 817,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "E",
+            "source_id": 0,
+            "start": 828,
+            "end": 829,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "W",
+            "source_id": 0,
+            "start": 840,
+            "end": 841,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Vec2",
+        "source_id": 0,
+        "start": 850,
+        "end": 854,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "dx",
+            "source_id": 0,
+            "start": 861,
+            "end": 863,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 865,
+                "end": 868,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "dy",
+            "source_id": 0,
+            "start": 886,
+            "end": 888,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 890,
+                "end": 893,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Trapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Token",
+        "source_id": 0,
+        "start": 914,
+        "end": 919,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Num",
+            "source_id": 0,
+            "start": 931,
+            "end": 934,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Zero",
+            "source_id": 0,
+            "start": 969,
+            "end": 973,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 983,
+        "end": 987,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 994,
+            "end": 1001,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 1003,
+              "end": 1010,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::delta",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "delta",
+            "source_id": 0,
+            "start": 1029,
+            "end": 1034,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "d",
+                "source_id": 0,
+                "start": 1042,
+                "end": 1043,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Dir",
+                  "source_id": 0,
+                  "start": 1045,
+                  "end": 1048,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Vec2",
+              "source_id": 0,
+              "start": 1053,
+              "end": 1057,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "struct_literal",
+                  "type_name": {
+                    "text": "Vec2",
+                    "source_id": 0,
+                    "start": 1097,
+                    "end": 1101,
+                    "source_backed": true
+                  },
+                  "fields": [
+                    {
+                      "name": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1104,
+                        "end": 1106,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": {
+                        "text": "dy",
+                        "source_id": 0,
+                        "start": 1111,
+                        "end": 1113,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "subtract",
+                        "right": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "d",
+                        "source_id": 0,
+                        "start": 1075,
+                        "end": 1076,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Dir",
+                      "source_id": 0,
+                      "start": 1087,
+                      "end": 1090,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "N",
+                      "source_id": 0,
+                      "start": 1092,
+                      "end": 1093,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "struct_literal",
+                  "type_name": {
+                    "text": "Vec2",
+                    "source_id": 0,
+                    "start": 1141,
+                    "end": 1145,
+                    "source_backed": true
+                  },
+                  "fields": [
+                    {
+                      "name": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1148,
+                        "end": 1150,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": {
+                        "text": "dy",
+                        "source_id": 0,
+                        "start": 1155,
+                        "end": 1157,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "d",
+                        "source_id": 0,
+                        "start": 1075,
+                        "end": 1076,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Dir",
+                      "source_id": 0,
+                      "start": 1131,
+                      "end": 1134,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "S",
+                      "source_id": 0,
+                      "start": 1136,
+                      "end": 1137,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "struct_literal",
+                  "type_name": {
+                    "text": "Vec2",
+                    "source_id": 0,
+                    "start": 1181,
+                    "end": 1185,
+                    "source_backed": true
+                  },
+                  "fields": [
+                    {
+                      "name": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1188,
+                        "end": 1190,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    },
+                    {
+                      "name": {
+                        "text": "dy",
+                        "source_id": 0,
+                        "start": 1195,
+                        "end": 1197,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "d",
+                        "source_id": 0,
+                        "start": 1075,
+                        "end": 1076,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Dir",
+                      "source_id": 0,
+                      "start": 1171,
+                      "end": 1174,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "E",
+                      "source_id": 0,
+                      "start": 1176,
+                      "end": 1177,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "struct_literal",
+                  "type_name": {
+                    "text": "Vec2",
+                    "source_id": 0,
+                    "start": 1221,
+                    "end": 1225,
+                    "source_backed": true
+                  },
+                  "fields": [
+                    {
+                      "name": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1228,
+                        "end": 1230,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "subtract",
+                        "right": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      }
+                    },
+                    {
+                      "name": {
+                        "text": "dy",
+                        "source_id": 0,
+                        "start": 1239,
+                        "end": 1241,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "d",
+                        "source_id": 0,
+                        "start": 1075,
+                        "end": 1076,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Dir",
+                      "source_id": 0,
+                      "start": 1211,
+                      "end": 1214,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "W",
+                      "source_id": 0,
+                      "start": 1216,
+                      "end": 1217,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::mk",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "mk",
+            "source_id": 0,
+            "start": 1269,
+            "end": 1271,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "b",
+                "source_id": 0,
+                "start": 1279,
+                "end": 1280,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "bool",
+                  "source_id": 0,
+                  "start": 1282,
+                  "end": 1286,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Token",
+              "source_id": 0,
+              "start": 1291,
+              "end": 1296,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "struct_literal",
+                  "type_name": {
+                    "text": "Token",
+                    "source_id": 0,
+                    "start": 1334,
+                    "end": 1339,
+                    "source_backed": true
+                  },
+                  "fields": [
+                    {
+                      "name": {
+                        "text": "value",
+                        "source_id": 0,
+                        "start": 1347,
+                        "end": 1352,
+                        "source_backed": true
+                      },
+                      "value": {
+                        "kind": "integer",
+                        "value": 9
+                      }
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "b",
+                        "source_id": 0,
+                        "start": 1314,
+                        "end": 1315,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Token",
+                      "source_id": 0,
+                      "start": 1375,
+                      "end": 1380,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 1382,
+                      "end": 1386,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "b",
+                        "source_id": 0,
+                        "start": 1314,
+                        "end": 1315,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1410,
+            "end": 1414,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "e",
+                "source_id": 0,
+                "start": 1436,
+                "end": 1437,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Vec2",
+                  "source_id": 0,
+                  "start": 1439,
+                  "end": 1443,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "delta",
+                  "source_id": 0,
+                  "start": 1451,
+                  "end": 1456,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "Dir",
+                        "source_id": 0,
+                        "start": 1457,
+                        "end": 1460,
+                        "source_backed": true
+                      },
+                      {
+                        "text": "E",
+                        "source_id": 0,
+                        "start": 1462,
+                        "end": 1463,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "w",
+                "source_id": 0,
+                "start": 1474,
+                "end": 1475,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Vec2",
+                  "source_id": 0,
+                  "start": 1477,
+                  "end": 1481,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "delta",
+                  "source_id": 0,
+                  "start": 1489,
+                  "end": 1494,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "Dir",
+                        "source_id": 0,
+                        "start": 1495,
+                        "end": 1498,
+                        "source_backed": true
+                      },
+                      {
+                        "text": "W",
+                        "source_id": 0,
+                        "start": 1500,
+                        "end": 1501,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "t",
+                "source_id": 0,
+                "start": 1512,
+                "end": 1513,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Token",
+                  "source_id": 0,
+                  "start": 1515,
+                  "end": 1520,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "mk",
+                  "source_id": 0,
+                  "start": 1528,
+                  "end": 1530,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_w",
+                    "source_id": 0,
+                    "start": 1574,
+                    "end": 1581,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "w",
+                        "source_id": 0,
+                        "start": 1582,
+                        "end": 1583,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "t",
+                        "source_id": 0,
+                        "start": 1585,
+                        "end": 1586,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "e",
+                            "source_id": 0,
+                            "start": 1554,
+                            "end": 1555,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1556,
+                        "end": 1558,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 1
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1593,
+                    "end": 1596,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_w",
+            "source_id": 0,
+            "start": 1612,
+            "end": 1619,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "w",
+                "source_id": 0,
+                "start": 1631,
+                "end": 1632,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Vec2",
+                  "source_id": 0,
+                  "start": 1634,
+                  "end": 1638,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "t",
+                "source_id": 0,
+                "start": 1640,
+                "end": 1641,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Token",
+                  "source_id": 0,
+                  "start": 1643,
+                  "end": 1648,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_token",
+                    "source_id": 0,
+                    "start": 1695,
+                    "end": 1706,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "t",
+                        "source_id": 0,
+                        "start": 1707,
+                        "end": 1708,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "w",
+                            "source_id": 0,
+                            "start": 1671,
+                            "end": 1672,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "dx",
+                        "source_id": 0,
+                        "start": 1673,
+                        "end": 1675,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "integer",
+                        "value": 0
+                      },
+                      "operator": "subtract",
+                      "right": {
+                        "kind": "integer",
+                        "value": 1
+                      }
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1715,
+                    "end": 1718,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_token",
+            "source_id": 0,
+            "start": 1739,
+            "end": 1750,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "t",
+                "source_id": 0,
+                "start": 1762,
+                "end": 1763,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Token",
+                  "source_id": 0,
+                  "start": 1765,
+                  "end": 1770,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_value",
+                    "source_id": 0,
+                    "start": 1821,
+                    "end": 1832,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "t",
+                          "source_id": 0,
+                          "start": 1793,
+                          "end": 1794,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "value",
+                      "source_id": 0,
+                      "start": 1810,
+                      "end": 1815,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "t",
+                        "source_id": 0,
+                        "start": 1793,
+                        "end": 1794,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Token",
+                      "source_id": 0,
+                      "start": 1797,
+                      "end": 1802,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Num",
+                      "source_id": 0,
+                      "start": 1804,
+                      "end": 1807,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1855,
+                    "end": 1858,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "t",
+                        "source_id": 0,
+                        "start": 1793,
+                        "end": 1794,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Token",
+                      "source_id": 0,
+                      "start": 1840,
+                      "end": 1845,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 1847,
+                      "end": 1851,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_value",
+            "source_id": 0,
+            "start": 1879,
+            "end": 1890,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "value",
+                "source_id": 0,
+                "start": 1902,
+                "end": 1907,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "constrained",
+                "base_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 1909,
+                    "end": 1912,
+                    "source_backed": true
+                  }
+                },
+                "constraints": [
+                  {
+                    "kind": "arithmetic_domain",
+                    "domain": "Trapping"
+                  }
+                ]
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "good",
+                    "source_id": 0,
+                    "start": 1968,
+                    "end": 1972,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "value",
+                          "source_id": 0,
+                          "start": 1947,
+                          "end": 1952,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "equal",
+                    "right": {
+                      "kind": "integer",
+                      "value": 9
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1980,
+                    "end": 1983,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "good",
+            "source_id": 0,
+            "start": 2005,
+            "end": 2009,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2036,
+                  "end": 2043,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2044,
+                "end": 2056,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 2078,
+            "end": 2081,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 2108,
+                  "end": 2115,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 2116,
+                "end": 2128,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

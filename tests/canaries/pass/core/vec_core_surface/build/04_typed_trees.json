@@ -1,0 +1,319 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Vec",
+        "supply": "checked_shape",
+        "type_parameters": [
+          "T"
+        ],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "is_mutable": true
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "Vec::as_slice",
+        "attached_data": "Vec",
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "as_slice",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "is_mutable": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "reference",
+              "referee": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": "T"
+                }
+              },
+              "is_mutable": false
+            },
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "Vec::push",
+        "attached_data": "Vec",
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "push",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "is_mutable": true
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "T"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "Length"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 23
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "Capacity"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 32
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "index"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 38
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "index_mut"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 44
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "as_slice"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 47
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "as_mut_slice"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 53
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "push"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 45
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "Vec",
+          "pop"
+        ],
+        "type_parameters": [
+          "T"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 34
+      }
+    ],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 11,
+    "data_member_count": 0,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 3,
+    "operator_count": 8,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 15,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 31,
+    "expression_struct_field_count": 0,
+    "statement_count": 0,
+    "transition_target_count": 0,
+    "type_reference_count": 50,
+    "type_constraint_count": 0
+  }
+}

@@ -1,0 +1,858 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "RandomState",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "seed",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "u64"
+              },
+              "constraints": [
+                {
+                  "kind": "arithmetic_domain",
+                  "domain": "Wrapping"
+                }
+              ]
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "calls",
+            "type_reference": {
+              "kind": "named",
+              "name": "UInt"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Random",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "ItemKind",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "RustedDagger"
+          },
+          {
+            "kind": "variant",
+            "name": "EarlyBuckler"
+          },
+          {
+            "kind": "variant",
+            "name": "HealingCharm"
+          },
+          {
+            "kind": "variant",
+            "name": "EmberBlade"
+          },
+          {
+            "kind": "variant",
+            "name": "DeepKey"
+          }
+        ]
+      },
+      {
+        "name": "Reward",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "item",
+            "type_reference": {
+              "kind": "named",
+              "name": "ItemKind"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "rng",
+            "type_reference": {
+              "kind": "named",
+              "name": "Random"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Random::next_u32",
+        "attached_data": "Random",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "next_u32",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "state",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "state"
+                    ]
+                  },
+                  "member": "seed"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "state"
+                        ]
+                      },
+                      "member": "seed"
+                    },
+                    "operator": "*",
+                    "right": {
+                      "kind": "integer",
+                      "value": 6364136223846793005
+                    }
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1442695040888963407
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "state"
+                    ]
+                  },
+                  "member": "calls"
+                },
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "state"
+                      ]
+                    },
+                    "member": "calls"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "cast",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "state"
+                        ]
+                      },
+                      "member": "seed"
+                    },
+                    "operator": ">>",
+                    "right": {
+                      "kind": "integer",
+                      "value": 32
+                    }
+                  },
+                  "target_type": [
+                    "u32"
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 3
+          }
+        ]
+      },
+      {
+        "name": "Random::range",
+        "attached_data": "Random",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "range",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "state",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "exclusive_max",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "raw",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "next_u32",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "state"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "raw"
+                    ]
+                  },
+                  "operator": "%",
+                  "right": {
+                    "kind": "name",
+                    "path": [
+                      "exclusive_max"
+                    ]
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "depth",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "random",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "reward",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Reward"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "reward"
+                    ]
+                  },
+                  "member": "item"
+                },
+                "value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "target": "pick",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "depth"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "random"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Main::pick",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "pick",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "depth",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "random",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "RandomState"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "ItemKind"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "roll",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "rng"
+                  },
+                  "target": "range",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "random"
+                      ]
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 100
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "is_early_dagger",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "depth"
+                      ]
+                    },
+                    "operator": "<=",
+                    "right": {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  },
+                  "operator": "&&",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "roll"
+                      ]
+                    },
+                    "operator": "<",
+                    "right": {
+                      "kind": "integer",
+                      "value": 50
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "is_early_buckler",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "depth"
+                      ]
+                    },
+                    "operator": "<=",
+                    "right": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  },
+                  "operator": "&&",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "roll"
+                      ]
+                    },
+                    "operator": "<",
+                    "right": {
+                      "kind": "integer",
+                      "value": 75
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "is_healing_charm",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "roll"
+                    ]
+                  },
+                  "operator": "<",
+                  "right": {
+                    "kind": "integer",
+                    "value": 85
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "is_ember_blade",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "depth"
+                      ]
+                    },
+                    "operator": ">=",
+                    "right": {
+                      "kind": "integer",
+                      "value": 5
+                    }
+                  },
+                  "operator": "&&",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "roll"
+                      ]
+                    },
+                    "operator": "<",
+                    "right": {
+                      "kind": "integer",
+                      "value": 96
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "is_deep_key",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "depth"
+                    ]
+                  },
+                  "operator": ">=",
+                  "right": {
+                    "kind": "integer",
+                    "value": 8
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "RustedDagger"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "is_early_dagger"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "EarlyBuckler"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "is_early_buckler"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "HealingCharm"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "is_healing_charm"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "EmberBlade"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "is_ember_blade"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "DeepKey"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "is_deep_key"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "ItemKind",
+                      "RustedDagger"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 12
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 1,
+    "expression_count": 74,
+    "statement_count": 18,
+    "type_reference_count": 32
+  }
+}

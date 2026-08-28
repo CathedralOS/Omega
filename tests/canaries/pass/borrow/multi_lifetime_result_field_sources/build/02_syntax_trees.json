@@ -1,0 +1,638 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Pair",
+        "source_id": 0,
+        "start": 140,
+        "end": 144,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "lifetime_parameters": [
+        {
+          "text": "left",
+          "source_id": 0,
+          "start": 146,
+          "end": 150,
+          "source_backed": true
+        },
+        {
+          "text": "right",
+          "source_id": 0,
+          "start": 153,
+          "end": 158,
+          "source_backed": true
+        }
+      ],
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "left",
+            "source_id": 0,
+            "start": 166,
+            "end": 170,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 183,
+                "end": 186,
+                "source_backed": true
+              }
+            },
+            "is_mutable": true
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "right",
+            "source_id": 0,
+            "start": 192,
+            "end": 197,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 211,
+                "end": 214,
+                "source_backed": true
+              }
+            },
+            "is_mutable": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "pair",
+        "source_id": 0,
+        "start": 227,
+        "end": 231,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "lifetime_parameters": [
+        {
+          "text": "left",
+          "source_id": 0,
+          "start": 233,
+          "end": 237,
+          "source_backed": true
+        },
+        {
+          "text": "right",
+          "source_id": 0,
+          "start": 240,
+          "end": 245,
+          "source_backed": true
+        }
+      ],
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 252,
+                "end": 256,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 269,
+                    "end": 272,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 278,
+                "end": 283,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 297,
+                    "end": 300,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "generic",
+            "base_name": {
+              "text": "Pair",
+              "source_id": 0,
+              "start": 306,
+              "end": 310,
+              "source_backed": true
+            },
+            "lifetime_arguments": [
+              {
+                "text": "left",
+                "source_id": 0,
+                "start": 312,
+                "end": 316,
+                "source_backed": true
+              },
+              {
+                "text": "right",
+                "source_id": 0,
+                "start": 319,
+                "end": 324,
+                "source_backed": true
+              }
+            ],
+            "arguments": []
+          },
+          "contracts": [],
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "result",
+                "source_id": 0,
+                "start": 336,
+                "end": 342,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Pair",
+                  "source_id": 0,
+                  "start": 344,
+                  "end": 348,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [
+                  {
+                    "text": "left",
+                    "source_id": 0,
+                    "start": 350,
+                    "end": 354,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "right",
+                    "source_id": 0,
+                    "start": 357,
+                    "end": 362,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Pair",
+                  "source_id": 0,
+                  "start": 366,
+                  "end": 370,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "left",
+                      "source_id": 0,
+                      "start": 381,
+                      "end": 385,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "left",
+                          "source_id": 0,
+                          "start": 387,
+                          "end": 391,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  {
+                    "name": {
+                      "text": "right",
+                      "source_id": 0,
+                      "start": 401,
+                      "end": 406,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "right",
+                          "source_id": 0,
+                          "start": 408,
+                          "end": 413,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "result",
+                      "source_id": 0,
+                      "start": 452,
+                      "end": 458,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "exercise",
+        "source_id": 0,
+        "start": 476,
+        "end": 484,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "lifetime_parameters": [
+        {
+          "text": "left",
+          "source_id": 0,
+          "start": 486,
+          "end": 490,
+          "source_backed": true
+        },
+        {
+          "text": "right",
+          "source_id": 0,
+          "start": 493,
+          "end": 498,
+          "source_backed": true
+        }
+      ],
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 505,
+                "end": 509,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 522,
+                    "end": 525,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 531,
+                "end": 536,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 550,
+                    "end": 553,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "result",
+                "source_id": 0,
+                "start": 566,
+                "end": 572,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "generic",
+                "base_name": {
+                  "text": "Pair",
+                  "source_id": 0,
+                  "start": 574,
+                  "end": 578,
+                  "source_backed": true
+                },
+                "lifetime_arguments": [
+                  {
+                    "text": "left",
+                    "source_id": 0,
+                    "start": 580,
+                    "end": 584,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "right",
+                    "source_id": 0,
+                    "start": 587,
+                    "end": 592,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": null,
+                "target": {
+                  "text": "pair",
+                  "source_id": 0,
+                  "start": 596,
+                  "end": 600,
+                  "source_backed": true
+                },
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "left",
+                        "source_id": 0,
+                        "start": 601,
+                        "end": 605,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "right",
+                        "source_id": 0,
+                        "start": 607,
+                        "end": 612,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "left",
+                    "source_id": 0,
+                    "start": 619,
+                    "end": 623,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "value": {
+                "kind": "integer",
+                "text": "1"
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "result",
+                      "source_id": 0,
+                      "start": 633,
+                      "end": 639,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "right",
+                  "source_id": 0,
+                  "start": 640,
+                  "end": 645,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "text": "2"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 659,
+        "end": 663,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 683,
+            "end": 687,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

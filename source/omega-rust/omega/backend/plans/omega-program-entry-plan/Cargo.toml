@@ -1,0 +1,29 @@
+[package]
+name = "omega-program-entry-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_program_entry_plan"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-executable-installation = { path = "../../runtime/omega-executable-installation" }
+omega-effects = { path = "../../../representations/omega-effects" }
+omega-external-roots = { path = "../../runtime/omega-external-roots" }
+omega-function-identity = { path = "../../../representations/omega-function-identity" }
+omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
+omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
+omega-layout = { path = "../../omega-layout" }
+omega-target = { path = "../../../representations/omega-target" }
+psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
+psi-layout-plans = { path = "../../../../psi/foundation/psi-layout-plans" }
+psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
+psi-language-semantics = { path = "../../../../psi/foundation/psi-language-semantics" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+psi-checked-trees = { path = "../../../../psi/representations/psi-checked-trees" }

@@ -1,0 +1,277 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 270,
+          "end": 275,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 277,
+          "end": 285,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 287,
+          "end": 291,
+          "source_backed": true
+        },
+        {
+          "text": "canary_slice_index",
+          "source_id": 0,
+          "start": 293,
+          "end": 311,
+          "source_backed": true
+        }
+      ],
+      "category": "SliceIndexing"
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 338,
+          "end": 343,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 345,
+          "end": 353,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 355,
+          "end": 359,
+          "source_backed": true
+        },
+        {
+          "text": "canary_ptr_offset",
+          "source_id": 0,
+          "start": 361,
+          "end": 378,
+          "source_backed": true
+        }
+      ],
+      "category": "PointerOffset"
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 405,
+          "end": 410,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 412,
+          "end": 420,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 422,
+          "end": 426,
+          "source_backed": true
+        },
+        {
+          "text": "canary_ptr_access",
+          "source_id": 0,
+          "start": 428,
+          "end": 445,
+          "source_backed": true
+        }
+      ],
+      "category": "PointerAccess"
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 472,
+          "end": 477,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 479,
+          "end": 487,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 489,
+          "end": 493,
+          "source_backed": true
+        },
+        {
+          "text": "canary_descriptor",
+          "source_id": 0,
+          "start": 495,
+          "end": 512,
+          "source_backed": true
+        }
+      ],
+      "category": "DescriptorConstruction"
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 548,
+          "end": 553,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 555,
+          "end": 563,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 565,
+          "end": 569,
+          "source_backed": true
+        },
+        {
+          "text": "canary_allocation",
+          "source_id": 0,
+          "start": 571,
+          "end": 588,
+          "source_backed": true
+        }
+      ],
+      "category": "Allocation"
+    },
+    {
+      "kind": "provider",
+      "name": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 612,
+          "end": 617,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 619,
+          "end": 627,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 629,
+          "end": 633,
+          "source_backed": true
+        },
+        {
+          "text": "canary_host_abi",
+          "source_id": 0,
+          "start": 635,
+          "end": 650,
+          "source_backed": true
+        }
+      ],
+      "category": "HostAbiCall"
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 672,
+        "end": 676,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 696,
+            "end": 700,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

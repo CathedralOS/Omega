@@ -9,9 +9,9 @@ name = "omega_image"
 path = "src/lib.rs"
 
 [dependencies]
-omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
-omega-function-identity = { path = "../../../foundation/omega-function-identity" }
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-function-identity = { path = "../../../representations/omega-function-identity" }
 psi-arena = { path = "../../../../psi/foundation/psi-arena" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
 omega-object-file = { path = "../../object/omega-object-file" }
-omega-target = { path = "../../../foundation/omega-target" }
+omega-target = { path = "../../../representations/omega-target" }

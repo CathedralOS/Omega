@@ -211,15 +211,17 @@ fn closed_generic_erased_record_elaborates_and_lays_out_material_fields_only() {
     assert_eq!(layout.fields.span_or_empty(fields).len(), 1);
     assert_eq!(boxed.layout.size, 4);
 
-    let graph = omega_checked_trees_to_state_graph::build_state_graph(&checked)
-        .expect("runtime state graph");
-    assert!(graph.expressions.iter_expressions().all(|(_, expression)| {
-        !matches!(
-            expression,
-            psi_checked_trees::expression::ExpressionNode::Name(path)
-                if path.symbol == only_symbol
-        )
-    }));
+    assert!(
+        checked
+            .expression_table
+            .iter_expressions()
+            .any(|(_, expression)| matches!(
+                expression,
+                psi_checked_trees::expression::ExpressionNode::Name(path)
+                    if path.symbol == only_symbol
+            )),
+        "the erased witness remains available to proof checking even though layout erases it",
+    );
 }
 
 #[test]

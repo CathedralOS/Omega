@@ -1,0 +1,226 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 5,
+        "end": 9,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 32,
+            "end": 36,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Real",
+              "source_id": 0,
+              "start": 63,
+              "end": 67,
+              "source_backed": true
+            }
+          },
+          "statements": []
+        },
+        {
+          "name": {
+            "text": "answer",
+            "source_id": 0,
+            "start": 89,
+            "end": 95,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "raw",
+                "source_id": 0,
+                "start": 126,
+                "end": 129,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 131,
+                  "end": 134,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Real",
+              "source_id": 0,
+              "start": 63,
+              "end": 67,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "Real",
+                        "source_id": 0,
+                        "start": 153,
+                        "end": 157,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "target": {
+                    "text": "from",
+                    "source_id": 0,
+                    "start": 159,
+                    "end": 163,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "raw",
+                          "source_id": 0,
+                          "start": 164,
+                          "end": 167,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                },
+                "operator": "divide",
+                "right": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "Real",
+                        "source_id": 0,
+                        "start": 171,
+                        "end": 175,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "target": {
+                    "text": "from",
+                    "source_id": 0,
+                    "start": 177,
+                    "end": 181,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "u32",
+                          "source_id": 0,
+                          "start": 182,
+                          "end": 185,
+                          "source_backed": true
+                        },
+                        {
+                          "text": "MAX",
+                          "source_id": 0,
+                          "start": 187,
+                          "end": 190,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

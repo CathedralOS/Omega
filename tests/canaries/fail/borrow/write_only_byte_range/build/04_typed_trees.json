@@ -1,0 +1,167 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "fill",
+        "attached_data": null,
+        "type_parameters": [],
+        "supply": {
+          "kind": "checked_body"
+        },
+        "termination": {
+          "interface": "internal_derived"
+        },
+        "invokes": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "bytes",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "fixed_array",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "u8"
+                    },
+                    "length": "4"
+                  },
+                  "access": "write_only"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "bytes"
+                    ]
+                  },
+                  "index": {
+                    "kind": "range",
+                    "start": {
+                      "kind": "integer",
+                      "text": "0"
+                    },
+                    "end": {
+                      "kind": "integer",
+                      "text": "2"
+                    },
+                    "end_inclusive": false
+                  }
+                },
+                "value": {
+                  "kind": "array_literal",
+                  "values": [
+                    {
+                      "kind": "integer",
+                      "text": "1"
+                    },
+                    {
+                      "kind": "integer",
+                      "text": "2"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "supply": {
+          "kind": "checked_body"
+        },
+        "termination": {
+          "interface": "internal_derived"
+        },
+        "invokes": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "access": "mutable"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "propositions": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 1,
+    "data_type_parameter_count": 0,
+    "data_member_count": 0,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "proposition_count": 0,
+    "proposition_binder_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 2,
+    "state_parameter_count": 2,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 8,
+    "expression_struct_field_count": 0,
+    "statement_count": 1,
+    "transition_target_count": 0,
+    "type_reference_count": 5,
+    "type_constraint_count": 0
+  }
+}

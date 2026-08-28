@@ -1,6 +1,6 @@
 # Typed Trees To Checked Trees
 
-[Pipeline](../pipeline.md) | Previous: [Symbol Resolved Trees To Typed Trees](symbol_resolved_trees_to_typed_trees.md) | Next: [Checked Trees To State Graph](checked_trees_to_state_graph.md)
+[Pipeline](../pipeline.md) | Previous: [Symbol Resolved Trees To Typed Trees](symbol_resolved_trees_to_typed_trees.md) | Next: Checked Trees To Terminal Psi
 
 This stage validates semantic obligations and builds the checked fact model used by proof, borrow, reach, and flow checks.
 
@@ -739,7 +739,7 @@ Current ownership is:
   specialization has closed its static telescope; its checked specialization
   fingerprint retains the complete conformance application independently of
   the callable's post-specialization name. Each ensured
-  terminal lane retains the public proof-output
+  realization pipeline retains the public proof-output
   selector beside its exact term ID; required lanes have no output selector. A
   concrete non-generic trait satisfier now checks its inherited named lanes
   against the requirement before lowering. Incoming aliases remain local, but
