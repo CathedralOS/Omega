@@ -779,7 +779,8 @@ Current ownership is:
   `flow/transfers.rs` owns statement fact transfers and emits the narrow
   checked-only parameter-rooted structural qualification-correspondence ledger;
   its producer requires every source/source-occurrence/destination root to
-  belong to the formation machine or exact formation state,
+  belong to the formation machine or exact formation state and independently
+  walks exact Field/Case plus literal in-bounds FixedIndex segments,
   `flow/calls.rs` owns call
   fact assembly, `flow/call_phases.rs` owns call entry/requires/invalidation/exit
   context phase routing, `flow/call_phases/invalidation.rs` owns call mutation
@@ -884,8 +885,8 @@ Current ownership is:
   `checks/termination/ranking/slice/arguments.rs` owns slice-tail next-argument
   rewrite predicates. `checks/termination/progress.rs` independently replays
   retained qualification correspondence before deriving checked progress
-  summaries; malformed, label-only, foreign-machine, or sibling-state-rooted
-  correspondence fails closed.
+  summaries; malformed, label-only, out-of-bounds/nonliteral/runtime-indexed,
+  foreign-machine, or sibling-state-rooted correspondence fails closed.
 - The checked-lowering regression root `tests/termination.rs` is orchestration
   only. Its subordinate modules separately own ranking witnesses, operational
   contract publication, exclusive-cycle write frames, indexed-call write
