@@ -103,6 +103,7 @@ fn byte_sequence_module(bytes: Vec<u8>) -> TerminalModule {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: vec![StructuralPlaceDeclaration {
                 id: literal,

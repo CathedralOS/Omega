@@ -540,6 +540,7 @@ mod tests {
                 id: machine,
                 attachment: None,
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters: Vec::new(),

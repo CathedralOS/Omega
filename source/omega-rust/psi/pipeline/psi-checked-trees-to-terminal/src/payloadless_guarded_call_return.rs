@@ -74,6 +74,7 @@ pub(super) fn lower_payloadless_guarded_call_return_machine(
         id: machine_id(1),
         attachment: Some(attachment),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),

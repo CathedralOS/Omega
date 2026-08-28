@@ -62,6 +62,7 @@ fn preserves_scalar_boundary_arguments_in_authored_order() {
             attachment: None,
             parameters: vec![boolean, byte],
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),

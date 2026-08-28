@@ -961,3 +961,93 @@ fn structural_unit_control_fails_closed_on_stale_cleanup_or_signature() {
         "unexpected stale-signature result: {stale_signature:?}"
     );
 }
+
+#[test]
+fn ranked_countdown_lowers_to_source_free_representation_without_execution_authority() {
+    let checked = checked_source(
+        r#"
+            data Token { value: i32; }
+            data Root {}
+
+            machine Root::countdown(token: Token, remaining: u32)
+            terminates by remaining -> Nat::Descending;
+            {
+                transition remaining > 0 {
+                    true -> countdown(token, remaining - 1)
+                    _ -> done(token)
+                }
+                state done(token: Token) {}
+            }
+        "#,
+    );
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .machines
+        .iter()
+        .find(|plan| plan.ranked_scc.is_some())
+        .expect("checked countdown component");
+    let lowered = lower_structural_unit_control_machine(&checked, plan)
+        .expect("ranked representation should lower");
+    let [machine] = lowered.semantic_module.machines.as_slice() else {
+        panic!("one ranked machine")
+    };
+    let ranked = machine
+        .ranked_scc
+        .as_ref()
+        .expect("ranked Terminal identity");
+    assert_eq!(machine.entry, block_id(1));
+    assert_eq!(ranked.header, block_id(2));
+    assert_eq!(machine.blocks.len(), 4);
+    assert!(matches!(
+        machine.blocks[1].operations.as_slice(),
+        [
+            Operation {
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(0)
+                },
+                ..
+            },
+            Operation {
+                kind: OperationKind::IntegerLessThan { .. },
+                ..
+            }
+        ]
+    ));
+    assert!(matches!(
+        machine.blocks[2].operations.as_slice(),
+        [
+            Operation {
+                kind: OperationKind::IntegerConstant {
+                    value: IntegerValue::Unsigned(1)
+                },
+                ..
+            },
+            Operation {
+                kind: OperationKind::ExactIntegerSubtract { .. },
+                ..
+            }
+        ]
+    ));
+    psi_terminal_verifier::validate_module_representation(&lowered.semantic_module)
+        .expect("ranked representation policy");
+    assert!(matches!(
+        psi_terminal_verifier::validate_module(&lowered.semantic_module),
+        Err(psi_terminal_verifier::ModuleError::NonExecutableRankedScc(
+            _
+        ))
+    ));
+    let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
+        .expect("ranked semantic identity should encode");
+    assert_eq!(
+        psi_terminal_codec::decode_module(&bytes),
+        Ok(lowered.semantic_module.clone())
+    );
+    assert!(matches!(
+        lower_machine(&checked, "Root::countdown"),
+        Err(LoweringError::InvalidTerminalModule(
+            psi_terminal_verifier::ModuleError::NonExecutableRankedScc(_)
+        ))
+    ));
+}

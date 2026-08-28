@@ -194,6 +194,7 @@ pub(super) fn lower_structural_call_return_machine(
         attachment: Some(attachment),
         parameters: Vec::new(),
         structural_parameters: parameters,
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: machine_result_place,
             structural_type: result_type,

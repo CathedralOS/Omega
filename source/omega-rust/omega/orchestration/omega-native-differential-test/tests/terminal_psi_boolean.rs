@@ -103,6 +103,7 @@ fn boolean_reaches_owned_object_image_and_native_execution() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type: ScalarType::Boolean,
@@ -268,6 +269,7 @@ fn wrapping_add_reaches_owned_object_image_and_native_execution() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -461,6 +463,7 @@ fn saturating_add_reaches_owned_object_image_and_native_execution() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -661,6 +664,7 @@ fn signed_i64_saturating_subtract_matches_both_bounds_natively() {
                     scalar_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -816,6 +820,7 @@ fn wrapping_subtract_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -978,6 +983,7 @@ fn wrapping_multiply_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -1140,6 +1146,7 @@ fn saturating_multiply_matches_interpretation_and_native_execution() {
                     scalar_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -1296,6 +1303,7 @@ fn nested_runtime_arithmetic_uses_register_and_stack_parameters_natively() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: parameters.clone(),
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -1455,6 +1463,7 @@ fn signed_i64_runtime_saturation_matches_both_bounds_natively() {
                     scalar_type,
                 },
             ],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,
@@ -1583,6 +1592,7 @@ fn runtime_stack_parameter_matches_interpretation_and_native_execution() {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters,
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: result,
                 scalar_type,

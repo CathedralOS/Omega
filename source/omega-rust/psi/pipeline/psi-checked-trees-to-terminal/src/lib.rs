@@ -68,10 +68,10 @@ use psi_terminal::{
     CrashCause as TerminalCrashCause, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     EvidenceTermDeclaration, InstallationReachDependency, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
-    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
-    ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
-    PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
+    Operation, OperationKind, OperationResult, OutcomeSpecificCallEvidence,
+    OutcomeSpecificCallEvidenceValidity, OutcomeSpecificEnsure, OutcomeSpecificEvidence,
+    OutcomeSpecificGuard, ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall,
+    ProofOutputRuntimeCall, PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
@@ -82,6 +82,7 @@ use psi_terminal::{
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
     TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    TerminalRankedGuard, TerminalRankedScc, TerminalRankedSccEdge, TerminalRankedSuccessorArgument,
     Terminator, ValueDeclaration, VocabularyMarker, program_local_root_introduction_identity,
 };
 use psi_terminal_codec::{

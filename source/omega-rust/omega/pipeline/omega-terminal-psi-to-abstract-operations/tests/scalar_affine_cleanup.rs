@@ -73,6 +73,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place: result_place,
                 structural_type,
@@ -153,6 +154,7 @@ fn omega_fences_verified_payloadless_case_materialization() {
         attachment: None,
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: place_id(94),
             structural_type,
@@ -270,6 +272,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
                 multiplicity: StructuralMultiplicity::Affine,
                 qualifications: Vec::new(),
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Scalar(ValueDeclaration {
                 id: value_id(2),
                 scalar_type: ScalarType::Boolean,
@@ -572,6 +575,7 @@ fn omega_preserves_exact_singleton_structural_return_custody() {
                 multiplicity: StructuralMultiplicity::Linear,
                 qualifications: vec![structural_domain],
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place: result_place,
                 structural_type,
@@ -847,6 +851,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                         qualifications: Vec::new(),
                     },
                 ],
+                ranked_scc: None,
                 result: TerminalMachineResult::Scalar(ValueDeclaration {
                     id: value_id(1),
                     scalar_type: ScalarType::Boolean,
@@ -912,6 +917,7 @@ fn contextual_mixed_scalar_cleanup_module() -> (TerminalModule, ProofBundle) {
                 attachment: Some(token_type),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: Vec::new(),
                 entry_claims: Vec::new(),

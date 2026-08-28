@@ -9,6 +9,9 @@ pub(super) fn lower_structural_unit_control_machine(
     checked: &CheckedTrees,
     plan: &CheckedStructuralUnitControlMachinePlan,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if plan.ranked_scc.is_some() {
+        return lower_ranked_structural_unit_countdown(checked, plan);
+    }
     if plan.states.len() < 2 {
         return unsupported("structural Unit control plan must contain multiple states");
     }
@@ -554,6 +557,7 @@ pub(super) fn lower_structural_unit_control_machine(
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: state_scalar_parameters[0].clone(),
         structural_parameters: entry_parameters.clone(),
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: entry_parameters
             .iter()
@@ -604,4 +608,354 @@ pub(super) fn lower_structural_unit_control_machine(
         proof_bundle: ProofBundle::default(),
         debug_map: None,
     })
+}
+
+fn lower_ranked_structural_unit_countdown(
+    checked: &CheckedTrees,
+    plan: &CheckedStructuralUnitControlMachinePlan,
+) -> Result<LoweredTerminalPsi, LoweringError> {
+    let Some(ranked) = &plan.ranked_scc else {
+        return unsupported("ranked structural control is missing its component");
+    };
+    let [header_plan, done_plan] = plan.states.as_slice() else {
+        return unsupported("ranked structural Unit countdown requires header and exit states");
+    };
+    if header_plan.state != ranked.header_state
+        || ranked.covered_cyclic_edges.len() != 1
+        || ranked.rank_lower_bound != 0
+        || header_plan.scalar_parameters.len() != 1
+        || done_plan.scalar_parameters.len() != 0
+    {
+        return unsupported("ranked structural Unit countdown component shape");
+    }
+    let rank_index = usize::try_from(ranked.rank_scalar_parameter_index)
+        .map_err(|_| LoweringError::Unsupported("ranked scalar index exceeds usize"))?;
+    let Some(rank_parameter_plan) = header_plan.scalar_parameters.get(rank_index) else {
+        return unsupported("ranked scalar parameter is absent from the header");
+    };
+    let rank_scalar_type = terminal_scalar_type(ranked.rank_primitive_type)?;
+    let ScalarType::Integer(rank_type) = rank_scalar_type else {
+        return unsupported("ranked structural Unit carrier is not an integer");
+    };
+    if rank_parameter_plan.primitive_type != ranked.rank_primitive_type
+        || rank_type.sign() != IntegerSign::Unsigned
+        || ranked.rank_upper_bound
+            != match rank_type.maximum_value() {
+                IntegerValue::Unsigned(value) => value,
+                IntegerValue::Signed(_) => return unsupported("ranked carrier is not unsigned"),
+            }
+    {
+        return unsupported("ranked structural Unit carrier bounds");
+    }
+
+    let CheckedStructuralUnitControlTerminatorPlan::Conditional {
+        guard_scalar_parameter_index,
+        when_true,
+        when_false,
+    } = &header_plan.terminator
+    else {
+        return unsupported("ranked structural Unit header is not conditional");
+    };
+    let CheckedStructuralUnitControlTerminatorPlan::ReturnUnit {
+        trivial_affine_discard_parameter_positions,
+    } = &done_plan.terminator
+    else {
+        return unsupported("ranked structural Unit exit does not return Unit");
+    };
+    if *guard_scalar_parameter_index != ranked.rank_scalar_parameter_index
+        || when_true.target_state != header_plan.state
+        || when_false.target_state != done_plan.state
+        || !when_true
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+        || !when_false
+            .trivial_affine_discard_parameter_positions
+            .is_empty()
+        || when_true.scalar_arguments.len() != 1
+        || !when_false.scalar_arguments.is_empty()
+        || trivial_affine_discard_parameter_positions
+            != &done_plan
+                .structural_parameters
+                .iter()
+                .rev()
+                .map(|parameter| parameter.position)
+                .collect::<Vec<_>>()
+    {
+        return unsupported("ranked structural Unit successor/cleanup shape");
+    }
+    let [covered] = ranked.covered_cyclic_edges.as_slice() else {
+        return unsupported("ranked structural Unit requires one covered edge");
+    };
+    if covered.source_state != header_plan.state
+        || covered.target_state != header_plan.state
+        || covered.statement_ordinal != when_true.statement_ordinal
+    {
+        return unsupported("ranked structural Unit covered edge coordinate");
+    }
+    let psi_checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+        scalar_parameter_index,
+        primitive_type,
+    } = covered.guard;
+    let psi_checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+        argument_ordinal,
+        source_scalar_parameter_index,
+        target_scalar_parameter_index,
+        primitive_type: argument_type,
+    } = covered.successor_argument;
+    if scalar_parameter_index != ranked.rank_scalar_parameter_index
+        || primitive_type != ranked.rank_primitive_type
+        || source_scalar_parameter_index != ranked.rank_scalar_parameter_index
+        || target_scalar_parameter_index != ranked.rank_scalar_parameter_index
+        || argument_type != ranked.rank_primitive_type
+        || argument_ordinal != rank_parameter_plan.source_position
+        || when_true.scalar_arguments[0].argument_ordinal != argument_ordinal
+        || when_true.scalar_arguments[0].source_scalar_parameter_index
+            != source_scalar_parameter_index
+        || when_true.scalar_arguments[0].target_scalar_parameter_index
+            != target_scalar_parameter_index
+        || when_true.scalar_arguments[0].primitive_type != argument_type
+    {
+        return unsupported("ranked structural Unit guard/argument evidence");
+    }
+
+    validate_ranked_structural_transfers(header_plan, header_plan, when_true)?;
+    validate_ranked_structural_transfers(header_plan, done_plan, when_false)?;
+    let (structural_types, type_ids) = lower_structural_type_plans(
+        &checked
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .structural_types,
+    )?;
+    let mut next_place = 1_u64;
+    let structural_parameters = lower_unit_parameters(
+        &header_plan.structural_parameters,
+        &type_ids,
+        &[],
+        &mut next_place,
+    )?;
+    let initial = value_id(1);
+    let rank = value_id(2);
+    let zero = value_id(3);
+    let condition = value_id(4);
+    let one = value_id(5);
+    let next = value_id(6);
+    let preheader = block_id(1);
+    let header = block_id(2);
+    let decrement = block_id(3);
+    let done = block_id(4);
+    let preheader_edge = edge_id(1);
+    let guard_edge = edge_id(2);
+    let exit_edge = edge_id(3);
+    let backedge = edge_id(4);
+    let return_edge = edge_id(5);
+    let rank_declaration = ValueDeclaration {
+        id: rank,
+        scalar_type: rank_scalar_type,
+    };
+    let machine = TerminalMachine {
+        id: machine_id(1),
+        attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
+        parameters: vec![ValueDeclaration {
+            id: initial,
+            scalar_type: rank_scalar_type,
+        }],
+        structural_parameters: structural_parameters.clone(),
+        ranked_scc: Some(TerminalRankedScc {
+            header,
+            rank_parameter: rank,
+            rank_type,
+            lower_bound: IntegerValue::Unsigned(ranked.rank_lower_bound),
+            upper_bound: IntegerValue::Unsigned(ranked.rank_upper_bound),
+            covered_cyclic_edges: vec![TerminalRankedSccEdge {
+                edge: backedge,
+                source: decrement,
+                target: header,
+                guard: TerminalRankedGuard::UnsignedParameterPositive {
+                    block: header,
+                    edge: guard_edge,
+                    condition,
+                    parameter: rank,
+                },
+                successor_argument: TerminalRankedSuccessorArgument::UnsignedParameterMinusOne {
+                    argument_index: ranked.rank_scalar_parameter_index,
+                    argument: next,
+                    source_parameter: rank,
+                    target_parameter: rank,
+                },
+            }],
+        }),
+        result: TerminalMachineResult::Unit,
+        structural_places: structural_parameters
+            .iter()
+            .map(|parameter| StructuralPlaceDeclaration {
+                id: parameter.place,
+                kind: StructuralPlaceKind::Parameter {
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                },
+            })
+            .collect(),
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        content_entry_claims: Vec::new(),
+        content_identity_reshuffles: Vec::new(),
+        content_partition_compositions: Vec::new(),
+        entry: preheader,
+        blocks: vec![
+            Block {
+                id: preheader,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::Jump {
+                    edge: preheader_edge,
+                    target: header,
+                    arguments: vec![initial],
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+            Block {
+                id: header,
+                parameters: vec![rank_declaration],
+                operations: vec![
+                    Operation {
+                        id: operation_id(1),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: zero,
+                            scalar_type: rank_scalar_type,
+                        }),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(0),
+                        },
+                    },
+                    Operation {
+                        id: operation_id(2),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: condition,
+                            scalar_type: ScalarType::Boolean,
+                        }),
+                        kind: OperationKind::IntegerLessThan {
+                            left: zero,
+                            right: rank,
+                        },
+                    },
+                ],
+                terminator: Terminator::Conditional {
+                    condition,
+                    when_true: SuccessorEdge {
+                        edge: guard_edge,
+                        target: decrement,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                    when_false: SuccessorEdge {
+                        edge: exit_edge,
+                        target: done,
+                        arguments: Vec::new(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+            },
+            Block {
+                id: decrement,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: operation_id(3),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: one,
+                            scalar_type: rank_scalar_type,
+                        }),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(1),
+                        },
+                    },
+                    Operation {
+                        id: operation_id(4),
+                        result: OperationResult::Scalar(ValueDeclaration {
+                            id: next,
+                            scalar_type: rank_scalar_type,
+                        }),
+                        kind: OperationKind::ExactIntegerSubtract {
+                            left: rank,
+                            right: one,
+                            obligation: obligation_id(1),
+                        },
+                    },
+                ],
+                terminator: Terminator::Jump {
+                    edge: backedge,
+                    target: header,
+                    arguments: vec![next],
+                    trivial_affine_discards: Vec::new(),
+                },
+            },
+            Block {
+                id: done,
+                parameters: Vec::new(),
+                operations: Vec::new(),
+                terminator: Terminator::ReturnUnit {
+                    edge: return_edge,
+                    trivial_affine_discards: structural_parameters
+                        .iter()
+                        .rev()
+                        .map(|parameter| parameter.place)
+                        .collect(),
+                },
+            },
+        ],
+        contract: MachineContract {
+            id: contract_id(1),
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        },
+    };
+    Ok(LoweredTerminalPsi {
+        semantic_module: TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine.id,
+            structural_types,
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            proof_output_calls: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![machine],
+        },
+        proof_bundle: ProofBundle::default(),
+        debug_map: None,
+    })
+}
+
+fn validate_ranked_structural_transfers(
+    source: &psi_checked_trees::CheckedStructuralUnitControlStatePlan,
+    target: &psi_checked_trees::CheckedStructuralUnitControlStatePlan,
+    successor: &psi_checked_trees::CheckedStructuralControlSuccessorPlan,
+) -> Result<(), LoweringError> {
+    if successor.transfers.len() != target.structural_parameters.len()
+        || successor
+            .transfers
+            .iter()
+            .enumerate()
+            .any(|(index, transfer)| {
+                usize::try_from(transfer.source_parameter_index).ok() != Some(index)
+                    || usize::try_from(transfer.target_parameter_index).ok() != Some(index)
+                    || source.structural_parameters.get(index)
+                        != target.structural_parameters.get(index)
+            })
+    {
+        return unsupported("ranked structural Unit transfer changes its custody frontier");
+    }
+    Ok(())
 }

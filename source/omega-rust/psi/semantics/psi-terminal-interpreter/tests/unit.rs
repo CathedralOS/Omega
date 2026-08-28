@@ -205,6 +205,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
                 access: StructuralAccess::Owned,
                 qualifications: vec![domain],
             }],
+            ranked_scc: None,
             result: TerminalMachineResult::Structural(StructuralResultDeclaration {
                 place: result_place,
                 structural_type,
@@ -1971,6 +1972,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: vec![StructuralPlaceDeclaration {
                 id: literal,
@@ -2065,6 +2067,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),
@@ -2178,6 +2181,7 @@ fn effect_module() -> TerminalModule {
                     structural_type,
                     domain,
                 )],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![structural_place(place_id(1))],
                 entry_claims: vec![EntryClaim {
@@ -2238,6 +2242,7 @@ fn effect_module() -> TerminalModule {
                     structural_type,
                     domain,
                 )],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![structural_place(place_id(2))],
                 entry_claims: vec![EntryClaim {
@@ -2411,6 +2416,7 @@ fn payloadless_call_module() -> TerminalModule {
         entry_claims: Vec::new(),
         published_service_ceiling: Vec::new(),
         parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: place_id(4),
             structural_type,
@@ -2501,6 +2507,7 @@ fn unit_module() -> TerminalModule {
             entry_claims: Vec::new(),
             published_service_ceiling: Vec::new(),
             parameters: Vec::new(),
+            ranked_scc: None,
             result: TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             content_entry_claims: Vec::new(),
@@ -2565,6 +2572,7 @@ fn nominal_affine_module() -> TerminalModule {
                     access: StructuralAccess::Owned,
                     qualifications: Vec::new(),
                 }],
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: vec![StructuralPlaceDeclaration {
                     id: place_id(1),
@@ -2601,6 +2609,7 @@ fn nominal_affine_module() -> TerminalModule {
                 attachment: Some(token.id),
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: Vec::new(),
                 entry_claims: Vec::new(),
@@ -3268,6 +3277,7 @@ fn executable_nominal_affine_module() -> TerminalModule {
         attachment: Some(helper_type.id),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -3314,6 +3324,7 @@ fn two_helper_nominal_affine_module() -> TerminalModule {
         attachment: Some(second_helper_type.id),
         parameters: Vec::new(),
         structural_parameters: Vec::new(),
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: Vec::new(),
         entry_claims: Vec::new(),
@@ -3408,6 +3419,7 @@ fn partial_affine_field_module() -> TerminalModule {
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
             id: place_id(1),
@@ -3465,6 +3477,7 @@ fn partial_affine_field_module() -> TerminalModule {
             access: StructuralAccess::Owned,
             qualifications: Vec::new(),
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Unit,
         structural_places: vec![StructuralPlaceDeclaration {
             id: place_id(2),
@@ -3538,6 +3551,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             access: StructuralAccess::Owned,
             qualifications: vec![domain],
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: caller_result,
             structural_type,
@@ -3641,6 +3655,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
             access: StructuralAccess::Owned,
             qualifications: vec![domain],
         }],
+        ranked_scc: None,
         result: TerminalMachineResult::Structural(StructuralResultDeclaration {
             place: callee_result,
             structural_type,

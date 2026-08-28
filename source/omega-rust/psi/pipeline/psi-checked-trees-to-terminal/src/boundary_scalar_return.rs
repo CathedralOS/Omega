@@ -239,6 +239,7 @@ pub(super) fn lower_boundary_scalar_return_machine(
         attachment: Some(lookup_type_id(&type_ids, &plan.attachment_type_identity)?),
         parameters: Vec::new(),
         structural_parameters: parameters.clone(),
+        ranked_scc: None,
         result: TerminalMachineResult::Scalar(machine_result),
         structural_places: parameters
             .iter()

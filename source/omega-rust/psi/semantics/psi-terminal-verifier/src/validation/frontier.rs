@@ -164,6 +164,7 @@ pub(super) fn validate_structural_frontier(
     machine: &TerminalMachine,
     machines: &BTreeMap<MachineId, &TerminalMachine>,
     blocks: &BTreeMap<BlockId, &psi_terminal::Block>,
+    representation_backedges: &BTreeSet<EdgeId>,
 ) -> Result<VerifiedMachineStructuralFrontiers, ModuleError> {
     let mut snapshots = VerifiedMachineStructuralFrontiers {
         machine: machine.id,
@@ -224,12 +225,15 @@ pub(super) fn validate_structural_frontier(
         .collect::<BTreeMap<_, _>>();
     for block in blocks.values() {
         let targets = match &block.terminator {
-            Terminator::Jump { target, .. } => vec![*target],
+            Terminator::Jump { edge, target, .. } => vec![(*edge, *target)],
             Terminator::Conditional {
                 when_true,
                 when_false,
                 ..
-            } => vec![when_true.target, when_false.target],
+            } => vec![
+                (when_true.edge, when_true.target),
+                (when_false.edge, when_false.target),
+            ],
             Terminator::Return { .. }
             | Terminator::ReturnUnit { .. }
             | Terminator::ReturnUnitPartialAffine { .. }
@@ -237,6 +241,12 @@ pub(super) fn validate_structural_frontier(
             | Terminator::ReturnStructural { .. }
             | Terminator::Crash { .. } => Vec::new(),
         };
+        let targets = targets
+            .into_iter()
+            .filter_map(|(edge, target)| {
+                (!representation_backedges.contains(&edge)).then_some(target)
+            })
+            .collect::<Vec<_>>();
         for target in &targets {
             *predecessors
                 .get_mut(target)
@@ -520,7 +530,9 @@ pub(super) fn validate_structural_frontier(
                     trivial_affine_discards,
                 )?;
                 snapshots.edge_exits.insert(*edge, frontier.snapshot());
-                incoming.entry(*target).or_default().push(frontier);
+                if !representation_backedges.contains(edge) {
+                    incoming.entry(*target).or_default().push(frontier);
+                }
             }
             Terminator::Conditional {
                 when_true,
@@ -537,10 +549,12 @@ pub(super) fn validate_structural_frontier(
                 snapshots
                     .edge_exits
                     .insert(when_true.edge, true_frontier.snapshot());
-                incoming
-                    .entry(when_true.target)
-                    .or_default()
-                    .push(true_frontier);
+                if !representation_backedges.contains(&when_true.edge) {
+                    incoming
+                        .entry(when_true.target)
+                        .or_default()
+                        .push(true_frontier);
+                }
                 apply_edge_trivial_affine_discards(
                     machine,
                     &mut frontier,
@@ -550,10 +564,12 @@ pub(super) fn validate_structural_frontier(
                 snapshots
                     .edge_exits
                     .insert(when_false.edge, frontier.snapshot());
-                incoming
-                    .entry(when_false.target)
-                    .or_default()
-                    .push(frontier);
+                if !representation_backedges.contains(&when_false.edge) {
+                    incoming
+                        .entry(when_false.target)
+                        .or_default()
+                        .push(frontier);
+                }
             }
             Terminator::ReturnUnit {
                 trivial_affine_discards,

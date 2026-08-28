@@ -1554,6 +1554,7 @@ fn program_local_root_module() -> TerminalModule {
             attachment: None,
             parameters: Vec::new(),
             structural_parameters: Vec::new(),
+            ranked_scc: None,
             result: psi_terminal::TerminalMachineResult::Unit,
             structural_places: Vec::new(),
             entry_claims: Vec::new(),

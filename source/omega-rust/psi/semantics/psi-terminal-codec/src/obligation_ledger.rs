@@ -396,6 +396,7 @@ mod tests {
                 attachment: None,
                 parameters: Vec::new(),
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 result: TerminalMachineResult::Unit,
                 structural_places: Vec::new(),
                 entry_claims: Vec::new(),

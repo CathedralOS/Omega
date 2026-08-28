@@ -1059,6 +1059,7 @@ pub(super) fn build_scalar_graph_module(
                 id: terminal_machine,
                 attachment: None,
                 structural_parameters: Vec::new(),
+                ranked_scc: None,
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
                 parameters,
