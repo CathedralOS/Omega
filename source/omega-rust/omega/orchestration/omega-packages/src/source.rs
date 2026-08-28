@@ -3536,7 +3536,8 @@ fn verify_cache_custody_root(
             "cache custody root is not a concrete directory",
         ));
     }
-    verify_cache_node_owner_and_mode(kind, root, &metadata)
+    verify_cache_node_owner_and_mode(kind, root, &metadata)?;
+    verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)
 }
 
 #[cfg(unix)]
@@ -3569,7 +3570,7 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry is externally writable without sticky-entry protection",
             ));
         }
-        verify_macos_cache_extended_acl_custody(kind, ancestor, true)?;
+        verify_macos_open_cache_directory_acl_custody(kind, ancestor, &metadata)?;
     }
     Ok(())
 }
@@ -3677,7 +3678,7 @@ fn verify_cache_custody_from_open_root(
                     &metadata,
                 )?;
             } else if file_type.is_symlink() {
-                verify_macos_cache_extended_acl_custody(kind, &child_path, false)?;
+                verify_macos_cache_link_extended_acl_custody(kind, &child_path)?;
             }
             if file_type.is_file() || file_type.is_symlink() {
                 logical_bytes = logical_bytes
@@ -3951,7 +3952,6 @@ fn verify_cache_node_owner_and_mode(
             "cache entry is writable by group or other users",
         ));
     }
-    verify_macos_cache_extended_acl_custody(kind, path, !metadata.file_type().is_symlink())?;
     Ok(())
 }
 
@@ -3979,25 +3979,21 @@ fn cache_custody_invalid(
 }
 
 #[cfg(target_os = "macos")]
-fn verify_macos_cache_extended_acl_custody(
+fn verify_macos_cache_link_extended_acl_custody(
     kind: CacheCustodyKind,
     path: &Path,
-    follow_symbolic_link: bool,
 ) -> Result<(), SourceResolveError> {
-    let symbolic_link_behavior = if follow_symbolic_link {
-        omega_platform_custody::SymbolicLinkBehavior::Follow
-    } else {
-        omega_platform_custody::SymbolicLinkBehavior::InspectLink
-    };
-    let has_allow_entry =
-        omega_platform_custody::extended_acl_has_allow_entry(path, symbolic_link_behavior)
-            .map_err(|error| {
-                cache_custody_invalid(
-                    kind,
-                    path,
-                    format!("could not inspect cache extended ACL custody: {error}"),
-                )
-            })?;
+    let has_allow_entry = omega_platform_custody::extended_acl_has_allow_entry(
+        path,
+        omega_platform_custody::SymbolicLinkBehavior::InspectLink,
+    )
+    .map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not inspect cache symbolic-link extended ACL custody: {error}"),
+        )
+    })?;
     if has_allow_entry {
         return Err(cache_custody_invalid(
             kind,
@@ -4029,6 +4025,48 @@ fn verify_macos_open_cache_extended_acl_custody(
             "cache custody contains an extended ACL allow entry",
         ));
     }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_directory_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_open_cache_extended_acl_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_directory_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
@@ -4081,10 +4119,9 @@ fn verify_macos_open_cache_regular_file_acl_custody(
 }
 
 #[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_cache_extended_acl_custody(
+fn verify_macos_cache_link_extended_acl_custody(
     _kind: CacheCustodyKind,
     _path: &Path,
-    _follow_symbolic_link: bool,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }
@@ -9696,6 +9733,37 @@ mod tests {
 
         verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 0)
             .expect("ACL observation must remain on the retained cache root");
+
+        change_macos_acl(&cache, &["-N"]);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_ancestry_acl_open_rejects_classified_directory_replacement() {
+        let cache = temp_root("cache-ancestry-acl-replacement");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create classified cache directory");
+        let cache = cache.canonicalize().expect("canonicalize cache directory");
+        let classified =
+            std::fs::symlink_metadata(&cache).expect("classify cache directory before replacement");
+
+        std::fs::rename(&cache, &retained).expect("relocate classified cache directory");
+        std::fs::create_dir(&cache).expect("create replacement cache directory");
+        change_macos_acl(&cache, &["+a", "everyone allow write"]);
+
+        let error = verify_macos_open_cache_directory_acl_custody(
+            CacheCustodyKind::Git,
+            &cache,
+            &classified,
+        )
+        .expect_err("different directory identity must reject before its ACL can contribute");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("changed between classification")
+        ));
 
         change_macos_acl(&cache, &["-N"]);
         let _ = std::fs::remove_dir_all(&cache);
