@@ -254,8 +254,10 @@ reads for the pinned client and connector; HTTPS receives none. Both route
 through an exact compiler-owned loopback broker. On macOS direct child egress
 outside that broker port is denied; Linux and Windows retain unavailable
 endpoint-confinement rows. Initialization and
-inspection deny network and reject transport authority. The applicable write/
-network/exec rows are enforced; strict checking still rejects the remaining
+inspection deny network, reject transport authority, and omit process-fork
+authority, so even allowlisted executables cannot become descendants in those
+phases. The applicable write/network/exec and nonnetwork descendant rows are
+enforced; strict checking still rejects the remaining
 unavailable guarantees.
 Before returning a successful resolution, the package layer requires one observation
 per bounded launch and exact equality between every observed allowlist path and
@@ -364,9 +366,9 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v15 separates entries
-predating this transport-executable, cumulative-output, and endpoint-brokerage
-floor. HTTPS receives an exact command-scoped proxy. SSH uses the separately
+and an unreadable ACL fails closed. Cache policy v16 separates entries
+predating this transport-executable, cumulative-output, endpoint-brokerage, and
+nonnetwork descendant-denial floor. HTTPS receives an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without
 placing locator text in shell syntax. This does not certify any executable or
