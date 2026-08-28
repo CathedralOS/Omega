@@ -101,7 +101,7 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,605 lines after replacing nine private instruction
+  188 fragments total 64,650 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Push, pop,
   saved-frame prologue, optional frame allocation, parameter store, and
@@ -120,8 +120,12 @@ do not become additional lattice steps.
   coordinates, and `gen_stmt` now derives all 126 of its former artifact
   coordinates from source identities and relative macro shape. These two
   tranches were net-negative by 126 lines. A targeted fifth negative control
-  proves a mutated witness event PC cannot redefine that identity. The current
-  ROOT is 79,565 bytes. Continue replacing
+  proves a mutated witness event PC cannot redefine that identity. The shared
+  macro owner now also returns checked starts and successors for the generated
+  prelude, prologue, allocation, parameter store, pop sequences, push, and
+  epilogue. Nine frame, stack, effect, memory, and expression modules consume
+  those facts instead of repeating macro extents and successor arithmetic. The
+  current ROOT is 79,894 bytes. Continue replacing
   shape/control/data/publication permutations with data decoded by common
   checks; do not recreate cached viewers or debug-only publication paths. In
   particular, finish one canonical exact instruction table that gives stable

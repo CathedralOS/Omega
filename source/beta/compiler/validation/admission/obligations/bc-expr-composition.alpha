@@ -215,16 +215,21 @@ composition_stmt_memory:
         call composition_expect_char
         call composition_parse_expr
         call composition_save_pop
-        ; The memory opcode follows one exact 16-byte pop macro.
+        ; The memory opcode follows one exact owner-returned pop extent.
+        mov r40, r20                 ; memory row
         mov r2, r20
         imm r1, 8
         mul r2, r1
         imm r1, 7626752
         add r1, r2
-        load r20, r1                    ; memory opcode pc
-        imm r21, 16
-        imm r22, 3
-        call composition_compose_gap_piece
+        load r20, r1                 ; memory opcode / pop successor
+        imm r21, 1
+        call exact_require_pop_before
+        mov r20, r0
+        mov r21, r3
+        call composition_compose_extent
+        mov r20, r40
+        call composition_compose_memory
         call composition_stack_pop
         call composition_expr_finish
         ret
@@ -312,18 +317,18 @@ composition_stmt_return:
         call composition_expr_begin
         call composition_parse_expr
         call composition_save_pop
-        ; The event pc is the final ret; the canonical epilogue starts 19 bytes
-        ; before it and consumes the expression result from r0 without changing
-        ; the relative temporary height.
+        ; The return event identifies the owner-returned epilogue extent, which
+        ; consumes r0 without changing the relative temporary height.
         mov r2, r20
         imm r1, 8
         mul r2, r1
         imm r1, 7135232
         add r1, r2
         load r20, r1
-        imm r21, 19
-        imm r22, 1
-        call composition_compose_gap_piece
+        call exact_require_epilogue_at_ret
+        mov r20, r0
+        mov r21, r5
+        call composition_compose_extent
         call composition_expr_finish
         ret
 
@@ -760,12 +765,16 @@ composition_call_ordinary:
         mul r2, r1
         imm r1, 7135232
         add r1, r2
-        load r20, r1
-        mov r21, r22
-        imm r1, 16
-        mul r21, r1                     ; contiguous unstage gap
-        imm r22, 9
-        call composition_compose_gap_piece
+        load r20, r1                 ; call / pop-sequence successor
+        mov r21, r22                 ; source arity
+        call exact_require_pop_sequence
+        mov r31, r1                  ; checked call start/successor
+        mov r20, r0
+        mov r21, r1
+        call composition_compose_extent
+        mov r20, r31                 ; checked call start
+        imm r21, 9                   ; Alpha call instruction width
+        call composition_compose_piece
 composition_call_pop_loop:
         imm r1, 0
         jeq r24, r1, composition_call_done
@@ -1097,32 +1106,19 @@ composition_gap_advance:
         store r1, r20
         ret
 
+; Compose a checked owner-returned [start,successor) extent without knowing its
+; byte length locally. Inputs are start/successor in r20/r21.
+composition_compose_extent:
+        mov r2, r21
+        sub r2, r20
+        mov r21, r2
+        jmp composition_compose_piece
+
 composition_compose_primitive:
-        mov r2, r20
-        imm r1, 8
-        mul r2, r1
-        imm r1, 8413184
-        add r1, r2
-        load r20, r1
-        imm r1, 8396800
-        add r1, r2
-        load r3, r1
-        imm r1, 1
-        jeq r3, r1, composition_primitive_literal_len
-        imm r1, 2
-        jeq r3, r1, composition_primitive_arithmetic_len
-        imm r1, 3
-        jeq r3, r1, composition_primitive_comparison_len
-        jmp reject
-composition_primitive_literal_len:
-        imm r21, 10
-        jmp composition_compose_piece
-composition_primitive_arithmetic_len:
-        imm r21, 22
-        jmp composition_compose_piece
-composition_primitive_comparison_len:
-        imm r21, 59
-        jmp composition_compose_piece
+        call exact_expr_primitive_extent
+        mov r20, r0
+        mov r21, r1
+        jmp composition_compose_extent
 
 composition_compose_access:
         mov r2, r20
@@ -1148,11 +1144,18 @@ composition_compose_push:
         mov r2, r20
         imm r1, 8
         mul r2, r1
-        imm r1, 9453568
+        imm r1, 9437184
         add r1, r2
-        load r20, r1
-        imm r21, 16
-        jmp composition_compose_piece
+        load r21, r1                 ; source block
+        imm r1, 9445376
+        add r1, r2
+        load r22, r1                 ; push kind
+        call exact_push_identity_pc
+        mov r20, r0
+        call exact_require_push
+        mov r20, r0
+        mov r21, r3
+        jmp composition_compose_extent
 
 composition_stack_push:
         imm r1, 524912

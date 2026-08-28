@@ -76,8 +76,8 @@ fs_store_saved_entry:
         imm r1, 3235840
         add r1, r12
         load r20, r1
-        imm r1, 13
-        add r20, r1
+        call exact_require_prologue
+        mov r20, r2                  ; checked saved-fp store start
         imm r21, 1
         call fs_store_mark
 fs_store_saved_next:
@@ -95,11 +95,17 @@ fs_store_push_row:
         mov r12, r10
         imm r1, 8
         mul r12, r1
-        imm r1, 9453568
+        imm r1, 9437184
         add r1, r12
-        load r20, r1
-        imm r1, 13
-        add r20, r1
+        load r21, r1                 ; source block
+        imm r1, 9445376
+        add r1, r12
+        load r22, r1                 ; push kind
+        mov r20, r10                 ; source push row
+        call exact_push_identity_pc
+        mov r20, r0
+        call exact_require_push
+        mov r20, r2                  ; checked push store start
         imm r21, 2
         call fs_store_mark
         imm r1, 1
@@ -126,7 +132,7 @@ fs_store_local_mark:
         imm r1, 7192576
         add r1, r12
         load r20, r1
-        imm r1, 16
+        imm r1, 16                  ; checked local-address macro successor
         add r20, r1
         imm r21, 3
         call fs_store_mark
@@ -194,13 +200,17 @@ fs_store_param_entry:
         load r9, r1                    ; total slots
         imm r1, 3235840
         add r1, r12
-        load r6, r1                    ; entry pc
-        imm r1, 19
-        add r6, r1
+        load r20, r1                   ; entry pc
+        call exact_require_prologue
+        mov r6, r4                    ; checked prologue successor
         imm r1, 0
         jeq r9, r1, fs_store_param_cursor_ready
-        imm r1, 13
-        add r6, r1
+        mov r20, r6
+        mov r21, r9
+        imm r1, 8
+        mul r21, r1
+        call exact_require_frame_allocation
+        mov r6, r2                    ; checked allocation successor
 fs_store_param_cursor_ready:
         imm r7, 0
 fs_store_param_loop:
@@ -208,12 +218,12 @@ fs_store_param_loop:
         jmp fs_store_param_next_block
 fs_store_param_mark:
         mov r20, r6
-        imm r1, 16
-        add r20, r1
+        mov r21, r7
+        call exact_require_parameter_store
+        mov r6, r4                   ; checked parameter-store successor
+        mov r20, r3                  ; checked parameter store start
         imm r21, 5
         call fs_store_mark
-        imm r1, 19
-        add r6, r1
         imm r1, 1
         add r7, r1
         jmp fs_store_param_loop

@@ -51,18 +51,17 @@ stack_owner_prologue_candidate:
 stack_owner_prologue_entry:
         imm r1, 3235840
         add r1, r12
-        load r6, r1
-        mov r0, r6
-        imm r1, 10
-        add r0, r1
+        load r20, r1
+        call exact_require_prologue
+        mov r6, r4                    ; checked prologue successor
+        mov r30, r1                   ; sub start
+        mov r31, r2                   ; saved-fp store start
+        mov r32, r3                   ; fp move start
+        mov r0, r30
         call stack_owner_mark           ; sub r15,r5
-        mov r0, r6
-        imm r1, 13
-        add r0, r1
+        mov r0, r31
         call stack_owner_mark           ; store r15,r14
-        mov r0, r6
-        imm r1, 16
-        add r0, r1
+        mov r0, r32
         call stack_owner_mark           ; mov r14,r15
 
         imm r1, 3145728
@@ -75,9 +74,12 @@ stack_owner_prologue_entry:
         load r3, r1                     ; total slots
         imm r1, 0
         jeq r3, r1, stack_owner_prologue_next
-        mov r0, r6
-        imm r1, 29
-        add r0, r1
+        mov r20, r6
+        mov r21, r3
+        imm r1, 8
+        mul r21, r1
+        call exact_require_frame_allocation
+        mov r0, r1
         call stack_owner_mark           ; optional sub r15,r5
 stack_owner_prologue_next:
         imm r1, 1
@@ -180,13 +182,13 @@ stack_owner_push:
         mov r0, r6
         imm r1, 9461760
         call stack_require_existing_owner
-        mov r0, r6
-        imm r1, 10
-        add r0, r1
+        mov r20, r6
+        call exact_require_push
+        mov r30, r1
+        mov r31, r2
+        mov r0, r30
         call stack_owner_mark           ; sub r15,r2
-        mov r0, r6
-        imm r1, 13
-        add r0, r1
+        mov r0, r31
         call stack_owner_mark           ; store r15,r0
         imm r1, 1
         add r10, r1
@@ -218,13 +220,16 @@ stack_owner_binary_pop:
         mov r0, r6
         imm r1, 8421376
         call stack_require_existing_owner
-        mov r0, r6
+        mov r20, r6
         imm r1, 3
-        add r0, r1
+        add r20, r1
+        imm r21, 0
+        call exact_require_pop
+        mov r30, r0
+        mov r31, r2
+        mov r0, r30
         call stack_owner_mark           ; load r0,r15
-        mov r0, r6
-        imm r1, 16
-        add r0, r1
+        mov r0, r31
         call stack_owner_mark           ; add r15,r5
 stack_owner_binary_pop_next:
         imm r1, 1
@@ -258,25 +263,33 @@ stack_owner_call_pop_setup:
         mov r0, r6
         imm r1, 6815744
         call stack_require_existing_owner
+        mov r20, r6
+        mov r21, r11
+        call exact_require_pop_sequence
+        mov r6, r0                     ; checked first pop start
         mov r7, r11
-        imm r1, 16
-        mul r7, r1
-        sub r6, r7                     ; first pop pc
+        imm r1, 0
+        jeq r7, r1, stack_owner_call_pop_next
+        imm r1, 1
+        sub r7, r1                     ; first destination register
 stack_owner_call_pop_loop:
         imm r1, 0
         jlt r1, r11, stack_owner_call_pop
         jmp stack_owner_call_pop_next
 stack_owner_call_pop:
-        mov r0, r6
+        mov r20, r6
+        mov r21, r7
+        call exact_require_pop
+        mov r30, r0
+        mov r31, r2
+        mov r6, r3                     ; checked next pop/call successor
+        mov r0, r30
         call stack_owner_mark           ; load rK,r15
-        mov r0, r6
-        imm r1, 13
-        add r0, r1
+        mov r0, r31
         call stack_owner_mark           ; add r15,r5
-        imm r1, 16
-        add r6, r1
         imm r1, 1
         sub r11, r1
+        sub r7, r1
         jmp stack_owner_call_pop_loop
 stack_owner_call_pop_next:
         imm r1, 1
@@ -307,13 +320,14 @@ stack_owner_store_pop:
         mov r0, r6
         imm r1, 7634944
         call stack_require_existing_owner
-        imm r1, 16
-        sub r6, r1
-        mov r0, r6
+        mov r20, r6
+        imm r21, 1
+        call exact_require_pop_before
+        mov r30, r0
+        mov r31, r2
+        mov r0, r30
         call stack_owner_mark           ; load r1,r15
-        mov r0, r6
-        imm r1, 13
-        add r0, r1
+        mov r0, r31
         call stack_owner_mark           ; add r15,r5
 stack_owner_store_pop_next:
         imm r1, 1
@@ -327,19 +341,18 @@ stack_owner_count:
         jeq r2, r3, stack_scan_init
         jmp reject
 
-; r14 is a checked ret pc. Mark mov/load/add instruction starts.
+; r14 is a checked ret pc. Mark owner-returned mov/load/add starts.
 stack_owner_mark_epilogue:
-        mov r0, r14
-        imm r1, 19
-        sub r0, r1
+        mov r20, r14
+        call exact_require_epilogue_at_ret
+        mov r30, r0
+        mov r31, r1
+        mov r32, r3
+        mov r0, r30
         call stack_owner_mark
-        mov r0, r14
-        imm r1, 16
-        sub r0, r1
+        mov r0, r31
         call stack_owner_mark
-        mov r0, r14
-        imm r1, 3
-        sub r0, r1
+        mov r0, r32
         call stack_owner_mark
         ret
 

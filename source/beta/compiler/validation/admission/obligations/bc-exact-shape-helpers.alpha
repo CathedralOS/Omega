@@ -3,7 +3,8 @@
 ; consumers pass only their independently reconstructed PC/register/slot facts.
 ; This file has no initialization edge and publishes no theorem token.
 
-; Exact saved-fp prologue prefix at r20:
+; Exact saved-fp prologue prefix at r20. Return its checked instruction starts
+; (imm/sub/store/mov) in r0..r3 and exclusive successor in r4:
 ; `imm r5,8; sub r15,r5; store r15,r14; mov r14,r15`.
 exact_require_prologue:
         mov r25, r20
@@ -65,9 +66,23 @@ exact_require_prologue:
         add r20, r1
         imm r21, 15
         call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r4, 10
+        add r1, r4
+        mov r2, r25
+        imm r4, 13
+        add r2, r4
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        mov r4, r25
+        imm r5, 19
+        add r4, r5
         ret
 
-; Exact optional frame allocation at r20 for r21 bytes:
+; Exact optional frame allocation at r20 for r21 bytes. Return imm/sub starts
+; in r0/r1 and exclusive successor in r2:
 ; `imm r5,frame_bytes; sub r15,r5`.
 exact_require_frame_allocation:
         mov r25, r20
@@ -100,9 +115,17 @@ exact_require_frame_allocation:
         add r20, r1
         imm r21, 5
         call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r2, 10
+        add r1, r2
+        mov r2, r25
+        imm r3, 13
+        add r2, r3
         ret
 
-; Exact parameter store at r20 for argument register r21:
+; Exact parameter store at r20 for argument register r21. Return mov/imm/sub/
+; store starts in r0..r3 and exclusive successor in r4:
 ; `mov r5,r14; imm r4,8+8*k; sub r5,r4; store r5,rK`.
 exact_require_parameter_store:
         mov r25, r20
@@ -169,15 +192,93 @@ exact_require_parameter_store:
         add r20, r1
         mov r21, r26
         call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r4, 3
+        add r1, r4
+        mov r2, r25
+        imm r4, 13
+        add r2, r4
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        mov r4, r25
+        imm r5, 19
+        add r4, r5
         ret
 
-; Exact 16-byte pop at r20 into register r21:
+; Exact pop at r20 into register r21. Return load/imm/add starts in r0..r2 and
+; exclusive successor in r3:
 ; `load rK,r15; imm r5,8; add r15,r5`.
 exact_require_pop:
         call exact_match_pop
         imm r1, 1
-        jeq r0, r1, exact_shape_ok
+        jeq r0, r1, exact_pop_extent
         jmp reject
+exact_pop_extent:
+        mov r0, r25
+        mov r1, r25
+        imm r3, 3
+        add r1, r3
+        mov r2, r25
+        imm r3, 13
+        add r2, r3
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        ret
+
+; Require one pop ending exactly at successor r20, into register r21. Return
+; the same instruction-start/successor tuple as exact_require_pop.
+exact_require_pop_before:
+        mov r30, r20
+        mov r31, r21
+        imm r1, 16
+        jlt r30, r1, reject
+        mov r20, r30
+        sub r20, r1
+        mov r21, r31
+        call exact_require_pop
+        jeq r3, r30, exact_pop_before_done
+        jmp reject
+exact_pop_before_done:
+        ret
+
+; Require count r21 contiguous pops immediately before successor r20, with
+; destinations count-1 down through r0. Return first pop start in r0 and the
+; checked common successor in r1. The macro extent is private to this owner.
+exact_require_pop_sequence:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r31
+        imm r1, 16
+        mul r32, r1
+        jlt r30, r32, reject
+        mov r33, r30
+        sub r33, r32                 ; first pop start
+        mov r34, r33                 ; cursor
+        mov r35, r31
+        imm r1, 0
+        jeq r35, r1, exact_pop_sequence_done
+        imm r1, 1
+        sub r35, r1                  ; first destination register
+exact_pop_sequence_loop:
+        mov r20, r34
+        mov r21, r35
+        call exact_require_pop
+        mov r34, r3
+        imm r1, 0
+        jeq r35, r1, exact_pop_sequence_done
+        imm r1, 1
+        sub r35, r1
+        jmp exact_pop_sequence_loop
+exact_pop_sequence_done:
+        jeq r34, r30, exact_pop_sequence_return
+        jmp reject
+exact_pop_sequence_return:
+        mov r0, r33
+        mov r1, r30
+        ret
 
 ; Boolean form used by exhaustive artifact scanners. Inputs match the strict
 ; adapter above; output r0 is one exactly for the canonical pop macro.
@@ -268,6 +369,18 @@ exact_match_pop_add_step:
         ret
 exact_match_pop_none:
         imm r0, 0
+        ret
+
+; Boolean classifier form with checked exclusive successor in r1 on success.
+exact_match_pop_successor:
+        call exact_match_pop
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_successor_found
+        ret
+exact_match_pop_successor_found:
+        mov r1, r25
+        imm r2, 16
+        add r1, r2
         ret
 
 ; Boolean byte/word equality at exact tape pc r20; output r0 is zero/one.
@@ -376,6 +489,31 @@ exact_match_push_store_value:
         ret
 exact_match_push_none:
         imm r0, 0
+        ret
+
+; Strict push extent at r20. Return imm/sub/store starts in r0..r2 and
+; exclusive successor in r3. The boolean matcher remains available to the
+; exhaustive artifact scanner.
+exact_require_push:
+        mov r36, r14                 ; boolean scanner's input register
+        mov r37, r20
+        mov r14, r37
+        call exact_match_push
+        mov r14, r36
+        imm r1, 1
+        jeq r0, r1, exact_push_extent
+        jmp reject
+exact_push_extent:
+        mov r0, r37
+        mov r1, r37
+        imm r3, 10
+        add r1, r3
+        mov r2, r37
+        imm r3, 13
+        add r2, r3
+        mov r3, r37
+        imm r4, 16
+        add r3, r4
         ret
 
 ; Exhaust all expression primitive/push rows for selected blocks [r20,r21].
@@ -588,6 +726,48 @@ exact_proc_entry_r25:
         mov r25, r0
         ret
 
+; Exact generated root prelude for independently reconstructed main procedure
+; identity r20. Return SP-init/FP-init/call/halt starts in r0..r3 and exclusive
+; successor in r4. All layout arithmetic stays with this compiler-macro owner.
+exact_require_program_prelude:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r30, r0                  ; checked main target
+        imm r20, 0
+        imm r21, 1
+        call require_tape_byte
+        imm r20, 1
+        imm r21, 15
+        call require_tape_byte
+        imm r20, 2
+        imm r21, 1048576
+        call require_tape_word
+        imm r20, 10
+        imm r21, 1
+        call require_tape_byte
+        imm r20, 11
+        imm r21, 14
+        call require_tape_byte
+        imm r20, 12
+        imm r21, 1048576
+        call require_tape_word
+        imm r20, 20
+        mov r21, r30
+        imm r22, 29
+        call exact_require_call
+        imm r20, 29
+        imm r21, 0
+        call require_tape_byte
+        imm r20, 30
+        imm r21, 0
+        call require_tape_byte
+        imm r0, 0
+        imm r1, 10
+        imm r2, 20
+        imm r3, 29
+        imm r4, 31
+        ret
+
 ; Transition row/source-block/guarded/target/control-pc in r20..r24.
 exact_require_transition:
         mov r25, r20
@@ -706,11 +886,8 @@ exact_event_identity_load:
 ; Inputs are event row/block/kind in r20..r22.
 exact_require_event_epilogue:
         call exact_event_identity_pc
-        mov r21, r0
         mov r20, r0
-        imm r1, 19
-        sub r20, r1
-        call exact_require_epilogue
+        call exact_require_epilogue_at_ret
         ret
 
 ; The next source procedure identity in r20 identifies the byte after a
@@ -718,16 +895,23 @@ exact_require_event_epilogue:
 exact_require_preentry_epilogue:
         mov r0, r20
         call exact_proc_entry_pc
-        mov r21, r0
+        mov r20, r0
         imm r1, 1
-        sub r21, r1
-        mov r20, r21
+        sub r20, r1
+        call exact_require_epilogue_at_ret
+        ret
+
+; Resolve a checked epilogue from its semantic return-instruction PC r20.
+exact_require_epilogue_at_ret:
+        mov r21, r20
         imm r1, 19
+        jlt r20, r1, reject
         sub r20, r1
         call exact_require_epilogue
         ret
 
-; Exact 19-byte canonical epilogue at [r20,r21], with r21=r20+19.
+; Exact canonical epilogue at [r20,r21], with r21 the return instruction.
+; Return mov/load/imm/add/ret starts in r0..r4 and successor in r5.
 exact_require_epilogue:
         mov r25, r20
         mov r26, r21
@@ -800,6 +984,20 @@ exact_epilogue_ret_linked:
         add r20, r1
         imm r21, 20
         call require_tape_byte
+        mov r5, r26
+        imm r6, 1
+        add r5, r6
+        mov r0, r25
+        mov r1, r25
+        imm r6, 3
+        add r1, r6
+        mov r2, r25
+        imm r6, 6
+        add r2, r6
+        mov r3, r25
+        imm r6, 16
+        add r3, r6
+        mov r4, r26
         ret
 
 ; Exhaust local/memory/transition/event rows for blocks [r20,r21].
