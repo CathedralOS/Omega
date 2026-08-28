@@ -377,19 +377,20 @@ These facts constrain the work below.
   `MachineId`-rooted. It cannot be relabelled as the compiler-private wrapper,
   and its leaf cannot replace the entry bound by the checked settlement.
 
-  The next milestone belongs in `omega-terminal-native-realization`: consume
-  the canonical optimized object artifact for the actual settled Terminal
-  entry, bind its exact object-local semantic-entry symbol as the private
-  continuation, independently replay the settlement, semantic contract, and
-  wrapper plan, then synthesize a distinct compiler-owned composite object. The
-  wrapper is placed before a byte-for-byte retained copy of the canonical
-  Terminal text, the child symbols are projected at shifted section offsets,
-  and the wrapper's `rel32` is resolved to the shifted semantic-entry symbol.
-  The resulting object has zero relocations and retains the complete child
-  artifact by value. It is not a cross-object relocation: the continuation is
-  deliberately object-local, so a second object cannot legally name it without
-  first broadening its linkage. The wrapper symbol has compiler-owned identity
-  and no fabricated Terminal `MachineId`.
+  That composite-object milestone has now landed in
+  `omega-terminal-native-realization`. Its opaque stage consumes the validated
+  ProgramEntry settlement, canonical optimized Terminal object artifact, and
+  compact wrapper encoding by value; independently replays all three; and
+  rebuilds the semantic contract and wrapper plan. It places the 90-byte
+  compiler-owned wrapper before a byte-for-byte retained copy of the canonical
+  Terminal text, shifts every child symbol with checked arithmetic, reclassifies
+  the child semantic entry as the private Terminal continuation, and resolves
+  the wrapper's `rel32` to that shifted object-local symbol. Dedicated canonical
+  plan/container/manifest identities and `OMGPSO`/`OMGPSM` v1 codecs retain the
+  join, its zero-relocation result, and explicit absence of physical bridge,
+  image, installation, and publication authority. This is not a cross-object
+  relocation, and the wrapper symbol is compiler-owned with no fabricated
+  Terminal `MachineId`.
 
   The wrapper encoding mismatch is now resolved explicitly rather than by
   changing either layout's meaning. The semantic wrapper plan is coordinate-free
@@ -411,9 +412,15 @@ These facts constrain the work below.
   checked-source ProgramStorage fixture instead retains two linear owned
   `Extent in Granted` roots, two entry claims, and completion receipts while
   lowering its generic handoff as `BoundaryCall`. It is receipt evidence, not a
-  positive wrapper fixture. Pairing either fixture with the other's custody
-  must reject. A positive three-way settlement/object/wrapper regression
-  remains an engineering prerequisite: the checked claim-consuming
+  positive wrapper fixture. Provider discovery and Terminal verification now
+  retain an exact linear, owned, domain-qualified structural provider signature,
+  positional/domain refinement, and the checked claim-consuming provider body;
+  they no longer impose the stale zero-structural-argument catalog restriction.
+  Selection and execution are intentionally unchanged: the generic call remains
+  `BoundaryCall`, and the interpreter/native lowering still has no admitted
+  structural installed-provider call. Pairing either fixture with the other's
+  custody must reject. A positive three-way settlement/object/wrapper regression
+  remains an engineering prerequisite: that checked claim-consuming
   continuation must reach the object lane through an admitted concrete
   provider/native realization without erasing its claims. This does not require
   a new owner question.
@@ -2594,8 +2601,9 @@ dependency.
   whole-program span/relocation validation, and publication-side enforcement of
   the independent encoding receipt.
 
-- **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT.** Add the owning semantic-entry join in
-  `omega-terminal-native-realization`. It consumes by value one replayed native
+- **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT — composite carrier landed; checked
+  installed-provider join remains open.** The owning semantic-entry join in
+  `omega-terminal-native-realization` consumes by value one replayed native
   ProgramEntry settlement, the exact canonical optimized Terminal object for
   that settlement, and the selected compact semantic-wrapper encoding. It
   independently rebuilds the semantic ProgramStorage contract and wrapper plan,
@@ -2606,7 +2614,10 @@ dependency.
   with checked arithmetic, the wrapper call resolves to the shifted private
   semantic entry, and the final object contains no relocation records.
 
-  Acceptance: settlement, target, Terminal-Psi, entry, type/domain, claim,
+  Landed coverage independently replays the composition and codecs and rejects
+  object/manifest identity drift, child-text drift, and any attempt to classify
+  the compiler wrapper as a Terminal machine. Remaining acceptance: settlement,
+  target, Terminal-Psi, entry, type/domain, claim,
   encoding, child-object, symbol, interval, displacement, and identity
   substitution tests fail closed; independent replay reconstructs the entire
   composite object and its custody manifest; the wrapper symbol is

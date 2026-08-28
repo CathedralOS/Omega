@@ -142,6 +142,18 @@ canonical_identity!(
     b"omega.optimized-terminal-ordinary-callable-entry-manifest-identity.v1\0"
 );
 canonical_identity!(
+    OptimizedProgramStorageSemanticWrapperObjectIdentity,
+    b"omega.optimized-program-storage-semantic-wrapper-object-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedProgramStorageSemanticWrapperObjectContainerIdentity,
+    b"omega.optimized-program-storage-semantic-wrapper-object-container-identity.v1\0"
+);
+canonical_identity!(
+    OptimizedProgramStorageSemanticWrapperObjectManifestIdentity,
+    b"omega.optimized-program-storage-semantic-wrapper-object-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -501,6 +513,16 @@ mod tests {
             OptimizedTerminalOrdinaryCallableEntryIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizedTerminalOrdinaryCallableEntryManifestIdentity::from_canonical_bytes(b"same")
                 .bytes(),
+            OptimizedProgramStorageSemanticWrapperObjectIdentity::from_canonical_bytes(b"same")
+                .bytes(),
+            OptimizedProgramStorageSemanticWrapperObjectContainerIdentity::from_canonical_bytes(
+                b"same",
+            )
+            .bytes(),
+            OptimizedProgramStorageSemanticWrapperObjectManifestIdentity::from_canonical_bytes(
+                b"same",
+            )
+            .bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),
@@ -544,6 +566,9 @@ mod tests {
         round_trip!(OptimizedTerminalObjectArtifactManifestIdentity);
         round_trip!(OptimizedTerminalOrdinaryCallableEntryIdentity);
         round_trip!(OptimizedTerminalOrdinaryCallableEntryManifestIdentity);
+        round_trip!(OptimizedProgramStorageSemanticWrapperObjectIdentity);
+        round_trip!(OptimizedProgramStorageSemanticWrapperObjectContainerIdentity);
+        round_trip!(OptimizedProgramStorageSemanticWrapperObjectManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationDecisionSchemaIdentity);
         round_trip!(OptimizationDecisionTargetIdentity);

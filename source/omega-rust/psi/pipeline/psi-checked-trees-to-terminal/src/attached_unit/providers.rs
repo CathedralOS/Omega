@@ -26,12 +26,11 @@ pub(super) fn checked_unit_provider_candidates(
     boundary_symbols.dedup();
     let mut output = Vec::new();
     for boundary_symbol in boundary_symbols {
-        let boundary_plan =
-            plans
-                .boundary_for_machine(boundary_symbol)
-                .ok_or(LoweringError::Unsupported(
-                    "Unit provider catalog references an unknown checked boundary plan",
-                ))?;
+        plans
+            .boundary_for_machine(boundary_symbol)
+            .ok_or(LoweringError::Unsupported(
+                "Unit provider catalog references an unknown checked boundary plan",
+            ))?;
         let exact_requirements = checked
             .typed
             .traits()
@@ -79,13 +78,6 @@ pub(super) fn checked_unit_provider_candidates(
                     })
         });
         for machine in candidates {
-            if !boundary_plan.structural_parameters.is_empty()
-                || !boundary_plan.domain_requirements.is_empty()
-            {
-                return unsupported(
-                    "checked provider dispatch currently admits only zero-argument Unit boundary requirements",
-                );
-            }
             plans
                 .for_machine(machine.symbol)
                 .ok_or(LoweringError::Unsupported(
