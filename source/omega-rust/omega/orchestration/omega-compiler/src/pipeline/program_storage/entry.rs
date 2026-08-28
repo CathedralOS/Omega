@@ -3236,20 +3236,15 @@ mod tests {
             std::process::id(),
         ));
         let _ = fs::remove_dir_all(&build_dir);
-        let report = super::super::compiler::compile(
-            super::super::compiler::CompileRequest::new(
-                crate::compiler::CompileOptions {
-                    root_path: repository_root().join(
-                        "tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg",
-                    ),
-                    build_dir: Some(build_dir.clone()),
-                    target_name: Some("uefi_x64".into()),
-                    write_output: false,
-                },
-            )
-            .with_artifact_policy(
-                crate::compiler::ArtifactEmissionPolicy::OutputOnly,
-            ),
+        let report = crate::compiler::compile(
+            crate::compiler::CompileRequest::new(crate::compiler::CompileOptions {
+                root_path: repository_root()
+                    .join("tests/canaries/pass/build/uefi_program_entry_storage_roots/main.omg"),
+                build_dir: Some(build_dir.clone()),
+                target_name: Some("uefi_x64".into()),
+                write_output: false,
+            })
+            .with_artifact_policy(crate::compiler::ArtifactEmissionPolicy::OutputOnly),
         )
         .expect("receiver-bound UEFI program-storage bridge");
         let bridge = report
@@ -3311,18 +3306,14 @@ machine build(builder: &mut Build) {
 "#,
         )
         .expect("write receiver-free publication build root");
-        let report = super::super::compiler::compile(
-            super::super::compiler::CompileRequest::new(
-                crate::compiler::CompileOptions {
-                    root_path: directory.join("main.omg"),
-                    build_dir: Some(directory.join("build")),
-                    target_name: Some("uefi_x64".into()),
-                    write_output: false,
-                },
-            )
-            .with_artifact_policy(
-                crate::compiler::ArtifactEmissionPolicy::OutputOnly,
-            ),
+        let report = crate::compiler::compile(
+            crate::compiler::CompileRequest::new(crate::compiler::CompileOptions {
+                root_path: directory.join("main.omg"),
+                build_dir: Some(directory.join("build")),
+                target_name: Some("uefi_x64".into()),
+                write_output: false,
+            })
+            .with_artifact_policy(crate::compiler::ArtifactEmissionPolicy::OutputOnly),
         )
         .expect("receiver-free UEFI program-storage bridge");
         let bridge = report

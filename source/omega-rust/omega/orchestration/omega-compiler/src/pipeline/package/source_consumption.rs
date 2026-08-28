@@ -142,9 +142,8 @@ pub(super) fn toolchain_source_identities(
     Ok(identities)
 }
 
-pub(super) fn toolchain_source_identity_digest(
-    source: &SourceFile,
-) -> Result<[u8; 32], Vec<Diagnostic>> {
+#[doc(hidden)]
+pub fn toolchain_source_identity_digest(source: &SourceFile) -> Result<[u8; 32], Vec<Diagnostic>> {
     if source.origin != SourceOrigin::Toolchain {
         return Err(vec![Diagnostic::error(format!(
             "toolchain source identity requested for non-toolchain source `{}`",

@@ -28,8 +28,6 @@ mod output;
 mod package_compilation;
 #[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
-#[path = "package/review.rs"]
-mod package_review;
 #[path = "package/source_consumption.rs"]
 mod package_source_consumption;
 #[path = "program_storage/entry_physical.rs"]
@@ -156,62 +154,9 @@ pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
 };
-pub use package_review::{
-    CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,
-    DecodedPackageReviewCanonicalRow, ORDINARY_PACKAGE_OBLIGATION_LEDGER_ENCODING_VERSION,
-    ORDINARY_PACKAGE_OBLIGATION_SCHEMA_VERSION, OrdinaryPackageObligationLedger,
-    OrdinaryPackageObligationLedgerFingerprint, OrdinaryPackageObligationLedgerRecoveryError,
-    OrdinaryPackageObligationRow, OrdinaryPackageObligationSchemaIdentity,
-    PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, PACKAGE_REVIEW_ENCODING_VERSION,
-    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewArithmeticDomain,
-    PackageReviewByteSequencePredicate, PackageReviewCallableConformance,
-    PackageReviewCallableContract, PackageReviewCallableParameter, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRecoveryError, PackageReviewCanonicalRowRecoveryLimits,
-    PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource, PackageReviewCapabilityFlow,
-    PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewConformanceBound,
-    PackageReviewConformanceShape, PackageReviewConformanceSubject, PackageReviewConstShape,
-    PackageReviewContractBinaryOperator, PackageReviewContractCallTarget,
-    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
-    PackageReviewContractOperatorMeaning, PackageReviewContractStaticArgument,
-    PackageReviewContractUnaryOperator, PackageReviewCrash, PackageReviewCrashCall,
-    PackageReviewCrashInterface, PackageReviewCrashPredicate, PackageReviewCrashRoute,
-    PackageReviewCrashRouteGuard, PackageReviewCrashSite, PackageReviewDangerousAuthority,
-    PackageReviewDangerousAuthorityClass, PackageReviewDangerousAuthoritySlack,
-    PackageReviewDataField, PackageReviewDataKind, PackageReviewDataMember, PackageReviewDataShape,
-    PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
-    PackageReviewDomainEstablishmentKind, PackageReviewDomainEstablishmentRoute,
-    PackageReviewDomainSemanticRole, PackageReviewDomainShape, PackageReviewEncodingError,
-    PackageReviewEvidenceInterface, PackageReviewEvidenceRequirement, PackageReviewExternalBinding,
-    PackageReviewExternalExecutableSupply, PackageReviewExternalRequirement,
-    PackageReviewInstallationReach, PackageReviewMachineParameterContract,
-    PackageReviewMachineParameterSignature, PackageReviewMachineParameterValue,
-    PackageReviewMutation, PackageReviewNominalIdentity, PackageReviewNominalOwner,
-    PackageReviewOperatorCoordinate, PackageReviewOperatorShape, PackageReviewPermissionClaim,
-    PackageReviewPermissionSource, PackageReviewProgressPremise, PackageReviewProgressSubject,
-    PackageReviewPropositionApplication, PackageReviewPropositionBinder,
-    PackageReviewPropositionBinderArgument, PackageReviewPropositionBinderKind,
-    PackageReviewPropositionBinderValue, PackageReviewPropositionEvidence,
-    PackageReviewPropositionParameterApplication, PackageReviewPropositionParameterSignature,
-    PackageReviewPropositionParameterValue, PackageReviewPropositionShape,
-    PackageReviewPublicPropositionBody, PackageReviewRepresentationAbiCommitment,
-    PackageReviewRepresentationMechanism, PackageReviewRepresentationTcb,
-    PackageReviewSemanticDependency, PackageReviewSemanticDependencyExposure,
-    PackageReviewSemanticDependencyKind, PackageReviewSourceLocation,
-    PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
-    PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind, PackageReviewTermination,
-    PackageReviewToolchainSourceIdentity, PackageReviewTraitParent, PackageReviewTraitRequirement,
-    PackageReviewTraitRequirementParameter, PackageReviewTraitShape, PackageReviewTypeIdentity,
-    PackageReviewTypeParameter, PackageReviewTypeParameterKind,
-    decode_ordinary_package_obligation_ledger, decode_package_review_canonical_row,
-    decode_package_review_canonical_row_with_limits, encode_ordinary_package_obligation_ledger,
-    encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
-    ordinary_package_obligation_ledger_fingerprint,
-    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
-    reconstruct_ordinary_package_obligation_ledger, recover_ordinary_package_obligation_ledger,
-    validate_ordinary_package_obligation_ledger,
+pub use package_source_consumption::{
+    PackageSourceConsumptionCommitment, toolchain_source_identity_digest,
 };
-pub use package_source_consumption::PackageSourceConsumptionCommitment;
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{
     ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
@@ -311,9 +256,10 @@ pub use program_storage_wrapper_frame::{
 };
 pub use provider_plans::{
     AdmittedExternalRootEntryFactHandoff, BoundExternalRootPostHandoffWriterInvocation,
-    ExternalRootPostHandoffWriterBindingError, SelectedExternalRootEntryFactBinding,
+    ExternalRootPostHandoffWriterBindingError, ProviderPlanProvenance, ProviderSchemaDeclaration,
+    ProviderSelectionProvenance, SelectedExternalRootEntryFactBinding,
     SelectedExternalRootPostHandoffWriterPreparation, SelectedExternalRootProviderPlan,
-    SelectedExternalRootWriterPreparationError,
+    SelectedExternalRootWriterPreparationError, SelectedProviderReviewProvenance,
     ValidatedWrittenBoundExternalRootPostHandoffWriterDestination,
     WrittenBoundExternalRootConsumerValidationError,
     WrittenBoundExternalRootPostHandoffWriterDestination,

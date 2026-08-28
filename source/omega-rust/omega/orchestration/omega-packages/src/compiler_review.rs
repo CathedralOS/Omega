@@ -6,13 +6,15 @@ use crate::{
     package_compilation_inputs_for,
 };
 use omega_compiler::{
-    BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
-    CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
-    OrdinaryPackageObligationLedger, PackageCompilationInputError, PackageGeneratedSourceBundle,
-    PackageReviewCanonicalRow, PackageReviewEncodingError, PackageSourceConsumptionCommitment,
+    BuildObservationSummary, CompilerExecutableCommitment, CompilerExecutableCommitmentError,
+    FilesystemSponsor, FilesystemSponsorError, PackageCompilationInputError,
+    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
     compile_to_checked_with_packages_in_sponsored_build_dir,
-    ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
-    validate_ordinary_package_obligation_ledger,
+};
+use omega_package_review::{
+    CheckedPackageReviewProjection, OrdinaryPackageObligationLedger, PackageReviewCanonicalRow,
+    PackageReviewEncodingError, ordinary_package_obligation_ledger_from_compiler_rows,
+    project_checked_package_review, validate_ordinary_package_obligation_ledger,
 };
 use psi_diagnostics::Diagnostic;
 use std::collections::BTreeSet;

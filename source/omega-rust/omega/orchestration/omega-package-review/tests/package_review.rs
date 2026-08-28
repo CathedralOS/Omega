@@ -1,6 +1,9 @@
 use omega_compiler::{
-    BuildObservationClass, CheckedCompilation, PACKAGE_REVIEW_ENCODING_VERSION,
-    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageCompilationInputs, PackageDependencyBinding,
+    BuildObservationClass, CheckedCompilation, PackageCompilationInputs, PackageDependencyBinding,
+    PackageSourceBinding, compile_to_checked_with_packages,
+};
+use omega_package_review::{
+    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
     PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCallableRole,
     PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
     PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
@@ -18,10 +21,9 @@ use omega_compiler::{
     PackageReviewSemanticDependencyExposure, PackageReviewSemanticDependencyKind,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSynchronousInvocation, PackageReviewSyntheticSourceKind,
-    PackageReviewTypeParameterKind, PackageSourceBinding, compile_to_checked_with_packages,
-    decode_ordinary_package_obligation_ledger, decode_package_review_canonical_row,
-    encode_ordinary_package_obligation_ledger, encode_package_review_canonical_row,
-    ordinary_package_obligation_ledger_fingerprint,
+    PackageReviewTypeParameterKind, decode_ordinary_package_obligation_ledger,
+    decode_package_review_canonical_row, encode_ordinary_package_obligation_ledger,
+    encode_package_review_canonical_row, ordinary_package_obligation_ledger_fingerprint,
     ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
     recover_ordinary_package_obligation_ledger, validate_ordinary_package_obligation_ledger,
 };
@@ -8217,7 +8219,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let review = project_checked_package_review(&checked)
         .expect("authored invocation spans should join exact checked targets");
     let rows = review.canonical_rows().expect("invocation source rows");
-    let invocation_text = |row: &omega_compiler::PackageReviewCanonicalRow| {
+    let invocation_text = |row: &omega_package_review::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()
@@ -8366,7 +8368,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let review = project_checked_package_review(&checked)
         .expect("authored service-reach spans should join exact checked rows");
     let rows = review.canonical_rows().expect("service-reach source rows");
-    let reach_text = |row: &omega_compiler::PackageReviewCanonicalRow| {
+    let reach_text = |row: &omega_package_review::PackageReviewCanonicalRow| {
         let mut text = row
             .source()
             .authored_locations()
@@ -8590,7 +8592,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             })
             .unwrap_or_else(|| panic!("{name} review row"))
     };
-    let role_text = |row: &omega_compiler::PackageReviewCanonicalRow,
+    let role_text = |row: &omega_package_review::PackageReviewCanonicalRow,
                      role: PackageReviewSourceLocationRole| {
         row.source()
             .authored_locations()
@@ -8950,7 +8952,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let different_relation = compile("Representative", "same_bucket", "FirstEvidence", false);
     let different_relation_body = compile("Representative", "equivalent", "FirstEvidence", true);
 
-    let quotient = |review: &omega_compiler::CheckedPackageReviewProjection| {
+    let quotient = |review: &omega_package_review::CheckedPackageReviewProjection| {
         review
             .public_data()
             .iter()

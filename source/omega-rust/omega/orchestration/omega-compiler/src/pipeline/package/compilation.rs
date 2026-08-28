@@ -157,7 +157,8 @@ impl PackageDependencyClosure {
     /// than `PackageCompilationInputs`: packages and requester-local aliases
     /// are strictly ordered, every edge is closed, the root reaches every
     /// package, and cycles reject.
-    pub(crate) fn from_canonical_parts(
+    #[doc(hidden)]
+    pub fn from_canonical_parts(
         root: PackageKeyIdentity,
         packages: Vec<PackageKeyIdentity>,
         dependencies: Vec<PackageDependencyBinding>,

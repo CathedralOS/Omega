@@ -1,4 +1,4 @@
-use omega_compiler::{
+use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
 };
 use omega_packages::{
@@ -1072,10 +1072,11 @@ reaches FilesystemHost
         .and_then(PackageReviewCanonicalRowSource::authored_locations)
         .expect("dangerous slack has authority and callable provenance");
     assert!(slack_locations.iter().any(|location| {
-        location.role() == omega_compiler::PackageReviewSourceLocationRole::AuthorityDeclaration
+        location.role()
+            == omega_package_review::PackageReviewSourceLocationRole::AuthorityDeclaration
     }));
     assert!(slack_locations.iter().any(|location| {
-        location.role() == omega_compiler::PackageReviewSourceLocationRole::AuthorityExposure
+        location.role() == omega_package_review::PackageReviewSourceLocationRole::AuthorityExposure
             && location.relative_path() == "main.omg"
     }));
     let slack_triage = triage_review_update(
@@ -1087,7 +1088,7 @@ reaches FilesystemHost
         decision
             .reasons()
             .contains(&PackageTriageReason::DangerousAuthoritySlack(
-                omega_compiler::PackageReviewDangerousAuthorityClass::Filesystem,
+                omega_package_review::PackageReviewDangerousAuthorityClass::Filesystem,
             ))
     }));
 

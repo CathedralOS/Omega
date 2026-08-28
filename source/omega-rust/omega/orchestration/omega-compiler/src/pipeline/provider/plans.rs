@@ -2242,13 +2242,13 @@ pub(crate) fn derive_satisfies_plans(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum ProviderSchemaDeclaration {
+pub enum ProviderSchemaDeclaration {
     BoundaryTrait(psi_symbols::SymbolHandle),
     BoundaryOperator(psi_symbols::SymbolHandle),
 }
 
 impl ProviderSchemaDeclaration {
-    pub(super) const fn symbol(self) -> psi_symbols::SymbolHandle {
+    pub const fn symbol(self) -> psi_symbols::SymbolHandle {
         match self {
             Self::BoundaryTrait(symbol) | Self::BoundaryOperator(symbol) => symbol,
         }
@@ -2256,11 +2256,11 @@ impl ProviderSchemaDeclaration {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct ProviderPlanProvenance {
-    pub(super) schema: ProviderSchemaDeclaration,
-    pub(super) provider_type: Option<psi_symbols::SymbolHandle>,
-    pub(super) row_requirements: Vec<psi_symbols::SymbolHandle>,
-    pub(super) row_realizations: Vec<psi_symbols::SymbolHandle>,
+pub struct ProviderPlanProvenance {
+    pub schema: ProviderSchemaDeclaration,
+    pub provider_type: Option<psi_symbols::SymbolHandle>,
+    pub row_requirements: Vec<psi_symbols::SymbolHandle>,
+    pub row_realizations: Vec<psi_symbols::SymbolHandle>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3681,7 +3681,7 @@ fn provider_plan_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) enum ProviderSelectionProvenance {
+pub enum ProviderSelectionProvenance {
     BuildOverride(Vec<crate::pipeline::build_config::ProviderSelection>),
     TargetDefault(Vec<crate::pipeline::build_config::ProviderSelection>),
     UniqueCoveringCandidate,
@@ -3694,10 +3694,10 @@ pub(super) struct SelectedProviderPlanWithProvenance {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SelectedProviderReviewProvenance {
-    pub(super) plan: ProviderPlan,
-    pub(super) provider: ProviderPlanProvenance,
-    pub(super) selected_by: ProviderSelectionProvenance,
+pub struct SelectedProviderReviewProvenance {
+    pub plan: ProviderPlan,
+    pub provider: ProviderPlanProvenance,
+    pub selected_by: ProviderSelectionProvenance,
 }
 
 pub(super) fn selected_provider_plan_facts_with_provenance(

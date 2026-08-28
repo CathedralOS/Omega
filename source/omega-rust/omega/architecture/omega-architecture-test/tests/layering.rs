@@ -477,6 +477,37 @@ fn source_profile_analysis_is_not_owned_by_the_compiler() {
 }
 
 #[test]
+fn package_review_is_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler.join("src/pipeline/package/review.rs").exists()
+            && !compiler.join("src/pipeline/package/review").exists(),
+        "package review projection and evidence schemas must not return to omega-compiler"
+    );
+
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-package-review/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-package-review must own package review"
+    );
+
+    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
+        .expect("read omega-compiler compatibility API");
+    for forbidden in [
+        "PackageReviewCanonicalRow",
+        "CheckedPackageReviewProjection",
+        "OrdinaryPackageObligationLedger",
+        "project_checked_package_review",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport package-review owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn omega_product_entry_remains_a_tiny_dispatcher() {
     let root = workspace_root();
     let entry = root.join("source/omega-rust/omega/src/main.rs");

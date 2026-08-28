@@ -5,7 +5,7 @@ use psi_core::PackageKeyIdentity;
 
 const RECOVERY_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW-RECOVERY\0";
 
-/// Version of the compiler-owned canonical-row recovery envelope.
+/// Version of the package-review canonical-row recovery envelope.
 pub const PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION: u16 = 8;
 
 /// Resource ceilings applied while encoding or decoding one canonical-row

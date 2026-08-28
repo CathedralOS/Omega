@@ -14,6 +14,7 @@ cap-std = "4.0.3"
 command-group = "5.0.1"
 omega-build-declarations = { path = "../omega-build-declarations" }
 omega-compiler = { path = "../omega-compiler" }
+omega-package-review = { path = "../omega-package-review" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }

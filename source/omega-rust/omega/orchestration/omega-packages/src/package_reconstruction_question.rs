@@ -3,7 +3,7 @@ use crate::{
     CompilerIssuedPackageReviewSet, PackageKey, ResolvedPackageSourceClosure,
     package_compilation_inputs_for,
 };
-use omega_compiler::{
+use omega_package_review::{
     OrdinaryPackageObligationLedger, decode_ordinary_package_obligation_ledger,
     encode_ordinary_package_obligation_ledger,
 };
