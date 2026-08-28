@@ -1572,9 +1572,12 @@ Owners:
   checked expression arena and refuse single-attempt lowering: neither has the
   three-arm runtime result carrier or a target operation identity. Only the
   existing observing-decisive source call is currently derivable. A concrete
-  source-visible closed-result carrier and its parser/checker desugaring are
-  engineering prerequisites for `compare_exchange_once`; reusing the decisive
-  prior-value carrier would erase `Uncommitted`. Source calls for the other
+  source-visible closed-result carrier and its parser/checker desugaring remain
+  prerequisites for `compare_exchange_once`; reusing the decisive prior-value
+  carrier would erase `Uncommitted`. The cases and payloads are settled, but
+  the public nominal result-type identities and therefore their case paths are
+  design-blocked under “Nominal result carriers for observing
+  compare-exchange” in `OWNER_QUESTIONS.md`. Source calls for the other
   families, runtime-result custody, an atomic attempt or retry, the non-
   observing comparison key/selected-encoding law, Terminal rows, provider
   selection or installation, backend target operation identity, and executable
