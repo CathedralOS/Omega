@@ -42,6 +42,10 @@ pub data KeywordKind [copy] {
     case Use;
     case When;
     case While;
+    // Contextual declaration words remain valid identifiers outside their
+    // exact parser positions; the parser's name-like rule admits them.
+    case Case;
+    case Copy;
 }
 
 pub data PunctuationKind [copy] {

@@ -2,9 +2,11 @@ use psi::source::source;
 use psi::syntax::syntax;
 
 // First target-neutral parser slices: exact whole-file sequencing of ordinary
-// `use path::member;` roots and basic `[pub] data` records with bare named
-// field types. Unsupported forms reject rather than becoming an opaque token
-// tree. Resolution of package aliases and names belongs later.
+// `use path::member;` roots and basic `[pub] data` declarations with optional
+// `[copy]`, bare named field types, and payload-free cases. Authored field/case
+// order is retained for records, sums, and mixed shapes. Unsupported forms
+// reject rather than becoming an opaque token tree. Resolution of package
+// aliases and names belongs later.
 
 pub data Parser {
     output: SyntaxTrees;
@@ -19,15 +21,22 @@ pub data Parser {
     cursor: u64 in Trapping;
     item_start: u64 in Trapping;
     use_first_member: u64 in Trapping;
+    data_first_member: u64 in Trapping;
     data_first_field: u64 in Trapping;
+    data_first_case: u64 in Trapping;
     data_name_start: u64 in Trapping;
     data_name_end: u64 in Trapping;
     data_is_public: bool;
+    data_multiplicity: DataMultiplicity;
     field_start: u64 in Trapping;
     field_name_start: u64 in Trapping;
     field_name_end: u64 in Trapping;
     type_name_start: u64 in Trapping;
     type_name_end: u64 in Trapping;
+    case_start: u64 in Trapping;
+    case_keyword_end: u64 in Trapping;
+    case_name_start: u64 in Trapping;
+    case_name_end: u64 in Trapping;
     current_tag: u8;
     current_first: u8;
     current_start: u64 in Trapping;
@@ -372,7 +381,10 @@ pub machine Parser::parse(&mut self) {
     }
 
     state data_start(&mut self) {
+        self.data_first_member = self.output.data_member_count;
         self.data_first_field = self.output.field_count;
+        self.data_first_case = self.output.case_count;
+        self.data_multiplicity = DataMultiplicity::Affine;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
         transition self.cursor < self.token_count {
@@ -418,9 +430,68 @@ pub machine Parser::parse(&mut self) {
     }
 
     state data_body_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 21 {
+            true -> data_property_start()
+            _ -> data_body_brace()
+        }
+    }
+
+    state data_body_brace(&mut self) {
         transition self.current_tag == 6 && self.current_first == 20 {
             true -> data_body_start()
             _ -> expected_data_body(self.current_start, self.current_end)
+        }
+    }
+
+    state data_property_start(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_property()
+            _ -> expected_data_property_at_end()
+        }
+    }
+
+    state data_property(&mut self) {
+        self.load_current();
+        transition { _ -> data_property_loaded() }
+    }
+
+    state data_property_loaded(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 31 {
+            true -> retain_copy_property()
+            _ -> expected_data_property(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_copy_property(&mut self) {
+        self.data_multiplicity = DataMultiplicity::Unrestricted;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_property_end()
+            _ -> expected_data_property_end_at_end()
+        }
+    }
+
+    state data_property_end(&mut self) {
+        self.load_current();
+        transition { _ -> data_property_end_loaded() }
+    }
+
+    state data_property_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 37 {
+            true -> after_data_property()
+            _ -> expected_data_property_end(self.current_start, self.current_end)
+        }
+    }
+
+    state after_data_property(&mut self) {
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_body()
+            _ -> expected_data_body_at_end()
         }
     }
 
@@ -441,14 +512,184 @@ pub machine Parser::parse(&mut self) {
     state data_member_loaded(&mut self) {
         transition self.current_tag == 6 && self.current_first == 36 {
             true -> retain_data(self.current_end)
+            _ -> classify_case_member()
+        }
+    }
+
+    state classify_case_member(&mut self) {
+        transition self.current_tag == 5 && self.current_first == 30 {
+            true -> case_marker()
             _ -> field_capacity()
+        }
+    }
+
+    // `case` is contextual. `case Name;` is an alternative, while
+    // `case: Type;` remains an ordinary field named `case`.
+    state case_marker(&mut self) {
+        self.case_start = self.current_start;
+        self.case_keyword_end = self.current_end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> case_marker_tail()
+            _ -> expected_data_case_name_at_end()
+        }
+    }
+
+    state case_marker_tail(&mut self) {
+        self.load_current();
+        transition { _ -> case_marker_tail_loaded() }
+    }
+
+    state case_marker_tail_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 6 {
+            true -> contextual_case_field_capacity()
+            _ -> case_name_kind()
+        }
+    }
+
+    state contextual_case_field_capacity(&mut self) {
+        transition self.output.field_count < 1024 {
+            true -> contextual_case_field_member_capacity()
+            _ -> field_full()
+        }
+    }
+
+    state contextual_case_field_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_contextual_case_field_name()
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_contextual_case_field_name(&mut self) {
+        self.field_start = self.case_start;
+        self.field_name_start = self.case_start;
+        self.field_name_end = self.case_keyword_end;
+        transition { _ -> field_type_start() }
+    }
+
+    state case_name_kind(&mut self) {
+        transition self.current_tag == 1 || (
+            self.current_tag == 5 &&
+            self.current_first != 20 &&
+            self.current_first != 21
+        ) {
+            true -> case_capacity()
+            _ -> expected_data_case_name(self.current_start, self.current_end)
+        }
+    }
+
+    state case_capacity(&mut self) {
+        transition self.output.case_count < 512 {
+            true -> case_member_capacity()
+            _ -> case_full()
+        }
+    }
+
+    state case_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_case_name(self.current_start, self.current_end)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_case_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.case_name_start = start;
+        self.case_name_end = end;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> case_end()
+            _ -> expected_data_case_end_at_end()
+        }
+    }
+
+    state case_end(&mut self) {
+        self.load_current();
+        transition { _ -> case_end_loaded() }
+    }
+
+    state case_end_loaded(&mut self) {
+        transition self.current_tag == 6 && self.current_first == 39 {
+            true -> retain_case(self.current_end)
+            _ -> expected_data_case_end(self.current_start, self.current_end)
+        }
+    }
+
+    state retain_case(&mut self, case_end: u64 in Trapping) {
+        transition self.output.case_count < 512 {
+            true -> retain_case_bounded(case_end)
+            _ -> case_full()
+        }
+    }
+
+    state retain_case_bounded(&mut self, case_end: u64 in Trapping) {
+        let case_index: u64 in Trapping = self.output.case_count;
+        self.output.cases[self.output.case_count] = DataCase {
+            name: IdentifierSpan {
+                source_span: SourceSpan {
+                    source: self.source,
+                    span: Span { start: self.case_name_start, end: self.case_name_end }
+                }
+            },
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.case_start, end: case_end }
+            }
+        };
+        self.output.case_count = self.output.case_count + 1;
+        transition { _ -> retain_case_member(case_end, case_index) }
+    }
+
+    state retain_case_member(
+        &mut self,
+        case_end: u64 in Trapping,
+        case_index: u64 in Trapping
+    ) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_case_member_bounded(case_end, case_index)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_case_member_bounded(
+        &mut self,
+        case_end: u64 in Trapping,
+        case_index: u64 in Trapping
+    ) {
+        self.output.data_members[self.output.data_member_count] = DataMember {
+            kind: DataMemberKind::Case,
+            item_index: case_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.case_start, end: case_end }
+            }
+        };
+        self.output.data_member_count = self.output.data_member_count + 1;
+        self.cursor = self.cursor + 1;
+        self.skip_trivia();
+        transition self.cursor < self.token_count {
+            true -> data_member()
+            _ -> expected_data_body_at_end()
         }
     }
 
     state field_capacity(&mut self) {
         transition self.output.field_count < 1024 {
-            true -> field_name()
+            true -> field_member_capacity()
             _ -> field_full()
+        }
+    }
+
+    state field_member_capacity(&mut self) {
+        transition self.output.data_member_count < 1024 {
+            true -> field_name()
+            _ -> data_member_full()
         }
     }
 
@@ -592,6 +833,7 @@ pub machine Parser::parse(&mut self) {
         field_end: u64 in Trapping,
         type_index: u64 in Trapping
     ) {
+        let field_index: u64 in Trapping = self.output.field_count;
         self.output.fields[self.output.field_count] = DataField {
             name: IdentifierSpan {
                 source_span: SourceSpan {
@@ -606,6 +848,34 @@ pub machine Parser::parse(&mut self) {
             }
         };
         self.output.field_count = self.output.field_count + 1;
+        transition { _ -> retain_field_member(field_end, field_index) }
+    }
+
+    state retain_field_member(
+        &mut self,
+        field_end: u64 in Trapping,
+        field_index: u64 in Trapping
+    ) {
+        transition self.output.data_member_count < 1024 {
+            true -> retain_field_member_bounded(field_end, field_index)
+            _ -> data_member_full()
+        }
+    }
+
+    state retain_field_member_bounded(
+        &mut self,
+        field_end: u64 in Trapping,
+        field_index: u64 in Trapping
+    ) {
+        self.output.data_members[self.output.data_member_count] = DataMember {
+            kind: DataMemberKind::Field,
+            item_index: field_index,
+            source_span: SourceSpan {
+                source: self.source,
+                span: Span { start: self.field_start, end: field_end }
+            }
+        };
+        self.output.data_member_count = self.output.data_member_count + 1;
         self.cursor = self.cursor + 1;
         self.skip_trivia();
         transition self.cursor < self.token_count {
@@ -630,8 +900,13 @@ pub machine Parser::parse(&mut self) {
                     span: Span { start: self.data_name_start, end: self.data_name_end }
                 }
             },
+            first_member: self.data_first_member,
+            member_count: self.output.data_member_count - self.data_first_member,
             first_field: self.data_first_field,
             field_count: self.output.field_count - self.data_first_field,
+            first_case: self.data_first_case,
+            case_count: self.output.case_count - self.data_first_case,
+            multiplicity: self.data_multiplicity,
             is_public: self.data_is_public,
             source_span: SourceSpan {
                 source: self.source,
@@ -696,6 +971,92 @@ pub machine Parser::parse(&mut self) {
             self.current_start,
             self.current_end
         );
+    }
+
+    state data_member_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::DataMemberCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state case_full(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::DataCaseCapacityExceeded,
+            self.source,
+            self.current_start,
+            self.current_end
+        );
+    }
+
+    state expected_data_property_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataProperty,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_property(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataProperty, self.source, start, end);
+    }
+
+    state expected_data_property_end_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataPropertyEnd,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_property_end(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataPropertyEnd, self.source, start, end);
+    }
+
+    state expected_data_case_name_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCaseName,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_case_name(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseName, self.source, start, end);
+    }
+
+    state expected_data_case_end_at_end(&mut self) {
+        self.output.reject(
+            ParseDiagnosticCode::ExpectedDataCaseEnd,
+            self.source,
+            self.source_length,
+            self.source_length
+        );
+    }
+
+    state expected_data_case_end(
+        &mut self,
+        start: u64 in Trapping,
+        end: u64 in Trapping
+    ) {
+        self.output.reject(ParseDiagnosticCode::ExpectedDataCaseEnd, self.source, start, end);
     }
 
     state expected_data_after_public_at_end(&mut self) {

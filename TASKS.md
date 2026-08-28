@@ -113,13 +113,15 @@ Remaining:
   `source/omega/psi/` plus the product entrypoint currently reaches source/span
   custody, tokens, Unicode tables, lexing, and fail-closed whole-file parsing
   for ordinary
-  `use path::member;` roots plus basic `[pub] data` records whose fields have
-  bare named types. The parser retains ordered source spans in owner-local
-  bounded syntax and type-reference tables and rejects every unsupported root
-  or richer declaration form; remaining declaration grammar, resolution,
-  checking, terminal Psi, and all later Psi/Omega phases remain open. Extend
-  this as live grammar/semantic slices, not checkpoint dialects, private bridge
-  IRs, or file-shape allowlists.
+  `use path::member;` roots plus basic `[pub] data` declarations with optional
+  `[copy]`, bare named field types, and payload-free `case Name;` members. The
+  parser retains exact mixed field/case order and source spans in owner-local
+  bounded syntax and type-reference tables; explicit discriminants, case
+  payloads, other properties, richer types, and every unsupported root reject
+  fail closed. Remaining declaration grammar, resolution, checking, terminal
+  Psi, and all later Psi/Omega phases remain open. Extend this as live
+  grammar/semantic slices, not checkpoint dialects, private bridge IRs, or
+  file-shape allowlists.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
