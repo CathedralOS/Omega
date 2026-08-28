@@ -1,21 +1,27 @@
-use omega_optimization_unit::{OptimizationFact, PsiOptimizationUnit, PsiProvenance};
+use omega_calling_conventions::{CallSignature, CallingPolicy, evaluate_call_plan};
+use omega_optimization_unit::{
+    OptimizationFact, OwnershipEvent, PsiOptimizationUnit, PsiProvenance,
+};
 use omega_terminal_abstract_operations::{
     TerminalAbstractOperation, TerminalAbstractOperationPlan,
 };
 use omega_terminal_legalized_operations::{
     TerminalLegalizationRecipe, TerminalLegalizationTheorem, TerminalLegalizedFunction,
     TerminalLegalizedImmediate, TerminalLegalizedLeaf, TerminalLegalizedLeafValue,
-    TerminalLegalizedOperationPlan, TerminalLegalizedTemporaryId, TerminalLegalizedUnitFunction,
+    TerminalLegalizedOperationPlan, TerminalLegalizedStructuralUnitFunction,
+    TerminalLegalizedTemporaryId, TerminalLegalizedUnitFunction,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
     TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
+    TerminalTargetUnitOperation,
 };
-use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
+use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType, StructuralPlaceKind};
+use psi_terminal::StructuralPlaceDeclaration;
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
-/// Independently replay a proposed V5 legal projection against all three raw
+/// Independently replay a proposed V6 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -40,32 +46,61 @@ pub(crate) fn replay_terminal_legalized_plan(
         || proposed.fuel_schedule != unit.fuel_schedule
         || proposed.target != target.target
         || proposed.entry != target.entry
-        || proposed.functions.len() + proposed.unit_functions.len() != target.functions.len()
+        || proposed.functions.len()
+            + proposed.unit_functions.len()
+            + proposed.structural_unit_functions.len()
+            != target.functions.len()
     {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
     let mut decomposition_count = 0usize;
-    for (index, ((target_function, abstracted), optimized)) in target
-        .functions
-        .iter()
-        .zip(&abstract_plan.functions)
-        .zip(&unit.functions)
-        .enumerate()
-    {
+    for (index, target_function) in target.functions.iter().enumerate() {
+        let abstract_matches = abstract_plan
+            .functions
+            .iter()
+            .filter(|candidate| candidate.machine == target_function.machine)
+            .collect::<Vec<_>>();
+        let optimized_matches = unit
+            .functions
+            .iter()
+            .filter(|candidate| candidate.machine == target_function.machine)
+            .collect::<Vec<_>>();
+        let ([abstracted], [optimized]) =
+            (abstract_matches.as_slice(), optimized_matches.as_slice())
+        else {
+            return Err(Error::SourceCustodyMismatch);
+        };
         let count = if matches!(
             target_function.operation,
             TerminalTargetOperation::UnitBody(_)
         ) {
-            let mut matches = proposed
+            let plain = proposed
                 .unit_functions
                 .iter()
-                .filter(|candidate| candidate.machine == target_function.machine);
-            let legalized = matches.next().ok_or(Error::NonCanonicalLegalizedPlan)?;
-            if matches.next().is_some() {
-                return Err(Error::NonCanonicalLegalizedPlan);
+                .filter(|candidate| candidate.machine == target_function.machine)
+                .collect::<Vec<_>>();
+            let structural = proposed
+                .structural_unit_functions
+                .iter()
+                .filter(|candidate| candidate.machine == target_function.machine)
+                .collect::<Vec<_>>();
+            match (plain.as_slice(), structural.as_slice()) {
+                ([legalized], []) => {
+                    replay_unit_function(index, target_function, abstracted, optimized, legalized)?
+                }
+                ([], [legalized]) => replay_structural_unit_function(
+                    index,
+                    target_function,
+                    abstracted,
+                    optimized,
+                    legalized,
+                    target,
+                    abstract_plan,
+                    unit,
+                )?,
+                _ => return Err(Error::NonCanonicalLegalizedPlan),
             }
-            replay_unit_function(index, target_function, abstracted, optimized, legalized)?
         } else {
             let mut matches = proposed
                 .functions
@@ -90,6 +125,414 @@ pub(crate) fn replay_terminal_legalized_plan(
             .ok_or(Error::NonCanonicalLegalizedPlan)?;
     }
     Ok(decomposition_count)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_structural_unit_function(
+    function: usize,
+    target: &omega_terminal_target_operations::TerminalTargetFunction,
+    abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    proposed: &TerminalLegalizedStructuralUnitFunction,
+    target_plan: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<usize, TerminalLegalizationError> {
+    let TerminalTargetOperation::UnitBody(body) = &target.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [abstract_entry] = abstracted.block_entries.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let [optimized_block] = optimized.blocks.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let (
+        target_call,
+        target_return,
+        abstract_call,
+        abstract_return,
+        optimized_call,
+        optimized_return,
+    ) = match (
+        body.operations.as_slice(),
+        abstracted.operations.as_slice(),
+        optimized_block.nodes.as_slice(),
+    ) {
+        (
+            [target_return @ TerminalTargetUnitOperation::Return { .. }],
+            [abstract_return @ TerminalAbstractOperation::ReturnUnit { .. }],
+            [optimized_return],
+        ) => (
+            None,
+            target_return,
+            None,
+            abstract_return,
+            None,
+            optimized_return,
+        ),
+        (
+            [
+                target_call @ TerminalTargetUnitOperation::Call { .. },
+                target_return @ TerminalTargetUnitOperation::Return { .. },
+            ],
+            [
+                abstract_call @ TerminalAbstractOperation::CallUnit { .. },
+                abstract_return @ TerminalAbstractOperation::ReturnUnit { .. },
+            ],
+            [optimized_call, optimized_return],
+        ) => (
+            Some(target_call),
+            target_return,
+            Some(abstract_call),
+            abstract_return,
+            Some(optimized_call),
+            optimized_return,
+        ),
+        _ => return Err(Error::UnsupportedSourceShape { function }),
+    };
+    let TerminalTargetUnitOperation::Return {
+        psi_edge,
+        cleanup_actions,
+    } = target_return
+    else {
+        unreachable!()
+    };
+    let expected_provenance = TerminalPsiProvenance {
+        operations: abstract_call
+            .and_then(|operation| match operation {
+                TerminalAbstractOperation::CallUnit { psi_operation, .. } => Some(*psi_operation),
+                _ => None,
+            })
+            .into_iter()
+            .collect(),
+        edges: vec![*psi_edge],
+    };
+    let expected_return_effect_input = u64::from(abstract_call.is_some());
+    let expected_call_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target_plan.target),
+        &CallSignature {
+            parameters: body
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    if target.machine != abstracted.machine
+        || target.machine != optimized.machine
+        || target.attachment != abstracted.attachment
+        || target.attachment != optimized.attachment
+        || target.provenance != expected_provenance
+        || abstracted.result
+            != omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        || optimized.result != abstracted.result
+        || !abstracted.parameters.is_empty()
+        || !optimized.parameters.is_empty()
+        || body.structural_types != abstract_plan.structural_types
+        || body.structural_types != unit.structural_types
+        || body.call_plan != expected_call_plan
+        || abstracted.structural_parameters != optimized.structural_parameters
+        || abstracted.entry_claims != optimized.entry_claim_declarations
+        || abstracted.published_service_ceiling != optimized.published_service_ceiling
+        || abstracted.entry != abstract_entry.block
+        || optimized.entry != abstract_entry.block
+        || optimized_block.id != abstract_entry.block
+        || abstract_entry.operation_offset != 0
+        || !abstract_entry.parameters.is_empty()
+        || !optimized_block.parameters.is_empty()
+        || !cleanup_actions.is_empty()
+        || abstract_return != &optimized_return.operation
+        || !matches!(abstract_return, TerminalAbstractOperation::ReturnUnit { psi_edge: edge, cleanup_actions } if edge == psi_edge && cleanup_actions.is_empty())
+        || optimized_return.provenance != [PsiProvenance::Edge(*psi_edge)]
+        || optimized_return.effect.input != expected_return_effect_input
+        || optimized_return.effect.output != expected_return_effect_input + 1
+        || !optimized_return.definitions.is_empty()
+        || !optimized_return.uses.is_empty()
+        || !optimized_return.successors.is_empty()
+        || optimized_return.ownership != [OwnershipEvent::Cleanup(Vec::new())]
+        || body.parameters.len() != abstracted.structural_parameters.len()
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let expected_places = abstracted
+        .structural_parameters
+        .iter()
+        .map(|parameter| parameter.place)
+        .collect::<std::collections::BTreeSet<_>>();
+    let expected_claim_ids = abstracted
+        .entry_claims
+        .iter()
+        .map(|claim| claim.claim)
+        .collect::<std::collections::BTreeSet<_>>();
+    if optimized.declared_places != expected_places
+        || optimized.entry_claims != expected_claim_ids
+        || abstracted
+            .entry_claims
+            .iter()
+            .any(|claim| !claim.path.is_empty() || !expected_places.contains(&claim.input))
+        || proposed.machine != target.machine
+        || proposed.attachment != target.attachment
+        || proposed.provenance != target.provenance
+        || proposed.structural_types != body.structural_types
+        || proposed.call_plan != body.call_plan
+        || proposed.entry_claims != abstracted.entry_claims
+        || proposed.published_service_ceiling != abstracted.published_service_ceiling
+        || proposed.entry_block != optimized_block.id
+        || proposed.return_edge != *psi_edge
+        || proposed.return_fuel != optimized_return.fuel
+        || proposed.return_effect != optimized_return.effect
+        || proposed.return_ownership != optimized_return.ownership
+        || proposed.parameters.len() != body.parameters.len()
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    for ((proposed_parameter, semantic), target_parameter) in proposed
+        .parameters
+        .iter()
+        .zip(&abstracted.structural_parameters)
+        .zip(&body.parameters)
+    {
+        if proposed_parameter.semantic != *semantic
+            || proposed_parameter.target != *target_parameter
+            || semantic.place != target_parameter.place
+            || semantic.structural_type != target_parameter.structural_type
+            || semantic.multiplicity != target_parameter.multiplicity
+            || semantic.access != target_parameter.access
+        {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+    }
+    let expected_structural_places = abstracted
+        .structural_parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .collect::<Vec<_>>();
+    if proposed.structural_places != expected_structural_places {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    match (target_call, abstract_call, optimized_call, &proposed.call) {
+        (None, None, None, None) => {}
+        (Some(target_call), Some(abstract_call), Some(optimized_call), Some(proposed_call)) => {
+            replay_structural_call(
+                function,
+                target_call,
+                abstract_call,
+                optimized_call,
+                proposed_call,
+                &proposed.parameters,
+                &abstracted.entry_claims,
+                target_plan,
+                abstract_plan,
+                unit,
+            )?;
+        }
+        _ => return Err(Error::NonCanonicalLegalizedPlan),
+    }
+    Ok(0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_structural_call(
+    function: usize,
+    target_call: &TerminalTargetUnitOperation,
+    abstract_call: &TerminalAbstractOperation,
+    optimized_call: &omega_optimization_unit::OptimizationNode,
+    proposed: &omega_terminal_legalized_operations::TerminalLegalizedCallUnit,
+    caller_parameters: &[omega_terminal_legalized_operations::TerminalLegalizedCallUnitParameter],
+    caller_claims: &[psi_terminal::EntryClaim],
+    target_plan: &TerminalTargetOperationPlan,
+    abstract_plan: &TerminalAbstractOperationPlan,
+    unit: &PsiOptimizationUnit,
+) -> Result<(), TerminalLegalizationError> {
+    let TerminalTargetUnitOperation::Call {
+        psi_operation: target_operation,
+        callee: target_callee,
+        arguments: target_arguments,
+        claim_transfers: target_transfers,
+    } = target_call
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalAbstractOperation::CallUnit {
+        psi_operation,
+        callee,
+        structural_arguments,
+        claim_transfers,
+    } = abstract_call
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if target_operation != psi_operation
+        || target_callee != callee
+        || target_transfers != claim_transfers
+        || optimized_call.operation != *abstract_call
+        || optimized_call.provenance != [PsiProvenance::Operation(*psi_operation)]
+        || optimized_call.ownership
+            != [OwnershipEvent::ClaimTransfer(
+                claim_transfers
+                    .iter()
+                    .map(|transfer| transfer.claim)
+                    .collect(),
+            )]
+        || optimized_call.effect.input != 0
+        || optimized_call.effect.output != 1
+        || !optimized_call.definitions.is_empty()
+        || !optimized_call.uses.is_empty()
+        || !optimized_call.successors.is_empty()
+        || proposed.operation != *psi_operation
+        || proposed.callee != *callee
+        || proposed.claim_transfers != *claim_transfers
+        || proposed.fuel != optimized_call.fuel
+        || proposed.effect != optimized_call.effect
+        || proposed.ownership != optimized_call.ownership
+        || proposed.arguments.len() != structural_arguments.len()
+        || proposed.arguments.len() != target_arguments.len()
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    for (((proposed_argument, semantic), target_argument), source) in proposed
+        .arguments
+        .iter()
+        .zip(structural_arguments)
+        .zip(target_arguments)
+        .map(|triple| {
+            let source = caller_parameters
+                .iter()
+                .find(|parameter| parameter.semantic.place == triple.0.1.place);
+            (triple, source)
+        })
+    {
+        let Some(source) = source else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        if proposed_argument.semantic != *semantic
+            || proposed_argument.target != *target_argument
+            || semantic.place != target_argument.place
+            || semantic.access != target_argument.access
+            || !semantic.path.is_empty()
+            || !target_argument.path.is_empty()
+            || target_argument.root_structural_type != source.semantic.structural_type
+            || target_argument.structural_type != source.semantic.structural_type
+            || target_argument.shape != source.target.shape
+            || target_argument.source_byte_offset != 0
+            || target_argument.fixed_array_length.is_some()
+            || target_argument.element_stride.is_some()
+            || target_argument.source != source.target.placement
+        {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+    }
+
+    let target_callees = target_plan
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == *callee)
+        .collect::<Vec<_>>();
+    let abstract_callees = abstract_plan
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == *callee)
+        .collect::<Vec<_>>();
+    let optimized_callees = unit
+        .functions
+        .iter()
+        .filter(|candidate| candidate.machine == *callee)
+        .collect::<Vec<_>>();
+    let ([target_callee], [abstract_callee], [optimized_callee]) = (
+        target_callees.as_slice(),
+        abstract_callees.as_slice(),
+        optimized_callees.as_slice(),
+    ) else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalTargetOperation::UnitBody(callee_body) = &target_callee.operation else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let expected_callee_plan = evaluate_call_plan(
+        CallingPolicy::native_for_target(target_plan.target),
+        &CallSignature {
+            parameters: callee_body
+                .parameters
+                .iter()
+                .map(|parameter| parameter.shape)
+                .collect(),
+            result: None,
+        },
+    )
+    .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    if abstract_callee.result
+        != omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit
+        || optimized_callee.result != abstract_callee.result
+        || !abstract_callee.parameters.is_empty()
+        || !optimized_callee.parameters.is_empty()
+        || abstract_callee.structural_parameters != optimized_callee.structural_parameters
+        || abstract_callee.entry_claims != optimized_callee.entry_claim_declarations
+        || callee_body.call_plan != expected_callee_plan
+        || callee_body.parameters.len() != abstract_callee.structural_parameters.len()
+        || proposed.arguments.len() != abstract_callee.structural_parameters.len()
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    for ((argument, semantic_parameter), target_parameter) in proposed
+        .arguments
+        .iter()
+        .zip(&abstract_callee.structural_parameters)
+        .zip(&callee_body.parameters)
+    {
+        if argument.semantic.access != semantic_parameter.access
+            || argument.target.structural_type != semantic_parameter.structural_type
+            || argument.target.shape != target_parameter.shape
+            || argument.target.destination != target_parameter.placement
+            || semantic_parameter.place != target_parameter.place
+            || semantic_parameter.structural_type != target_parameter.structural_type
+            || semantic_parameter.multiplicity != target_parameter.multiplicity
+            || semantic_parameter.access != target_parameter.access
+        {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+    }
+    if proposed.claim_transfers.len() != abstract_callee.entry_claims.len() {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    for (transfer, callee_claim) in proposed
+        .claim_transfers
+        .iter()
+        .zip(&abstract_callee.entry_claims)
+    {
+        let argument_index = usize::try_from(transfer.argument_index)
+            .map_err(|_| Error::NonCanonicalLegalizedPlan)?;
+        let Some(argument) = proposed.arguments.get(argument_index) else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        let Some(callee_parameter) = abstract_callee.structural_parameters.get(argument_index)
+        else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        let caller_claims = caller_claims
+            .iter()
+            .filter(|claim| claim.claim == transfer.claim)
+            .collect::<Vec<_>>();
+        let [caller_claim] = caller_claims.as_slice() else {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        };
+        if caller_claim.input != argument.semantic.place
+            || !caller_claim.path.is_empty()
+            || callee_claim.input != callee_parameter.place
+            || !callee_claim.path.is_empty()
+        {
+            return Err(Error::NonCanonicalLegalizedPlan);
+        }
+    }
+    Ok(())
 }
 
 fn replay_unit_function(

@@ -41,15 +41,16 @@ use psi_core::{IntegerSign, ScalarType};
 mod legalization_replay;
 mod source;
 use legalization_replay::replay_terminal_legalized_plan;
+use source::derive_source_structural_unit_functions;
 use source::{derive_source_functions, derive_source_unit_functions};
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v5",
+        b"omega.terminal-target-legalization-independent-replay.v6",
     )
 }
 
-/// Opaque custody of the canonical V5 target-legal projection.
+/// Opaque custody of the canonical V6 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -290,7 +291,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V5
+/// Canonicalize the bounded target-operation input into the mandatory V6
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -305,11 +306,16 @@ pub fn legalize_terminal_target_operations(
         entry: target.entry,
         functions: derive_source_functions(target, abstract_plan, unit)?,
         unit_functions: derive_source_unit_functions(target, abstract_plan, unit)?,
+        structural_unit_functions: derive_source_structural_unit_functions(
+            target,
+            abstract_plan,
+            unit,
+        )?,
     };
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V5 projection from the raw target,
+/// Independently replay the exact admitted V6 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -325,7 +331,9 @@ pub fn validate_terminal_legalized_operations(
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
-        function_count: plan.functions.len() + plan.unit_functions.len(),
+        function_count: plan.functions.len()
+            + plan.unit_functions.len()
+            + plan.structural_unit_functions.len(),
         decomposition_count,
     };
     Ok(ValidatedTerminalLegalizedOperations { plan, receipt })
@@ -350,6 +358,9 @@ pub fn validate_terminal_selected_instructions(
     plan: TerminalSelectedInstructionPlan,
 ) -> Result<ValidatedTerminalSelectedInstructions, SelectedInstructionError> {
     let target = legalized.plan();
+    if !target.structural_unit_functions.is_empty() {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function: 0 });
+    }
     if target.terminal_psi != plan.terminal_psi
         || target.target != plan.target
         || target.entry != plan.entry
@@ -433,6 +444,9 @@ fn build_plan(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
+    if !target.structural_unit_functions.is_empty() {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function: 0 });
+    }
     require_key_rows(constraints.keys, catalog)?;
     let mut functions = target
         .functions
@@ -3501,5 +3515,208 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
     encode_len(bytes, values.len());
     for value in values {
         bytes.extend_from_slice(&value.to_le_bytes());
+    }
+}
+
+#[cfg(test)]
+mod structural_unit_tests {
+    use super::*;
+    use omega_terminal_abstract_operations::{
+        TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
+        TerminalAbstractOperation,
+    };
+    use psi_core::{
+        BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ScalarType,
+        StructuralFieldId, StructuralTypeId,
+    };
+    use psi_terminal::{
+        BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralArgument,
+        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+        StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
+        TerminalPsiIdentity, VocabularyMarker,
+    };
+
+    fn structural_call_fixture() -> (
+        TerminalAbstractOperationPlan,
+        TerminalTargetOperationPlan,
+        PsiOptimizationUnit,
+    ) {
+        let caller = MachineId::new(1).unwrap();
+        let callee = MachineId::new(2).unwrap();
+        let caller_block = BlockId::new(1).unwrap();
+        let callee_block = BlockId::new(2).unwrap();
+        let caller_place = PlaceId::new(1).unwrap();
+        let callee_place = PlaceId::new(2).unwrap();
+        let structural_type = StructuralTypeId::new(1).unwrap();
+        let call = OperationId::new(1).unwrap();
+        let caller_return = EdgeId::new(1).unwrap();
+        let callee_return = EdgeId::new(2).unwrap();
+        let parameter = |place| StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let abstract_plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([0x51; 32]),
+            },
+            entry: caller,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "WholeRoot".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "word".into(),
+                        relevance: BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            psi_core::IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                        )),
+                    }],
+                },
+            }],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: caller_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_place)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: caller_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::CallUnit {
+                            psi_operation: call,
+                            callee,
+                            structural_arguments: vec![StructuralArgument {
+                                place: caller_place,
+                                access: StructuralAccess::Owned,
+                                path: Vec::new(),
+                            }],
+                            claim_transfers: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: caller_return,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: callee_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_place)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: callee_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: callee_return,
+                        cleanup_actions: Vec::new(),
+                    }],
+                },
+            ],
+        };
+        let target =
+            omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations(
+                &abstract_plan,
+                omega_target::NativeTarget::linux_x64(),
+            )
+            .unwrap();
+        let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &abstract_plan,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        (abstract_plan, target, unit)
+    }
+
+    #[test]
+    fn structural_call_and_terminal_callee_are_produced_and_replayed() {
+        let (abstract_plan, target, unit) = structural_call_fixture();
+        let legalized = legalize_terminal_target_operations(&target, &abstract_plan, &unit)
+            .expect("one whole-root call and its structural callee legalize");
+        assert!(legalized.plan().unit_functions.is_empty());
+        assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
+        assert!(legalized.plan().structural_unit_functions[0].call.is_some());
+        assert!(legalized.plan().structural_unit_functions[1].call.is_none());
+        assert_eq!(legalized.receipt().function_count(), 2);
+    }
+
+    #[test]
+    fn independent_replay_rejects_placement_effect_and_roster_erasure() {
+        let (abstract_plan, target, unit) = structural_call_fixture();
+        let legalized =
+            legalize_terminal_target_operations(&target, &abstract_plan, &unit).unwrap();
+
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call_plan
+            .shadow_bytes += 8;
+        assert!(
+            validate_terminal_legalized_operations(&target, &abstract_plan, &unit, corrupted,)
+                .is_err()
+        );
+
+        let mut corrupted_target = target.clone();
+        let omega_terminal_target_operations::TerminalTargetOperation::UnitBody(callee) =
+            &mut corrupted_target.functions[1].operation
+        else {
+            panic!("fixture callee is Unit")
+        };
+        callee.call_plan.shadow_bytes += 8;
+        assert!(
+            legalize_terminal_target_operations(&corrupted_target, &abstract_plan, &unit).is_err()
+        );
+
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .arguments[0]
+            .target
+            .source_byte_offset = 1;
+        assert!(
+            validate_terminal_legalized_operations(&target, &abstract_plan, &unit, corrupted,)
+                .is_err()
+        );
+
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .effect
+            .output += 1;
+        assert!(
+            validate_terminal_legalized_operations(&target, &abstract_plan, &unit, corrupted,)
+                .is_err()
+        );
+
+        let mut erased = legalized.plan().clone();
+        erased.structural_unit_functions.clear();
+        assert!(
+            validate_terminal_legalized_operations(&target, &abstract_plan, &unit, erased,)
+                .is_err()
+        );
     }
 }
