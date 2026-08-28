@@ -1,6 +1,6 @@
 # Proof kernel
 
-[Lattice overview](bootstrap_lattice.md) | [Psi/Omega toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
+[Lattice overview](bootstrap_lattice.md) | [Omega product toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
 > **Status: ROOTED BETA CHECKER; SOUNDNESS BRIDGE OPEN.** Beta and Gamma
 > implementations accept valid certificates, reject invalid ones, and are
