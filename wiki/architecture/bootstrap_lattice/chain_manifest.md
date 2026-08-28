@@ -66,7 +66,7 @@ The Beta artifact deterministically compiles the following canonical sources:
 
 | role | source bytes / SHA-256 | output tape bytes / SHA-256 |
 | --- | --- | --- |
-| interpreter | 47948 / `95f9ef743a587e9bd098a162e97f41b40caad2785db195ed76c4a7399d8cdc74` | 94903 / `47942ec8d6bc161abe313535fbf28df5e832f58da6013fbcdc54e6a386b1c6c5` |
+| interpreter | 50762 / `2c9798cde34d16ef2b93eb192c597c7605171cabfc634881621db6072222f07d` | 72810 / `37e5610b9bbc487e5140c5071bbf66549da200e7a1df915216658733be50fd58` |
 | type checker | 22059 / `aed69a455d95bae79dfa889aebe842b93765acd1cf59cf6a4d11c0808dc0e1d3` | 45230 / `d580f6b88f077043f12a76b91e7643d0bf62e9046ce667459ce20867358399c5` |
 
 Their exact inputs are `source/gamma/interp.beta` and

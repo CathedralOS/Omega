@@ -25,9 +25,9 @@ proof. Its current vocabulary includes:
 The L0-L7 corpus covers constant arithmetic, order reasoning, range sums,
 polynomial identities, square bounds, remainder bounds, and ranked inductive
 theorems. True programs live under `tests/omega/pass/proofs`; false twins under
-`tests/omega/fail/proofs` must reject. The sample and lattice copies under
-`samples/cli/proofs/math_proofs` and `tests/lattice/corpus/math_proofs` are
-readable demonstrations, not a second specification.
+`tests/omega/fail/proofs` must reject. The copy under
+`samples/cli/proofs/math_proofs` is a readable demonstration, not a second
+specification.
 
 ## Trust boundary
 

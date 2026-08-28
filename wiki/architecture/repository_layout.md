@@ -202,7 +202,6 @@ Omega/
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
-|-- tests/lattice/corpus/                                  # Shared stable lattice inputs.
 |-- tools/lattice/                                         # Lattice orchestration and path gates.
 |
 |-- samples/
@@ -234,7 +233,6 @@ source/omega/psi/                      target-neutral phases through terminal Ps
 source/alpha/checker/                  root derivation checking
 source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator
-tests/lattice/                         shared lattice corpora and cache manifests
 tests/{omega,fixtures}/                language and package integration tests
 tools/lattice/                         lattice orchestration and path gates
 tools/                                 other repository maintenance scripts

@@ -14,7 +14,7 @@ ordinary Omega deliberately authored with a conservative subset of features:
 audited Alpha seed
   → Alpha assembler + Alpha-written Beta cold start → bc
   → bc-built canonical Gamma evaluator/type checker
-  → canonical Gamma evaluation of Delta compiler source → delta
+  → Delta-to-Gamma elaboration + canonical Gamma evaluation → delta
   → delta + C → omega₀
   → omega₀ + the same C → omega
 ```
@@ -65,7 +65,7 @@ No implementation gains authority by occupying more than one of these roles.
 | Rung | Responsibility | Canonical meaning/status |
 | --- | --- | --- |
 | [Alpha](rungs/alpha.md) | minimal deterministic tape execution | written small-step semantics; audited native realizations |
-| [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and checked whole-artifact refinement |
+| [Beta](rungs/beta.md) | small structured systems language | Alpha-rooted compiler and maximal-observation reconstruction; checker derivation open |
 | [Gamma](rungs/gamma.md) | safe definitional computation and typing | Beta-written reference interpreter/type checker |
 | [Delta](rungs/delta.md) | deterministic compiler-host language | Delta→Gamma elaboration and Gamma execution; publication open |
 | [Omega](omega_toolchain.md) | product compiler: target-neutral Psi phases then target realization | Omega-written source; direct Delta and self-build edges open |
