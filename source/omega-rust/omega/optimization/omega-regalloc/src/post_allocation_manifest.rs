@@ -18,7 +18,7 @@ use crate::{
 };
 
 const POST_ALLOCATION_MANIFEST_MAGIC: &[u8; 8] = b"OMGPAO\0\0";
-const POST_ALLOCATION_MANIFEST_VERSION: u32 = 5;
+const POST_ALLOCATION_MANIFEST_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PostAllocationManifestStage {
@@ -37,7 +37,10 @@ pub enum PostAllocationUnavailableData {
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PostAllocationStatistics {
+    /// Ordinary selected functions. Structural-signature Unit functions are
+    /// counted separately and never folded into this established statistic.
     pub functions: u64,
+    pub structural_unit_functions: u64,
     pub assignments: u64,
     pub distinct_physical_views: u64,
     pub virtual_interferences: u64,
@@ -81,7 +84,7 @@ pub struct PostAllocationOptimizationManifest {
 impl PostAllocationOptimizationManifest {
     pub fn recomputed_identity(&self) -> PostAllocationOptimizationManifestIdentity {
         let mut canonical = Vec::new();
-        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v5\0");
+        canonical.extend_from_slice(b"omega.post-allocation-optimization-manifest.v6\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         PostAllocationOptimizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -171,6 +174,7 @@ impl PostAllocationOptimizationManifest {
         let publication = decode_unavailable(&mut cursor)?;
         let statistics = PostAllocationStatistics {
             functions: u64::from_le_bytes(cursor.array()?),
+            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
             assignments: u64::from_le_bytes(cursor.array()?),
             distinct_physical_views: u64::from_le_bytes(cursor.array()?),
             virtual_interferences: u64::from_le_bytes(cursor.array()?),
@@ -269,6 +273,12 @@ impl PostAllocationOptimizationManifest {
         writeln!(output, "emission: unavailable").unwrap();
         writeln!(output, "publication: unavailable").unwrap();
         writeln!(output, "functions: {}", self.statistics.functions).unwrap();
+        writeln!(
+            output,
+            "structural Unit functions: {}",
+            self.statistics.structural_unit_functions
+        )
+        .unwrap();
         writeln!(output, "assignments: {}", self.statistics.assignments).unwrap();
         writeln!(
             output,
@@ -475,6 +485,16 @@ fn expected_record(
         || homes.receipt().allocator_availability() != legality.receipt().allocator_availability()
         || homes.plan().functions.len() != ranges.plan().functions.len()
         || homes.plan().functions.len() != legality.plan().functions.len()
+        || homes.plan().structural_unit_functions.len()
+            != ranges.plan().structural_unit_functions.len()
+        || homes.plan().structural_unit_functions.len()
+            != legality.plan().structural_unit_functions.len()
+        || ranges.receipt().structural_unit_function_count()
+            != ranges.plan().structural_unit_functions.len()
+        || legality.receipt().structural_unit_function_count()
+            != legality.plan().structural_unit_functions.len()
+        || homes.receipt().structural_unit_function_count()
+            != homes.plan().structural_unit_functions.len()
     {
         return Err(PostAllocationOptimizationManifestError::RootMismatch);
     }
@@ -504,6 +524,7 @@ fn expected_record(
         .sum::<usize>();
     let statistics = PostAllocationStatistics {
         functions: count(homes.plan().functions.len())?,
+        structural_unit_functions: count(homes.plan().structural_unit_functions.len())?,
         assignments: count(homes.receipt().assignment_count())?,
         distinct_physical_views: count(distinct_views)?,
         virtual_interferences: count(interference_count)?,
@@ -537,9 +558,10 @@ fn count(value: usize) -> Result<u64, PostAllocationOptimizationManifestError> {
     u64::try_from(value).map_err(|_| PostAllocationOptimizationManifestError::StatisticsOverflow)
 }
 
-fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 5] {
+fn statistics_values(statistics: PostAllocationStatistics) -> [u64; 6] {
     [
         statistics.functions,
+        statistics.structural_unit_functions,
         statistics.assignments,
         statistics.distinct_physical_views,
         statistics.virtual_interferences,
@@ -755,6 +777,7 @@ mod tests {
             publication: PostAllocationUnavailableData::Unavailable,
             statistics: PostAllocationStatistics {
                 functions: 1,
+                structural_unit_functions: 2,
                 assignments: 2,
                 distinct_physical_views: 2,
                 virtual_interferences: 1,
@@ -820,6 +843,7 @@ mod tests {
             },
             |record| record.homes = TerminalRegisterHomeIdentity::from_bytes([11; 32]),
             |record| record.statistics.functions += 1,
+            |record| record.statistics.structural_unit_functions += 1,
             |record| record.statistics.assignments += 1,
             |record| record.statistics.distinct_physical_views += 1,
             |record| record.statistics.virtual_interferences += 1,
@@ -833,6 +857,7 @@ mod tests {
         let text = baseline.render_text();
         assert!(text.contains("spills: not required"));
         assert!(text.contains("publication: unavailable"));
+        assert!(text.contains("structural Unit functions: 2"));
         let mut rematerialized = baseline.clone();
         rematerialized.selected_transformations = vec![
             PostAllocationSelectedTransformation::PressureRematerialization(
@@ -883,6 +908,13 @@ mod tests {
             PostAllocationOptimizationManifest::decode(&identity_tamper),
             Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
         );
+        let mut structural_count_tamper = encoded.clone();
+        let structural_count_offset = structural_count_tamper.len() - 5 * size_of::<u64>();
+        structural_count_tamper[structural_count_offset] ^= 1;
+        assert_eq!(
+            PostAllocationOptimizationManifest::decode(&structural_count_tamper),
+            Err(PostAllocationOptimizationManifestDecodeError::IdentityMismatch)
+        );
         let mut trailing = encoded.clone();
         trailing.push(0);
         assert_eq!(
@@ -900,10 +932,10 @@ mod tests {
             Err(PostAllocationOptimizationManifestDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
         assert_eq!(
             PostAllocationOptimizationManifest::decode(&wrong_version),
-            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(4))
+            Err(PostAllocationOptimizationManifestDecodeError::UnsupportedVersion(5))
         );
         let content_offset = 8 + 4 + 32;
         let mut unknown_architecture = encoded.clone();
