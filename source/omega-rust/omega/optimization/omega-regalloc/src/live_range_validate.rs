@@ -168,6 +168,11 @@ pub fn validate_terminal_live_ranges(
             .map(|row| row.interference.len())
             .sum(),
         tied_pair_count: plan.functions.iter().map(|row| row.tied_pairs.len()).sum(),
+        tied_component_count: plan
+            .functions
+            .iter()
+            .map(|row| tied_component_count(&row.tied_pairs))
+            .sum(),
         early_clobber_count: plan
             .functions
             .iter()
@@ -181,6 +186,42 @@ pub fn validate_terminal_live_ranges(
             .sum(),
     };
     Ok(ValidatedTerminalLiveRanges { plan, receipt })
+}
+
+fn tied_component_count(ties: &[TerminalDistinctUseDefTie]) -> usize {
+    let mut components =
+        Vec::<BTreeSet<omega_terminal_selected_instructions::TerminalVirtualRegisterId>>::new();
+    for tie in ties {
+        let use_component = components
+            .iter()
+            .position(|component| component.contains(&tie.use_virtual_register));
+        let def_component = components
+            .iter()
+            .position(|component| component.contains(&tie.def_virtual_register));
+        match (use_component, def_component) {
+            (None, None) => components.push(BTreeSet::from([
+                tie.use_virtual_register,
+                tie.def_virtual_register,
+            ])),
+            (Some(component), None) => {
+                components[component].insert(tie.def_virtual_register);
+            }
+            (None, Some(component)) => {
+                components[component].insert(tie.use_virtual_register);
+            }
+            (Some(left), Some(right)) if left != right => {
+                let (keep, remove) = if left < right {
+                    (left, right)
+                } else {
+                    (right, left)
+                };
+                let removed = components.remove(remove);
+                components[keep].extend(removed);
+            }
+            (Some(_), Some(_)) => {}
+        }
+    }
+    components.len()
 }
 
 pub(crate) fn revalidate_liveness_custody(
@@ -457,7 +498,6 @@ fn independently_derive_ties(
     function: usize,
     live: &crate::TerminalFunctionLiveness,
 ) -> Result<Vec<TerminalDistinctUseDefTie>, TerminalLiveRangeError> {
-    let mut used_registers = BTreeSet::new();
     let mut result = Vec::new();
     for definition in live
         .operand_positions
@@ -469,18 +509,6 @@ fn independently_derive_ties(
             .iter()
             .filter(|operand| operand.instruction == definition.instruction)
             .collect::<Vec<_>>();
-        if matching
-            .iter()
-            .filter(|operand| operand.tied_to.is_some())
-            .count()
-            != 1
-        {
-            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
-                function,
-                instruction: definition.instruction.0,
-                operand: definition.operand,
-            });
-        }
         let Some(source) = matching
             .iter()
             .copied()
@@ -498,8 +526,6 @@ fn independently_derive_ties(
             || source.virtual_register == definition.virtual_register
             || source.class != definition.class
             || source.tied_to.is_some()
-            || !used_registers.insert(source.virtual_register)
-            || !used_registers.insert(definition.virtual_register)
         {
             return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
                 function,
@@ -795,7 +821,7 @@ mod tests {
     };
     use psi_core::{BlockId, MachineId};
 
-    use super::validate_canonical;
+    use super::{tied_component_count, validate_canonical};
     use crate::{
         TerminalArchitecturalUnitLiveRange, TerminalBlockLiveness, TerminalFunctionLiveRanges,
         TerminalFunctionLiveness, TerminalInstructionLiveness, TerminalLiveRangeError,
@@ -913,6 +939,28 @@ mod tests {
         assert_eq!(
             super::independently_derive_ties(0, &live).unwrap(),
             crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+        );
+    }
+
+    #[test]
+    fn tied_component_receipt_count_uses_transitive_closure() {
+        let edge = |use_register, def_register, instruction| crate::TerminalDistinctUseDefTie {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(instruction),
+            instruction: omega_terminal_selected_instructions::TerminalSelectedInstructionId(
+                instruction,
+            ),
+            use_operand: 0,
+            use_virtual_register: TerminalVirtualRegisterId(use_register),
+            use_point: TerminalLiveRangePoint(instruction * 2),
+            def_operand: 1,
+            def_virtual_register: TerminalVirtualRegisterId(def_register),
+            def_point: TerminalLiveRangePoint(instruction * 2 + 1),
+            class: RegisterClassId(0),
+        };
+        assert_eq!(
+            tied_component_count(&[edge(0, 1, 0), edge(1, 2, 1), edge(3, 4, 2)]),
+            2
         );
     }
 }

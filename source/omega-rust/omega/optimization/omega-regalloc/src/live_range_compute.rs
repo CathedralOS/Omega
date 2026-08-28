@@ -261,7 +261,6 @@ pub(crate) fn derive_tied_pairs(
     function: usize,
     liveness: &crate::TerminalFunctionLiveness,
 ) -> Result<Vec<TerminalDistinctUseDefTie>, TerminalLiveRangeError> {
-    let mut participants = BTreeSet::new();
     let mut pairs = Vec::new();
     for definition in liveness
         .operand_positions
@@ -278,22 +277,12 @@ pub(crate) fn derive_tied_pairs(
                 operand: definition.operand,
             });
         };
-        let tie_count = liveness
-            .operand_positions
-            .iter()
-            .filter(|candidate| {
-                candidate.instruction == definition.instruction && candidate.tied_to.is_some()
-            })
-            .count();
-        if tie_count != 1
-            || definition.access != RegisterOperandAccess::Def
+        if definition.access != RegisterOperandAccess::Def
             || use_operand.access != RegisterOperandAccess::Use
             || definition.operand <= use_operand.operand
             || definition.virtual_register == use_operand.virtual_register
             || definition.class != use_operand.class
             || use_operand.tied_to.is_some()
-            || !participants.insert(use_operand.virtual_register)
-            || !participants.insert(definition.virtual_register)
         {
             return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
                 function,
@@ -666,6 +655,41 @@ mod tests {
         assert_eq!(ties[0].def_point, TerminalLiveRangePoint(3));
         assert_eq!(ties[0].use_virtual_register, TerminalVirtualRegisterId(0));
         assert_eq!(ties[0].def_virtual_register, TerminalVirtualRegisterId(1));
+
+        let mut chained = live;
+        chained.operand_positions.extend([
+            TerminalOperandPosition {
+                position: TerminalLivenessPosition(2),
+                instruction: TerminalSelectedInstructionId(2),
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(1),
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            },
+            TerminalOperandPosition {
+                position: TerminalLivenessPosition(2),
+                instruction: TerminalSelectedInstructionId(2),
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(2),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: Some(0),
+                early_clobber: false,
+            },
+        ]);
+        chained.blocks[0]
+            .instructions
+            .push(instruction(2, &[1], &[2], &[1], &[2]));
+        let ties = derive_tied_pairs(0, &chained).unwrap();
+        assert_eq!(ties.len(), 2);
+        assert_eq!(ties[1].use_virtual_register, TerminalVirtualRegisterId(1));
+        assert_eq!(ties[1].def_virtual_register, TerminalVirtualRegisterId(2));
+        assert_eq!(ties[1].use_point, TerminalLiveRangePoint(4));
+        assert_eq!(ties[1].def_point, TerminalLiveRangePoint(5));
     }
 
     #[test]
