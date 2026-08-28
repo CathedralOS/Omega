@@ -12,12 +12,13 @@ use omega_terminal_selected_instructions::{
 };
 use omega_terminal_target_operations::TerminalPsiProvenance;
 use psi_core::{
-    BlockId, EdgeId, FuelScheduleIdentity, IntegerCarrier, IntegerSign, MachineId, ScalarType,
+    BlockId, EdgeId, FuelScheduleIdentity, IntegerCarrier, IntegerSign, MachineId, OperationId,
+    ScalarType,
 };
 use psi_terminal::TerminalPsiIdentity;
 use sha2::{Digest, Sha256};
 
-const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v2";
+const FRAGMENT_SCHEMA: &[u8] = b"omega.terminal.function-fragment-emission.v3";
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalFunctionFragmentEmissionPlan {
@@ -28,6 +29,61 @@ pub struct TerminalFunctionFragmentEmissionPlan {
     pub target: NativeTarget,
     pub entry: MachineId,
     pub functions: Vec<TerminalFunctionFragment>,
+    pub structural_unit_functions: Vec<TerminalStructuralUnitFunctionFragment>,
+}
+
+/// Function fragment for the structural-ABI Unit lane. Its call bytes remain
+/// non-executable until whole-text placement discharges every typed fixup.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralUnitFunctionFragment {
+    pub machine: MachineId,
+    pub attachment: Option<psi_core::StructuralTypeId>,
+    pub provenance: TerminalPsiProvenance,
+    pub byte_count: u64,
+    pub bytes: Vec<u8>,
+    pub block: TerminalStructuralUnitFunctionFragmentBlockSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralUnitFunctionFragmentBlockSpan {
+    pub block: TerminalSelectedBlockId,
+    pub offset: u64,
+    pub byte_count: u64,
+    pub call: Option<TerminalStructuralUnitCallFragmentSpan>,
+    pub return_instruction: TerminalFunctionFragmentInstructionSpan,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralUnitCallFragmentSpan {
+    pub instruction: TerminalSelectedInstructionId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub offset: u64,
+    pub bytes: Vec<u8>,
+    pub provenance: TerminalSelectedInstructionProvenance,
+    pub fixup: TerminalFunctionFragmentInternalMachineFixup,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalFunctionFragmentInternalMachineFixupKind {
+    X86Relative32FromNextInstructionToInternalMachineV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalFunctionFragmentInternalMachineFixupState {
+    UnresolvedZeroFieldV1,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TerminalFunctionFragmentInternalMachineFixup {
+    pub kind: TerminalFunctionFragmentInternalMachineFixupKind,
+    pub state: TerminalFunctionFragmentInternalMachineFixupState,
+    pub callee: MachineId,
+    pub opcode_function_offset: u64,
+    pub field_function_offset: u64,
+    pub next_instruction_function_offset: u64,
+    pub field_byte_width: u8,
+    pub addend: i64,
 }
 
 impl TerminalFunctionFragmentEmissionPlan {
@@ -141,7 +197,67 @@ pub fn function_fragment_emission_identity(
             }
         }
     }
+    hasher.update((plan.structural_unit_functions.len() as u64).to_le_bytes());
+    for function in &plan.structural_unit_functions {
+        hasher.update(function.machine.get().to_le_bytes());
+        match function.attachment {
+            None => hasher.update([0]),
+            Some(attachment) => {
+                hasher.update([1]);
+                hasher.update(attachment.get().to_le_bytes());
+            }
+        }
+        encode_function_provenance(&mut hasher, &function.provenance);
+        hasher.update(function.byte_count.to_le_bytes());
+        encode_bytes(&mut hasher, &function.bytes);
+        let block = &function.block;
+        hasher.update(block.block.0.to_le_bytes());
+        hasher.update(block.offset.to_le_bytes());
+        hasher.update(block.byte_count.to_le_bytes());
+        match &block.call {
+            None => hasher.update([0]),
+            Some(call) => {
+                hasher.update([1]);
+                hasher.update(call.instruction.0.to_le_bytes());
+                hasher.update(call.operation.get().to_le_bytes());
+                hasher.update(call.callee.get().to_le_bytes());
+                hasher.update(call.offset.to_le_bytes());
+                encode_bytes(&mut hasher, &call.bytes);
+                encode_instruction_provenance(&mut hasher, &call.provenance);
+                encode_internal_machine_fixup(&mut hasher, call.fixup);
+            }
+        }
+        encode_instruction_span(&mut hasher, &block.return_instruction);
+    }
     TerminalFunctionFragmentEmissionIdentity::from_canonical_bytes(&hasher.finalize())
+}
+
+fn encode_instruction_span(hasher: &mut Sha256, row: &TerminalFunctionFragmentInstructionSpan) {
+    hasher.update(row.instruction.0.to_le_bytes());
+    encode_alternative(hasher, row.alternative);
+    hasher.update(row.offset.to_le_bytes());
+    encode_bytes(hasher, &row.bytes);
+    encode_branch(hasher, row.branch.as_deref());
+    encode_instruction_provenance(hasher, &row.provenance);
+    encode_control(hasher, &row.control);
+}
+
+fn encode_internal_machine_fixup(
+    hasher: &mut Sha256,
+    fixup: TerminalFunctionFragmentInternalMachineFixup,
+) {
+    hasher.update([match fixup.kind {
+        TerminalFunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1 => 1,
+    }]);
+    hasher.update([match fixup.state {
+        TerminalFunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1 => 1,
+    }]);
+    hasher.update(fixup.callee.get().to_le_bytes());
+    hasher.update(fixup.opcode_function_offset.to_le_bytes());
+    hasher.update(fixup.field_function_offset.to_le_bytes());
+    hasher.update(fixup.next_instruction_function_offset.to_le_bytes());
+    hasher.update([fixup.field_byte_width]);
+    hasher.update(fixup.addend.to_le_bytes());
 }
 
 fn encode_target(hasher: &mut Sha256, target: NativeTarget) {
@@ -399,6 +515,7 @@ mod tests {
                     }],
                 }],
             }],
+            structural_unit_functions: Vec::new(),
         };
         plan.identity = plan.recomputed_identity();
         plan

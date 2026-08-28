@@ -193,9 +193,13 @@ canonical Terminal Psi semantic + proof sections
           -> atomic Unit-call selection + pre-allocation effects/liveness
           -> zero-VReg ranges/legality/empty homes + post-allocation effects
           -> typed internal-call fixup encoding
-          -> function-relative custody and whole-section resolution (next)
-          -> object/private-symbol join
-          -> semantic ProgramStorage wrapper object
+          -> function-relative custody and balanced whole-function exit
+          -> fixup-preserving fragments
+          -> whole-section resolution
+          -> zero-relocation two-Machine object (generic codegen proof)
+          -> settled Terminal continuation object/artifact
+          -> compiler-owned wrapper encoding selection and replay (next)
+          -> separate semantic ProgramStorage wrapper object (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
@@ -2264,8 +2268,8 @@ baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8 or CBNZ.
 It never concatenates functions into a globally placed section. Production and
 an independently coded replay reconstruct source custody, offsets, row bytes,
 aggregate bytes, statistics, receipt, and the content identity. The strict
-`OMGFFE` v3 manifest binds the closed four-kind source vocabulary, including
-the Unit baseline, source realization, and every selected, post-allocation,
+`OMGFFE` v4 manifest binds the closed five-kind source vocabulary, including
+Unit baseline and structural-Unit-call custody, source realization, and every selected, post-allocation,
 layout, exit, target, and fragment root while explicitly marking section
 placement, symbols, object
 relocations, executable image, installation, and publication unavailable.
@@ -2283,7 +2287,7 @@ return forms contain no address-bearing target and every relative conditional
 branch is already resolved to blocks in its owned function. Production and a
 separately coded replay reconstruct the byte concatenation, coordinates,
 alignment, entry, statistics, and closed no-relocation conclusion. The strict
-`OMGTSP` v3 manifest binds the four-kind source vocabulary and all upstream
+`OMGTSP` v4 manifest binds the five-kind source vocabulary and all upstream
 roots while marking symbols, object container and serialization, external entry
 bridge, executable image,
 installation, and publication unavailable.
@@ -2341,7 +2345,7 @@ They retain the fresh nonempty `MaterializeI64` section span, transformed
 selected root and homes, sole `PressureRematerialization` ledger row, Terminal
 semantic/proof roots, private entry symbol, both return-edge result rows, and
 target ABI parameter/result registers through independent replay. The
-route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v3;
+route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v4;
 `OMGTRO`/`OMGTOM`, `OMGOTA`/`OMGOTM`, and `OMGOER`/`OMGOEM` remain v1 because
 their generic child-identity vocabularies did not change. Artifact reporting
 still omits callable metadata until the opaque callable carrier owns the
@@ -2359,7 +2363,7 @@ value. x86-64 owns canonical `C3` encoding/effects and AArch64 owns canonical
 the affected legalized, selected, effect, encoding, layout, fragment, text,
 and relaxation schemas advance and old records fail closed. Whole-function
 exit v4 distinguishes `UnitV1` from scalar-return evidence; resolved-layout v4
-owns `SingleEntryBlockV1`; function-relative v6 and fragment/text v3 bind the
+owns `SingleEntryBlockV1`; function-relative v6 and fragment/text v4 bind the
 new route. A dedicated baseline carrier now proves the exact one-function Unit
 shape through zero-VReg liveness, ranges, legality, empty homes,
 post-allocation-machine replay, encoding/layout, Unit exit evidence,
@@ -2450,13 +2454,49 @@ internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
 executable-byte authority. Layout-independent selected-form encoding v5 now
 retains a parallel structural-function roster with that exact template,
 decoded footprint, typed fixup, separately encoded `C3` return, and exact
-ordinary/structural counts under independent replay. The next implementation
-boundary carries the unresolved fixup through resolved and function-relative
-layout, resolves the signed rel32 only at whole-text placement where both
-MachineId offsets are known, and then joins the resulting object/private
-continuation symbol with the settlement, semantic contract, and wrapper plan.
+ordinary/structural counts under independent replay. Resolved-layout v5 retains
+the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
+`[0, 1)` without resolving the fixup. Whole-function-exit v5 validates a
+distinct balanced Microsoft-x64 structural-call policy, and a separate owning
+function-relative carrier publishes `OMGFRM` v7 statistics with zero ordinary
+rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup.
+Machine-code fragment schema v3 and `OMGFFE` v4 now retain that exact parallel
+structural roster, 90/1-byte aggregate spans, call/return provenance, and a
+target-neutral typed fixup. Their stage is explicitly not relocation-free; the
+existing relocation-free text API rejects it. The target-owned x86 resolver
+computes checked signed rel32 fields and independently replays the complete
+patched call, including the canonical `+5` forward fixture and negative calls.
+Two-pass whole-text placement now constructs the complete `MachineId` offset
+map before resolving calls. Text-section schema v3 and `OMGTSP` v4 retain the
+patched 91-byte section, caller/callee spans `0/90` and `90/1`, exact opcode,
+field, next-IP and callee coordinates, the canonical `+5` displacement, and
+zero remaining internal fixups. Independent replay reconstructs the target
+template and resolution before granting relocation-free custody. The unchanged
+object v1 path then emits two exact private symbols and zero relocation records.
+That two-Machine object is a generic code-generation proof fixture, not the
+ProgramStorage wrapper object: its caller is the Terminal module entry, every
+function and symbol is `MachineId`-rooted, and object validation deliberately
+forbids relabelling one of them as a compiler wrapper. The checked settlement
+also binds the source entry to that same Terminal module entry, so the leaf in
+the structural fixture cannot be substituted as the settled continuation.
+
+The next owning join belongs in `omega-terminal-native-realization`, which
+already owns the settlement and depends on both `omega-program-storage` and the
+optimization pipeline. It must consume the canonical optimized object artifact
+for the actual settled Terminal entry, bind that exact object-local
+`MachineId` symbol as the private continuation, independently replay the
+semantic contract and wrapper plan, and then synthesize a separate
+compiler-owned wrapper object. Before it can grant wrapper-byte custody, the
+target-owned encoding contract must resolve the current layout split: the clean
+structural encoder places the call opcode/field at function offsets `80/81`,
+while the older full-frame wrapper recipe records `113/114`. The optimized
+route may select the shorter encoding only after the wrapper plan and validator
+describe and replay that choice; it must not silently treat the generic
+structural caller as the wrapper. This is an engineering representation task,
+not a language-design dependency.
+
 The wrapper identity remains distinct from every Terminal `MachineId`; only
-the internal continuation is MachineId-rooted. The checked-source
+the settled internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source
 lowering expresses its two-root handoff as `BoundaryCall`, so it must not be
 misrepresented as the positive compiler-private `CallUnit` wrapper fixture.

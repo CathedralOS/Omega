@@ -49,7 +49,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 6;
+const MANIFEST_VERSION: u32 = 7;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -73,6 +73,11 @@ pub struct FunctionRelativeOptimizationRealizationStatistics {
     pub instructions: u64,
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
+    pub structural_unit_functions: u64,
+    pub structural_unit_blocks: u64,
+    pub structural_unit_instructions: u64,
+    pub structural_unit_bytes: u64,
+    pub unresolved_internal_machine_fixups: u64,
 }
 
 /// Structured report at the function-relative selected-form boundary after
@@ -120,7 +125,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v6\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v7\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -223,6 +228,9 @@ impl FunctionRelativeOptimizationRealizationManifest {
         let layout_policy = match cursor.byte()? {
             1 => TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
             2 => TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1,
+            3 => {
+                TerminalSelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
+            }
             tag => {
                 return Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownLayoutPolicy(
@@ -245,6 +253,11 @@ impl FunctionRelativeOptimizationRealizationManifest {
             instructions: u64::from_le_bytes(cursor.array()?),
             bytes: u64::from_le_bytes(cursor.array()?),
             resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
+            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
+            structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
+            structural_unit_instructions: u64::from_le_bytes(cursor.array()?),
+            structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
+            unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
         };
         let unavailable = [
             decode_unavailable(&mut cursor)?,
@@ -427,7 +440,15 @@ impl FunctionRelativeOptimizationRealizationManifest {
         .unwrap();
         writeln!(
             output,
-            "layout policy: entry-then-zero-fallthrough-then-nonzero-v1"
+            "layout policy: {}",
+            match self.layout_policy {
+                TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 =>
+                    "entry-then-zero-fallthrough-then-nonzero-v1",
+                TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1 =>
+                    "single-entry-block-v1",
+                TerminalSelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 =>
+                    "structural-unit-call-then-return-single-entry-block-v1",
+            }
         )
         .unwrap();
         writeln!(
@@ -443,6 +464,36 @@ impl FunctionRelativeOptimizationRealizationManifest {
             output,
             "resolved conditional branches: {}",
             self.statistics.resolved_conditional_branches
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "structural functions: {}",
+            self.statistics.structural_unit_functions
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "structural blocks: {}",
+            self.statistics.structural_unit_blocks
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "structural instructions: {}",
+            self.statistics.structural_unit_instructions
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "structural function-relative bytes: {}",
+            self.statistics.structural_unit_bytes
+        )
+        .unwrap();
+        writeln!(
+            output,
+            "unresolved internal-Machine fixups: {}",
+            self.statistics.unresolved_internal_machine_fixups
         )
         .unwrap();
         writeln!(output, "frame: unavailable").unwrap();
@@ -2196,6 +2247,29 @@ pub(crate) fn function_relative_statistics(
                 .checked_add(function.byte_count)
                 .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
         })?;
+    let structural_unit_functions = count(layout.structural_unit_functions().len())?;
+    let structural_unit_blocks = structural_unit_functions;
+    let structural_call_templates = layout
+        .structural_unit_functions()
+        .iter()
+        .filter(|function| function.call.is_some())
+        .try_fold(0_u64, |total, _| {
+            total
+                .checked_add(1)
+                .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+        })?;
+    let structural_unit_instructions = structural_call_templates
+        .checked_add(structural_unit_functions)
+        .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)?;
+    let structural_unit_bytes =
+        layout
+            .structural_unit_functions()
+            .iter()
+            .try_fold(0_u64, |total, function| {
+                total
+                    .checked_add(function.byte_count)
+                    .ok_or(FunctionRelativeOptimizationRealizationError::StatisticsOverflow)
+            })?;
     let resolved_conditional_branches = layout
         .functions()
         .iter()
@@ -2213,6 +2287,11 @@ pub(crate) fn function_relative_statistics(
         instructions,
         bytes,
         resolved_conditional_branches,
+        structural_unit_functions,
+        structural_unit_blocks,
+        structural_unit_instructions,
+        structural_unit_bytes,
+        unresolved_internal_machine_fixups: structural_call_templates,
     })
 }
 
@@ -2302,6 +2381,7 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
     canonical.push(match manifest.layout_policy {
         TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
         TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
+        TerminalSelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1 => 3,
     });
     canonical.push(match manifest.scope {
         FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1 => 1,
@@ -2312,6 +2392,11 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         manifest.statistics.instructions,
         manifest.statistics.bytes,
         manifest.statistics.resolved_conditional_branches,
+        manifest.statistics.structural_unit_functions,
+        manifest.statistics.structural_unit_blocks,
+        manifest.statistics.structural_unit_instructions,
+        manifest.statistics.structural_unit_bytes,
+        manifest.statistics.unresolved_internal_machine_fixups,
     ] {
         canonical.extend_from_slice(&value.to_le_bytes());
     }

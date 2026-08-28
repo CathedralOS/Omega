@@ -19,365 +19,301 @@ count_lets_require_data_shape:
         ret
 
 count_lets_require_locals:
-        ; row/block/kind/slot/PC.
+        ; Stable row/block/kind/slot identities.
         imm r20, 98
         imm r21, 193
         imm r22, 2
         imm r23, 0
-        imm r24, 27478              ; start = entry CUR
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 99
         imm r21, 193
         imm r22, 2
         imm r23, 1
-        imm r24, 27507              ; depth = 1
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 100
         imm r21, 193
         imm r22, 2
         imm r23, 2
-        imm r24, 27536              ; count = 0
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 101
         imm r21, 194
         imm r22, 1
         imm r23, 1
-        imm r24, 27555              ; loop depth load
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 102
         imm r21, 195
         imm r22, 2
         imm r23, 3
-        imm r24, 27705              ; c = cbyte()
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 103
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 27724
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 104
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 27847
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 105
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 27970
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 106
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 28093
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 107
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 28216
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 108
         imm r21, 195
         imm r22, 1
         imm r23, 3
-        imm r24, 28339              ; c handed to is_alpha
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 109
         imm r21, 196
         imm r22, 2
         imm r23, 1
-        imm r24, 28531              ; eof depth = 0
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 110
         imm r21, 199
         imm r22, 2
         imm r23, 1
-        imm r24, 28662              ; open depth store
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 111
         imm r21, 199
         imm r22, 1
         imm r23, 1
-        imm r24, 28595              ; open depth load
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 112
         imm r21, 200
         imm r22, 2
         imm r23, 1
-        imm r24, 28766              ; close depth store
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 113
         imm r21, 200
         imm r22, 1
         imm r23, 1
-        imm r24, 28699              ; close depth load
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 114
         imm r21, 202
         imm r22, 2
         imm r23, 2
-        imm r24, 29001              ; count increment store
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 115
         imm r21, 202
         imm r22, 1
         imm r23, 2
-        imm r24, 28934
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 116
         imm r21, 203
         imm r22, 1
         imm r23, 0
-        imm r24, 29055              ; restored start payload
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 117
         imm r21, 203
         imm r22, 1
         imm r23, 2
-        imm r24, 29093              ; returned count payload
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 count_lets_require_memory:
         imm r20, 52
         imm r21, 193
-        imm r22, 1
-        imm r23, 8
-        imm r24, 27475              ; entry CUR load
-        call transfer_require_memory
+        imm r25, 496
+        imm r26, 2097144            ; entry CUR load
+        call exact_memory_load_pc
         imm r20, 53
         imm r21, 203
-        imm r22, 2
-        imm r23, 8
-        imm r24, 29090              ; checked final CUR restoration
-        call transfer_require_memory
+        call exact_memory_store_pc  ; checked final CUR restoration
         ret
 
 count_lets_require_primitives:
-        ; row/block/kind/value-or-opcode/PC.
+        ; Stable row/block/kind/value-or-opcode identities.
         imm r20, 496
         imm r21, 193
         imm r22, 1
         imm r23, 2097144             ; CUR
-        imm r24, 27465
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 497
         imm r21, 193
         imm r22, 1
         imm r23, 1
-        imm r24, 27497
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 498
         imm r21, 193
         imm r22, 1
         imm r23, 0
-        imm r24, 27526
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 499
         imm r21, 194
         imm r22, 3
         imm r23, 9                   ; depth > 0
-        imm r24, 27600
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 500
         imm r21, 194
         imm r22, 1
         imm r23, 0
-        imm r24, 27590
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 501
         imm r21, 195
         imm r22, 3
         imm r23, 10                  ; c == 0
-        imm r24, 27769
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 502
         imm r21, 195
         imm r22, 1
         imm r23, 0
-        imm r24, 27759
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 503
         imm r21, 195
         imm r22, 3
         imm r23, 10
-        imm r24, 27892
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 504
         imm r21, 195
         imm r22, 1
         imm r23, 39                  ; checked character quote byte
-        imm r24, 27882
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 505
         imm r21, 195
         imm r22, 3
         imm r23, 10
-        imm r24, 28015
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 506
         imm r21, 195
         imm r22, 1
         imm r23, 34                  ; checked string quote byte
-        imm r24, 28005
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 507
         imm r21, 195
         imm r22, 3
         imm r23, 10
-        imm r24, 28138
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 508
         imm r21, 195
         imm r22, 1
         imm r23, 123                 ; checked open brace
-        imm r24, 28128
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 509
         imm r21, 195
         imm r22, 3
         imm r23, 10
-        imm r24, 28261
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 510
         imm r21, 195
         imm r22, 1
         imm r23, 125                 ; checked close brace
-        imm r24, 28251
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 511
         imm r21, 195
         imm r22, 3
         imm r23, 10                  ; is_alpha(c) == 1
-        imm r24, 28425
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 512
         imm r21, 195
         imm r22, 1
         imm r23, 1
-        imm r24, 28415
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 513
         imm r21, 196
         imm r22, 1
         imm r23, 0
-        imm r24, 28521
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 514
         imm r21, 199
         imm r22, 2
         imm r23, 3                   ; depth + 1
-        imm r24, 28640
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 515
         imm r21, 199
         imm r22, 1
         imm r23, 1
-        imm r24, 28630
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 516
         imm r21, 200
         imm r22, 2
         imm r23, 4                   ; depth - 1
-        imm r24, 28744
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 517
         imm r21, 200
         imm r22, 1
         imm r23, 1
-        imm r24, 28734
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 518
         imm r21, 201
         imm r22, 3
         imm r23, 10                  ; is_let() == 1
-        imm r24, 28847
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 519
         imm r21, 201
         imm r22, 1
         imm r23, 1
-        imm r24, 28837
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 520
         imm r21, 202
         imm r22, 2
         imm r23, 3                   ; count + 1
-        imm r24, 28979
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 521
         imm r21, 202
         imm r22, 1
         imm r23, 1
-        imm r24, 28969
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 522
         imm r21, 203
         imm r22, 1
         imm r23, 2097144             ; checked restored CUR address
-        imm r24, 29029
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 count_lets_require_pushes:
         imm r20, 137
         imm r21, 194
-        imm r23, 27574
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 138
         imm r21, 195
-        imm r23, 27743
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 139
         imm r21, 195
-        imm r23, 27866
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 140
         imm r21, 195
-        imm r23, 27989
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 141
         imm r21, 195
-        imm r23, 28112
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 142
         imm r21, 195
-        imm r23, 28235
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 143
         imm r21, 195
-        imm r23, 28399
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 144
         imm r21, 199
-        imm r23, 28614
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 145
         imm r21, 200
-        imm r23, 28718
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 146
         imm r21, 201
-        imm r23, 28821
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 147
         imm r21, 202
-        imm r23, 28953
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 316
         imm r21, 195
-        imm r23, 28358              ; checked c argument to is_alpha
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 388
         imm r21, 203
-        imm r23, 29039              ; checked CUR restore address push
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 count_lets_require_expr_census:

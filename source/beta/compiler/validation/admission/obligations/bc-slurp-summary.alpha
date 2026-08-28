@@ -58,7 +58,8 @@ slurp_summary_require_shape:
 
         ; Exact cutpoints [entry,loop,body,full,done].
         imm r20, 0
-        imm r21, 83
+        imm r21, 0                    ; slurp procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 1
         imm r21, 165
@@ -73,7 +74,8 @@ slurp_summary_require_shape:
         imm r21, 687
         call exact_require_block_pc
         imm r20, 5
-        imm r21, 1131
+        imm r21, 1                    ; new_label procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
 
         ; Exact source transitions and their Alpha control roots/targets.
@@ -214,7 +216,8 @@ slurp_summary_require_shape:
         imm r24, 1078
         call transfer_require_memory
 
-        ; Both intrinsic reads and the two source returns.
+        ; Both intrinsic reads. Return identities and their epilogues are
+        ; reconstructed together after the decoded-region effect census.
         imm r20, 0
         imm r21, 0
         imm r22, 2
@@ -224,16 +227,6 @@ slurp_summary_require_shape:
         imm r21, 2
         imm r22, 2
         imm r23, 627
-        call exact_require_event
-        imm r20, 2
-        imm r21, 3
-        imm r22, 5
-        imm r23, 686
-        call exact_require_event
-        imm r20, 3
-        imm r21, 4
-        imm r22, 5
-        imm r23, 1110
         call exact_require_event
 
         ; Semantic roots: n/c guards, endpoint address/payload, increment,
@@ -438,12 +431,16 @@ slurp_summary_require_shape:
 ; The selected region is intrinsic-read-only.  Exhaustively scanning decoded
 ; starts rules out output, ordinary calls, halt, and hidden extra effects.
 slurp_summary_scan_effects:
-        imm r10, 83
+        imm r0, 0                     ; slurp procedure identity
+        call exact_proc_entry_pc
+        mov r10, r0
+        imm r0, 1                     ; new_label procedure identity / end
+        call exact_proc_entry_pc
+        mov r13, r0
         imm r11, 0                     ; reads
         imm r12, 0                     ; returns
 slurp_summary_effect_loop:
-        imm r1, 1131
-        jlt r10, r1, slurp_summary_effect_pc
+        jlt r10, r13, slurp_summary_effect_pc
         jmp slurp_summary_effect_counts
 slurp_summary_effect_pc:
         imm r1, 4194304
@@ -487,15 +484,16 @@ slurp_summary_effect_return_count:
         jeq r12, r1, slurp_summary_require_epilogues
         jmp reject
 slurp_summary_require_epilogues:
-        imm r20, 667
-        imm r21, 686
-        call exact_require_epilogue
-        imm r20, 1091
-        imm r21, 1110
-        call exact_require_epilogue
-        imm r20, 1111
-        imm r21, 1130
-        call exact_require_epilogue
+        ; Explicit returns are owned by their semantic event identities; the
+        ; unreachable fallthrough is relative to the next procedure entry.
+        imm r20, 0                    ; slurp procedure identity
+        imm r21, 3
+        call exact_require_event_epilogue
+        imm r20, 0
+        imm r21, 4
+        call exact_require_event_epilogue
+        imm r20, 1                    ; new_label identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 ; ---- Executable relational induction -----------------------------------

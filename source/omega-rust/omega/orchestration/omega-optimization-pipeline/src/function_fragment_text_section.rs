@@ -1,9 +1,10 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_object_file::{
+    TerminalInternalMachineCallResolutionKind, TerminalInternalMachineCallResolutionState,
     TerminalPlacedBlockSpan, TerminalPlacedFunctionFragment, TerminalPlacedInstructionSpan,
-    TerminalRelocationFreeTextSectionPlacement, TerminalTextSectionPlacementPolicy,
-    TerminalTextSectionRelocationRequirements,
+    TerminalPlacedInternalMachineCallResolution, TerminalRelocationFreeTextSectionPlacement,
+    TerminalTextSectionPlacementPolicy, TerminalTextSectionRelocationRequirements,
 };
 use omega_optimization_core::{
     FunctionFragmentEmissionManifestIdentity, FunctionFragmentTextSectionManifestIdentity,
@@ -12,9 +13,17 @@ use omega_optimization_core::{
     TerminalRelocationFreeTextSectionIdentity,
 };
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
+use omega_terminal_isa_x86_64::{
+    X86_64StructuralUnitCallTemplateError, X86_64StructuralUnitInternalControlFixupKind,
+    X86_64StructuralUnitInternalControlFixupState,
+    X86_64StructuralUnitInternalControlResolutionError,
+    resolve_x86_64_structural_unit_internal_call,
+    validate_x86_64_terminal_selected_structural_unit_call_template,
+};
 use omega_terminal_machine_code::{
     TerminalFunctionFragment, TerminalFunctionFragmentControlProvenance,
-    TerminalFunctionFragmentEmissionPlan,
+    TerminalFunctionFragmentEmissionPlan, TerminalFunctionFragmentInternalMachineFixupKind,
+    TerminalFunctionFragmentInternalMachineFixupState,
 };
 use omega_terminal_selected_instructions::{
     TerminalMachineAlternativeFamily, TerminalMachineEncodedControlEffect,
@@ -25,13 +34,14 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind,
-    StagedOptimizedFunctionFragmentEmission, TerminalResolvedSelectedFormLayoutIdentity,
+    FunctionFragmentEmissionStage, StagedOptimizedFunctionFragmentEmission,
+    StagedOptimizedFunctionFragmentEmissionSource, TerminalResolvedSelectedFormLayoutIdentity,
     TerminalSelectedFormEncodingIdentity, TerminalWholeFunctionExitContractIdentity,
     validate_optimized_function_fragment_emission,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 3;
+const MANIFEST_VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionStage {
@@ -52,6 +62,14 @@ pub struct FunctionFragmentTextSectionStatistics {
     pub bytes: u64,
     pub padding_bytes: u64,
     pub relocation_requirements: u64,
+    pub structural_unit_functions: u64,
+    pub structural_unit_blocks: u64,
+    pub structural_unit_instruction_spans: u64,
+    pub structural_unit_zero_byte_instruction_spans: u64,
+    pub structural_unit_bytes: u64,
+    pub source_internal_machine_fixups: u64,
+    pub resolved_internal_machine_fixups: u64,
+    pub remaining_internal_machine_fixups: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -88,7 +106,7 @@ pub struct FunctionFragmentTextSectionManifest {
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v3\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v4\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -124,6 +142,7 @@ impl FunctionFragmentTextSectionManifest {
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
+            5 => FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
             tag => {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
@@ -182,6 +201,14 @@ impl FunctionFragmentTextSectionManifest {
             bytes: u64::from_le_bytes(cursor.array()?),
             padding_bytes: u64::from_le_bytes(cursor.array()?),
             relocation_requirements: u64::from_le_bytes(cursor.array()?),
+            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
+            structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
+            structural_unit_instruction_spans: u64::from_le_bytes(cursor.array()?),
+            structural_unit_zero_byte_instruction_spans: u64::from_le_bytes(cursor.array()?),
+            structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
+            source_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+            resolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+            remaining_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
         };
         for _ in 0..6 {
             if cursor.byte()? != 1 {
@@ -251,7 +278,7 @@ impl ValidatedFunctionFragmentTextSectionManifest {
 #[must_use = "a staged text section owns its complete fragment-emission custody"]
 pub struct StagedOptimizedRelocationFreeTextSection {
     source: StagedOptimizedFunctionFragmentEmission,
-    text_section: TerminalRelocationFreeTextSectionPlacement,
+    text_section: Box<TerminalRelocationFreeTextSectionPlacement>,
     manifest: ValidatedFunctionFragmentTextSectionManifest,
     custody: StagedRelocationFreeTextSectionCustodyReceipt,
 }
@@ -261,8 +288,8 @@ impl StagedOptimizedRelocationFreeTextSection {
         &self.source
     }
 
-    pub const fn text_section(&self) -> &TerminalRelocationFreeTextSectionPlacement {
-        &self.text_section
+    pub fn text_section(&self) -> &TerminalRelocationFreeTextSectionPlacement {
+        self.text_section.as_ref()
     }
 
     pub const fn manifest(&self) -> &ValidatedFunctionFragmentTextSectionManifest {
@@ -275,7 +302,7 @@ impl StagedOptimizedRelocationFreeTextSection {
 
     #[cfg(test)]
     pub(crate) fn text_section_mut(&mut self) -> &mut TerminalRelocationFreeTextSectionPlacement {
-        &mut self.text_section
+        self.text_section.as_mut()
     }
 
     #[cfg(test)]
@@ -327,6 +354,13 @@ pub enum RelocationFreeTextSectionPlacementError {
     SourceShapeMismatch,
     MisalignedAarch64Span,
     UnsupportedRelocationShape,
+    UnresolvedInternalMachineFixups,
+    MissingInternalMachineTarget(MachineId),
+    StructuralUnitCallTemplate(MachineId, X86_64StructuralUnitCallTemplateError),
+    StructuralUnitCallResolution(
+        MachineId,
+        X86_64StructuralUnitInternalControlResolutionError,
+    ),
     ArtifactMismatch,
     ManifestMismatch,
     ReceiptMismatch,
@@ -383,7 +417,7 @@ pub fn stage_optimized_relocation_free_text_section(
     let custody = receipt(&manifest, &text_section);
     let staged = StagedOptimizedRelocationFreeTextSection {
         source,
-        text_section,
+        text_section: Box::new(text_section),
         manifest,
         custody,
     };
@@ -399,7 +433,7 @@ pub fn validate_optimized_relocation_free_text_section(
         .map_err(RelocationFreeTextSectionPlacementError::Source)?;
     let (expected_section, expected_manifest) = compute(&staged.source)?;
     if staged.text_section.recomputed_identity() != staged.text_section.identity
-        || staged.text_section != expected_section
+        || staged.text_section.as_ref() != &expected_section
     {
         return Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch);
     }
@@ -424,8 +458,8 @@ fn compute(
 > {
     let fragments = source.fragments();
     let source_manifest = source.manifest().record();
-    let text_section = place_fragments(fragments)?;
-    let statistics = statistics(&text_section)?;
+    let text_section = place_fragments(source)?;
+    let statistics = statistics(&text_section, fragments)?;
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
     let mut record = FunctionFragmentTextSectionManifest {
         identity: FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"pending"),
@@ -465,6 +499,36 @@ fn compute(
 }
 
 fn place_fragments(
+    source: &StagedOptimizedFunctionFragmentEmission,
+) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
+    let fragments = source.fragments();
+    let source_manifest = source.manifest().record();
+    match (
+        fragments.functions.is_empty(),
+        fragments.structural_unit_functions.is_empty(),
+        source_manifest.stage,
+        source_manifest.source_kind,
+    ) {
+        (
+            false,
+            true,
+            FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
+            FunctionFragmentEmissionSourceKind::X86Rel8V1
+            | FunctionFragmentEmissionSourceKind::Aarch64CbnzV1
+            | FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            | FunctionFragmentEmissionSourceKind::UnitBaselineV1,
+        ) => place_relocation_free_fragments(fragments),
+        (
+            true,
+            false,
+            FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
+            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
+        ) => place_structural_unit_fragments(source),
+        _ => Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
+    }
+}
+
+fn place_relocation_free_fragments(
     fragments: &TerminalFunctionFragmentEmissionPlan,
 ) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     let section_alignment = match fragments.target.architecture {
@@ -528,6 +592,7 @@ fn place_fragments(
         byte_count,
         bytes,
         functions,
+        resolved_internal_machine_calls: Vec::new(),
         relocation_requirements:
             TerminalTextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
     };
@@ -535,11 +600,407 @@ fn place_fragments(
     Ok(text_section)
 }
 
+fn place_structural_unit_fragments(
+    source: &StagedOptimizedFunctionFragmentEmission,
+) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
+    let fragments = source.fragments();
+    let StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(realization) =
+        source.source()
+    else {
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+    };
+    if fragments.target.architecture != Architecture::X86_64 || !fragments.functions.is_empty() {
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+    }
+    let selected_plan = source.source().selected_plan();
+    let environment = source.source().register_environment();
+    let machine_plan = realization.machine().machine().plan();
+    let effects_plan = realization.machine().effects().effects().plan();
+    let encoding = realization.encoding();
+    let layout = realization.layout();
+    let exit = realization.exit_contract().contract();
+    let count = fragments.structural_unit_functions.len();
+    if count == 0
+        || selected_plan.structural_unit_functions.len() != count
+        || machine_plan.structural_unit_functions.len() != count
+        || effects_plan.structural_unit_functions.len() != count
+        || encoding.structural_unit_functions().len() != count
+        || layout.structural_unit_functions().len() != count
+        || exit.structural_unit_functions.len() != count
+        || !selected_plan.functions.is_empty()
+        || !machine_plan.functions.is_empty()
+        || !effects_plan.functions.is_empty()
+        || !encoding.rows().is_empty()
+        || !layout.functions().is_empty()
+        || !exit.functions.is_empty()
+    {
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+    }
+
+    let mut function_offsets = BTreeMap::new();
+    let mut section_byte_count = 0_u64;
+    let mut semantic_entry_offset = None;
+    for function in &fragments.structural_unit_functions {
+        if u64::try_from(function.bytes.len())
+            .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+            != function.byte_count
+        {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+        if function_offsets
+            .insert(function.machine, section_byte_count)
+            .is_some()
+        {
+            return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
+                function.machine,
+            ));
+        }
+        if function.machine == fragments.entry
+            && semantic_entry_offset.replace(section_byte_count).is_some()
+        {
+            return Err(
+                RelocationFreeTextSectionPlacementError::DuplicateSemanticEntry(fragments.entry),
+            );
+        }
+        section_byte_count = section_byte_count
+            .checked_add(function.byte_count)
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+    }
+    let semantic_entry_offset = semantic_entry_offset
+        .ok_or(RelocationFreeTextSectionPlacementError::MissingSemanticEntry(fragments.entry))?;
+
+    let mut bytes = Vec::with_capacity(
+        usize::try_from(section_byte_count)
+            .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+    );
+    let mut functions = Vec::with_capacity(count);
+    let mut resolved_internal_machine_calls = Vec::new();
+    for (source_function_index, fragment) in fragments.structural_unit_functions.iter().enumerate()
+    {
+        let function_section_offset = *function_offsets
+            .get(&fragment.machine)
+            .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
+        if usize_to_u64(bytes.len())? != function_section_offset {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+        let selected = unique_machine(
+            &selected_plan.structural_unit_functions,
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        let machine = unique_machine(
+            &machine_plan.structural_unit_functions,
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        let effects = unique_machine(
+            &effects_plan.structural_unit_functions,
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        let encoded = unique_machine(
+            encoding.structural_unit_functions(),
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        let laid_out = unique_machine(
+            layout.structural_unit_functions(),
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        let exited = unique_machine(
+            exit.structural_unit_functions.as_slice(),
+            fragment.machine,
+            |function| function.machine,
+        )?;
+        if fragment.block.block != selected.entry_block
+            || fragment.block.block != machine.block
+            || fragment.block.block != effects.block
+            || fragment.block.block != encoded.block
+            || fragment.block.block != laid_out.block
+            || fragment.block.block != exited.returned.block
+            || fragment.block.offset != 0
+            || fragment.block.byte_count != fragment.byte_count
+        {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+
+        let mut function_bytes = fragment.bytes.clone();
+        match (
+            fragment.block.call.as_ref(),
+            selected.call.as_ref(),
+            machine.call.as_ref(),
+            effects.call.as_ref(),
+            encoded.call.as_ref(),
+            laid_out.call.as_ref(),
+            exited.call.as_ref(),
+        ) {
+            (None, None, None, None, None, None, None) => {}
+            (
+                Some(fragment_call),
+                Some(selected_call),
+                Some(machine_call),
+                Some(effect_call),
+                Some(encoded_call),
+                Some(layout_call),
+                Some(exit_call),
+            ) => {
+                if fragment_call.instruction != selected_call.id
+                    || fragment_call.instruction != machine_call.instruction
+                    || fragment_call.instruction != effect_call.instruction
+                    || fragment_call.instruction != encoded_call.instruction
+                    || fragment_call.instruction != layout_call.instruction
+                    || fragment_call.instruction != exit_call.instruction
+                    || fragment_call.operation != selected_call.operation
+                    || fragment_call.operation != machine_call.operation
+                    || fragment_call.operation != effect_call.operation
+                    || fragment_call.operation != encoded_call.operation
+                    || fragment_call.operation != layout_call.operation
+                    || fragment_call.operation != exit_call.operation
+                    || fragment_call.callee != selected_call.callee
+                    || fragment_call.callee != machine_call.callee
+                    || fragment_call.callee != effect_call.callee
+                    || fragment_call.callee != encoded_call.callee
+                    || fragment_call.callee != layout_call.callee
+                    || fragment_call.callee != exit_call.callee
+                    || fragment_call.provenance != selected_call.provenance
+                    || fragment_call.provenance != effect_call.provenance
+                    || fragment_call.offset != layout_call.offset
+                    || fragment_call.offset != exit_call.offset
+                    || encoded_call.footprint.as_ref() != layout_call.footprint.as_ref()
+                    || encoded_call.fixup != layout_call.fixup
+                    || encoded_call.fixup != exit_call.fixup
+                {
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+                }
+                let template = validate_x86_64_terminal_selected_structural_unit_call_template(
+                    selected_plan.target,
+                    environment.physical(),
+                    environment.constraints(),
+                    selected_call,
+                    effect_call.declaration,
+                    &fragment_call.bytes,
+                )
+                .map_err(|error| {
+                    RelocationFreeTextSectionPlacementError::StructuralUnitCallTemplate(
+                        fragment.machine,
+                        error,
+                    )
+                })?;
+                if template.bytes() != fragment_call.bytes
+                    || template.footprint() != encoded_call.footprint.as_ref()
+                    || !fragment_fixup_matches_target(fragment_call, template.fixup())?
+                {
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+                }
+                let call_section_offset = function_section_offset
+                    .checked_add(fragment_call.offset)
+                    .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+                let callee_section_offset = *function_offsets.get(&fragment_call.callee).ok_or(
+                    RelocationFreeTextSectionPlacementError::MissingInternalMachineTarget(
+                        fragment_call.callee,
+                    ),
+                )?;
+                let resolved = resolve_x86_64_structural_unit_internal_call(
+                    &template,
+                    template.fixup(),
+                    call_section_offset,
+                    callee_section_offset,
+                )
+                .map_err(|error| {
+                    RelocationFreeTextSectionPlacementError::StructuralUnitCallResolution(
+                        fragment.machine,
+                        error,
+                    )
+                })?;
+                let call_start = u64_to_usize(fragment_call.offset)?;
+                let call_end = call_start
+                    .checked_add(resolved.bytes().len())
+                    .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+                if function_bytes.get(call_start..call_end) != Some(fragment_call.bytes.as_slice())
+                {
+                    return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+                }
+                function_bytes
+                    .get_mut(call_start..call_end)
+                    .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?
+                    .copy_from_slice(resolved.bytes());
+                let resolution = resolved.resolution();
+                let neutral = fragment_call.fixup;
+                resolved_internal_machine_calls.push(TerminalPlacedInternalMachineCallResolution {
+                    kind: TerminalInternalMachineCallResolutionKind::X86Relative32FromNextInstructionToInternalMachineV1,
+                    state: TerminalInternalMachineCallResolutionState::ResolvedInSectionV1,
+                    caller: fragment.machine,
+                    block: fragment.block.block,
+                    instruction: fragment_call.instruction,
+                    operation: fragment_call.operation,
+                    callee: fragment_call.callee,
+                    call_function_offset: fragment_call.offset,
+                    call_section_offset,
+                    call_byte_count: u64::try_from(resolved.bytes().len())
+                        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+                    opcode_function_offset: neutral.opcode_function_offset,
+                    opcode_section_offset: function_section_offset
+                        .checked_add(neutral.opcode_function_offset)
+                        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+                    field_function_offset: neutral.field_function_offset,
+                    field_section_offset: function_section_offset
+                        .checked_add(neutral.field_function_offset)
+                        .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+                    next_instruction_function_offset: neutral.next_instruction_function_offset,
+                    next_instruction_section_offset: resolution.next_instruction_section_offset,
+                    callee_section_offset: resolution.callee_section_offset,
+                    field_byte_width: neutral.field_byte_width,
+                    addend: neutral.addend,
+                    displacement: resolution.displacement,
+                });
+            }
+            _ => return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
+        }
+
+        let returned = &fragment.block.return_instruction;
+        if returned.instruction != selected.terminator.instruction.id
+            || returned.instruction != machine.return_instruction.instruction
+            || returned.instruction != effects.return_instruction.instruction
+            || returned.instruction != encoded.return_instruction.instruction
+            || returned.instruction != laid_out.return_instruction.instruction
+            || returned.instruction != exited.returned.instruction
+            || returned.offset != laid_out.return_instruction.offset
+            || returned.offset != exited.returned.offset
+        {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+        let returned_section_offset = function_section_offset
+            .checked_add(returned.offset)
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+        let returned_start = u64_to_usize(returned.offset)?;
+        let returned_end = returned_start
+            .checked_add(returned.bytes.len())
+            .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?;
+        if function_bytes.get(returned_start..returned_end) != Some(returned.bytes.as_slice()) {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+        bytes.extend_from_slice(&function_bytes);
+        functions.push(TerminalPlacedFunctionFragment {
+            source_function_index: usize_to_u64(source_function_index)?,
+            machine: fragment.machine,
+            section_offset: function_section_offset,
+            byte_count: fragment.byte_count,
+            blocks: vec![TerminalPlacedBlockSpan {
+                block: fragment.block.block,
+                function_offset: fragment.block.offset,
+                section_offset: function_section_offset,
+                byte_count: fragment.block.byte_count,
+                instructions: vec![TerminalPlacedInstructionSpan {
+                    instruction: returned.instruction,
+                    alternative: returned.alternative,
+                    function_offset: returned.offset,
+                    section_offset: returned_section_offset,
+                    byte_count: u64::try_from(returned.bytes.len())
+                        .map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)?,
+                }],
+            }],
+        });
+    }
+    if usize_to_u64(bytes.len())? != section_byte_count
+        || resolved_internal_machine_calls.len()
+            != usize::try_from(
+                source
+                    .manifest()
+                    .record()
+                    .statistics
+                    .unresolved_internal_machine_fixups,
+            )
+            .map_err(|_| RelocationFreeTextSectionPlacementError::StatisticsOverflow)?
+    {
+        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
+    }
+    let mut text_section = TerminalRelocationFreeTextSectionPlacement {
+        identity: TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"pending"),
+        source_fragments: fragments.identity,
+        terminal_psi: fragments.terminal_psi,
+        fuel_schedule: fragments.fuel_schedule,
+        selected: fragments.selected,
+        target: fragments.target,
+        semantic_entry: fragments.entry,
+        semantic_entry_offset,
+        policy: TerminalTextSectionPlacementPolicy::DenseValidatedFragmentOrderNoPaddingV1,
+        section_alignment: 1,
+        byte_count: section_byte_count,
+        bytes,
+        functions,
+        resolved_internal_machine_calls,
+        relocation_requirements:
+            TerminalTextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1,
+    };
+    text_section.identity = text_section.recomputed_identity();
+    Ok(text_section)
+}
+
+fn fragment_fixup_matches_target(
+    call: &omega_terminal_machine_code::TerminalStructuralUnitCallFragmentSpan,
+    target: omega_terminal_isa_x86_64::X86_64StructuralUnitInternalControlFixup,
+) -> Result<bool, RelocationFreeTextSectionPlacementError> {
+    let neutral = call.fixup;
+    Ok(neutral.kind
+        == TerminalFunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1
+        && neutral.state
+            == TerminalFunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
+        && target.kind
+            == X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1
+        && target.state == X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1
+        && neutral.callee == target.callee
+        && neutral.callee == call.callee
+        && neutral.opcode_function_offset
+            == call
+                .offset
+                .checked_add(u64::from(target.opcode_byte_offset))
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+        && neutral.field_function_offset
+            == call
+                .offset
+                .checked_add(u64::from(target.field_byte_offset))
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+        && neutral.next_instruction_function_offset
+            == call
+                .offset
+                .checked_add(u64::from(target.next_instruction_byte_offset))
+                .ok_or(RelocationFreeTextSectionPlacementError::OffsetOverflow)?
+        && neutral.field_byte_width == target.field_byte_width
+        && neutral.addend == target.addend)
+}
+
+fn unique_machine<T>(
+    functions: &[T],
+    machine: MachineId,
+    identify: impl Fn(&T) -> MachineId,
+) -> Result<&T, RelocationFreeTextSectionPlacementError> {
+    let mut matches = functions
+        .iter()
+        .filter(|function| identify(function) == machine);
+    let function = matches
+        .next()
+        .ok_or(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)?;
+    if matches.next().is_some() {
+        return Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(
+            machine,
+        ));
+    }
+    Ok(function)
+}
+
 #[cfg(test)]
 pub(crate) fn place_fragments_for_test(
     fragments: &TerminalFunctionFragmentEmissionPlan,
 ) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
-    place_fragments(fragments)
+    place_relocation_free_fragments(fragments)
+}
+
+#[cfg(test)]
+pub(crate) fn place_structural_unit_fragments_for_test(
+    source: &StagedOptimizedFunctionFragmentEmission,
+) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
+    place_structural_unit_fragments(source)
 }
 
 fn place_blocks(
@@ -691,35 +1152,91 @@ fn validate_architecture_alignment(
 
 fn statistics(
     section: &TerminalRelocationFreeTextSectionPlacement,
+    fragments: &TerminalFunctionFragmentEmissionPlan,
 ) -> Result<FunctionFragmentTextSectionStatistics, RelocationFreeTextSectionPlacementError> {
-    let mut result = FunctionFragmentTextSectionStatistics {
-        functions: usize_to_u64(section.functions.len())?,
-        bytes: section.byte_count,
-        ..FunctionFragmentTextSectionStatistics::default()
-    };
-    for function in &section.functions {
-        result.blocks = result
-            .blocks
-            .checked_add(usize_to_u64(function.blocks.len())?)
-            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-        for block in &function.blocks {
-            result.instruction_spans = result
-                .instruction_spans
-                .checked_add(usize_to_u64(block.instructions.len())?)
+    let mut result = FunctionFragmentTextSectionStatistics::default();
+    if fragments.structural_unit_functions.is_empty() {
+        if !section.resolved_internal_machine_calls.is_empty() {
+            return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+        }
+        result.functions = usize_to_u64(section.functions.len())?;
+        result.bytes = section.byte_count;
+        for function in &section.functions {
+            result.blocks = result
+                .blocks
+                .checked_add(usize_to_u64(function.blocks.len())?)
                 .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
-            for row in &block.instructions {
-                result.zero_byte_instruction_spans = result
-                    .zero_byte_instruction_spans
-                    .checked_add(u64::from(row.byte_count == 0))
+            for block in &function.blocks {
+                result.instruction_spans = result
+                    .instruction_spans
+                    .checked_add(usize_to_u64(block.instructions.len())?)
                     .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+                for row in &block.instructions {
+                    result.zero_byte_instruction_spans = result
+                        .zero_byte_instruction_spans
+                        .checked_add(u64::from(row.byte_count == 0))
+                        .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+                }
             }
         }
+        return Ok(result);
+    }
+    if !fragments.functions.is_empty()
+        || section.functions.len() != fragments.structural_unit_functions.len()
+    {
+        return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
+    }
+    result.structural_unit_functions = usize_to_u64(fragments.structural_unit_functions.len())?;
+    for function in &fragments.structural_unit_functions {
+        result.structural_unit_blocks = result
+            .structural_unit_blocks
+            .checked_add(1)
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        result.structural_unit_bytes = result
+            .structural_unit_bytes
+            .checked_add(function.byte_count)
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        result.structural_unit_instruction_spans = result
+            .structural_unit_instruction_spans
+            .checked_add(1 + u64::from(function.block.call.is_some()))
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        result.structural_unit_zero_byte_instruction_spans = result
+            .structural_unit_zero_byte_instruction_spans
+            .checked_add(u64::from(
+                function.block.return_instruction.bytes.is_empty(),
+            ))
+            .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        if let Some(call) = &function.block.call {
+            result.structural_unit_zero_byte_instruction_spans = result
+                .structural_unit_zero_byte_instruction_spans
+                .checked_add(u64::from(call.bytes.is_empty()))
+                .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+            result.source_internal_machine_fixups = result
+                .source_internal_machine_fixups
+                .checked_add(1)
+                .ok_or(RelocationFreeTextSectionPlacementError::StatisticsOverflow)?;
+        }
+    }
+    result.resolved_internal_machine_fixups =
+        usize_to_u64(section.resolved_internal_machine_calls.len())?;
+    result.remaining_internal_machine_fixups = result
+        .source_internal_machine_fixups
+        .checked_sub(result.resolved_internal_machine_fixups)
+        .ok_or(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)?;
+    if result.structural_unit_bytes != section.byte_count
+        || result.remaining_internal_machine_fixups != 0
+    {
+        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
     }
     Ok(result)
 }
 
 fn usize_to_u64(value: usize) -> Result<u64, RelocationFreeTextSectionPlacementError> {
     u64::try_from(value).map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)
+}
+
+fn u64_to_usize(value: u64) -> Result<usize, RelocationFreeTextSectionPlacementError> {
+    usize::try_from(value).map_err(|_| RelocationFreeTextSectionPlacementError::OffsetOverflow)
 }
 
 fn receipt(
@@ -742,6 +1259,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
+        FunctionFragmentEmissionSourceKind::StructuralUnitCallV1 => 5,
     });
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());
@@ -773,6 +1291,39 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
     bytes.extend_from_slice(&record.statistics.bytes.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.padding_bytes.to_le_bytes());
     bytes.extend_from_slice(&record.statistics.relocation_requirements.to_le_bytes());
+    bytes.extend_from_slice(&record.statistics.structural_unit_functions.to_le_bytes());
+    bytes.extend_from_slice(&record.statistics.structural_unit_blocks.to_le_bytes());
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .structural_unit_instruction_spans
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .structural_unit_zero_byte_instruction_spans
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&record.statistics.structural_unit_bytes.to_le_bytes());
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .source_internal_machine_fixups
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .resolved_internal_machine_fixups
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .remaining_internal_machine_fixups
+            .to_le_bytes(),
+    );
     bytes.extend_from_slice(&[1; 6]);
     bytes
 }

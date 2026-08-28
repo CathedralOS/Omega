@@ -45,6 +45,7 @@ mod report;
 mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
+mod structural_unit_function_relative_realization;
 mod terminal_object_artifact;
 mod terminal_object_callable_entry;
 mod unit_function_relative_realization;
@@ -250,7 +251,8 @@ pub use resolved_selected_form_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
     TerminalResolvedConditionalBranchEvidence, TerminalResolvedSelectedBlockLayout,
     TerminalResolvedSelectedFormLayoutIdentity, TerminalResolvedSelectedFormRow,
-    TerminalResolvedSelectedFunctionLayout, TerminalSelectedFunctionLayoutPolicy,
+    TerminalResolvedSelectedFunctionLayout, TerminalResolvedStructuralUnitCallLayout,
+    TerminalResolvedStructuralUnitFunctionLayout, TerminalSelectedFunctionLayoutPolicy,
     stage_optimized_resolved_selected_form_layout,
     stage_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
     validate_optimized_resolved_selected_form_layout,
@@ -265,6 +267,13 @@ pub use selection::{
     OptimizedSelectionCustodyError, OptimizedSelectionPipelineError,
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
     stage_optimized_instruction_selection, validate_optimized_selection_custody,
+};
+pub use structural_unit_function_relative_realization::{
+    OptimizedStructuralUnitFunctionRelativeRealizationError,
+    StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    StagedOptimizedStructuralUnitFunctionRelativeRealizationCustodyReceipt,
+    stage_optimized_structural_unit_function_relative_realization,
+    validate_optimized_structural_unit_function_relative_realization,
 };
 pub use terminal_object_artifact::{
     OptimizedTerminalObjectArtifactCustodyReceipt, OptimizedTerminalObjectArtifactError,
@@ -302,7 +311,8 @@ pub use whole_function_exit_contract::{
     TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitLayoutCustody,
     TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
     TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
-    TerminalWholeFunctionReturnValueEvidence, ValidatedTerminalWholeFunctionExitContract,
+    TerminalWholeFunctionReturnValueEvidence, TerminalWholeFunctionStructuralUnitCallEvidence,
+    TerminalWholeFunctionStructuralUnitExitEvidence, ValidatedTerminalWholeFunctionExitContract,
     stage_terminal_whole_function_exit_contract,
     stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
@@ -7436,6 +7446,11 @@ mod tests {
             assert_eq!(manifest.statistics.functions, 1);
             assert_eq!(manifest.statistics.blocks, 3);
             assert_eq!(manifest.statistics.resolved_conditional_branches, 1);
+            assert_eq!(manifest.statistics.structural_unit_functions, 0);
+            assert_eq!(manifest.statistics.structural_unit_blocks, 0);
+            assert_eq!(manifest.statistics.structural_unit_instructions, 0);
+            assert_eq!(manifest.statistics.structural_unit_bytes, 0);
+            assert_eq!(manifest.statistics.unresolved_internal_machine_fixups, 0);
             assert_eq!(
                 manifest.statistics.bytes,
                 realization
@@ -7844,22 +7859,22 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&8_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        7
+                        8
                     )
                 )
             );
             let mut legacy_version = encoded.clone();
-            legacy_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+            legacy_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&legacy_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        2
+                        6
                     )
                 )
             );
@@ -9319,17 +9334,17 @@ mod tests {
 
             let record = emitted.manifest().record();
             let encoded = record.encode();
-            assert_eq!(&encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &4_u32.to_le_bytes());
             assert_eq!(encoded[45], 3);
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&encoded),
                 Ok(record.clone())
             );
             let mut unknown_source = encoded;
-            unknown_source[45] = 5;
+            unknown_source[45] = 6;
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&unknown_source),
-                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(5))
+                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(6))
             );
 
             let original_fresh_byte = emitted.fragments().functions[0]
@@ -9386,7 +9401,7 @@ mod tests {
                 FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
             );
             let text_encoded = placed.manifest().record().encode();
-            assert_eq!(&text_encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(&text_encoded[8..12], &4_u32.to_le_bytes());
             assert_eq!(text_encoded[45], 3);
             assert_eq!(
                 FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -9489,7 +9504,7 @@ mod tests {
             Err(FunctionFragmentTextSectionManifestDecodeError::IdentityMismatch)
         );
         let mut unknown_relocation = record.encode();
-        let relocation_tag = unknown_relocation.len() - 63;
+        let relocation_tag = unknown_relocation.len() - 127;
         unknown_relocation[relocation_tag] = 2;
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&unknown_relocation),
@@ -11562,6 +11577,401 @@ mod tests {
             ),
             Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
         ));
+
+        let layout = stage_optimized_resolved_selected_form_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+        )
+        .expect("structural Unit fixups must reach unresolved function-relative custody");
+        assert_eq!(
+            layout.policy(),
+            TerminalSelectedFunctionLayoutPolicy::StructuralUnitCallThenReturnSingleEntryBlockV1
+        );
+        assert!(layout.functions().is_empty());
+        assert_eq!(layout.structural_unit_functions().len(), 2);
+        let caller_layout = &layout.structural_unit_functions()[0];
+        let callee_layout = &layout.structural_unit_functions()[1];
+        assert_eq!((caller_layout.offset, caller_layout.byte_count), (0, 90));
+        assert_eq!((callee_layout.offset, callee_layout.byte_count), (0, 1));
+        let call_layout = caller_layout
+            .call
+            .as_ref()
+            .expect("caller layout owns the unresolved template");
+        assert_eq!(call_layout.offset, 0);
+        assert_eq!(call_layout.bytes.len(), 89);
+        assert_eq!(&call_layout.bytes[81..85], &[0, 0, 0, 0]);
+        assert_eq!(call_layout.fixup, encoded_call.fixup);
+        assert_eq!(caller_layout.return_instruction.offset, 89);
+        assert_eq!(caller_layout.return_instruction.bytes, [0xc3]);
+        assert_eq!(callee_layout.return_instruction.offset, 0);
+        assert_eq!(callee_layout.return_instruction.bytes, [0xc3]);
+        validate_optimized_resolved_selected_form_layout(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+            &layout,
+        )
+        .unwrap();
+        let mut corrupted = layout.clone();
+        corrupted.structural_unit_functions_mut()[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_byte_offset += 1;
+        assert!(matches!(
+            validate_optimized_resolved_selected_form_layout(
+                range_stage.liveness_stage().selected_stage().selected(),
+                &post,
+                environment.physical(),
+                &encoding,
+                &corrupted,
+            ),
+            Err(OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch)
+        ));
+
+        let mut realization = stage_optimized_structural_unit_function_relative_realization(homes)
+            .expect("structural Unit calls must reach owning function-relative custody");
+        let exit = realization.exit_contract().contract();
+        assert_eq!(
+            exit.policy,
+            TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1
+        );
+        assert!(exit.functions.is_empty());
+        assert_eq!(exit.structural_unit_functions.len(), 2);
+        assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
+        assert!(
+            exit.structural_unit_functions
+                .iter()
+                .all(|function| function.returned.value
+                    == TerminalWholeFunctionReturnValueEvidence::UnitV1)
+        );
+        let exit_call = exit.structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("entry caller retains whole-function call evidence");
+        assert_eq!(exit_call.offset, 0);
+        assert_eq!(exit_call.bytes.len(), 89);
+        assert!(exit_call.frame_is_balanced);
+        assert_eq!(exit_call.frame_byte_count, 72);
+        assert_eq!(exit_call.shadow_byte_count, 32);
+        assert_eq!(exit_call.pre_call_stack_alignment, 16);
+
+        let manifest = realization.manifest().record();
+        assert_eq!(manifest.statistics.functions, 0);
+        assert_eq!(manifest.statistics.blocks, 0);
+        assert_eq!(manifest.statistics.instructions, 0);
+        assert_eq!(manifest.statistics.bytes, 0);
+        assert_eq!(manifest.statistics.resolved_conditional_branches, 0);
+        assert_eq!(manifest.statistics.structural_unit_functions, 2);
+        assert_eq!(manifest.statistics.structural_unit_blocks, 2);
+        assert_eq!(manifest.statistics.structural_unit_instructions, 3);
+        assert_eq!(manifest.statistics.structural_unit_bytes, 91);
+        assert_eq!(manifest.statistics.unresolved_internal_machine_fixups, 1);
+        assert_eq!(
+            FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
+            Ok(manifest.clone())
+        );
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+
+        let original_offset = realization.layout().structural_unit_functions()[0]
+            .return_instruction
+            .offset;
+        realization.layout_mut().structural_unit_functions_mut()[0]
+            .return_instruction
+            .offset = original_offset + 1;
+        assert!(matches!(
+            validate_optimized_structural_unit_function_relative_realization(&realization),
+            Err(
+                OptimizedStructuralUnitFunctionRelativeRealizationError::Layout(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch
+                )
+            )
+        ));
+        realization.layout_mut().structural_unit_functions_mut()[0]
+            .return_instruction
+            .offset = original_offset;
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+
+        realization
+            .exit_contract_mut()
+            .contract_mut()
+            .structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .frame_is_balanced = false;
+        assert!(matches!(
+            validate_optimized_structural_unit_function_relative_realization(&realization),
+            Err(
+                OptimizedStructuralUnitFunctionRelativeRealizationError::Exit(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                )
+            )
+        ));
+        realization
+            .exit_contract_mut()
+            .contract_mut()
+            .structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .frame_is_balanced = true;
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+
+        realization
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .unresolved_internal_machine_fixups = 0;
+        assert!(matches!(
+            validate_optimized_structural_unit_function_relative_realization(&realization),
+            Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
+        ));
+        realization
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .unresolved_internal_machine_fixups = 1;
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+
+        let mut fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(Box::new(
+                realization,
+            )),
+        )
+        .expect("structural Unit calls must retain typed unresolved fragment custody");
+        assert!(fragments.fragments().functions.is_empty());
+        assert_eq!(fragments.fragments().structural_unit_functions.len(), 2);
+        let caller_fragment = &fragments.fragments().structural_unit_functions[0];
+        let callee_fragment = &fragments.fragments().structural_unit_functions[1];
+        assert_eq!(
+            (caller_fragment.byte_count, callee_fragment.byte_count),
+            (90, 1)
+        );
+        assert_eq!(caller_fragment.bytes.len(), 90);
+        assert_eq!(&caller_fragment.bytes[81..85], &[0, 0, 0, 0]);
+        assert_eq!(caller_fragment.bytes[89], 0xc3);
+        assert_eq!(callee_fragment.bytes, [0xc3]);
+        let fragment_call = caller_fragment
+            .block
+            .call
+            .as_ref()
+            .expect("caller fragment owns the unresolved internal call");
+        assert_eq!(fragment_call.offset, 0);
+        assert_eq!(fragment_call.fixup.opcode_function_offset, 80);
+        assert_eq!(fragment_call.fixup.field_function_offset, 81);
+        assert_eq!(fragment_call.fixup.next_instruction_function_offset, 85);
+        assert_eq!(fragment_call.fixup.field_byte_width, 4);
+        assert_eq!(fragment_call.fixup.addend, 0);
+        let fragment_manifest = fragments.manifest().record();
+        assert_eq!(
+            fragment_manifest.stage,
+            FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
+        );
+        assert_eq!(
+            fragment_manifest.source_kind,
+            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1
+        );
+        assert_eq!(fragment_manifest.statistics.functions, 0);
+        assert_eq!(fragment_manifest.statistics.structural_unit_functions, 2);
+        assert_eq!(fragment_manifest.statistics.structural_unit_blocks, 2);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .structural_unit_instruction_spans,
+            3
+        );
+        assert_eq!(fragment_manifest.statistics.structural_unit_bytes, 91);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .unresolved_internal_machine_fixups,
+            1
+        );
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
+            Ok(fragment_manifest.clone())
+        );
+        for unsupported in [3_u32, 5_u32] {
+            let mut encoded = fragment_manifest.encode();
+            encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&encoded),
+                Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(unsupported))
+            );
+        }
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+        let original_field_offset = fragments.fragments().structural_unit_functions[0]
+            .block
+            .call
+            .as_ref()
+            .unwrap()
+            .fixup
+            .field_function_offset;
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_function_offset += 1;
+        assert!(matches!(
+            validate_optimized_function_fragment_emission(&fragments),
+            Err(FunctionFragmentEmissionError::ArtifactMismatch)
+        ));
+        assert!(matches!(
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
+        ));
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_function_offset = original_field_offset;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let original_template_byte = fragments.fragments().structural_unit_functions[0]
+            .block
+            .call
+            .as_ref()
+            .unwrap()
+            .bytes[0];
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] ^= 1;
+        assert!(matches!(
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::StructuralUnitCallTemplate(
+                _,
+                omega_terminal_isa_x86_64::X86_64StructuralUnitCallTemplateError::MalformedTemplate
+            ))
+        ));
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] = original_template_byte;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let callee_machine = fragments.fragments().structural_unit_functions[1].machine;
+        let caller_machine = fragments.fragments().structural_unit_functions[0].machine;
+        fragments.fragments_mut().structural_unit_functions[1].machine = caller_machine;
+        assert!(matches!(
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(machine))
+                if machine == caller_machine
+        ));
+        fragments.fragments_mut().structural_unit_functions[1].machine = callee_machine;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let mut text = stage_optimized_relocation_free_text_section(fragments)
+            .expect("whole-text placement must discharge the internal MachineId call");
+        let placed = text.text_section();
+        assert_eq!(placed.byte_count, 91);
+        assert_eq!(placed.functions.len(), 2);
+        assert_eq!(
+            (
+                placed.functions[0].section_offset,
+                placed.functions[0].byte_count,
+                placed.functions[1].section_offset,
+                placed.functions[1].byte_count,
+            ),
+            (0, 90, 90, 1)
+        );
+        assert_eq!(&placed.bytes[81..85], &[5, 0, 0, 0]);
+        assert_eq!(placed.bytes[89], 0xc3);
+        assert_eq!(placed.bytes[90], 0xc3);
+        assert_eq!(placed.resolved_internal_machine_calls.len(), 1);
+        let resolved_call = placed.resolved_internal_machine_calls[0];
+        assert_eq!(resolved_call.call_section_offset, 0);
+        assert_eq!(resolved_call.opcode_section_offset, 80);
+        assert_eq!(resolved_call.field_section_offset, 81);
+        assert_eq!(resolved_call.next_instruction_section_offset, 85);
+        assert_eq!(resolved_call.callee_section_offset, 90);
+        assert_eq!(resolved_call.displacement, 5);
+        assert_eq!(
+            placed.relocation_requirements,
+            omega_object_file::TerminalTextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        );
+        let text_manifest = text.manifest().record();
+        assert_eq!(text_manifest.statistics.functions, 0);
+        assert_eq!(text_manifest.statistics.bytes, 0);
+        assert_eq!(text_manifest.statistics.structural_unit_functions, 2);
+        assert_eq!(text_manifest.statistics.structural_unit_blocks, 2);
+        assert_eq!(
+            text_manifest.statistics.structural_unit_instruction_spans,
+            3
+        );
+        assert_eq!(text_manifest.statistics.structural_unit_bytes, 91);
+        assert_eq!(text_manifest.statistics.source_internal_machine_fixups, 1);
+        assert_eq!(text_manifest.statistics.resolved_internal_machine_fixups, 1);
+        assert_eq!(
+            text_manifest.statistics.remaining_internal_machine_fixups,
+            0
+        );
+        assert_eq!(
+            FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
+            Ok(text_manifest.clone())
+        );
+        for unsupported in [3_u32, 5_u32] {
+            let mut encoded = text_manifest.encode();
+            encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&encoded),
+                Err(
+                    FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(unsupported)
+                )
+            );
+        }
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement += 1;
+        assert!(matches!(
+            validate_optimized_relocation_free_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        ));
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement = 5;
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+        text.manifest_mut()
+            .record_mut()
+            .statistics
+            .resolved_internal_machine_fixups = 0;
+        assert!(matches!(
+            validate_optimized_relocation_free_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
+        ));
+        text.manifest_mut()
+            .record_mut()
+            .statistics
+            .resolved_internal_machine_fixups = 1;
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+
+        let object = stage_optimized_relocation_free_terminal_object_container(text)
+            .expect("resolved structural text must require no object relocation");
+        assert_eq!(object.object().text_section.byte_count, 91);
+        assert_eq!(&object.object().text_section.bytes[81..85], &[5, 0, 0, 0]);
+        assert_eq!(object.object().symbols.len(), 2);
+        assert_eq!(object.object().symbols[0].section_offset, 0);
+        assert_eq!(object.object().symbols[0].byte_count, 90);
+        assert_eq!(object.object().symbols[1].section_offset, 90);
+        assert_eq!(object.object().symbols[1].byte_count, 1);
+        assert_eq!(object.object().relocation_record_count, 0);
+        validate_optimized_relocation_free_terminal_object_container(&object).unwrap();
     }
 
     #[test]
@@ -13793,10 +14203,16 @@ mod tests {
             Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::WrongMagic)
         );
         let mut wrong_version = staged.manifest().record().encode();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             OptimizedTerminalOrdinaryCallableEntryManifest::decode(&wrong_version),
-            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(2))
+            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(3))
+        );
+        let mut legacy_version = staged.manifest().record().encode();
+        legacy_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryManifest::decode(&legacy_version),
+            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(1))
         );
         let mut trailing = staged.entry().encode().unwrap();
         trailing.push(0);
