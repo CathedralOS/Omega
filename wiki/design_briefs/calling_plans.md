@@ -1068,8 +1068,14 @@ a false registrar result leaves no registration and supports explicit pending-
 root cleanup. Exact emitted-thunk/store attribution is now joined through the
 retained installation manifest to the installed bytes, entry, root, and
 requirement, and remains in every custody result. Registrar invocation, the
-source-level linear `Registration`, and capacity accounting remain separate
-engineering joins.
+source-level linear `Registration`, and its package surface remain separate
+engineering joins. The deployment admission now binds one exact non-clonable
+provider-owned live-registration capacity occurrence to the provider receipt.
+Only a matching successful receipt moves it into the reclaimable callback;
+every rejected admission, unsuccessful unregister, or nonquiescent removal
+retains and returns the same occurrence, and successful unregister plus root
+quiescence returns it beside the reclaimed root slot. This adds no registrar
+invocation and does not treat capacity as a thunk count or lifetime budget.
 
 Callback materialization records only binder slot and destination. Whether the
 destination is a direct argument, call-scoped temporary, or part of retained

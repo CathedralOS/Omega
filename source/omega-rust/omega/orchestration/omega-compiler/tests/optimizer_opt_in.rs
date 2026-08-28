@@ -123,6 +123,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
     builder.optimizations.enable(Optimization::CopyPropagation);
     builder.optimizations.enable(Optimization::SelectedIncomingU12ExactAddImmediate);
     builder.optimizations.enable(Optimization::X86RelaxConditionalBranchesToRel8V1);
+    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
 }
 "#,
         ),
@@ -137,6 +138,7 @@ fn enable_calls_project_the_exact_canonical_named_set() {
             Optimization::ProofCheckElision,
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
+            Optimization::SelectedIncomingU12ExactSubtractImmediate,
         ]
     );
     assert_eq!(
@@ -242,6 +244,41 @@ fn selected_native_build_fails_closed_without_installing_output() {
         diagnostics[0]
             .message
             .contains("`SelectedIncomingU12ExactAddImmediate`")
+    );
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("complete verified optimizer pipeline")
+    );
+    assert!(!build_dir.join("omega-program").exists());
+    assert!(!build_dir.join("omega-program.exe").exists());
+}
+
+#[test]
+fn exact_subtract_immediate_native_build_fails_closed_without_installing_output() {
+    let root = project(
+        "subtract-fail-closed",
+        Some(
+            r#"machine build(builder: &mut Build) {
+    builder.application("optimizer-subtract-fail-closed");
+    builder.optimizations.enable(Optimization::SelectedIncomingU12ExactSubtractImmediate);
+}
+"#,
+        ),
+    );
+    let build_dir = root.join("build");
+    let diagnostics = compile(CompileOptions {
+        root_path: root.join("main.omg"),
+        build_dir: Some(build_dir.clone()),
+        target_name: None,
+        write_output: true,
+    })
+    .expect_err("selected optimization must not fall through to legacy O0 lowering");
+    assert_eq!(diagnostics.len(), 1);
+    assert!(
+        diagnostics[0]
+            .message
+            .contains("`SelectedIncomingU12ExactSubtractImmediate`")
     );
     assert!(
         diagnostics[0]

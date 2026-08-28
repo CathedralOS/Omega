@@ -1,7 +1,9 @@
 use super::*;
 use psi_extents::{
-    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId,
-    ExtentProvenanceId, ExtentRights,
+    AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentValidityReceiptId, ExtentLineageId,
+    ExtentProvenanceId, ExtentRights, MappedRangeReceiptContext, MappingEraId, MappingGrant,
+    MappingGrantId, MappingId, MappingSourceMode, TranslationActivationReceipt,
+    TranslationInstallObligations, TranslationReleaseObligations, map_owned,
 };
 use psi_layout_plans::{
     IntegerInterpretation, LayoutFieldEntryReport, LayoutPlacementReport, LayoutPlanReport,
@@ -5988,4 +5990,247 @@ fn effect_conflicts_use_whole_transfer_containers() {
         next_word,
         AccessOperation::Write,
     ));
+}
+
+fn device_requirement_mapped_range(offset: u64, length: u64) -> MappedRangeReceiptContext {
+    let source = psi_extents::ExtentRootGrant::from_admitted_provider(
+        provider_issuance(801),
+        extent_id(802, ExtentLineageId::from_normalized_identity),
+        extent_id(803, AddressSpaceId::from_normalized_identity),
+        extent_rights(&[804]),
+        extent_id(805, ExtentProvenanceId::from_normalized_identity),
+        extent_id(806, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x1000, 0x1000)
+    .expect("device source extent");
+    let destination = psi_extents::ExtentRootGrant::from_admitted_provider(
+        provider_issuance(807),
+        extent_id(808, ExtentLineageId::from_normalized_identity),
+        extent_id(809, AddressSpaceId::from_normalized_identity),
+        extent_rights(&[810]),
+        extent_id(811, ExtentProvenanceId::from_normalized_identity),
+        extent_id(812, MappingEraId::from_normalized_identity),
+    )
+    .mint(0x8000, 0x1000)
+    .expect("device destination extent");
+    let grant = MappingGrant::from_admitted_provider(
+        extent_id(813, MappingGrantId::from_normalized_identity),
+        MappingSourceMode::Owned,
+        source.address_space(),
+        destination.address_space(),
+        source.rights().clone(),
+        destination.rights().clone(),
+        destination.rights().clone(),
+        extent_id(814, ExtentProvenanceId::from_normalized_identity),
+        extent_id(815, MappingEraId::from_normalized_identity),
+        TranslationInstallObligations::default(),
+        TranslationReleaseObligations::default(),
+    );
+    let pending = map_owned(
+        source,
+        destination,
+        extent_id(816, MappingId::from_normalized_identity),
+        &grant,
+    )
+    .expect("device mapping candidate");
+    let receipt =
+        TranslationActivationReceipt::from_admitted_provider(&pending.receipt_context(), true, []);
+    pending
+        .complete(receipt)
+        .expect("active device mapping")
+        .range_receipt_context(offset, length)
+        .expect("exact mapped device range")
+}
+
+fn device_requirement_correspondence(
+    provider_identity: u64,
+) -> SchemaDeviceCorrespondenceReceiptContext {
+    let placement = uart_placement_plan();
+    let extent = uart_extent_with_lineage(0x9000, 12, 817);
+    let profile = uart_resource_profile_for_extent(&extent, &uart_reach());
+    SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+        SchemaCorrespondenceProviderId::from_normalized_identity(provider_identity)
+            .expect("device correspondence provider"),
+        StableDeviceInstanceId::from_normalized_identity(818).expect("stable device"),
+        SchemaCorrespondenceSourceId::from_normalized_identity(819)
+            .expect("device correspondence source"),
+        &placement,
+        profile.receipt(),
+        None,
+    )
+    .expect("device correspondence grant")
+    .admit(&placement, &profile)
+    .expect("admitted device correspondence")
+    .receipt_context()
+}
+
+fn device_requirement(
+    identity: u64,
+    operation: DeviceOperation,
+    range_offset: u64,
+    correspondence_provider: u64,
+    ordering_scope: u64,
+) -> DeviceOperationRequirement {
+    DeviceOperationRequirement::new(
+        DeviceOperationRequirementId::from_normalized_identity(identity)
+            .expect("device requirement identity"),
+        operation,
+        device_requirement_mapped_range(range_offset, 0x80),
+        device_requirement_correspondence(correspondence_provider),
+        DeviceOrderingScopeId::from_normalized_identity(ordering_scope)
+            .expect("device ordering scope"),
+    )
+}
+
+#[test]
+fn device_operation_requirements_close_all_five_non_fence_families_exactly() {
+    let operations = [
+        DeviceOperation::DmaPublication,
+        DeviceOperation::DeviceAcquisition,
+        DeviceOperation::CacheMaintenance,
+        DeviceOperation::MmioNotification,
+        DeviceOperation::PostedWriteCompletion,
+    ];
+    let requirements = operations
+        .into_iter()
+        .enumerate()
+        .map(|(index, operation)| device_requirement(830 + index as u64, operation, 0, 820, 821))
+        .collect::<Vec<_>>();
+    let evidence = requirements
+        .iter()
+        .rev()
+        .map(|requirement| {
+            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+                DeviceOperationProviderPlanId::from_normalized_identity(822)
+                    .expect("device provider plan"),
+                requirement,
+            )
+        })
+        .collect();
+
+    let closed = structurally_close_device_operation_requirements(requirements, evidence)
+        .expect("every emitted device operation has an exact provider assertion");
+
+    closed
+        .validate_structure()
+        .expect("sealed device-operation closure replays");
+    assert_eq!(
+        closed
+            .rows()
+            .iter()
+            .map(|row| row.requirement().operation())
+            .collect::<Vec<_>>(),
+        operations
+    );
+    assert!(closed.rows().iter().all(|row| {
+        row.provider_plan().normalized_identity() == 822
+            && row
+                .requirement()
+                .correspondence()
+                .device()
+                .normalized_identity()
+                == 818
+    }));
+}
+
+#[test]
+fn device_operation_structural_closure_rejects_drift_and_returns_retry_custody() {
+    let exact = device_requirement(840, DeviceOperation::DmaPublication, 0, 823, 824);
+    for drifted in [
+        device_requirement(840, DeviceOperation::DeviceAcquisition, 0, 823, 824),
+        device_requirement(840, DeviceOperation::DmaPublication, 0x80, 823, 824),
+        device_requirement(840, DeviceOperation::DmaPublication, 0, 825, 824),
+        device_requirement(840, DeviceOperation::DmaPublication, 0, 823, 826),
+    ] {
+        let evidence = ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+            DeviceOperationProviderPlanId::from_normalized_identity(827)
+                .expect("device provider plan"),
+            &drifted,
+        );
+        let error =
+            structurally_close_device_operation_requirements(vec![exact.clone()], vec![evidence])
+                .expect_err("compact identity cannot cover structural drift");
+        assert!(error.diagnostic().0.contains("structurally drifted"));
+        let (returned_requirements, returned_evidence) = error.into_parts();
+        assert_eq!(returned_requirements, vec![exact.clone()]);
+        assert_eq!(returned_evidence.len(), 1);
+        assert_eq!(returned_evidence[0].requirement(), &drifted);
+        assert_eq!(
+            returned_evidence[0].provider_plan().normalized_identity(),
+            827
+        );
+
+        let repaired = ProviderAssertedDeviceOperationCoverage::from_provider_assertion(
+            DeviceOperationProviderPlanId::from_normalized_identity(827)
+                .expect("device provider plan"),
+            &returned_requirements[0],
+        );
+        let _closed =
+            structurally_close_device_operation_requirements(returned_requirements, vec![repaired])
+                .expect("returned demand supports corrected retry");
+    }
+}
+
+#[test]
+fn device_operation_structural_closure_requires_exact_one_to_one_rows() {
+    let first = device_requirement(850, DeviceOperation::CacheMaintenance, 0, 828, 829);
+    let second = device_requirement(851, DeviceOperation::CacheMaintenance, 0, 828, 829);
+    let plan =
+        DeviceOperationProviderPlanId::from_normalized_identity(830).expect("device provider plan");
+
+    let missing = structurally_close_device_operation_requirements(
+        vec![first.clone(), second.clone()],
+        vec![ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first)],
+    )
+    .expect_err("each equal-looking occurrence needs its own evidence");
+    assert!(
+        missing
+            .diagnostic()
+            .0
+            .contains("no provider coverage assertion")
+    );
+    let (returned_requirements, returned_evidence) = missing.into_parts();
+    assert_eq!(returned_requirements, vec![first.clone(), second.clone()]);
+    assert_eq!(returned_evidence.len(), 1);
+    assert_eq!(returned_evidence[0].requirement(), &first);
+
+    let duplicate_requirement = structurally_close_device_operation_requirements(
+        vec![first.clone(), first.clone()],
+        vec![ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first)],
+    )
+    .expect_err("duplicate emitted identities reject");
+    assert!(
+        duplicate_requirement
+            .diagnostic()
+            .0
+            .contains("emitted more than once")
+    );
+
+    let duplicate_evidence = structurally_close_device_operation_requirements(
+        vec![first.clone()],
+        vec![
+            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
+            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
+        ],
+    )
+    .expect_err("duplicate provider assertions reject");
+    assert!(
+        duplicate_evidence
+            .diagnostic()
+            .0
+            .contains("duplicate provider coverage assertions")
+    );
+
+    let extra = structurally_close_device_operation_requirements(
+        vec![first.clone()],
+        vec![
+            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &first),
+            ProviderAssertedDeviceOperationCoverage::from_provider_assertion(plan, &second),
+        ],
+    )
+    .expect_err("evidence for an un-emitted occurrence rejects");
+    assert!(extra.diagnostic().0.contains("un-emitted"));
+
+    let _empty = structurally_close_device_operation_requirements(Vec::new(), Vec::new())
+        .expect("an empty emitted set is exactly closed by empty evidence");
 }

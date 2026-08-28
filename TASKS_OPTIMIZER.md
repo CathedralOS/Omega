@@ -1114,7 +1114,8 @@ dependency.
   result remains live, runtime policy events, and physical check recognition
   remain open.
 
-- **OPT-INITIAL-PIPELINE.** Define the canonical target-neutral schedule for
+- **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
+  Define the canonical target-neutral schedule for
   each subset of the initial named optimizations and its bounded repetition
   rules.
 
@@ -1129,8 +1130,11 @@ dependency.
   with proof-enabled deletion before dead-scalar cleanup so newly dead
   obligation-free operands can disappear in the same pipeline sweep. It has
   distinct ordered pass manifests, aggregate replay evidence, per-pass budgets,
-  and deterministic artifact tests. Thirty-two shuffled built-in registration
-  orders produce identical full SCCP runs, and a direct second
+  and deterministic artifact tests. Thirty-two shuffled pre-assembly
+  contribution orders produce identical ordered registry identities, contracts,
+  final units, commits, work usage, decisions, manifests, and ledgers for every
+  current multi-rule family: SCCP, CFG cleanup, GVN, and dead-scalar
+  elimination. A direct second
   SCCP/CFG/copy/GVN/proof/dead-scalar sweep changes neither final unit nor the
   composed transformation ledger. Remaining to close: add canonical schedules
   and the same fixed-point evidence for each newly implemented initial family.
@@ -1138,15 +1142,16 @@ dependency.
 - Named selections now declare a closed execution phase rather than being
   grouped into an optimization level. The full root-build suite remains the
   build/cache identity, while Psi scheduling and its pre-physical receipt retain
-  the exact Psi subset separately. `SelectedIncomingU12ExactAddImmediate` is
-  the first selected-lowering family exposed by the canonical build vocabulary;
-  it is never treated as Psi work, and native publication remains fail-closed
-  until its selected-lowering execution receipt joins the full suite identity.
+  the exact Psi subset separately. `SelectedIncomingU12ExactAddImmediate` and
+  `SelectedIncomingU12ExactSubtractImmediate` are separately selectable
+  selected-lowering families in the canonical build vocabulary; neither is
+  treated as Psi work, and native publication remains fail-closed until the
+  exact selected-lowering execution receipt joins the full suite identity.
 
-  Current selected-lowering slice: the compiler-owned
-  `SelectedIncomingU12ExactAddImmediateToNoChangeV1` schedule derives the full
-  suite and budget from upstream custody, executes only the exact
-  selected-lowering projection, and retains zero or more strictly decreasing
+  Current selected-lowering slice: compiler-owned add-only, subtract-only, and
+  add-plus-subtract schedules derive the full suite and budget from upstream
+  custody, execute only the exact selected-lowering projection, and retain zero
+  or more strictly decreasing
   fold/reanalysis steps plus a mandatory validated zero-action termination
   attempt. Aggregate choice/classification/fold usage must fit the one retained
   suite budget. The one-step staging APIs keep their explicit apply-or-reject
@@ -1306,14 +1311,19 @@ dependency.
   ISA-specific rule cannot run on another target.
 
   Current slice: the separately named
-  `SelectedIncomingU12ExactAddImmediate` family is the first exact target
-  combine. It replaces one immediately adjacent, single-use unsigned-u12
-  materialization plus proof-bearing exact add with the target-owned immediate
-  form, retains both source operations and fuel settlements exactly once, and
-  revalidates the complete selected CFG before liveness/ranges/legality are
-  recomputed. Its explicit fixed-point schedule and no-change receipt remain a
-  selected-lowering opt-in; this does not imply general immediate, addressing,
-  compare/branch, or strength-reduction coverage.
+  `SelectedIncomingU12ExactAddImmediate` and
+  `SelectedIncomingU12ExactSubtractImmediate` families replace one immediately
+  adjacent, single-use unsigned-u12 materialization plus the corresponding
+  proof-bearing exact operation with a target-owned immediate form. Subtraction
+  admits only the authored RHS and never commutes operands. Both retain the two
+  source operations and fuel settlements exactly once and revalidate the
+  complete selected CFG before liveness/ranges/legality are recomputed. x86-64
+  uses flag-transparent LEA with a canonical negative displacement for
+  subtraction; AArch64 uses non-S ADD/SUB immediate forms. Add-only,
+  subtract-only, and exact combined fixed-point schedules retain mandatory
+  no-change receipts and remain explicit selected-lowering opt-ins. This does
+  not imply general immediate, addressing, compare/branch, or strength-
+  reduction coverage.
 
 - **OPT-CALL-LOWERING.** Normalize internal, boundary, callback, and tail-call
   sequences before allocation.
@@ -1487,8 +1497,9 @@ dependency.
   records no NZCV effect for ordinary `SUB`; x86-64 records the exact RFLAGS
   clobber required by its alias-safe `SUB` / `NEG; ADD` / `MOV; SUB` pseudo
   realizations. Liveness, ranges, legality, recovery replay, and deterministic
-  homes therefore consume the target fact without weakening proof custody or
-  silently extending the add-immediate fold to subtraction.
+  homes therefore consume the target fact without weakening proof custody. The
+  separately named subtract-immediate fold now uses the authored RHS and its
+  own target constraint, semantic identity, replay policy, and build opt-in.
 
   Sequencing: the exact named forwarded-value copy/split base case, copy-key
   identity, fresh split-result VRegs, provenance/fuel custody, independent
@@ -1512,29 +1523,28 @@ dependency.
   fuel movement, storage, frame, emission, or publication authority. The
   separately validated allocator-availability boundary now
   supplies that production pressure vertical without misusing reservation
-  overlays: retaining only `rdi` on x86-64 or `x0` on AArch64 makes the second
-  exact-add literal the deterministic incoming victim on both targets, while
-  fixed views outside the flexible allowlist remain exact and legal. The victim
-  is positively classified as the immediate-u64 literal `8`. The separate
-  `SelectedIncomingU12ExactAddImmediateV1` policy now consumes only that exact
-  incoming, single-use, immediately adjacent unsigned-u12 case. It replaces
-  `MaterializeI64 + ExactAddI64` with proof-bearing
-  `ExactAddI64Immediate`, preserves both operations and both logical-fuel
-  settlements exactly once, retains the add obligation and accepted fact,
-  removes the victim, and globally redensifies later instruction/VReg IDs.
-  Its strict recipe codec roots the complete input custody and transformed
+  overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
+  literal the deterministic incoming victim on both targets, while fixed views
+  outside the flexible allowlist remain exact and legal. The separate add and
+  subtract policies consume only matching incoming, single-use, immediately
+  adjacent unsigned-u12 cases. They replace `MaterializeI64` plus the matching
+  proof-bearing exact operation with `ExactAddI64Immediate` or
+  `ExactSubtractI64Immediate`, preserve both operations and both logical-fuel
+  settlements exactly once, retain the arithmetic obligation and accepted
+  fact, remove the victim, and globally redensify later instruction/VReg IDs.
+  Their strict recipe codec roots the complete input custody and transformed
   selected identity; replay reconstructs the full CFG before granting a sealed
   reanalysis carrier. Orchestration now owns an append-only chain: the first
   and every subsequent fold are different explicit calls, each step retains
   choice/classification/fold plus wholly fresh liveness/range/legality, and the
   entire prefix is replayed before append. No-action requests reject. With a
-  sole flexible `rax`/`x0` view, two separately requested folds close both leaf
-  pressure points; the final home carrier derives both ordered `LiteralFold`
-  manifest entries from custody and reaches homes on both targets. These manual
-  APIs contain no implicit loop. The separately named build-selectable suite
-  owns its explicit fixed-point schedule and verified no-change termination;
-  neither route grants general rematerialization, spill, frame, or emission
-  authority.
+  sole flexible `rax`/`x0` view, two separately requested add or subtract folds
+  close both leaf pressure points; the final home carrier derives both ordered
+  `LiteralFold` manifest entries from custody and reaches homes on both targets.
+  These manual APIs contain no implicit loop. The separately named build-
+  selectable families own add-only, subtract-only, and exact combined fixed-
+  point schedules with verified no-change termination; none grants general
+  rematerialization, spill, frame, or emission authority.
   Default staging retains every environment-allocatable view and preserves the
   former spill-free homes. Selected-value ownership/proof custody and target
   frame policy must still join before any victim can become a typed spill or
@@ -1572,12 +1582,15 @@ dependency.
   original instruction/value/provenance/fuel anchors, and future use demands.
   Eligibility does not select, move, duplicate, or charge an instruction.
 
-  `SelectedIncomingU12ExactAddImmediateV1` closes one physical-form alternative
-  only: an incoming unsigned-u12 literal, uniquely materialized immediately
-  before its sole flexible right use by a proof-bearing exact add. It folds the
-  literal into the target-owned immediate row and preserves semantic/fuel
-  custody under complete replay and reanalysis. It is not a general spill or
-  rematerialization mechanism and never runs unless explicitly invoked.
+  `SelectedIncomingU12ExactAddImmediateV1` and
+  `SelectedIncomingU12ExactSubtractImmediateV1` each close one physical-form
+  alternative only: an incoming unsigned-u12 literal, uniquely materialized
+  immediately before its sole flexible right use by the matching proof-bearing
+  exact operation. Each folds the literal into its distinct target-owned
+  immediate row and preserves semantic/fuel custody under complete replay and
+  reanalysis. The combined policy is exactly their union. None is a general
+  spill or rematerialization mechanism, and none runs unless its exact source-
+  visible selection is present.
 
 - **OPT-STACK-SLOTS.** Assign aligned frame slots with lifetime-based reuse,
   outgoing-call areas, ABI shadow space/red-zone policy, dynamic restrictions,
@@ -1618,7 +1631,7 @@ dependency.
 
   Current slice: `omega-terminal-selected-instructions` now owns a closed v1
   target machine-effect catalog vocabulary, and the two clean Terminal ISA
-  owners publish and semantically validate catalogs for all eight currently
+  owners publish and semantically validate catalogs for all nine currently
   admitted selected kinds. Each declaration binds its exact register-
   constraint key, explicit no-memory/no-trap/no-call/no-cleanup status, control
   barrier status, stable target-alternative keys, and honest size/latency
@@ -1651,7 +1664,8 @@ dependency.
   fact crosses that boundary.
 
   The sidecar also has a strict, versioned, self-authenticating binary codec
-  (currently v3 after adding encoded-realization content).
+  (currently v4 after adding encoded-realization content and exact-subtract
+  immediate selection).
   Decoding rejects wrong framing or version, truncated or trailing data,
   unknown closed-vocabulary tags, and any identity/content mismatch. It grants
   no rewrite, home, emission, or publication authority.
@@ -1669,6 +1683,16 @@ dependency.
   orchestration covers ordinary homes, fixed-view-copy homes, literal-fold
   homes, and named selected-lowering completion homes without transferring
   emission authority.
+
+  The post-allocation sidecar now has its own strict v1 self-authenticating
+  codec. Its framed content binds every joined root, the exact choice rule,
+  function/block/instruction roster, chosen alternative, physical operand
+  footprint, and complete unit effects. Decoding rejects unknown tags, invalid
+  machine identities, truncation, trailing data, and stale content identities,
+  but deliberately returns a plain unchecked plan. Both supported ISAs prove
+  that a decoded plan must pass independent reconstruction before use; changing
+  a decoded alternative and recomputing its content identity still fails that
+  replay.
 
   x86 flag-transparent three-address addition uses one always-applicable LEA
   alternative for allocator-produced GPR64 homes. R12 is a valid SIB index

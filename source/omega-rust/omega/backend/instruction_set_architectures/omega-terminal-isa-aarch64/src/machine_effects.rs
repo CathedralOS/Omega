@@ -16,7 +16,7 @@ use omega_terminal_selected_instructions::{
 use crate::{
     AARCH64_AAPCS64_RETURN, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
     AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
-    AARCH64_SUBTRACT_I64,
+    AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -95,6 +95,7 @@ fn selected_keys(
         add_i64: AARCH64_ADD_I64,
         subtract_i64: AARCH64_SUBTRACT_I64,
         add_i64_immediate: AARCH64_ADD_I64_IMMEDIATE,
+        subtract_i64_immediate: AARCH64_SUBTRACT_I64_IMMEDIATE,
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         return_i64,
@@ -155,7 +156,8 @@ fn encoded_effects(semantic: TerminalMachineSemanticKind) -> TerminalMachineEnco
         TerminalMachineSemanticKind::CopyI64 => (vec![0], vec![1]),
         TerminalMachineSemanticKind::ExactAddI64
         | TerminalMachineSemanticKind::ExactSubtractI64 => (vec![0, 1], vec![2]),
-        TerminalMachineSemanticKind::ExactAddI64Immediate => (vec![0], vec![1]),
+        TerminalMachineSemanticKind::ExactAddI64Immediate
+        | TerminalMachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         TerminalMachineSemanticKind::ConditionalBranchNonZero
         | TerminalMachineSemanticKind::ReturnI64 => (vec![], vec![]),
     };

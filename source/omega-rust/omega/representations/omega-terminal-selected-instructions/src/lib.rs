@@ -63,6 +63,7 @@ pub struct TerminalSelectedConstraintKeys {
     pub add_i64: RegisterConstraintKey,
     pub subtract_i64: RegisterConstraintKey,
     pub add_i64_immediate: RegisterConstraintKey,
+    pub subtract_i64_immediate: RegisterConstraintKey,
     pub compare_i64_zero: RegisterConstraintKey,
     pub conditional_branch: RegisterConstraintKey,
     pub return_i64: RegisterConstraintKey,
@@ -192,6 +193,14 @@ pub enum TerminalSelectedInstructionKind {
     /// Exact mathematical addition with the right source value encoded as an
     /// instruction immediate. Proof and source-value custody remain explicit.
     ExactAddI64Immediate {
+        immediate: IntegerValue,
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+    },
+    /// Exact mathematical subtraction with the right source value encoded as
+    /// an instruction immediate. Operand order, proof, and source-value
+    /// custody remain explicit.
+    ExactSubtractI64Immediate {
         immediate: IntegerValue,
         obligation: ObligationId,
         accepted_fact: AcceptedObligationFactIdentity,

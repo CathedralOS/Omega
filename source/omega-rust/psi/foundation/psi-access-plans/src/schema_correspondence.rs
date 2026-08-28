@@ -206,6 +206,59 @@ pub struct AdmittedSchemaDeviceCorrespondence {
     revision: Option<RuntimeDeviceRevisionEvidence>,
 }
 
+/// Exact inert facts behind one admitted schema/device correspondence.
+///
+/// This context is deliberately not correspondence, placement, or device
+/// authority. It retains the complete admitted structure so a later provider
+/// receipt can be bound to more than the compact device and placement
+/// identities, without making the non-Clone correspondence itself reusable.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SchemaDeviceCorrespondenceReceiptContext {
+    provider: SchemaCorrespondenceProviderId,
+    device: StableDeviceInstanceId,
+    source: SchemaCorrespondenceSourceId,
+    placement: ValidatedPlacementPlan,
+    profile_receipt: ResourceProfileReceiptId,
+    revision: Option<RuntimeDeviceRevisionReceiptContext>,
+}
+
+impl SchemaDeviceCorrespondenceReceiptContext {
+    /// Nominal provider identity only; this does not grant correspondence or
+    /// device authority.
+    pub const fn provider(&self) -> SchemaCorrespondenceProviderId {
+        self.provider
+    }
+
+    /// Nominal stable-device identity only; this does not grant
+    /// correspondence or device authority.
+    pub const fn device(&self) -> StableDeviceInstanceId {
+        self.device
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct RuntimeDeviceRevisionReceiptContext {
+    observation: RuntimeDeviceRevisionObservationId,
+    predicate: DeviceRevisionPredicateId,
+    provider: SchemaCorrespondenceProviderId,
+    device: StableDeviceInstanceId,
+    profile_receipt: ResourceProfileReceiptId,
+    observed_revision: u64,
+}
+
+impl From<&RuntimeDeviceRevisionEvidence> for RuntimeDeviceRevisionReceiptContext {
+    fn from(revision: &RuntimeDeviceRevisionEvidence) -> Self {
+        Self {
+            observation: revision.observation,
+            predicate: revision.predicate,
+            provider: revision.provider,
+            device: revision.device,
+            profile_receipt: revision.profile_receipt,
+            observed_revision: revision.observed_revision,
+        }
+    }
+}
+
 impl AdmittedSchemaDeviceCorrespondence {
     pub const fn provider(&self) -> SchemaCorrespondenceProviderId {
         self.provider
@@ -233,6 +286,23 @@ impl AdmittedSchemaDeviceCorrespondence {
 
     pub const fn revision(&self) -> Option<&RuntimeDeviceRevisionEvidence> {
         self.revision.as_ref()
+    }
+
+    /// Export the complete inert structure for exact provider-receipt
+    /// binding. Cloning this context grants no correspondence, placement, or
+    /// device authority.
+    pub fn receipt_context(&self) -> SchemaDeviceCorrespondenceReceiptContext {
+        SchemaDeviceCorrespondenceReceiptContext {
+            provider: self.provider,
+            device: self.device,
+            source: self.source,
+            placement: self.placement.clone(),
+            profile_receipt: self.profile_receipt,
+            revision: self
+                .revision
+                .as_ref()
+                .map(RuntimeDeviceRevisionReceiptContext::from),
+        }
     }
 
     fn validate_structure(&self) -> Result<(), AccessPlanDiagnostic> {
@@ -852,5 +922,105 @@ mod tests {
             admitted.revision().expect("revision evidence").device(),
             device
         );
+    }
+
+    #[test]
+    fn receipt_context_compares_complete_correspondence_structure() {
+        let provider = provider_id(37);
+        let device = device_id(38);
+        let receipt = receipt_id(39);
+        let placement = test_placement(40);
+        let grant = SchemaDeviceCorrespondenceGrant::from_admitted_provider(
+            provider,
+            device,
+            source(41),
+            &placement,
+            receipt,
+            Some(revision(provider, device, receipt)),
+        )
+        .expect("provider correspondence grant");
+        let admitted = admit_schema_device_correspondence(grant, &placement, receipt)
+            .expect("exact placement/profile join");
+        let context = admitted.receipt_context();
+
+        let assert_drift = |drifted: &SchemaDeviceCorrespondenceReceiptContext| {
+            assert_eq!(context.device(), drifted.device());
+            assert_eq!(context.placement.identity(), drifted.placement.identity());
+            assert_ne!(&context, drifted);
+        };
+
+        assert_eq!(context, context.clone());
+        assert_eq!(context.provider(), provider);
+        assert_eq!(context.device(), device);
+
+        let mut provider_drift = context.clone();
+        provider_drift.provider = provider_id(42);
+        assert_drift(&provider_drift);
+
+        let mut source_drift = context.clone();
+        source_drift.source = source(43);
+        assert_drift(&source_drift);
+
+        let mut profile_drift = context.clone();
+        profile_drift.profile_receipt = receipt_id(44);
+        assert_drift(&profile_drift);
+
+        let mut revision_absent = context.clone();
+        revision_absent.revision = None;
+        assert_drift(&revision_absent);
+
+        let mut revision_observation_drift = context.clone();
+        revision_observation_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .observation =
+            RuntimeDeviceRevisionObservationId::from_normalized_identity(46).expect("observation");
+        assert_drift(&revision_observation_drift);
+
+        let mut revision_predicate_drift = context.clone();
+        revision_predicate_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .predicate =
+            DeviceRevisionPredicateId::from_normalized_identity(47).expect("predicate");
+        assert_drift(&revision_predicate_drift);
+
+        let mut revision_provider_drift = context.clone();
+        revision_provider_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .provider = provider_id(48);
+        assert_drift(&revision_provider_drift);
+
+        let mut revision_device_drift = context.clone();
+        revision_device_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .device = device_id(49);
+        assert_drift(&revision_device_drift);
+
+        let mut revision_profile_drift = context.clone();
+        revision_profile_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .profile_receipt = receipt_id(50);
+        assert_drift(&revision_profile_drift);
+
+        let mut revision_drift = context.clone();
+        revision_drift
+            .revision
+            .as_mut()
+            .expect("revision context")
+            .observed_revision = 0x18;
+        assert_drift(&revision_drift);
+
+        let mut placement_drift = context.clone();
+        placement_drift.placement.layout.schema_identity = 45;
+        assert_drift(&placement_drift);
     }
 }

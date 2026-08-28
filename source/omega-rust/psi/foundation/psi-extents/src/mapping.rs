@@ -266,6 +266,18 @@ struct MappingEvidence {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MappingReceiptContext(MappingEvidence);
 
+/// Opaque provider context binding one exact mapped subrange to the complete
+/// structural evidence for its active mapping.
+///
+/// This is an inert receipt input, not mapping or access authority. Its range
+/// geometry and mapping evidence remain private so cloning the context cannot
+/// expose or amplify the non-clonable [`MappedExtent`] authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MappedRangeReceiptContext {
+    mapping: MappingEvidence,
+    range: ValidatedExtentGeometry,
+}
+
 /// One active mapping. It owns the destination virtual-range authority and
 /// either owns or borrow-carries its source as declared by the grant.
 #[derive(Debug)]
@@ -518,6 +530,39 @@ impl<'source> MappedExtent<'source> {
     /// sole live authority over the translated range.
     pub fn receipt_context(&self) -> MappingReceiptContext {
         MappingReceiptContext(self.evidence.clone())
+    }
+
+    /// Export inert evidence for a receipt concerning one exact, nonempty
+    /// subrange of this mapping.
+    pub fn range_receipt_context(
+        &self,
+        offset: u64,
+        length: u64,
+    ) -> Result<MappedRangeReceiptContext, ExtentDiagnostic> {
+        if length == 0 {
+            return Err(ExtentDiagnostic(
+                "mapped receipt range cannot be empty".into(),
+            ));
+        }
+        let end = offset
+            .checked_add(length)
+            .ok_or_else(|| ExtentDiagnostic("mapped receipt range overflows".into()))?;
+        if end > self.mapped.length() {
+            return Err(ExtentDiagnostic(format!(
+                "mapped receipt range {offset}..{end} exceeds {}-byte mapping",
+                self.mapped.length()
+            )));
+        }
+        let base = self
+            .mapped
+            .base()
+            .checked_add(offset)
+            .ok_or_else(|| ExtentDiagnostic("mapped receipt base overflows".into()))?;
+        let range = ValidatedExtentGeometry::check(base, length)?;
+        Ok(MappedRangeReceiptContext {
+            mapping: self.evidence.clone(),
+            range,
+        })
     }
 
     pub fn loan(&self, offset: u64, length: u64) -> Result<ExtentLoan<'_>, ExtentDiagnostic> {
@@ -1187,6 +1232,56 @@ mod tests {
             .complete(receipt)
             .expect_err("activation receipt cannot replay across exact authority drift");
         assert!(error.diagnostic().0.contains("exact pending mapping"));
+    }
+
+    #[test]
+    fn mapped_range_receipt_context_binds_complete_mapping_evidence_and_exact_range() {
+        let grant = mapping_grant(MappingSourceMode::Owned);
+        let first = map_owned(source(), destination(), mapping_id(54), &grant)
+            .expect("first pending mapping");
+        let receipt = activate(&first);
+        let first = first.complete(receipt).expect("first active mapping");
+
+        let drifted_source = extent(9, 0x1000, 0x1000, 10, 20, &[100]);
+        let drifted_destination = extent(10, 0xffff_8000_0000_0000, 0x1000, 11, 22, &[200]);
+        let drifted = map_owned(drifted_source, drifted_destination, mapping_id(54), &grant)
+            .expect("same compact IDs with different authority lineages");
+        let receipt = activate(&drifted);
+        let drifted = drifted.complete(receipt).expect("drifted active mapping");
+
+        let exact = first
+            .range_receipt_context(0x100, 0x80)
+            .expect("exact mapped range");
+        assert_eq!(exact, exact.clone());
+        assert_ne!(
+            exact,
+            drifted
+                .range_receipt_context(0x100, 0x80)
+                .expect("same range in structurally drifted mapping")
+        );
+        assert_ne!(
+            exact,
+            first
+                .range_receipt_context(0x180, 0x80)
+                .expect("different exact mapped range")
+        );
+    }
+
+    #[test]
+    fn mapped_range_receipt_context_rejects_invalid_ranges() {
+        let pending = map_owned(
+            source(),
+            destination(),
+            mapping_id(55),
+            &mapping_grant(MappingSourceMode::Owned),
+        )
+        .expect("pending mapping");
+        let receipt = activate(&pending);
+        let mapping = pending.complete(receipt).expect("active mapping");
+
+        assert!(mapping.range_receipt_context(0, 0).is_err());
+        assert!(mapping.range_receipt_context(u64::MAX, 2).is_err());
+        assert!(mapping.range_receipt_context(0xff0, 0x20).is_err());
     }
 
     #[test]
