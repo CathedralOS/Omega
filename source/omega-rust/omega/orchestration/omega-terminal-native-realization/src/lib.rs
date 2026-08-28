@@ -37,33 +37,6 @@ use psi_checked_trees_to_terminal::{
 };
 use psi_diagnostics::Diagnostic;
 
-#[derive(Debug)]
-enum StagedAbstractOperations {
-    Compatibility(omega_terminal_abstract_operations::TerminalAbstractOperationPlan),
-    Optimized(Box<omega_lowering_optimizer::ValidatedOptimizedAbstractPlan>),
-}
-
-impl StagedAbstractOperations {
-    fn plan(&self) -> &omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
-        match self {
-            Self::Compatibility(plan) => plan,
-            Self::Optimized(optimized) => optimized.plan(),
-        }
-    }
-
-    /// Provider installation admission replays the canonical artifact, so it
-    /// must compare against the verified pre-rewrite plan. The optimized plan
-    /// remains the only plan used for target lowering.
-    fn provider_installation_plan(
-        &self,
-    ) -> &omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
-        match self {
-            Self::Compatibility(plan) => plan,
-            Self::Optimized(optimized) => optimized.verified_input().plan(),
-        }
-    }
-}
-
 /// Provider-supplied realization input for one Terminal boundary. The exact
 /// requirement comes from admitted execution evidence rather than a caller-
 /// authored numeric boundary ID.
@@ -432,6 +405,11 @@ pub fn realize_terminal_native_artifact(
     terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact,
     request: TerminalNativeRealizationRequest<'_>,
 ) -> Result<TerminalNativeArtifact, Vec<Diagnostic>> {
+    if !request.optimization_selections.is_empty() {
+        return Err(selected_physical_pipeline_not_publishable(
+            request.optimization_selections,
+        ));
+    }
     request
         .program_entry
         .validate_for_target(request.target)
@@ -441,30 +419,12 @@ pub fn realize_terminal_native_artifact(
         .map_err(|error| realization_error("canonical artifact replay", error))?;
     let semantic_bytes = terminal_artifact.semantic_bytes();
     let proof_bytes = terminal_artifact.proof_bytes();
-    let abstract_operations = if request.optimization_selections.is_empty() {
-        StagedAbstractOperations::Compatibility(
-            omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
-                semantic_bytes,
-                proof_bytes,
-                request.profile,
-            )
-            .map_err(|error| realization_error("verified artifact lowering", error))?,
-        )
-    } else {
-        let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
-            request.optimization_selections,
-        )
-        .expect("the selected realization branch is nonempty");
-        StagedAbstractOperations::Optimized(Box::new(
-            omega_optimization_pipeline::optimize_artifact_sections(
-                semantic_bytes,
-                proof_bytes,
-                request.profile,
-                optimization_request,
-            )
-            .map_err(|error| realization_error("verified optimization", error))?,
-        ))
-    };
+    let abstract_operations = omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
+        semantic_bytes,
+        proof_bytes,
+        request.profile,
+    )
+    .map_err(|error| realization_error("verified artifact lowering", error))?;
 
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(request.settlements.len());
@@ -497,7 +457,6 @@ pub fn realize_terminal_native_artifact(
             ))]);
         }
         let matching_boundaries = abstract_operations
-            .plan()
             .boundary_machines
             .iter()
             .filter(|boundary| boundary.identity == requirement)
@@ -532,7 +491,7 @@ pub fn realize_terminal_native_artifact(
             ))
     });
 
-    let installation_plan = abstract_operations.provider_installation_plan();
+    let installation_plan = &abstract_operations;
     let provider_installation = if installation_plan.provider_candidates.is_empty() {
         None
     } else {
@@ -559,49 +518,20 @@ pub fn realize_terminal_native_artifact(
         }
     };
 
-    let target_operations = match abstract_operations {
-        StagedAbstractOperations::Compatibility(abstract_operations) => {
-            match provider_installation.as_ref() {
-                Some(installation) => {
-                    lower_to_target_operations_with_provider_executions_and_installation(
-                        &abstract_operations,
-                        request.target,
-                        &admitted,
-                        Some(installation),
-                    )
-                }
-                None => lower_to_target_operations_with_provider_executions(
-                    &abstract_operations,
-                    request.target,
-                    &admitted,
-                ),
-            }
-            .map_err(|error| realization_error("target operation lowering", error))?
-        }
-        StagedAbstractOperations::Optimized(optimized) => {
-            let physical = match provider_installation {
-                Some(installation) => omega_optimization_pipeline::
-                    stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
-                        *optimized,
-                        request.target,
-                        &admitted,
-                        installation,
-                    ),
-                None => omega_optimization_pipeline::
-                    stage_optimized_verified_physical_pipeline_with_provider_executions(
-                        *optimized,
-                        request.target,
-                        &admitted,
-                    ),
-            };
-            let _physical = physical.map_err(|error| {
-                optimized_physical_stage_error(request.optimization_selections, error)
-            })?;
-            return Err(optimized_publication_unavailable(
-                request.optimization_selections,
-            ));
-        }
-    };
+    let target_operations = match provider_installation.as_ref() {
+        Some(installation) => lower_to_target_operations_with_provider_executions_and_installation(
+            &abstract_operations,
+            request.target,
+            &admitted,
+            Some(installation),
+        ),
+        None => lower_to_target_operations_with_provider_executions(
+            &abstract_operations,
+            request.target,
+            &admitted,
+        ),
+    }
+    .map_err(|error| realization_error("target operation lowering", error))?;
     let assigned =
         omega_terminal_target_operations_to_assigned_target_operations::assign_registers(
             &target_operations,
@@ -729,22 +659,7 @@ fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagno
     ))]
 }
 
-fn optimized_physical_stage_error(
-    selections: &omega_optimization_core::OptimizationSelections,
-    error: impl std::fmt::Display,
-) -> Vec<Diagnostic> {
-    let names = selections
-        .as_slice()
-        .iter()
-        .map(|optimization| optimization.build_case_name())
-        .collect::<Vec<_>>()
-        .join("`, `");
-    vec![Diagnostic::error(format!(
-        "selected optimizations `{names}` entered the optimized verified physical pipeline but failed at a named validation boundary: {error}; no output was installed"
-    ))]
-}
-
-fn optimized_publication_unavailable(
+fn selected_physical_pipeline_not_publishable(
     selections: &omega_optimization_core::OptimizationSelections,
 ) -> Vec<Diagnostic> {
     debug_assert!(!selections.is_empty());
@@ -755,7 +670,7 @@ fn optimized_publication_unavailable(
         .collect::<Vec<_>>()
         .join("`, `");
     vec![Diagnostic::error(format!(
-        "selected optimization{} `{names}` completed the verified physical pipeline through post-allocation machine validation, but frame/exit, emission, artifact, and optimized component publication validation are not available yet; no output was installed",
+        "selected optimization{} `{names}` cannot enter native production: the selected-instruction pipeline does not yet cover baseline frame/exit, executable-image, and publication validation; no alternate compiler route was run",
         if selections.as_slice().len() == 1 {
             ""
         } else {
