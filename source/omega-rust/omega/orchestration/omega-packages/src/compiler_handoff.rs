@@ -157,6 +157,9 @@ mod tests {
         dependency_requests: Vec<DependencySourceRequest>,
     ) -> PackageSourceCustody {
         std::fs::create_dir_all(&source_root).expect("create source root");
+        let source_root = source_root
+            .canonicalize()
+            .expect("retain the canonical synthetic source root");
         let source = crate::resolve_local_source(&source_root, crate::LocalSourceLimits::default())
             .expect("derive synthetic source identity");
         #[cfg(unix)]
