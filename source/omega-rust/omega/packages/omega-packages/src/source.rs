@@ -1,16 +1,38 @@
 use crate::identity::{
-    GitObjectIdAlgorithm, GitTransport, IdentityError, SourceContentDigest, SourceLineage,
+    GitObjectIdAlgorithm, GitRequestedNetworkEndpoint, GitTransport, IdentityError,
+    SourceContentDigest, SourceLineage,
 };
 use crate::record_file::{RecordFileLimits, RecordFileRoot};
-use cap_std::{ambient_authority, fs::Dir as CapabilityDirectory};
-use command_group::{CommandGroup, GroupChild};
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+#[cfg(unix)]
+use cap_std::fs::{
+    DirBuilderExt as CapabilityDirBuilderExt, OpenOptionsExt as CapabilityOpenOptionsExt,
+    PermissionsExt as CapabilityPermissionsExt,
+};
+use cap_std::{
+    ambient_authority,
+    fs::{
+        Dir as CapabilityDirectory, DirBuilder as CapabilityDirBuilder,
+        Metadata as CapabilityMetadata, OpenOptions as CapabilityOpenOptions,
+    },
+};
+use omega_resolver_execution::{
+    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
+    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionBackend, ResolverExecutionChild,
+    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
+    ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
+    ResolverExecutionPolicyObservation, ResolverExecutionRequestedEndpoint,
+    ResolverExecutionTransferBudget,
+};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
-use std::cell::Cell;
+use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
+#[cfg(test)]
+use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -19,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v12";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v28";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -40,6 +62,7 @@ const CACHE_CUSTODY_ENTRY_LIMIT: usize = 65_536;
 const SOURCE_ENTRY_ABSOLUTE_LIMIT: usize = 65_536;
 const SOURCE_BYTE_ABSOLUTE_LIMIT: u64 = 512 * 1024 * 1024;
 const SOURCE_DEPTH_ABSOLUTE_LIMIT: usize = 256;
+const CACHE_CUSTODY_DEPTH_LIMIT: usize = SOURCE_DEPTH_ABSOLUTE_LIMIT + 4;
 const GIT_LOCATOR_BYTE_LIMIT: usize = 4 * 1024;
 const GIT_REVISION_BYTE_LIMIT: usize = 1024;
 const CACHE_CUSTODY_FIXED_BYTE_ALLOWANCE: u64 = 64 * 1024 * 1024;
@@ -48,12 +71,18 @@ const LOCAL_CACHE_CUSTODY_ABSOLUTE_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 const GIT_COMMAND_TIMEOUT: Duration = Duration::from_secs(120);
 const GIT_STDOUT_LIMIT: usize = 16 * 1024 * 1024;
 const GIT_STDERR_LIMIT: usize = 1024 * 1024;
+const GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
+const GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
+const GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE: u64 = 64 * 1024 * 1024;
+const GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT: u64 = 576 * 1024 * 1024;
 const GIT_EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
 const GIT_RESOLUTION_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
+const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 4;
+const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v4";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +150,7 @@ pub struct GitSourceRequest {
     requested_revision: String,
     lineage: SourceLineage,
     execution_transport: GitExecutionTransport,
+    requested_network_endpoint: GitRequestedNetworkEndpoint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -153,6 +183,15 @@ impl GitExecutionTransport {
         match transport {
             GitTransport::Https => Self::Https,
             GitTransport::SshUrl | GitTransport::ScpLike => Self::Ssh,
+        }
+    }
+
+    fn resolver_network_transport(self) -> ResolverExecutionNetworkTransport {
+        match self {
+            Self::Ssh => ResolverExecutionNetworkTransport::Ssh,
+            Self::Https => ResolverExecutionNetworkTransport::Https,
+            #[cfg(test)]
+            Self::File => ResolverExecutionNetworkTransport::Ssh,
         }
     }
 
@@ -217,8 +256,9 @@ impl GitSourceRequest {
                 IdentityError::MalformedGitLocator,
             ));
         }
-        let (lineage, locator_transport) = SourceLineage::git_with_transport(&locator)
-            .map_err(GitSourceRequestError::InvalidLocator)?;
+        let (lineage, locator_transport, requested_network_endpoint) =
+            SourceLineage::git_with_transport(&locator)
+                .map_err(GitSourceRequestError::InvalidLocator)?;
         let requested_revision = revision.unwrap_or_else(|| "HEAD".to_owned());
         validate_git_revision(&requested_revision)?;
         let locator_identity = canonical_git_locator(&lineage);
@@ -229,6 +269,7 @@ impl GitSourceRequest {
             requested_revision,
             lineage,
             execution_transport: GitExecutionTransport::from_locator_transport(locator_transport),
+            requested_network_endpoint,
         })
     }
 
@@ -259,6 +300,12 @@ impl GitSourceRequest {
 
     fn execution_transport(&self) -> GitExecutionTransport {
         self.execution_transport
+    }
+
+    // Retained for the later broker integration without exposing endpoint injection.
+    #[allow(dead_code)]
+    pub(crate) fn requested_network_endpoint(&self) -> &GitRequestedNetworkEndpoint {
+        &self.requested_network_endpoint
     }
 
     pub fn transport_profile(&self) -> GitTransportProfile {
@@ -392,20 +439,553 @@ fn canonical_git_locator(lineage: &SourceLineage) -> String {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ResolvedGitSource {
-    pub requested_locator: String,
-    pub locator_identity: String,
-    pub transport_profile: GitTransportProfile,
-    pub requested_rev: String,
-    pub commit: String,
-    pub tree: String,
-    pub snapshot_root: PathBuf,
-    pub local: ResolvedLocalSource,
+    requested_locator: String,
+    locator_identity: String,
+    transport_profile: GitTransportProfile,
+    requested_rev: String,
+    commit: String,
+    tree: String,
+    snapshot_root: PathBuf,
+    local: ResolvedLocalSource,
     /// Absolute parent Git executable identity observed before and after every launch.
     /// This is diagnostic custody, not certification of the executable.
-    pub git_executable: GitExecutableIdentity,
+    git_executable: GitExecutableIdentity,
     /// Exact transport executable observed for HTTPS or SSH resolution.
     /// The test-only file adapter retains no transport executable here.
-    pub transport_executable: Option<GitTransportExecutableIdentity>,
+    transport_executable: Option<GitTransportExecutableIdentity>,
+    /// Fixed platform executables admitted in addition to Git and the selected
+    /// transport helper. Each identity binds its invocation path, canonical
+    /// target, and exact content digest.
+    execution_helper_executables: Vec<GitTransportExecutableIdentity>,
+    /// Locally reconstructed native policy observations for every command
+    /// configured during this resolution. These rows are provenance, not accepted source
+    /// authority; strict admission must reject any unavailable required row.
+    execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
+    command_execution_observations: Vec<GitCommandExecutionObservation>,
+    captured_output_observation: GitCapturedOutputObservation,
+    network_transfer_observation: GitNetworkTransferObservation,
+    resolution_observation: GitSourceResolutionObservation,
+}
+
+impl ResolvedGitSource {
+    pub fn requested_locator(&self) -> &str {
+        &self.requested_locator
+    }
+
+    pub fn locator_identity(&self) -> &str {
+        &self.locator_identity
+    }
+
+    pub const fn transport_profile(&self) -> GitTransportProfile {
+        self.transport_profile
+    }
+
+    pub fn requested_revision(&self) -> &str {
+        &self.requested_rev
+    }
+
+    pub fn commit(&self) -> &str {
+        &self.commit
+    }
+
+    pub fn tree(&self) -> &str {
+        &self.tree
+    }
+
+    pub fn snapshot_root(&self) -> &Path {
+        &self.snapshot_root
+    }
+
+    pub const fn local(&self) -> &ResolvedLocalSource {
+        &self.local
+    }
+
+    pub const fn git_executable(&self) -> &GitExecutableIdentity {
+        &self.git_executable
+    }
+
+    pub const fn transport_executable(&self) -> Option<&GitTransportExecutableIdentity> {
+        self.transport_executable.as_ref()
+    }
+
+    pub fn execution_policy_observations(&self) -> &[ResolverExecutionPolicyObservation] {
+        &self.execution_policy_observations
+    }
+
+    pub fn execution_helper_executables(&self) -> &[GitTransportExecutableIdentity] {
+        &self.execution_helper_executables
+    }
+
+    pub fn command_execution_observations(&self) -> &[GitCommandExecutionObservation] {
+        &self.command_execution_observations
+    }
+
+    pub const fn captured_output_observation(&self) -> &GitCapturedOutputObservation {
+        &self.captured_output_observation
+    }
+
+    pub const fn network_transfer_observation(&self) -> &GitNetworkTransferObservation {
+        &self.network_transfer_observation
+    }
+
+    /// Canonical final-result provenance issued only after source, cache,
+    /// executable, policy, and command reconciliation all succeed.
+    ///
+    /// This is not a strict source receipt: it preserves unavailable native
+    /// guarantees rather than converting them into accepted authority.
+    pub fn resolution_observation(&self) -> &GitSourceResolutionObservation {
+        &self.resolution_observation
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct PendingResolvedGitSource {
+    requested_locator: String,
+    locator_identity: String,
+    transport_profile: GitTransportProfile,
+    requested_rev: String,
+    commit: String,
+    tree: String,
+    snapshot_root: PathBuf,
+    local: ResolvedLocalSource,
+    git_executable: GitExecutableIdentity,
+    transport_executable: Option<GitTransportExecutableIdentity>,
+    execution_helper_executables: Vec<GitTransportExecutableIdentity>,
+    execution_policy_observations: Vec<ResolverExecutionPolicyObservation>,
+    command_execution_observations: Vec<GitCommandExecutionObservation>,
+    captured_output_observation: GitCapturedOutputObservation,
+    network_transfer_observation: GitNetworkTransferObservation,
+}
+
+#[cfg(test)]
+impl PendingResolvedGitSource {
+    fn from_issued(resolved: &ResolvedGitSource) -> Self {
+        Self {
+            requested_locator: resolved.requested_locator.clone(),
+            locator_identity: resolved.locator_identity.clone(),
+            transport_profile: resolved.transport_profile,
+            requested_rev: resolved.requested_rev.clone(),
+            commit: resolved.commit.clone(),
+            tree: resolved.tree.clone(),
+            snapshot_root: resolved.snapshot_root.clone(),
+            local: resolved.local.clone(),
+            git_executable: resolved.git_executable.clone(),
+            transport_executable: resolved.transport_executable.clone(),
+            execution_helper_executables: resolved.execution_helper_executables.clone(),
+            execution_policy_observations: resolved.execution_policy_observations.clone(),
+            command_execution_observations: resolved.command_execution_observations.clone(),
+            captured_output_observation: resolved.captured_output_observation.clone(),
+            network_transfer_observation: resolved.network_transfer_observation.clone(),
+        }
+    }
+}
+
+/// Compiler-owned cumulative stdout/stderr accounting for one Git resolution.
+///
+/// This observation covers only bytes captured by the parent process. It does
+/// not measure network transfer, object-store allocation, or descendant
+/// aggregate resources.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitCapturedOutputObservation {
+    ceiling: u64,
+    observed: u64,
+}
+
+impl GitCapturedOutputObservation {
+    pub const fn ceiling(&self) -> u64 {
+        self.ceiling
+    }
+
+    pub const fn observed(&self) -> u64 {
+        self.observed
+    }
+}
+
+/// Compiler-owned bidirectional accounting for bytes accepted by the endpoint
+/// broker across one Git resolution. CONNECT framing and DNS traffic are not
+/// included. This does not claim that every platform prevents direct helper
+/// egress around the broker.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitNetworkTransferObservation {
+    ceiling: u64,
+    uploaded: u64,
+    downloaded: u64,
+}
+
+impl GitNetworkTransferObservation {
+    pub const fn ceiling(&self) -> u64 {
+        self.ceiling
+    }
+
+    pub const fn uploaded(&self) -> u64 {
+        self.uploaded
+    }
+
+    pub const fn downloaded(&self) -> u64 {
+        self.downloaded
+    }
+
+    pub const fn observed(&self) -> u64 {
+        self.uploaded + self.downloaded
+    }
+}
+
+/// Compact canonical identity of one locally successful Git resolution.
+///
+/// The observation is issued by the resolver and has no public constructor or
+/// decoder. It binds the complete successful result and all retained native
+/// execution provenance, but it does not claim strict isolation or admission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitSourceResolutionObservation {
+    schema_version: u32,
+    identity: String,
+    command_count: usize,
+    captured_output_ceiling: u64,
+    captured_output_observed: u64,
+    network_transfer_ceiling: u64,
+    network_transfer_uploaded: u64,
+    network_transfer_downloaded: u64,
+}
+
+impl GitSourceResolutionObservation {
+    pub const fn schema_version(&self) -> u32 {
+        self.schema_version
+    }
+
+    pub fn identity(&self) -> &str {
+        &self.identity
+    }
+
+    pub const fn command_count(&self) -> usize {
+        self.command_count
+    }
+
+    pub const fn captured_output_ceiling(&self) -> u64 {
+        self.captured_output_ceiling
+    }
+
+    pub const fn captured_output_observed(&self) -> u64 {
+        self.captured_output_observed
+    }
+
+    pub const fn network_transfer_ceiling(&self) -> u64 {
+        self.network_transfer_ceiling
+    }
+
+    pub const fn network_transfer_uploaded(&self) -> u64 {
+        self.network_transfer_uploaded
+    }
+
+    pub const fn network_transfer_downloaded(&self) -> u64 {
+        self.network_transfer_downloaded
+    }
+}
+
+fn issue_git_source_resolution_observation(
+    resolved: &PendingResolvedGitSource,
+    limits: LocalSourceLimits,
+) -> Result<GitSourceResolutionObservation, SourceResolveError> {
+    if resolved.execution_policy_observations.len() != resolved.command_execution_observations.len()
+        || resolved.command_execution_observations.len() > GIT_FIXED_COMMAND_ALLOWANCE
+    {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git resolution provenance has inconsistent command custody".to_owned(),
+        });
+    }
+    for (policy, command) in resolved
+        .execution_policy_observations
+        .iter()
+        .zip(&resolved.command_execution_observations)
+    {
+        if command.phase != policy.phase()
+            || command.policy_identity != format_sha256(&Sha256::digest(policy.canonical_bytes()))
+            || match (policy.endpoint_route(), &command.endpoint_observation) {
+                (Some(route), Some(endpoint)) => endpoint.route() != route,
+                (None, None) => false,
+                _ => true,
+            }
+        {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "final Git execution rows are not joined to their native policies"
+                    .to_owned(),
+            });
+        }
+    }
+    let expected_captured_output = git_captured_output_observation(
+        &resolved.command_execution_observations,
+        git_resolution_captured_output_ceiling(limits),
+    )?;
+    if resolved.captured_output_observation != expected_captured_output {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git resolution captured-output accounting is inconsistent".to_owned(),
+        });
+    }
+    let expected_network_transfer = git_network_transfer_observation(
+        &resolved.execution_policy_observations,
+        &resolved.command_execution_observations,
+        git_resolution_network_transfer_ceiling(limits),
+    )?;
+    if resolved.network_transfer_observation != expected_network_transfer {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "final Git resolution network-transfer accounting is inconsistent".to_owned(),
+        });
+    }
+    let object_algorithm = git_object_algorithm(&resolved.commit)?;
+    if git_object_algorithm(&resolved.tree)? != object_algorithm {
+        return Err(git_object_invalid(
+            &resolved.tree,
+            "final commit and tree use different object algorithms",
+        ));
+    }
+
+    let mut hasher = Sha256::new();
+    hash_resolution_field(&mut hasher, GIT_RESOLUTION_OBSERVATION_DOMAIN);
+    hash_resolution_u64(
+        &mut hasher,
+        u64::from(GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION),
+    );
+    hash_resolution_field(&mut hasher, GIT_CACHE_POLICY);
+    hash_resolution_field(&mut hasher, GIT_SNAPSHOT_POLICY);
+    hash_resolution_field(&mut hasher, resolved.requested_locator.as_bytes());
+    hash_resolution_field(&mut hasher, resolved.locator_identity.as_bytes());
+    hash_resolution_field(&mut hasher, resolved.transport_profile.as_str().as_bytes());
+    hash_resolution_field(&mut hasher, resolved.requested_rev.as_bytes());
+    hash_resolution_field(
+        &mut hasher,
+        match object_algorithm {
+            GitObjectIdAlgorithm::Sha1 => b"sha1",
+            GitObjectIdAlgorithm::Sha256 => b"sha256",
+        },
+    );
+    hash_resolution_field(&mut hasher, resolved.commit.as_bytes());
+    hash_resolution_field(&mut hasher, resolved.tree.as_bytes());
+    hash_resolution_path(&mut hasher, &resolved.snapshot_root);
+    hash_resolution_path(&mut hasher, &resolved.local.root);
+    hash_resolution_usize(&mut hasher, resolved.local.file_count);
+    hash_resolution_u64(&mut hasher, resolved.local.byte_count);
+    hash_resolution_field(&mut hasher, resolved.local.content_identity.as_bytes());
+    hash_resolution_usize(&mut hasher, limits.max_files);
+    hash_resolution_u64(&mut hasher, limits.max_bytes);
+    hash_resolution_usize(&mut hasher, limits.max_depth);
+
+    hash_resolution_path(&mut hasher, &resolved.git_executable.path);
+    hash_resolution_field(
+        &mut hasher,
+        resolved.git_executable.content_identity.as_bytes(),
+    );
+    match &resolved.transport_executable {
+        Some(executable) => {
+            hash_resolution_field(&mut hasher, b"transport-present");
+            hash_resolution_transport_executable(&mut hasher, executable);
+        }
+        None => hash_resolution_field(&mut hasher, b"transport-absent"),
+    }
+    hash_resolution_usize(&mut hasher, resolved.execution_helper_executables.len());
+    for executable in &resolved.execution_helper_executables {
+        hash_resolution_transport_executable(&mut hasher, executable);
+    }
+
+    hash_resolution_usize(&mut hasher, resolved.execution_policy_observations.len());
+    for observation in &resolved.execution_policy_observations {
+        hash_resolution_field(&mut hasher, &observation.canonical_bytes());
+    }
+    hash_resolution_usize(&mut hasher, resolved.command_execution_observations.len());
+    for observation in &resolved.command_execution_observations {
+        hash_resolution_field(
+            &mut hasher,
+            match observation.phase {
+                ResolverExecutionPhase::TransportDiscovery => b"transport-discovery",
+                ResolverExecutionPhase::RepositoryInitialization => b"repository-initialization",
+                ResolverExecutionPhase::Fetch => b"fetch",
+                ResolverExecutionPhase::RepositoryInspection => b"repository-inspection",
+            },
+        );
+        hash_resolution_field(&mut hasher, observation.policy_identity.as_bytes());
+        hash_resolution_field(&mut hasher, observation.command_identity.as_bytes());
+        hash_resolution_optional_i32(&mut hasher, observation.status_code);
+        hash_resolution_optional_i32(&mut hasher, observation.termination_signal);
+        hash_resolution_u64(&mut hasher, observation.stdout_length);
+        hash_resolution_field(&mut hasher, observation.stdout_identity.as_bytes());
+        hash_resolution_u64(&mut hasher, observation.stderr_length);
+        hash_resolution_field(&mut hasher, observation.stderr_identity.as_bytes());
+        match &observation.endpoint_observation {
+            Some(endpoint) => {
+                hash_resolution_field(&mut hasher, b"endpoint-present");
+                hash_resolution_field(&mut hasher, &endpoint.canonical_bytes());
+            }
+            None => hash_resolution_field(&mut hasher, b"endpoint-absent"),
+        }
+    }
+    hash_resolution_u64(&mut hasher, resolved.captured_output_observation.ceiling);
+    hash_resolution_u64(&mut hasher, resolved.captured_output_observation.observed);
+    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.ceiling);
+    hash_resolution_u64(&mut hasher, resolved.network_transfer_observation.uploaded);
+    hash_resolution_u64(
+        &mut hasher,
+        resolved.network_transfer_observation.downloaded,
+    );
+    hash_resolution_field(&mut hasher, b"resolved-non-admitting");
+
+    Ok(GitSourceResolutionObservation {
+        schema_version: GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION,
+        identity: format_sha256(&hasher.finalize()),
+        command_count: resolved.command_execution_observations.len(),
+        captured_output_ceiling: resolved.captured_output_observation.ceiling,
+        captured_output_observed: resolved.captured_output_observation.observed,
+        network_transfer_ceiling: resolved.network_transfer_observation.ceiling,
+        network_transfer_uploaded: resolved.network_transfer_observation.uploaded,
+        network_transfer_downloaded: resolved.network_transfer_observation.downloaded,
+    })
+}
+
+fn git_resolution_captured_output_ceiling(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_add(GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE)
+        .min(GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT)
+}
+
+fn git_resolution_network_transfer_ceiling(limits: LocalSourceLimits) -> u64 {
+    limits
+        .max_bytes
+        .saturating_add(GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE)
+        .min(GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT)
+}
+
+fn git_network_transfer_observation(
+    policies: &[ResolverExecutionPolicyObservation],
+    commands: &[GitCommandExecutionObservation],
+    ceiling: u64,
+) -> Result<GitNetworkTransferObservation, SourceResolveError> {
+    for policy in policies {
+        if let Some(route) = policy.endpoint_route()
+            && route.transfer_byte_ceiling() != ceiling
+        {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git endpoint route carries a different transfer ceiling".to_owned(),
+            });
+        }
+    }
+    let mut uploaded = 0_u64;
+    let mut downloaded = 0_u64;
+    for endpoint in commands
+        .iter()
+        .filter_map(|command| command.endpoint_observation.as_ref())
+    {
+        for event in endpoint.events() {
+            if event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached {
+                return Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling });
+            }
+            uploaded = uploaded
+                .checked_add(event.uploaded_bytes())
+                .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "Git upload accounting overflowed".to_owned(),
+                })?;
+            downloaded = downloaded
+                .checked_add(event.downloaded_bytes())
+                .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "Git download accounting overflowed".to_owned(),
+                })?;
+        }
+    }
+    let observed = uploaded.checked_add(downloaded).ok_or_else(|| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git network-transfer accounting overflowed".to_owned(),
+        }
+    })?;
+    if observed > ceiling {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git network-transfer observations exceed their compiler ceiling".to_owned(),
+        });
+    }
+    Ok(GitNetworkTransferObservation {
+        ceiling,
+        uploaded,
+        downloaded,
+    })
+}
+
+fn git_captured_output_observation(
+    commands: &[GitCommandExecutionObservation],
+    ceiling: u64,
+) -> Result<GitCapturedOutputObservation, SourceResolveError> {
+    let observed = commands.iter().try_fold(0_u64, |total, command| {
+        total
+            .checked_add(command.stdout_length)
+            .and_then(|total| total.checked_add(command.stderr_length))
+            .ok_or_else(|| SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git captured-output accounting overflowed".to_owned(),
+            })
+    })?;
+    if observed > ceiling {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "Git captured-output observations exceed their compiler ceiling".to_owned(),
+        });
+    }
+    Ok(GitCapturedOutputObservation { ceiling, observed })
+}
+
+fn hash_resolution_transport_executable(
+    hasher: &mut Sha256,
+    executable: &GitTransportExecutableIdentity,
+) {
+    hash_resolution_path(hasher, &executable.invocation_path);
+    hash_resolution_path(hasher, &executable.path);
+    hash_resolution_field(hasher, executable.content_identity.as_bytes());
+}
+
+fn hash_resolution_field(hasher: &mut Sha256, value: &[u8]) {
+    hasher.update(
+        u64::try_from(value.len())
+            .expect("bounded resolution fields fit canonical u64")
+            .to_le_bytes(),
+    );
+    hasher.update(value);
+}
+
+fn hash_resolution_u64(hasher: &mut Sha256, value: u64) {
+    hash_resolution_field(hasher, &value.to_le_bytes());
+}
+
+fn hash_resolution_usize(hasher: &mut Sha256, value: usize) {
+    hash_resolution_u64(
+        hasher,
+        u64::try_from(value).expect("compiler-owned source ceilings fit canonical u64"),
+    );
+}
+
+fn hash_resolution_optional_i32(hasher: &mut Sha256, value: Option<i32>) {
+    match value {
+        Some(value) => {
+            hash_resolution_field(hasher, b"some");
+            hash_resolution_field(hasher, &value.to_le_bytes());
+        }
+        None => hash_resolution_field(hasher, b"none"),
+    }
+}
+
+fn hash_resolution_path(hasher: &mut Sha256, path: &Path) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        hash_resolution_field(hasher, b"unix-path");
+        hash_resolution_field(hasher, path.as_os_str().as_bytes());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        hash_resolution_field(hasher, b"windows-path");
+        let units = path.as_os_str().encode_wide().collect::<Vec<_>>();
+        hash_resolution_usize(hasher, units.len());
+        for unit in units {
+            hash_resolution_field(hasher, &unit.to_le_bytes());
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        hash_resolution_field(hasher, b"platform-path");
+        hash_resolution_field(hasher, path.as_os_str().as_encoded_bytes());
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -421,14 +1001,6 @@ impl GitExecutableIdentity {
 
     pub fn content_identity(&self) -> &str {
         &self.content_identity
-    }
-
-    #[cfg(test)]
-    pub(crate) fn for_test(path: PathBuf, content_identity: String) -> Self {
-        Self {
-            path,
-            content_identity,
-        }
     }
 }
 
@@ -458,16 +1030,137 @@ impl GitTransportExecutableIdentity {
     }
 }
 
+/// Bounded result provenance for one successfully completed native Git
+/// command. This is locally constructed observation, not an admission receipt.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct GitCommandExecutionObservation {
+    phase: ResolverExecutionPhase,
+    policy_identity: String,
+    command_identity: String,
+    status_code: Option<i32>,
+    termination_signal: Option<i32>,
+    stdout_length: u64,
+    stdout_identity: String,
+    stderr_length: u64,
+    stderr_identity: String,
+    endpoint_observation: Option<ResolverExecutionEndpointObservation>,
+}
+
+impl GitCommandExecutionObservation {
+    pub const fn phase(&self) -> ResolverExecutionPhase {
+        self.phase
+    }
+
+    pub fn policy_identity(&self) -> &str {
+        &self.policy_identity
+    }
+
+    pub fn command_identity(&self) -> &str {
+        &self.command_identity
+    }
+
+    pub const fn status_code(&self) -> Option<i32> {
+        self.status_code
+    }
+
+    pub const fn termination_signal(&self) -> Option<i32> {
+        self.termination_signal
+    }
+
+    pub const fn stdout_length(&self) -> u64 {
+        self.stdout_length
+    }
+
+    pub fn stdout_identity(&self) -> &str {
+        &self.stdout_identity
+    }
+
+    pub const fn stderr_length(&self) -> u64 {
+        self.stderr_length
+    }
+
+    pub fn stderr_identity(&self) -> &str {
+        &self.stderr_identity
+    }
+
+    pub const fn endpoint_observation(&self) -> Option<&ResolverExecutionEndpointObservation> {
+        self.endpoint_observation.as_ref()
+    }
+}
+
 #[derive(Debug)]
 struct GitExecutor {
     identity: GitExecutableIdentity,
     metadata_identity: GitExecutableMetadataIdentity,
     transport_executable: Option<GitTransportExecutableObservation>,
+    execution_helpers: Vec<GitTransportExecutableObservation>,
     execution_transport: GitExecutionTransport,
+    requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
+    execution_policy_observations: RefCell<Vec<ResolverExecutionPolicyObservation>>,
+    command_execution_observations: RefCell<Vec<GitCommandExecutionObservation>>,
+    captured_output_budget: GitCapturedOutputBudget,
+    network_transfer_budget: ResolverExecutionTransferBudget,
     maximum_launches: usize,
+    execution_backend: ResolverExecutionBackend,
+}
+
+#[derive(Debug, Clone)]
+struct GitCapturedOutputBudget {
+    ceiling: u64,
+    observed: Arc<AtomicU64>,
+}
+
+impl GitCapturedOutputBudget {
+    fn new(ceiling: u64) -> Self {
+        Self {
+            ceiling,
+            observed: Arc::new(AtomicU64::new(0)),
+        }
+    }
+
+    fn observed(&self) -> u64 {
+        self.observed.load(Ordering::Acquire)
+    }
+
+    fn charge(&self, count: usize) -> Result<(), CapturedOutputLimitExceeded> {
+        let count = u64::try_from(count).map_err(|_| CapturedOutputLimitExceeded {
+            ceiling: self.ceiling,
+            attempted: u64::MAX,
+        })?;
+        let mut current = self.observed();
+        loop {
+            let attempted = current
+                .checked_add(count)
+                .ok_or(CapturedOutputLimitExceeded {
+                    ceiling: self.ceiling,
+                    attempted: u64::MAX,
+                })?;
+            if attempted > self.ceiling {
+                return Err(CapturedOutputLimitExceeded {
+                    ceiling: self.ceiling,
+                    attempted,
+                });
+            }
+            match self.observed.compare_exchange_weak(
+                current,
+                attempted,
+                Ordering::AcqRel,
+                Ordering::Acquire,
+            ) {
+                Ok(_) => return Ok(()),
+                Err(actual) => current = actual,
+            }
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct CapturedOutputLimitExceeded {
+    ceiling: u64,
+    attempted: u64,
 }
 
 #[derive(Debug)]
@@ -544,11 +1237,21 @@ pub enum SourceResolveError {
     GitExecutableChanged {
         path: PathBuf,
     },
+    GitExecutionBoundaryInvalid {
+        message: String,
+    },
     GitResolutionCommandLimit {
         limit: usize,
     },
     GitResolutionTimedOut {
         timeout_millis: u64,
+    },
+    GitResolutionCapturedOutputLimit {
+        ceiling: u64,
+        attempted: u64,
+    },
+    GitResolutionNetworkTransferCeiling {
+        ceiling: u64,
     },
     GitCleanupFailed {
         operation: String,
@@ -679,6 +1382,9 @@ impl fmt::Display for SourceResolveError {
                 "Git resolver executable `{}` changed during source resolution",
                 path.display()
             ),
+            Self::GitExecutionBoundaryInvalid { message } => {
+                write!(output, "Git native execution boundary is invalid: {message}")
+            }
             Self::GitResolutionCommandLimit { limit } => write!(
                 output,
                 "Git source resolution exceeded its {limit}-command launch ceiling"
@@ -686,6 +1392,14 @@ impl fmt::Display for SourceResolveError {
             Self::GitResolutionTimedOut { timeout_millis } => write!(
                 output,
                 "Git source resolution exceeded its {timeout_millis}-millisecond whole-operation deadline"
+            ),
+            Self::GitResolutionCapturedOutputLimit { ceiling, attempted } => write!(
+                output,
+                "Git source resolution attempted to capture {attempted} bytes across all commands, exceeding its {ceiling}-byte cumulative output ceiling"
+            ),
+            Self::GitResolutionNetworkTransferCeiling { ceiling } => write!(
+                output,
+                "Git source resolution reached its {ceiling}-byte broker-routed network-transfer ceiling"
             ),
             Self::GitCleanupFailed { operation, message } => write!(
                 output,
@@ -785,8 +1499,15 @@ pub(crate) fn capture_verified_package_source_snapshot(
     expected: &SourceContentDigest,
     limits: LocalSourceLimits,
 ) -> Result<Vec<VerifiedPackageSourceEntry>, SourceResolveError> {
-    verify_local_snapshot_modes(root)?;
-    let captured = capture_local_source(root, limits, SourceTreePolicy::ExactMaterialized)?;
+    let directory = open_absolute_directory_nofollow(root)
+        .map_err(|error| local_snapshot_invalid(root, error.to_string()))?;
+    verify_open_snapshot_tree_modes(CacheCustodyKind::LocalSnapshot, &directory, root)?;
+    let captured = capture_local_source_from_open_root(
+        root.to_path_buf(),
+        directory,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?;
     let actual = SourceContentDigest::derive(captured.normalized.content_identity.as_bytes());
     if &actual != expected {
         return Err(SourceResolveError::SourceSnapshotContentMismatch {
@@ -844,7 +1565,15 @@ pub fn resolve_git_source(
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
     let execution_transport = request.execution_transport();
-    let executor = GitExecutor::system(execution_transport)?;
+    #[cfg(test)]
+    let requested_network_endpoint = if execution_transport == GitExecutionTransport::File {
+        test_file_network_endpoint()
+    } else {
+        requested_network_endpoint(request)?
+    };
+    #[cfg(not(test))]
+    let requested_network_endpoint = requested_network_endpoint(request)?;
+    let executor = GitExecutor::system(execution_transport, requested_network_endpoint, limits)?;
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
@@ -858,36 +1587,70 @@ pub fn resolve_git_source(
             git_cache_identity(locator_identity, requested_rev, execution_transport);
         let entry_root = cache_dir.join(format!("git-{cache_identity}"));
         let lock_path = cache_dir.join(format!("git-{cache_identity}.lock"));
-        let _entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
-        let cache_entry_existed = entry_root.exists();
+        let entry_lock = CacheEntryLock::acquire_with_git_budget(&lock_path, &executor)?;
+        let entry_name =
+            direct_cache_child_name(CacheCustodyKind::Git, &cache_dir, &entry_root)?.to_os_string();
+        let cache_entry_existed = retained_cache_directory_exists(
+            CacheCustodyKind::Git,
+            entry_lock.parent(),
+            &entry_name,
+            &entry_root,
+        )?;
+        entry_lock.verify_path_identity()?;
 
         if cache_entry_existed {
-            if let Err(error) = verify_git_cache_entry(
+            let verification_result = VerifiedGitRepository::open(
+                entry_lock.parent(),
+                &entry_name,
                 &entry_root,
                 locator_identity,
                 requested_rev,
                 execution_transport,
                 limits,
-            ) {
-                invalidate_git_cache_entry(&entry_root);
-                return Err(error);
+            );
+            let namespace_result = entry_lock.verify_path_identity();
+            if verification_result.is_err() || namespace_result.is_err() {
+                let invalidation_result = invalidate_git_cache_entry_from_open_parent(
+                    &cache_dir,
+                    entry_lock.parent(),
+                    &entry_name,
+                    &entry_root,
+                );
+                let failure = reconcile_git_cache_operation_result(
+                    verification_result,
+                    namespace_result,
+                    Some(invalidation_result),
+                );
+                return Err(failure
+                    .err()
+                    .expect("failed cache verification must retain one failure"));
             }
         } else {
-            create_git_cache_entry(
+            let creation_result = create_git_cache_entry(
                 &executor,
                 &cache_dir,
+                entry_lock.parent(),
                 &entry_root,
+                &entry_name,
                 &cache_identity,
                 locator_identity,
                 request.fetch_locator(),
                 requested_rev,
                 execution_transport,
                 limits,
+            );
+            reconcile_git_cache_operation_result(
+                creation_result,
+                entry_lock.verify_path_identity(),
+                None,
             )?;
         }
 
+        entry_lock.verify_path_identity()?;
         let result = resolve_verified_git_cache_entry(
             &executor,
+            entry_lock.parent(),
+            &entry_name,
             &entry_root,
             request.requested_locator(),
             locator_identity,
@@ -897,15 +1660,32 @@ pub fn resolve_git_source(
             limits,
             !cache_entry_existed || !is_object_id(requested_rev),
         );
+        let namespace_result = entry_lock.verify_path_identity();
         match result {
-            Ok(resolved) => {
-                verify_git_cache_root_custody(&cache_dir)?;
-                verify_git_cache_custody(&entry_root, limits)?;
-                Ok(resolved)
+            Ok(pending) => {
+                namespace_result?;
+                finalize_git_resolution(
+                    pending,
+                    request,
+                    &executor,
+                    &entry_lock,
+                    &cache_dir,
+                    &entry_root,
+                    limits,
+                )
             }
             Err(error) => {
-                invalidate_git_cache_entry(&entry_root);
-                Err(error)
+                let invalidation_result = invalidate_git_cache_entry_from_open_parent(
+                    &cache_dir,
+                    entry_lock.parent(),
+                    &entry_name,
+                    &entry_root,
+                );
+                reconcile_git_cache_operation_result(
+                    Err(error),
+                    namespace_result,
+                    Some(invalidation_result),
+                )
             }
         }
     })();
@@ -913,8 +1693,22 @@ pub fn resolve_git_source(
     reconcile_git_command_result(result, executable_result, Ok(()))
 }
 
+fn requested_network_endpoint(
+    request: &GitSourceRequest,
+) -> Result<ResolverExecutionRequestedEndpoint, SourceResolveError> {
+    ResolverExecutionRequestedEndpoint::new(
+        request.requested_network_endpoint().host(),
+        request.requested_network_endpoint().port(),
+    )
+    .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+        message: format!("validated Git endpoint could not enter the native resolver: {error}"),
+    })
+}
+
 fn resolve_verified_git_cache_entry(
     executor: &GitExecutor,
+    cache_directory: &CapabilityDirectory,
+    entry_name: &OsStr,
     entry_root: &Path,
     requested_locator: &str,
     locator_identity: &str,
@@ -923,38 +1717,32 @@ fn resolve_verified_git_cache_entry(
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
     fetch_remote: bool,
-) -> Result<ResolvedGitSource, SourceResolveError> {
-    verify_git_cache_entry(
+) -> Result<PendingResolvedGitSource, SourceResolveError> {
+    let repository = VerifiedGitRepository::open(
+        cache_directory,
+        entry_name,
         entry_root,
         locator_identity,
         requested_rev,
         execution_transport,
         limits,
     )?;
-    let repository = entry_root.join(GIT_CACHE_REPOSITORY);
 
     if fetch_remote {
-        let canonical_config = read_canonical_git_config(&repository)?;
+        let canonical_config = repository.read_canonical_config()?;
         let arguments = bounded_git_fetch_arguments(fetch_locator, requested_rev, limits);
-        run_git(executor, &repository, arguments.iter())?;
-        restore_canonical_git_config(&repository, &canonical_config)?;
+        repository.run_git(executor, arguments.iter())?;
+        repository.restore_canonical_config(&canonical_config)?;
     }
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+    repository.verify_current(limits)?;
 
     let selected_revision = if fetch_remote {
         "FETCH_HEAD"
     } else {
         requested_rev
     };
-    let commit = run_git_stdout(
+    let commit = repository.run_git_stdout(
         executor,
-        &repository,
         [
             OsStr::new("rev-parse"),
             OsStr::new("--verify"),
@@ -963,9 +1751,8 @@ fn resolve_verified_git_cache_entry(
     )?;
     let commit = commit.trim().to_owned();
     verify_exact_git_revision(requested_rev, &commit)?;
-    let tree = run_git_stdout(
+    let tree = repository.run_git_stdout(
         executor,
-        &repository,
         [
             OsStr::new("rev-parse"),
             OsStr::new("--verify"),
@@ -973,26 +1760,16 @@ fn resolve_verified_git_cache_entry(
         ],
     )?;
     let tree = tree.trim().to_owned();
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+    repository.verify_current(limits)?;
     authenticate_git_commit(executor, &repository, &commit, &tree)?;
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
+    repository.verify_current(limits)?;
     let (snapshot_root, local) =
-        resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
-    verify_git_cache_entry(
-        entry_root,
-        locator_identity,
-        requested_rev,
-        execution_transport,
-        limits,
-    )?;
+        resolve_git_snapshot(executor, &repository, &tree, entries, limits)?;
+    repository.verify_current(limits)?;
     executor.verify()?;
-    Ok(ResolvedGitSource {
+    executor.validate_execution_policy_observations()?;
+    Ok(PendingResolvedGitSource {
         requested_locator: requested_locator.to_owned(),
         locator_identity: locator_identity.to_owned(),
         transport_profile: execution_transport.profile(),
@@ -1006,7 +1783,132 @@ fn resolve_verified_git_cache_entry(
             .transport_executable
             .as_ref()
             .map(|executable| executable.identity.clone()),
+        execution_helper_executables: executor
+            .execution_helpers
+            .iter()
+            .map(|executable| executable.identity.clone())
+            .collect(),
+        execution_policy_observations: executor.execution_policy_observations.borrow().clone(),
+        command_execution_observations: executor.command_execution_observations.borrow().clone(),
+        captured_output_observation: executor.captured_output_observation()?,
+        network_transfer_observation: executor.network_transfer_observation()?,
     })
+}
+
+fn finalize_git_resolution(
+    pending: PendingResolvedGitSource,
+    request: &GitSourceRequest,
+    executor: &GitExecutor,
+    entry_lock: &CacheEntryLock,
+    cache_root: &Path,
+    entry_root: &Path,
+    limits: LocalSourceLimits,
+) -> Result<ResolvedGitSource, SourceResolveError> {
+    entry_lock.verify_path_identity()?;
+    verify_git_cache_root_custody(cache_root)?;
+    verify_git_cache_custody(entry_root, limits)?;
+    executor.verify_content()?;
+    executor.validate_execution_policy_observations()?;
+    verify_pending_git_snapshot(&pending, limits)?;
+
+    entry_lock.verify_path_identity()?;
+    verify_git_cache_root_custody(cache_root)?;
+    verify_git_cache_custody(entry_root, limits)?;
+    executor.verify_content()?;
+    executor.validate_execution_policy_observations()?;
+    validate_pending_git_request(&pending, request)?;
+    validate_pending_git_execution(&pending, executor)?;
+    let resolution_observation = issue_git_source_resolution_observation(&pending, limits)?;
+
+    Ok(ResolvedGitSource {
+        requested_locator: pending.requested_locator,
+        locator_identity: pending.locator_identity,
+        transport_profile: pending.transport_profile,
+        requested_rev: pending.requested_rev,
+        commit: pending.commit,
+        tree: pending.tree,
+        snapshot_root: pending.snapshot_root,
+        local: pending.local,
+        git_executable: pending.git_executable,
+        transport_executable: pending.transport_executable,
+        execution_helper_executables: pending.execution_helper_executables,
+        execution_policy_observations: pending.execution_policy_observations,
+        command_execution_observations: pending.command_execution_observations,
+        captured_output_observation: pending.captured_output_observation,
+        network_transfer_observation: pending.network_transfer_observation,
+        resolution_observation,
+    })
+}
+
+fn validate_pending_git_request(
+    pending: &PendingResolvedGitSource,
+    request: &GitSourceRequest,
+) -> Result<(), SourceResolveError> {
+    if pending.requested_locator != request.requested_locator
+        || pending.locator_identity != request.locator_identity
+        || pending.requested_rev != request.requested_revision
+        || pending.transport_profile != request.transport_profile()
+    {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "pending Git result diverged from the validated source request".to_owned(),
+        });
+    }
+    Ok(())
+}
+
+fn verify_pending_git_snapshot(
+    pending: &PendingResolvedGitSource,
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    let recaptured = capture_local_source(
+        &pending.snapshot_root,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
+    if recaptured != pending.local {
+        return Err(cache_invalid(
+            &pending.snapshot_root,
+            "published snapshot changed before final Git result issuance",
+        ));
+    }
+    Ok(())
+}
+
+fn validate_pending_git_execution(
+    pending: &PendingResolvedGitSource,
+    executor: &GitExecutor,
+) -> Result<(), SourceResolveError> {
+    let expected_transport = executor
+        .transport_executable
+        .as_ref()
+        .map(|executable| &executable.identity);
+    let helpers_match = pending.execution_helper_executables.len()
+        == executor.execution_helpers.len()
+        && pending
+            .execution_helper_executables
+            .iter()
+            .zip(executor.execution_helpers.iter())
+            .all(|(pending, current)| pending == &current.identity);
+    let policies = executor.execution_policy_observations.borrow();
+    let commands = executor.command_execution_observations.borrow();
+    let captured_output = executor.captured_output_observation()?;
+    let network_transfer = executor.network_transfer_observation()?;
+    if pending.transport_profile != executor.execution_transport.profile()
+        || pending.git_executable != executor.identity
+        || pending.transport_executable.as_ref() != expected_transport
+        || !helpers_match
+        || pending.execution_policy_observations.as_slice() != policies.as_slice()
+        || pending.command_execution_observations.as_slice() != commands.as_slice()
+        || pending.captured_output_observation != captured_output
+        || pending.network_transfer_observation != network_transfer
+    {
+        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "pending Git result diverged from final executable and command custody"
+                .to_owned(),
+        });
+    }
+    Ok(())
 }
 
 fn bounded_git_fetch_arguments(
@@ -1033,49 +1935,57 @@ fn bounded_git_fetch_arguments(
     ]
 }
 
-fn read_canonical_git_config(repository: &Path) -> Result<Vec<u8>, SourceResolveError> {
-    let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "local Git configuration is not a regular file",
-    )?;
-    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
-    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+fn replace_canonical_git_control_file(
+    entry: &CapabilityDirectory,
+    repository_name: &OsStr,
+    repository_path: &Path,
+    canonical_config: &[u8],
+) -> Result<(), SourceResolveError> {
+    let classified = entry
+        .symlink_metadata(repository_name)
+        .map_err(|error| io_error(repository_path, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
         return Err(cache_invalid(
-            &config_path,
-            "local Git configuration is not the exact resolver-owned canonical file",
+            repository_path,
+            "Git repository is not a concrete directory",
         ));
     }
-    Ok(config)
+    let directory = entry
+        .open_dir_nofollow(repository_name)
+        .map_err(|error| cache_invalid(repository_path, error.to_string()))?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(repository_path, error))?;
+    if !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_invalid(
+            repository_path,
+            "Git repository changed while opening it for configuration replacement",
+        ));
+    }
+    replace_canonical_git_control_file_from_open_repository(
+        &directory,
+        repository_path,
+        canonical_config,
+    )
 }
 
-fn restore_canonical_git_config(
-    repository: &Path,
+fn replace_canonical_git_control_file_from_open_repository(
+    repository: &CapabilityDirectory,
+    repository_path: &Path,
     canonical_config: &[u8],
 ) -> Result<(), SourceResolveError> {
-    debug_assert!(canonical_config == GIT_CONFIG_SHA1 || canonical_config == GIT_CONFIG_SHA256);
-    let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "filtered Git fetch replaced the local configuration with a non-regular file",
-    )?;
-    replace_canonical_git_control_file(repository, &config_path, canonical_config)
-}
-
-fn replace_canonical_git_control_file(
-    repository: &Path,
-    config_path: &Path,
-    canonical_config: &[u8],
-) -> Result<(), SourceResolveError> {
-    let directory = CapabilityDirectory::open_ambient_dir(repository, ambient_authority())
-        .map_err(|error| io_error(repository, error))?;
-    let root =
-        RecordFileRoot::from_directory(directory, repository.to_path_buf()).map_err(|error| {
+    let config_path = repository_path.join("config");
+    let directory = repository
+        .try_clone()
+        .map_err(|error| io_error(repository_path, error))?;
+    let root = RecordFileRoot::from_directory(directory, repository_path.to_path_buf()).map_err(
+        |error| {
             cache_invalid(
-                repository,
+                repository_path,
                 format!("failed to bind Git configuration directory custody: {error:?}"),
             )
-        })?;
+        },
+    )?;
     root.replace_existing(
         Path::new("config"),
         canonical_config,
@@ -1085,7 +1995,7 @@ fn replace_canonical_git_control_file(
     )
     .map_err(|error| {
         cache_invalid(
-            config_path,
+            &config_path,
             format!("failed to atomically restore canonical Git configuration: {error:?}"),
         )
     })
@@ -1152,19 +2062,18 @@ struct AuthenticatedGitDirectory {
 
 fn inspect_git_tree(
     executor: &GitExecutor,
-    repository: &Path,
+    repository: &VerifiedGitRepository,
     tree: &str,
     limits: LocalSourceLimits,
 ) -> Result<Vec<GitTreeEntry>, SourceResolveError> {
     if !is_object_id(tree) {
         return Err(cache_invalid(
-            repository,
+            repository.path(),
             "Git returned an invalid tree object ID",
         ));
     }
-    let listing = run_git_bytes_stdout(
+    let listing = repository.run_git_bytes_stdout(
         executor,
-        repository,
         [
             OsStr::new("ls-tree"),
             OsStr::new("--full-tree"),
@@ -1175,7 +2084,7 @@ fn inspect_git_tree(
             OsStr::new(tree),
         ],
     )?;
-    let mut entries = parse_git_tree_entries(&listing, repository, limits)?;
+    let mut entries = parse_git_tree_entries(&listing, repository.path(), limits)?;
     read_git_blobs_batch(executor, repository, &mut entries, limits)?;
     Ok(entries)
 }
@@ -1195,13 +2104,12 @@ fn verify_exact_git_revision(
 
 fn authenticate_git_commit(
     executor: &GitExecutor,
-    repository: &Path,
+    repository: &VerifiedGitRepository,
     commit: &str,
     tree: &str,
 ) -> Result<(), SourceResolveError> {
-    let payload = run_git_bytes_stdout(
+    let payload = repository.run_git_bytes_stdout(
         executor,
-        repository,
         [
             OsStr::new("cat-file"),
             OsStr::new("commit"),
@@ -1813,69 +2721,82 @@ fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceR
 
 fn resolve_git_snapshot(
     executor: &GitExecutor,
-    entry_root: &Path,
+    repository: &VerifiedGitRepository,
     tree: &str,
     mut entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
-    authenticate_git_tree(tree, &entries)?;
-    verify_git_destination_containment(Path::new("omega-verified-snapshot-root"), &entries)?;
-    let expected = authenticated_git_snapshot_identity(tree, &entries)?;
-    let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
-    std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
-    require_real_directory(&snapshots, "snapshot cache is not a real directory")?;
-    let publication = snapshots.join(format!("tree-{tree}"));
-    if publication.exists() {
-        verify_snapshot_symlink_targets(&publication.join(GIT_SNAPSHOT_SOURCE), &entries)?;
+    let expected = preflight_git_snapshot(tree, &entries)?;
+    let snapshots = repository.open_or_create_snapshots()?;
+    let publication = snapshots.path.join(format!("tree-{tree}"));
+    if snapshots.publication_exists(&publication)? {
         release_git_blob_payloads(&mut entries);
-        return verify_git_snapshot(&publication, &expected, &entries, limits);
+        let result = verify_git_snapshot(&publication, &expected, &entries, limits);
+        return reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None);
     }
 
-    let mut pending = PendingSnapshot::create(&snapshots, tree)?;
+    let mut pending = PendingMaterializedSnapshot::create_from_open_parent(
+        CacheCustodyKind::Git,
+        &snapshots.path,
+        &snapshots.directory,
+        &format!(".tree-{tree}.stage"),
+    )?;
     let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
-    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
-    let directory_paths = git_directory_paths(&entries);
+    pending
+        .directory()?
+        .create_dir(GIT_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
+    let source_directory = pending
+        .directory()?
+        .open_dir_nofollow(GIT_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
     for entry in &entries {
         executor.verify_budget()?;
-        let destination = checked_git_destination(&source, entry)?;
-        let parent = destination
-            .parent()
-            .expect("validated Git paths always have a snapshot parent");
-        std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
+        checked_git_destination(&source, entry)?;
         match &entry.kind {
             GitTreeEntryKind::Tree => {
-                std::fs::create_dir(&destination).map_err(|error| io_error(&destination, error))?;
+                open_or_create_snapshot_directory(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                )?;
             }
             GitTreeEntryKind::File { executable, bytes } => {
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.write_all(bytes.as_slice())
-                    .map_err(|error| io_error(&destination, error))?;
-                file.sync_all()
-                    .map_err(|error| io_error(&destination, error))?;
-                set_snapshot_file_mode(&destination, *executable)?;
+                write_snapshot_file_from_open_root(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    bytes.as_slice(),
+                    *executable,
+                )?;
             }
             GitTreeEntryKind::Symlink { target_bytes } => {
-                create_snapshot_symlink(target_bytes.as_slice(), &destination)?;
+                create_snapshot_symlink_from_open_root(
+                    CacheCustodyKind::Git,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    target_bytes.as_slice(),
+                )?;
             }
         }
-    }
-    // Git trees carry no filesystem permission bits. Omega canonicalizes every materialized
-    // non-root Git directory to 0555: readable/searchable and consistent with the immutable
-    // published snapshot, but never writable.
-    for directory in directory_paths.iter().rev() {
-        let path = source.join(git_path_from_bytes(directory)?);
-        set_snapshot_directory_read_only(&path)?;
     }
 
     // The staged source is re-read to bind publication identity. Release the
     // shared batch payload first so that this verification does not retain a
     // second package-sized in-memory copy.
     release_git_blob_payloads(&mut entries);
-    let staged = resolve_materialized_source(&source, limits)?;
+    let staged = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
     if staged.file_count != expected.file_count
         || staged.byte_count != expected.byte_count
         || staged.content_identity != expected.content_identity
@@ -1885,25 +2806,48 @@ fn resolve_git_snapshot(
             "materialized snapshot did not preserve the validated Git tree exactly",
         ));
     }
-    let metadata_path = pending.root.join(GIT_SNAPSHOT_METADATA);
-    let mut metadata = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .write_all(&git_snapshot_metadata(tree, &staged))
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .sync_all()
-        .map_err(|error| io_error(&metadata_path, error))?;
-    make_snapshot_read_only(&pending.root)?;
-    std::fs::rename(&pending.root, &publication).map_err(|error| io_error(&publication, error))?;
-    pending.published = true;
+    write_snapshot_file_from_open_root(
+        CacheCustodyKind::Git,
+        pending.directory()?,
+        Path::new(GIT_SNAPSHOT_METADATA),
+        &pending.root,
+        &git_snapshot_metadata(tree, &staged),
+        false,
+    )?;
+    make_open_snapshot_read_only(CacheCustodyKind::Git, pending.directory()?, &pending.root)?;
+    let finalized = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
+    if finalized.file_count != expected.file_count
+        || finalized.byte_count != expected.byte_count
+        || finalized.content_identity != expected.content_identity
+    {
+        return Err(cache_invalid(
+            &source,
+            "finalized snapshot did not preserve the authenticated Git tree exactly",
+        ));
+    }
+    pending.publish(&snapshots.path, &publication)?;
 
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
-    verify_git_snapshot(&publication, &expected, &entries, limits)
+    let result = verify_git_snapshot(&publication, &expected, &entries, limits);
+    reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None)
+}
+
+fn preflight_git_snapshot(
+    tree: &str,
+    entries: &[GitTreeEntry],
+) -> Result<GitSnapshotMetadata, SourceResolveError> {
+    authenticate_git_tree(tree, entries)?;
+    verify_git_destination_containment(Path::new("omega-verified-snapshot-root"), entries)?;
+    authenticated_git_snapshot_identity(tree, entries)
 }
 
 fn authenticated_git_snapshot_identity(
@@ -1982,48 +2926,20 @@ fn release_git_blob_payloads(entries: &mut [GitTreeEntry]) {
     }
 }
 
-fn verify_snapshot_symlink_targets(
-    source: &Path,
-    entries: &[GitTreeEntry],
-) -> Result<(), SourceResolveError> {
-    for entry in entries {
-        let GitTreeEntryKind::Symlink { target_bytes } = &entry.kind else {
-            continue;
-        };
-        let path = source.join(&entry.relative_path);
-        let target = std::fs::read_link(&path).map_err(|error| io_error(&path, error))?;
-        if raw_os_bytes(target.as_os_str()) != target_bytes.as_slice() {
-            return Err(cache_invalid(
-                &path,
-                "snapshot symlink target does not match Git",
-            ));
-        }
-    }
-    Ok(())
-}
-
 fn verify_git_snapshot(
     publication: &Path,
     expected: &GitSnapshotMetadata,
     entries: &[GitTreeEntry],
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
-    require_real_directory(publication, "snapshot publication is not a real directory")?;
     let source = publication.join(GIT_SNAPSHOT_SOURCE);
-    require_real_directory(&source, "snapshot source is not a real directory")?;
     let metadata_path = publication.join(GIT_SNAPSHOT_METADATA);
-    require_regular_file(&metadata_path, "snapshot metadata is not a regular file")?;
-    let metadata_length = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_length > 1024 {
-        return Err(cache_invalid(
-            &metadata_path,
-            "snapshot metadata exceeds its limit",
-        ));
-    }
-    let metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let metadata = read_bounded_cache_record(
+        CacheCustodyKind::Git,
+        publication,
+        Path::new(GIT_SNAPSHOT_METADATA),
+        1024,
+    )?;
     let metadata = parse_git_snapshot_metadata(&metadata, &metadata_path)?;
     if metadata != *expected {
         return Err(cache_invalid(
@@ -2031,9 +2947,20 @@ fn verify_git_snapshot(
             "snapshot metadata does not match the authenticated Git tree",
         ));
     }
-    verify_snapshot_entry_kinds_and_modes(&source, entries)?;
-    verify_snapshot_read_only(publication)?;
-    let local = resolve_materialized_source(&source, limits)?;
+    let publication_directory = open_absolute_directory_nofollow(publication)
+        .map_err(|error| cache_invalid(publication, error.to_string()))?;
+    verify_open_snapshot_tree_modes(CacheCustodyKind::Git, &publication_directory, publication)?;
+    let source_directory = publication_directory
+        .open_dir_nofollow(GIT_SNAPSHOT_SOURCE)
+        .map_err(|error| cache_invalid(&source, error.to_string()))?;
+    let captured = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?;
+    verify_captured_git_snapshot_shape(&source, &captured.entries, entries)?;
+    let local = captured.normalized;
     if local.file_count != expected.file_count
         || local.byte_count != expected.byte_count
         || local.content_identity != expected.content_identity
@@ -2046,40 +2973,53 @@ fn verify_git_snapshot(
     Ok((source, local))
 }
 
-fn verify_snapshot_entry_kinds_and_modes(
+fn verify_captured_git_snapshot_shape(
     source: &Path,
+    captured: &[CapturedLocalEntry],
     entries: &[GitTreeEntry],
 ) -> Result<(), SourceResolveError> {
-    let expected_leaves = entries
+    let mut expected_directories = git_directory_paths(entries);
+    let mut expected_leaves = entries
         .iter()
-        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
-        .map(|entry| entry.relative_bytes.clone())
-        .collect::<BTreeSet<_>>();
-    let expected_directories = git_directory_paths(entries);
-    for entry in entries {
+        .filter(|entry| !matches!(entry.kind, GitTreeEntryKind::Tree))
+        .map(|entry| (entry.relative_bytes.as_slice(), &entry.kind))
+        .collect::<BTreeMap<_, _>>();
+    for entry in captured {
         let path = source.join(&entry.relative_path);
-        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
         match &entry.kind {
-            GitTreeEntryKind::Tree => {
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            CapturedLocalEntryKind::Directory => {
+                if !expected_directories.remove(&entry.relative_bytes) {
                     return Err(cache_invalid(
                         &path,
-                        "snapshot directory kind does not match Git",
+                        "snapshot contains an undeclared directory",
                     ));
                 }
-                verify_snapshot_directory_mode(&path, &metadata)?;
             }
-            GitTreeEntryKind::File { executable, .. } => {
-                if metadata.file_type().is_symlink() || !metadata.is_file() {
+            CapturedLocalEntryKind::File { executable, .. } => {
+                let Some(expected) = expected_leaves.remove(entry.relative_bytes.as_slice()) else {
+                    return Err(cache_invalid(&path, "snapshot contains an undeclared file"));
+                };
+                if !matches!(
+                    expected,
+                    GitTreeEntryKind::File {
+                        executable: expected_executable,
+                        ..
+                    } if expected_executable == executable
+                ) {
                     return Err(cache_invalid(
                         &path,
-                        "snapshot file kind does not match Git",
+                        "snapshot file kind or executable mode does not match Git",
                     ));
                 }
-                verify_snapshot_file_mode(&path, &metadata, *executable)?;
             }
-            GitTreeEntryKind::Symlink { .. } => {
-                if !metadata.file_type().is_symlink() {
+            CapturedLocalEntryKind::Symlink { .. } => {
+                let Some(expected) = expected_leaves.remove(entry.relative_bytes.as_slice()) else {
+                    return Err(cache_invalid(
+                        &path,
+                        "snapshot contains an undeclared symlink",
+                    ));
+                };
+                if !matches!(expected, GitTreeEntryKind::Symlink { .. }) {
                     return Err(cache_invalid(
                         &path,
                         "snapshot symlink kind does not match Git",
@@ -2088,34 +3028,7 @@ fn verify_snapshot_entry_kinds_and_modes(
             }
         }
     }
-
-    let mut actual_leaves = BTreeSet::new();
-    let mut directories = vec![source.to_path_buf()];
-    while let Some(directory) = directories.pop() {
-        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
-            let entry = entry.map_err(|error| io_error(&directory, error))?;
-            let path = entry.path();
-            let relative = path
-                .strip_prefix(source)
-                .expect("snapshot traversal starts at the source root");
-            let relative_bytes = raw_os_bytes(relative.as_os_str());
-            let metadata =
-                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-            if metadata.is_dir() {
-                if !expected_directories.contains(&relative_bytes) {
-                    return Err(cache_invalid(
-                        &path,
-                        "snapshot contains an undeclared directory",
-                    ));
-                }
-                verify_snapshot_directory_mode(&path, &metadata)?;
-                directories.push(path);
-            } else {
-                actual_leaves.insert(relative_bytes);
-            }
-        }
-    }
-    if actual_leaves != expected_leaves {
+    if !expected_directories.is_empty() || !expected_leaves.is_empty() {
         return Err(cache_invalid(
             source,
             "snapshot paths do not exactly match the validated Git tree",
@@ -2124,93 +3037,131 @@ fn verify_snapshot_entry_kinds_and_modes(
     Ok(())
 }
 
-#[cfg(unix)]
-fn verify_snapshot_directory_mode(
-    path: &Path,
-    metadata: &std::fs::Metadata,
+fn verify_open_snapshot_tree_modes(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    display_root: &Path,
 ) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
+    let root_metadata = root
+        .dir_metadata()
+        .map_err(|error| io_error(display_root, error))?;
+    verify_capability_snapshot_directory_mode(kind, display_root, &root_metadata)?;
+    let entries = root
+        .entries()
+        .map_err(|error| io_error(display_root, error))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| io_error(display_root, error))?;
+        let name = entry.file_name();
+        let path = display_root.join(&name);
+        let metadata = root
+            .symlink_metadata(&name)
+            .map_err(|error| io_error(&path, error))?;
+        if metadata.is_dir() {
+            let directory = root.open_dir_nofollow(&name).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot directory changed during verification: {error}"),
+                )
+            })?;
+            let opened = directory
+                .dir_metadata()
+                .map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot directory changed during verification",
+                ));
+            }
+            verify_open_snapshot_tree_modes(kind, &directory, &path)?;
+        } else if metadata.is_file() {
+            let mut options = CapabilityOpenOptions::new();
+            options.read(true).follow(FollowSymlinks::No);
+            let file = root.open_with(&name, &options).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot file changed during verification: {error}"),
+                )
+            })?;
+            let opened = file.metadata().map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot file changed during verification",
+                ));
+            }
+            verify_capability_snapshot_file_mode(kind, &path, &opened)?;
+        } else if !metadata.file_type().is_symlink() {
+            return Err(cache_custody_invalid(
+                kind,
+                &path,
+                "snapshot contains an unsupported filesystem entry type",
+            ));
+        }
+    }
+    Ok(())
+}
 
-    if metadata.permissions().mode() & 0o7777 != u32::from(CANONICAL_DIRECTORY_MODE) {
-        return Err(cache_invalid(
+#[cfg(unix)]
+fn verify_capability_snapshot_directory_mode(
+    kind: CacheCustodyKind,
+    path: &Path,
+    metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    use cap_fs_ext::OsMetadataExt;
+
+    if metadata.mode() & 0o7777 != u32::from(CANONICAL_DIRECTORY_MODE) {
+        return Err(cache_custody_invalid(
+            kind,
             path,
-            "snapshot directory mode does not match canonical Git mode",
+            "snapshot directory mode is not canonical 0555",
         ));
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn verify_snapshot_directory_mode(
+fn verify_capability_snapshot_directory_mode(
+    _kind: CacheCustodyKind,
     _path: &Path,
-    _metadata: &std::fs::Metadata,
+    _metadata: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
 #[cfg(unix)]
-fn verify_snapshot_file_mode(
+fn verify_capability_snapshot_file_mode(
+    kind: CacheCustodyKind,
     path: &Path,
-    metadata: &std::fs::Metadata,
-    executable: bool,
+    metadata: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
+    use cap_fs_ext::OsMetadataExt;
 
-    let expected = if executable { 0o555 } else { 0o444 };
-    if metadata.permissions().mode() & 0o7777 != expected {
-        return Err(cache_invalid(path, "snapshot file mode does not match Git"));
+    if !matches!(metadata.mode() & 0o7777, 0o444 | 0o555) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "snapshot file mode is not canonical 0444 or 0555",
+        ));
     }
     Ok(())
 }
 
 #[cfg(not(unix))]
-fn verify_snapshot_file_mode(
+fn verify_capability_snapshot_file_mode(
+    kind: CacheCustodyKind,
     path: &Path,
-    metadata: &std::fs::Metadata,
-    executable: bool,
+    metadata: &CapabilityMetadata,
 ) -> Result<(), SourceResolveError> {
-    if executable != is_executable(metadata) || !metadata.permissions().readonly() {
-        return Err(cache_invalid(path, "snapshot file mode does not match Git"));
-    }
-    Ok(())
-}
-
-fn verify_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
-    let mut paths = vec![root.to_path_buf()];
-    while let Some(path) = paths.pop() {
-        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-        if !metadata.file_type().is_symlink() {
-            verify_path_read_only(&path, &metadata)?;
-        }
-        if metadata.is_dir() {
-            for entry in std::fs::read_dir(&path).map_err(|error| io_error(&path, error))? {
-                paths.push(entry.map_err(|error| io_error(&path, error))?.path());
-            }
-        }
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn verify_path_read_only(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
-
-    if metadata.permissions().mode() & 0o222 != 0 {
-        return Err(cache_invalid(path, "published snapshot is writable"));
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn verify_path_read_only(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    if metadata.is_file() && !metadata.permissions().readonly() {
-        return Err(cache_invalid(path, "published snapshot is writable"));
+    if !metadata.permissions().readonly() {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "snapshot file is writable",
+        ));
     }
     Ok(())
 }
@@ -2270,22 +3221,14 @@ fn verify_local_snapshot(
     content_identity: &str,
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
-    require_local_snapshot_directory(publication, "snapshot publication is not a real directory")?;
     let source = publication.join(LOCAL_SNAPSHOT_SOURCE);
-    require_local_snapshot_directory(&source, "snapshot source is not a real directory")?;
     let metadata_path = publication.join(LOCAL_SNAPSHOT_METADATA);
-    require_local_snapshot_file(&metadata_path, "snapshot metadata is not a regular file")?;
-    let metadata_length = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_length > 512 {
-        return Err(local_snapshot_invalid(
-            &metadata_path,
-            "snapshot metadata exceeds its limit",
-        ));
-    }
-    let metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
+    let metadata = read_bounded_cache_record(
+        CacheCustodyKind::LocalSnapshot,
+        publication,
+        Path::new(LOCAL_SNAPSHOT_METADATA),
+        512,
+    )?;
     let expected = parse_local_snapshot_metadata(&metadata, &metadata_path)?;
     if expected.content_identity != content_identity {
         return Err(local_snapshot_invalid(
@@ -2293,8 +3236,23 @@ fn verify_local_snapshot(
             "snapshot content identity does not match its cache key",
         ));
     }
-    verify_local_snapshot_modes(publication)?;
-    let normalized = resolve_materialized_source(&source, limits)?;
+    let publication_directory = open_absolute_directory_nofollow(publication)
+        .map_err(|error| local_snapshot_invalid(publication, error.to_string()))?;
+    verify_open_snapshot_tree_modes(
+        CacheCustodyKind::LocalSnapshot,
+        &publication_directory,
+        publication,
+    )?;
+    let source_directory = publication_directory
+        .open_dir_nofollow(LOCAL_SNAPSHOT_SOURCE)
+        .map_err(|error| local_snapshot_invalid(&source, error.to_string()))?;
+    let normalized = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
     if normalized.file_count != expected.file_count
         || normalized.byte_count != expected.byte_count
         || normalized.content_identity != expected.content_identity
@@ -2305,100 +3263,6 @@ fn verify_local_snapshot(
         ));
     }
     Ok(normalized)
-}
-
-fn require_local_snapshot_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(local_snapshot_invalid(path, message));
-    }
-    Ok(())
-}
-
-fn require_local_snapshot_file(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(local_snapshot_invalid(path, message));
-    }
-    Ok(())
-}
-
-fn verify_local_snapshot_modes(root: &Path) -> Result<(), SourceResolveError> {
-    let mut directories = vec![root.to_path_buf()];
-    let mut cursor = 0;
-    while cursor < directories.len() {
-        let directory = directories[cursor].clone();
-        cursor += 1;
-        verify_local_snapshot_directory_mode(&directory)?;
-        for entry in std::fs::read_dir(&directory).map_err(|error| io_error(&directory, error))? {
-            let entry = entry.map_err(|error| io_error(&directory, error))?;
-            let path = entry.path();
-            let metadata =
-                std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-            if metadata.is_dir() {
-                directories.push(path);
-            } else if metadata.is_file() {
-                verify_local_snapshot_file_mode(&path, &metadata)?;
-            } else if !metadata.file_type().is_symlink() {
-                return Err(local_snapshot_invalid(
-                    &path,
-                    "snapshot contains an unsupported filesystem entry type",
-                ));
-            }
-        }
-    }
-    Ok(())
-}
-
-#[cfg(unix)]
-fn verify_local_snapshot_directory_mode(path: &Path) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let mode = std::fs::symlink_metadata(path)
-        .map_err(|error| io_error(path, error))?
-        .permissions()
-        .mode()
-        & 0o777;
-    if mode != 0o555 {
-        return Err(local_snapshot_invalid(
-            path,
-            "snapshot directory mode is not canonical 0555",
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn verify_local_snapshot_directory_mode(_path: &Path) -> Result<(), SourceResolveError> {
-    Ok(())
-}
-
-#[cfg(unix)]
-fn verify_local_snapshot_file_mode(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    use std::os::unix::fs::PermissionsExt;
-
-    let mode = metadata.permissions().mode() & 0o777;
-    if !matches!(mode, 0o444 | 0o555) {
-        return Err(local_snapshot_invalid(
-            path,
-            "snapshot file mode is not canonical 0444 or 0555",
-        ));
-    }
-    Ok(())
-}
-
-#[cfg(not(unix))]
-fn verify_local_snapshot_file_mode(
-    path: &Path,
-    metadata: &std::fs::Metadata,
-) -> Result<(), SourceResolveError> {
-    if !metadata.permissions().readonly() {
-        return Err(local_snapshot_invalid(path, "snapshot file is writable"));
-    }
-    Ok(())
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -2482,6 +3346,40 @@ fn git_tree_invalid(path: impl AsRef<[u8]>, message: impl Into<String>) -> Sourc
 
 fn read_git_blobs_batch(
     executor: &GitExecutor,
+    repository: &VerifiedGitRepository,
+    entries: &mut [GitTreeEntry],
+    limits: LocalSourceLimits,
+) -> Result<(), SourceResolveError> {
+    executor.verify_budget()?;
+    if entries
+        .iter()
+        .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))
+    {
+        return Ok(());
+    }
+    let stdout_limit = git_batch_output_limit(entries, limits)?;
+    repository.verify_identity()?;
+    let mut request = PendingGitBatchRequest::create(&repository.entry, &repository.entry_root)?;
+    let operation_result = (|| {
+        let request_path = request.display_path.clone();
+        write_git_batch_request(request.file_mut(), &request_path, entries)?;
+        request.verify_current()?;
+        let stdin = request
+            .file()
+            .try_clone()
+            .map_err(|error| io_error(&request.display_path, error))?;
+        execute_git_blob_batch(executor, repository.path(), stdin, entries, stdout_limit)
+    })();
+    let namespace_result = repository
+        .verify_identity()
+        .and_then(|_| request.verify_current());
+    let cleanup_result = request.remove();
+    reconcile_git_cache_operation_result(operation_result, namespace_result, Some(cleanup_result))
+}
+
+#[cfg(test)]
+fn read_git_blobs_batch_from_path(
+    executor: &GitExecutor,
     repository: &Path,
     entries: &mut [GitTreeEntry],
     limits: LocalSourceLimits,
@@ -2512,6 +3410,18 @@ fn read_git_blobs_batch(
         .create_new(true)
         .open(&request_path)
         .map_err(|error| io_error(&request_path, error))?;
+    write_git_batch_request(&mut request, &request_path, entries)?;
+
+    let result = execute_git_blob_batch(executor, repository, request, entries, stdout_limit);
+    drop(request_guard);
+    result
+}
+
+fn write_git_batch_request(
+    request: &mut File,
+    request_path: &Path,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
     for entry in entries
         .iter()
         .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
@@ -2519,25 +3429,51 @@ fn read_git_blobs_batch(
         request
             .write_all(entry.oid.as_bytes())
             .and_then(|_| request.write_all(b"\n"))
-            .map_err(|error| io_error(&request_path, error))?;
+            .map_err(|error| io_error(request_path, error))?;
     }
     request
         .seek(SeekFrom::Start(0))
-        .map_err(|error| io_error(&request_path, error))?;
+        .map(|_| ())
+        .map_err(|error| io_error(request_path, error))
+}
 
-    let mut command = sealed_git_command(executor, repository)?;
+fn execute_git_blob_batch(
+    executor: &GitExecutor,
+    repository: &Path,
+    request: File,
+    entries: &mut [GitTreeEntry],
+    stdout_limit: usize,
+) -> Result<(), SourceResolveError> {
+    let mut command = sealed_git_command_with_route(
+        executor,
+        repository,
+        ResolverExecutionPhase::RepositoryInspection,
+        None,
+    )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
-    let result = run_command_bounded_with_stdin(
+    let stdin_identity = git_batch_stdin_identity(entries);
+    let command_identity = git_command_configuration_identity(
+        &command,
+        ResolverExecutionPhase::RepositoryInspection,
+        &stdin_identity,
+    );
+    let result = run_command_bounded_with_stdin_and_budget(
         &mut command,
         Stdio::from(request),
         "cat-file --batch",
         stdout_limit,
         GIT_STDERR_LIMIT,
         command_timeout,
+        executor.captured_output_budget.clone(),
     );
     let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
-    drop(request_guard);
+    executor.record_command_execution(
+        ResolverExecutionPhase::RepositoryInspection,
+        command_identity,
+        &output,
+        None,
+    )?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file --batch".to_owned(),
@@ -2688,35 +3624,490 @@ fn assign_git_batch_output(
     Ok(())
 }
 
+struct PendingGitBatchRequest {
+    parent: CapabilityDirectory,
+    name: OsString,
+    display_path: PathBuf,
+    file: Option<File>,
+    identity: Option<CapabilityMetadata>,
+    removed: bool,
+}
+
+impl PendingGitBatchRequest {
+    fn create(entry: &CapabilityDirectory, entry_root: &Path) -> Result<Self, SourceResolveError> {
+        let parent = entry
+            .try_clone()
+            .map_err(|error| io_error(entry_root, error))?;
+        for _ in 0..128 {
+            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let name = OsString::from(format!(
+                ".omega-cat-file-batch.{}.{}",
+                std::process::id(),
+                sequence
+            ));
+            let display_path = entry_root.join(&name);
+            let mut options = CapabilityOpenOptions::new();
+            options
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .follow(FollowSymlinks::No);
+            #[cfg(unix)]
+            options.mode(0o600);
+            let capability_file = match parent.open_with(&name, &options) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error(&display_path, error)),
+            };
+            let file = capability_file.into_std();
+            let mut pending = Self {
+                parent,
+                name,
+                display_path,
+                file: Some(file),
+                identity: None,
+                removed: false,
+            };
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                let mut permissions = pending
+                    .file()
+                    .metadata()
+                    .map_err(|error| io_error(&pending.display_path, error))?
+                    .permissions();
+                permissions.set_mode(0o600);
+                pending
+                    .file()
+                    .set_permissions(permissions)
+                    .map_err(|error| io_error(&pending.display_path, error))?;
+            }
+            let identity = pending
+                .parent
+                .symlink_metadata(&pending.name)
+                .map_err(|error| io_error(&pending.display_path, error))?;
+            pending.identity = Some(identity);
+            pending.verify_current()?;
+            return Ok(pending);
+        }
+        Err(cache_invalid(
+            entry_root,
+            "could not allocate a unique Git batch-request file",
+        ))
+    }
+
+    fn file(&self) -> &File {
+        self.file
+            .as_ref()
+            .expect("live Git batch request retains its file")
+    }
+
+    fn file_mut(&mut self) -> &mut File {
+        self.file
+            .as_mut()
+            .expect("live Git batch request retains its file")
+    }
+
+    fn verify_current(&self) -> Result<(), SourceResolveError> {
+        let identity = self.identity.as_ref().ok_or_else(|| {
+            cache_invalid(
+                &self.display_path,
+                "Git batch-request identity has not been retained",
+            )
+        })?;
+        verify_git_batch_request_identity(
+            &self.parent,
+            &self.name,
+            &self.display_path,
+            self.file(),
+            identity,
+        )
+    }
+
+    fn remove(&mut self) -> Result<(), SourceResolveError> {
+        self.verify_current()?;
+        drop(self.file.take());
+        let named = self
+            .parent
+            .symlink_metadata(&self.name)
+            .map_err(|error| io_error(&self.display_path, error))?;
+        if named.file_type().is_symlink()
+            || !named.is_file()
+            || !self
+                .identity
+                .as_ref()
+                .is_some_and(|identity| same_capability_file_identity(identity, &named))
+        {
+            return Err(cache_invalid(
+                &self.display_path,
+                "Git batch-request name no longer identifies the retained file",
+            ));
+        }
+        self.parent
+            .remove_file(&self.name)
+            .map_err(|error| io_error(&self.display_path, error))?;
+        self.parent
+            .try_clone()
+            .map_err(|error| io_error(&self.display_path, error))?
+            .into_std_file()
+            .sync_all()
+            .map_err(|error| io_error(&self.display_path, error))?;
+        self.removed = true;
+        Ok(())
+    }
+}
+
+fn verify_git_batch_request_identity(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    file: &File,
+    expected: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let named = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if named.file_type().is_symlink()
+        || !named.is_file()
+        || !opened.is_file()
+        || !same_capability_file_identity(expected, &named)
+        || !same_std_and_capability_file_identity(&opened, expected)
+    {
+        return Err(cache_invalid(
+            path,
+            "Git batch-request name does not identify the retained file",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &named)?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+
+        if named.mode() & 0o777 != 0o600 {
+            return Err(cache_invalid(
+                path,
+                "Git batch-request file does not have exact private mode 0600",
+            ));
+        }
+    }
+    verify_macos_open_cache_extended_acl_custody(CacheCustodyKind::Git, path, file)?;
+    verify_windows_open_cache_custody(CacheCustodyKind::Git, path, file)
+}
+
+impl Drop for PendingGitBatchRequest {
+    fn drop(&mut self) {
+        if self.removed {
+            return;
+        }
+        let Ok(retained_name) = self.parent.symlink_metadata(&self.name) else {
+            return;
+        };
+        if retained_name.file_type().is_symlink() || !retained_name.is_file() {
+            return;
+        }
+        if let Some(file) = self.file.as_ref() {
+            let Ok(opened) = file.metadata() else {
+                return;
+            };
+            if !opened.is_file() || !same_std_and_capability_file_identity(&opened, &retained_name)
+            {
+                return;
+            }
+        } else if !self
+            .identity
+            .as_ref()
+            .is_some_and(|identity| same_capability_file_identity(identity, &retained_name))
+        {
+            return;
+        }
+        drop(self.file.take());
+        if let Ok(current_name) = self.parent.symlink_metadata(&self.name)
+            && !current_name.file_type().is_symlink()
+            && current_name.is_file()
+            && same_capability_file_identity(&retained_name, &current_name)
+        {
+            let _ = self.parent.remove_file(&self.name);
+        }
+    }
+}
+
+#[cfg(test)]
 struct TemporaryFileGuard {
     path: PathBuf,
 }
 
+#[cfg(test)]
 impl Drop for TemporaryFileGuard {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
     }
 }
 
+fn open_or_create_snapshot_directory(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    use std::path::Component;
+
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(display_root, error))?;
+    let mut display_path = display_root.to_path_buf();
+    for component in relative_path.components() {
+        let Component::Normal(name) = component else {
+            return Err(cache_custody_invalid(
+                kind,
+                &display_path,
+                "snapshot materialization received a noncanonical relative directory",
+            ));
+        };
+        display_path.push(name);
+        match directory.create_dir(name) {
+            Ok(()) => {}
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
+            Err(error) => return Err(io_error(&display_path, error)),
+        }
+        directory = directory.open_dir_nofollow(name).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                &display_path,
+                format!("snapshot directory is not a stable concrete child: {error}"),
+            )
+        })?;
+    }
+    Ok(directory)
+}
+
+fn write_snapshot_file_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    bytes: &[u8],
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot file has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    let mut options = CapabilityOpenOptions::new();
+    options
+        .write(true)
+        .create_new(true)
+        .follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    options.mode(0o600);
+    let mut file = parent.open_with(name, &options).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            cache_custody_invalid(
+                kind,
+                &display_path,
+                "snapshot file destination already exists",
+            )
+        } else {
+            io_error(&display_path, error)
+        }
+    })?;
+    file.write_all(bytes)
+        .map_err(|error| io_error(&display_path, error))?;
+    file.sync_all()
+        .map_err(|error| io_error(&display_path, error))?;
+    set_open_snapshot_file_mode(&file, &display_path, executable)
+}
+
 #[cfg(unix)]
-fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
-    use std::ffi::OsString;
+fn create_snapshot_symlink_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    target: &[u8],
+) -> Result<(), SourceResolveError> {
     use std::os::unix::ffi::OsStringExt;
 
-    std::os::unix::fs::symlink(OsString::from_vec(target.to_vec()), destination)
-        .map_err(|error| io_error(destination, error))
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot symlink has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    parent
+        .symlink_contents(OsString::from_vec(target.to_vec()), name)
+        .map_err(|error| {
+            if error.kind() == std::io::ErrorKind::AlreadyExists {
+                cache_custody_invalid(kind, &display_path, "snapshot symlink already exists")
+            } else {
+                io_error(&display_path, error)
+            }
+        })
 }
 
 #[cfg(not(unix))]
-fn create_snapshot_symlink(target: &[u8], destination: &Path) -> Result<(), SourceResolveError> {
+fn create_snapshot_symlink_from_open_root(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_root: &Path,
+    target: &[u8],
+) -> Result<(), SourceResolveError> {
     let target = std::str::from_utf8(target).map_err(|_| {
         git_tree_invalid(target, "symlink target cannot be represented on this host")
     })?;
-    std::os::windows::fs::symlink_file(target, destination)
-        .map_err(|error| io_error(destination, error))
+    let parent_path = relative_path.parent().unwrap_or_else(|| Path::new(""));
+    let parent = open_or_create_snapshot_directory(kind, root, parent_path, display_root)?;
+    let name = relative_path.file_name().ok_or_else(|| {
+        cache_custody_invalid(
+            kind,
+            &display_root.join(relative_path),
+            "snapshot symlink has no relative name",
+        )
+    })?;
+    let display_path = display_root.join(relative_path);
+    parent.symlink_file(target, name).map_err(|error| {
+        if error.kind() == std::io::ErrorKind::AlreadyExists {
+            cache_custody_invalid(kind, &display_path, "snapshot symlink already exists")
+        } else {
+            io_error(&display_path, error)
+        }
+    })
 }
 
 #[cfg(unix)]
+fn set_open_snapshot_file_mode(
+    file: &cap_std::fs::File,
+    path: &Path,
+    executable: bool,
+) -> Result<(), SourceResolveError> {
+    use cap_std::fs::PermissionsExt;
+
+    let mode = if executable { 0o555 } else { 0o444 };
+    file.set_permissions(cap_std::fs::Permissions::from_mode(mode))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_open_snapshot_file_mode(
+    file: &cap_std::fs::File,
+    path: &Path,
+    _executable: bool,
+) -> Result<(), SourceResolveError> {
+    let mut permissions = file
+        .metadata()
+        .map_err(|error| io_error(path, error))?
+        .permissions();
+    permissions.set_readonly(true);
+    file.set_permissions(permissions)
+        .map_err(|error| io_error(path, error))
+}
+
+fn make_open_snapshot_read_only(
+    kind: CacheCustodyKind,
+    root: &CapabilityDirectory,
+    display_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let entries = root
+        .entries()
+        .map_err(|error| io_error(display_root, error))?;
+    for entry in entries {
+        let entry = entry.map_err(|error| io_error(display_root, error))?;
+        let name = entry.file_name();
+        let path = display_root.join(&name);
+        let metadata = root
+            .symlink_metadata(&name)
+            .map_err(|error| io_error(&path, error))?;
+        if metadata.is_dir() {
+            let directory = root.open_dir_nofollow(&name).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot directory changed during finalization: {error}"),
+                )
+            })?;
+            let opened = directory
+                .dir_metadata()
+                .map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot directory changed during read-only finalization",
+                ));
+            }
+            make_open_snapshot_read_only(kind, &directory, &path)?;
+        } else if metadata.is_file() {
+            let mut options = CapabilityOpenOptions::new();
+            options.read(true).follow(FollowSymlinks::No);
+            let file = root.open_with(&name, &options).map_err(|error| {
+                cache_custody_invalid(
+                    kind,
+                    &path,
+                    format!("snapshot file changed during finalization: {error}"),
+                )
+            })?;
+            let opened = file.metadata().map_err(|error| io_error(&path, error))?;
+            if !same_capability_file_identity(&metadata, &opened) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &path,
+                    "snapshot file changed during read-only finalization",
+                ));
+            }
+            set_open_snapshot_file_mode(&file, &path, capability_is_executable(&metadata))?;
+        }
+    }
+    set_open_snapshot_directory_read_only(root, display_root)
+}
+
+#[cfg(unix)]
+fn capability_is_executable(metadata: &CapabilityMetadata) -> bool {
+    use cap_fs_ext::OsMetadataExt;
+
+    metadata.mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn capability_is_executable(_metadata: &CapabilityMetadata) -> bool {
+    false
+}
+
+#[cfg(unix)]
+fn set_open_snapshot_directory_read_only(
+    directory: &CapabilityDirectory,
+    path: &Path,
+) -> Result<(), SourceResolveError> {
+    use std::os::unix::fs::PermissionsExt;
+
+    directory
+        .try_clone()
+        .map_err(|error| io_error(path, error))?
+        .into_std_file()
+        .set_permissions(std::fs::Permissions::from_mode(0o555))
+        .map_err(|error| io_error(path, error))
+}
+
+#[cfg(not(unix))]
+fn set_open_snapshot_directory_read_only(
+    _directory: &CapabilityDirectory,
+    _path: &Path,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
 fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -2725,7 +4116,7 @@ fn set_snapshot_file_mode(path: &Path, executable: bool) -> Result<(), SourceRes
         .map_err(|error| io_error(path, error))
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceResolveError> {
     let mut permissions = std::fs::metadata(path)
         .map_err(|error| io_error(path, error))?
@@ -2734,6 +4125,7 @@ fn set_snapshot_file_mode(path: &Path, _executable: bool) -> Result<(), SourceRe
     std::fs::set_permissions(path, permissions).map_err(|error| io_error(path, error))
 }
 
+#[cfg(test)]
 fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
     let mut directories = vec![root.to_path_buf()];
     let mut cursor = 0;
@@ -2758,7 +4150,7 @@ fn make_snapshot_read_only(root: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-#[cfg(unix)]
+#[cfg(all(test, unix))]
 fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveError> {
     use std::os::unix::fs::PermissionsExt;
 
@@ -2766,28 +4158,70 @@ fn set_snapshot_directory_read_only(path: &Path) -> Result<(), SourceResolveErro
         .map_err(|error| io_error(path, error))
 }
 
-#[cfg(not(unix))]
+#[cfg(all(test, not(unix)))]
 fn set_snapshot_directory_read_only(_path: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-struct PendingSnapshot {
+struct PendingMaterializedSnapshot {
     root: PathBuf,
+    parent: CapabilityDirectory,
+    directory: Option<CapabilityDirectory>,
+    stage_name: OsString,
+    kind: CacheCustodyKind,
     published: bool,
 }
 
-impl PendingSnapshot {
-    fn create(snapshots: &Path, tree: &str) -> Result<Self, SourceResolveError> {
+impl PendingMaterializedSnapshot {
+    fn create(
+        kind: CacheCustodyKind,
+        snapshots: &Path,
+        prefix: &str,
+    ) -> Result<Self, SourceResolveError> {
+        verify_cache_custody_root(snapshots, kind)?;
+        let parent = open_absolute_directory_nofollow(snapshots)
+            .map_err(|error| cache_custody_invalid(kind, snapshots, error.to_string()))?;
+        Self::create_from_open_parent(kind, snapshots, &parent, prefix)
+    }
+
+    fn create_from_open_parent(
+        kind: CacheCustodyKind,
+        snapshots: &Path,
+        retained_parent: &CapabilityDirectory,
+        prefix: &str,
+    ) -> Result<Self, SourceResolveError> {
+        let parent = retained_parent
+            .try_clone()
+            .map_err(|error| io_error(snapshots, error))?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = snapshots.join(format!(
-                ".tree-{tree}.stage-{}-{sequence}",
-                std::process::id()
-            ));
-            match std::fs::create_dir(&root) {
+            let stage_name = OsString::from(format!("{prefix}-{}-{sequence}", std::process::id()));
+            let root = snapshots.join(&stage_name);
+            match parent.create_dir(&stage_name) {
                 Ok(()) => {
+                    let classified = parent
+                        .symlink_metadata(&stage_name)
+                        .map_err(|error| io_error(&root, error))?;
+                    let directory = parent
+                        .open_dir_nofollow(&stage_name)
+                        .map_err(|error| cache_custody_invalid(kind, &root, error.to_string()))?;
+                    let opened = directory
+                        .dir_metadata()
+                        .map_err(|error| io_error(&root, error))?;
+                    if !classified.is_dir() || !same_capability_file_identity(&classified, &opened)
+                    {
+                        return Err(cache_custody_invalid(
+                            kind,
+                            &root,
+                            "snapshot staging directory changed while being retained",
+                        ));
+                    }
                     return Ok(Self {
                         root,
+                        parent,
+                        directory: Some(directory),
+                        stage_name,
+                        kind,
                         published: false,
                     });
                 }
@@ -2795,62 +4229,118 @@ impl PendingSnapshot {
                 Err(error) => return Err(io_error(&root, error)),
             }
         }
-        Err(cache_invalid(
+        Err(cache_custody_invalid(
+            kind,
             snapshots,
-            "could not allocate a unique snapshot staging directory",
+            "could not allocate a unique materialized-snapshot staging directory",
         ))
     }
-}
 
-impl Drop for PendingSnapshot {
-    fn drop(&mut self) {
-        if !self.published {
-            make_tree_owner_writable(&self.root);
-            let _ = std::fs::remove_dir_all(&self.root);
+    fn directory(&self) -> Result<&CapabilityDirectory, SourceResolveError> {
+        self.directory.as_ref().ok_or_else(|| {
+            cache_custody_invalid(self.kind, &self.root, "snapshot stage handle is absent")
+        })
+    }
+
+    fn publish(&mut self, snapshots: &Path, publication: &Path) -> Result<(), SourceResolveError> {
+        let directory = self.directory()?;
+        let retained = directory
+            .dir_metadata()
+            .map_err(|error| io_error(&self.root, error))?;
+        let named = self
+            .parent
+            .symlink_metadata(&self.stage_name)
+            .map_err(|error| io_error(&self.root, error))?;
+        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+            return Err(cache_custody_invalid(
+                self.kind,
+                &self.root,
+                "snapshot stage pathname no longer identifies the retained directory",
+            ));
         }
+        let publication_name = direct_cache_child_name(self.kind, snapshots, publication)?;
+        publish_cache_directory_from_open_parent(
+            self.kind,
+            snapshots,
+            &self.parent,
+            &self.stage_name,
+            publication_name,
+            Some(&retained),
+        )?;
+        self.published = true;
+        Ok(())
     }
 }
 
-struct PendingLocalSnapshot {
-    root: PathBuf,
-    published: bool,
-}
-
-impl PendingLocalSnapshot {
-    fn create(snapshots: &Path, identity: &str) -> Result<Self, SourceResolveError> {
-        for _ in 0..128 {
-            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = snapshots.join(format!(
-                ".source-{identity}.stage-{}-{sequence}",
-                std::process::id()
-            ));
-            match std::fs::create_dir(&root) {
-                Ok(()) => {
-                    return Ok(Self {
-                        root,
-                        published: false,
-                    });
-                }
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
-                Err(error) => return Err(io_error(&root, error)),
+impl Drop for PendingMaterializedSnapshot {
+    fn drop(&mut self) {
+        if !self.published {
+            if let Some(directory) = self.directory.take() {
+                make_open_tree_owner_writable(&directory);
+                let _ = directory.remove_open_dir_all();
             }
         }
-        Err(local_snapshot_invalid(
-            snapshots,
-            "could not allocate a unique snapshot staging directory",
-        ))
     }
 }
 
-impl Drop for PendingLocalSnapshot {
-    fn drop(&mut self) {
-        if !self.published {
-            make_tree_owner_writable(&self.root);
-            let _ = std::fs::remove_dir_all(&self.root);
+fn make_open_tree_owner_writable(root: &CapabilityDirectory) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        if let Ok(directory) = root.try_clone() {
+            let _ = directory
+                .into_std_file()
+                .set_permissions(std::fs::Permissions::from_mode(0o700));
+        }
+        if let Ok(entries) = root.entries() {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Ok(metadata) = root.symlink_metadata(&name)
+                    && metadata.is_dir()
+                    && let Ok(directory) = root.open_dir_nofollow(&name)
+                {
+                    make_open_tree_owner_writable(&directory);
+                }
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        if let Ok(directory) = root.try_clone() {
+            let directory = directory.into_std_file();
+            if let Ok(metadata) = directory.metadata() {
+                let mut permissions = metadata.permissions();
+                permissions.set_readonly(false);
+                let _ = directory.set_permissions(permissions);
+            }
+        }
+        if let Ok(entries) = root.entries() {
+            for entry in entries.flatten() {
+                let name = entry.file_name();
+                if let Ok(metadata) = root.symlink_metadata(&name) {
+                    if metadata.is_dir() {
+                        if let Ok(directory) = root.open_dir_nofollow(&name) {
+                            make_open_tree_owner_writable(&directory);
+                        }
+                    } else if metadata.is_file() {
+                        let mut options = CapabilityOpenOptions::new();
+                        options.read(true).follow(FollowSymlinks::No);
+                        if let Ok(file) = root.open_with(&name, &options)
+                            && let Ok(metadata) = file.metadata()
+                        {
+                            let mut permissions = metadata.permissions();
+                            permissions.set_readonly(false);
+                            let _ = file.set_permissions(permissions);
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
+#[cfg(test)]
 fn make_tree_owner_writable(root: &Path) {
     #[cfg(unix)]
     {
@@ -2877,7 +4367,9 @@ fn make_tree_owner_writable(root: &Path) {
 fn create_git_cache_entry(
     executor: &GitExecutor,
     cache_dir: &Path,
+    cache_directory: &CapabilityDirectory,
     entry_root: &Path,
+    entry_name: &OsStr,
     cache_identity: &str,
     locator_identity: &str,
     fetch_locator: &str,
@@ -2885,12 +4377,18 @@ fn create_git_cache_entry(
     execution_transport: GitExecutionTransport,
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
-    let mut pending = PendingCacheEntry::create(cache_dir, cache_identity)?;
+    let mut pending = PendingCacheEntry::create(cache_dir, cache_directory, cache_identity)?;
     let repository = pending.root.join(GIT_CACHE_REPOSITORY);
     let empty_template = pending.root.join("empty-template");
-    std::fs::create_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
-    let object_format =
-        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev)?;
+    pending.create_private_directory("empty-template", &empty_template)?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let object_format_result =
+        discover_git_object_format(executor, &pending.root, fetch_locator, requested_rev);
+    let object_format = reconcile_git_cache_operation_result(
+        object_format_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
     let mut init_arguments = vec![
         OsString::from("init"),
         OsString::from("--quiet"),
@@ -2902,21 +4400,62 @@ fn create_git_cache_entry(
     init_arguments.push(OsString::from("--template"));
     init_arguments.push(empty_template.as_os_str().to_owned());
     init_arguments.push(repository.as_os_str().to_owned());
-    run_git(executor, &pending.root, init_arguments.iter())?;
-    let config_path = repository.join("config");
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let init_result = run_git(
+        executor,
+        &pending.root,
+        ResolverExecutionPhase::RepositoryInitialization,
+        init_arguments.iter(),
+    );
+    reconcile_git_cache_operation_result(
+        init_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
     let canonical_config = match object_format {
         GitObjectIdAlgorithm::Sha1 => GIT_CONFIG_SHA1,
         GitObjectIdAlgorithm::Sha256 => GIT_CONFIG_SHA256,
     };
-    replace_canonical_git_control_file(&repository, &config_path, canonical_config)?;
-    std::fs::remove_dir(&empty_template).map_err(|error| io_error(&empty_template, error))?;
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let config_result = replace_canonical_git_control_file(
+        pending.directory()?,
+        OsStr::new(GIT_CACHE_REPOSITORY),
+        &repository,
+        canonical_config,
+    );
+    reconcile_git_cache_operation_result(
+        config_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
+    )?;
+    pending
+        .directory()?
+        .remove_dir("empty-template")
+        .map_err(|error| io_error(&empty_template, error))?;
 
     let metadata_path = pending.root.join(GIT_CACHE_METADATA);
-    let mut metadata = OpenOptions::new()
+    let mut metadata_options = CapabilityOpenOptions::new();
+    metadata_options
         .write(true)
         .create_new(true)
-        .open(&metadata_path)
+        .follow(FollowSymlinks::No);
+    #[cfg(unix)]
+    metadata_options.mode(0o600);
+    let mut metadata = pending
+        .directory()?
+        .open_with(GIT_CACHE_METADATA, &metadata_options)
         .map_err(|error| io_error(&metadata_path, error))?;
+    #[cfg(unix)]
+    {
+        let mut permissions = metadata
+            .metadata()
+            .map_err(|error| io_error(&metadata_path, error))?
+            .permissions();
+        permissions.set_mode(0o600);
+        metadata
+            .set_permissions(permissions)
+            .map_err(|error| io_error(&metadata_path, error))?;
+    }
     metadata
         .write_all(&git_cache_metadata(
             locator_identity,
@@ -2927,16 +4466,42 @@ fn create_git_cache_entry(
     metadata
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
+    let metadata_custody = metadata
+        .metadata()
+        .map_err(|error| io_error(&metadata_path, error))?;
+    verify_capability_cache_node_owner_and_mode(
+        CacheCustodyKind::Git,
+        &metadata_path,
+        &metadata_custody,
+    )?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
 
-    verify_git_cache_entry(
+        if metadata_custody.mode() & 0o777 != 0o600 {
+            return Err(cache_invalid(
+                &metadata_path,
+                "resolver metadata does not have exact private mode 0600",
+            ));
+        }
+    }
+
+    pending.verify_ambient_path_identity(cache_dir)?;
+    let verification_result = VerifiedGitRepository::open(
+        &pending.parent,
+        &pending.stage_name,
         &pending.root,
         locator_identity,
         requested_rev,
         execution_transport,
         limits,
+    );
+    reconcile_git_cache_operation_result(
+        verification_result,
+        pending.verify_ambient_path_identity(cache_dir),
+        None,
     )?;
-    std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
-    pending.published = true;
+    pending.publish(cache_dir, entry_root, entry_name)?;
     Ok(())
 }
 
@@ -2952,6 +4517,7 @@ fn discover_git_object_format(
     let output = run_git_bytes_stdout(
         executor,
         working_directory,
+        ResolverExecutionPhase::TransportDiscovery,
         [
             OsStr::new("ls-remote"),
             OsStr::new("--symref"),
@@ -3002,73 +4568,616 @@ fn parse_git_remote_object_format(
     })
 }
 
-fn verify_git_cache_entry(
-    entry_root: &Path,
-    url: &str,
-    requested_rev: &str,
-    execution_transport: GitExecutionTransport,
-    limits: LocalSourceLimits,
-) -> Result<(), SourceResolveError> {
-    verify_git_cache_custody(entry_root, limits)?;
-    require_real_directory(entry_root, "cache entry root is not a real directory")?;
-    let metadata_path = entry_root.join(GIT_CACHE_METADATA);
-    require_regular_file(&metadata_path, "resolver metadata is not a regular file")?;
-    let expected_metadata = git_cache_metadata(url, requested_rev, execution_transport);
-    let metadata_size = std::fs::symlink_metadata(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?
-        .len();
-    if metadata_size != expected_metadata.len() as u64 {
-        return Err(cache_invalid(
-            &metadata_path,
-            "resolver metadata has an unexpected length",
-        ));
-    }
-    let actual_metadata =
-        std::fs::read(&metadata_path).map_err(|error| io_error(&metadata_path, error))?;
-    if actual_metadata != expected_metadata {
-        return Err(cache_invalid(
+struct VerifiedGitRepository {
+    entry_root: PathBuf,
+    repository_path: PathBuf,
+    entry_name: OsString,
+    expected_metadata: Vec<u8>,
+    cache_parent: CapabilityDirectory,
+    entry: CapabilityDirectory,
+    repository: CapabilityDirectory,
+    objects: CapabilityDirectory,
+    entry_identity: CapabilityMetadata,
+    repository_identity: CapabilityMetadata,
+    objects_identity: CapabilityMetadata,
+}
+
+impl VerifiedGitRepository {
+    fn open(
+        cache_parent: &CapabilityDirectory,
+        entry_name: &OsStr,
+        entry_root: &Path,
+        url: &str,
+        requested_rev: &str,
+        execution_transport: GitExecutionTransport,
+        limits: LocalSourceLimits,
+    ) -> Result<Self, SourceResolveError> {
+        let (entry, entry_identity) = open_retained_git_directory(
+            cache_parent,
+            entry_name,
             entry_root,
-            "resolver metadata does not match the exact source locator and revision",
-        ));
+            "cache entry root is not a concrete directory",
+        )?;
+        let repository_path = entry_root.join(GIT_CACHE_REPOSITORY);
+        let (repository, repository_identity) = open_retained_git_directory(
+            &entry,
+            OsStr::new(GIT_CACHE_REPOSITORY),
+            &repository_path,
+            "repository is not a concrete directory",
+        )?;
+        let objects_path = repository_path.join("objects");
+        let (objects, objects_identity) = open_retained_git_directory(
+            &repository,
+            OsStr::new("objects"),
+            &objects_path,
+            "Git object directory is not a concrete directory",
+        )?;
+        let verified = Self {
+            entry_root: entry_root.to_path_buf(),
+            repository_path,
+            entry_name: entry_name.to_os_string(),
+            expected_metadata: git_cache_metadata(url, requested_rev, execution_transport),
+            cache_parent: cache_parent
+                .try_clone()
+                .map_err(|error| io_error(entry_root, error))?,
+            entry,
+            repository,
+            objects,
+            entry_identity,
+            repository_identity,
+            objects_identity,
+        };
+        verified.verify_current(limits)?;
+        Ok(verified)
     }
 
-    let repository = entry_root.join(GIT_CACHE_REPOSITORY);
-    require_real_directory(&repository, "repository is not a real directory")?;
-    require_real_directory(
-        &repository.join("objects"),
-        "Git object directory is not a real directory",
-    )?;
-    for forbidden in [
-        repository.join("objects/info/alternates"),
-        repository.join("objects/info/http-alternates"),
-        repository.join("commondir"),
-    ] {
-        if std::fs::symlink_metadata(&forbidden).is_ok() {
+    fn path(&self) -> &Path {
+        &self.repository_path
+    }
+
+    fn verify_identity(&self) -> Result<(), SourceResolveError> {
+        let cache_root = self.entry_root.parent().ok_or_else(|| {
+            cache_invalid(&self.entry_root, "Git cache entry has no retained parent")
+        })?;
+        verify_retained_cache_parent_path(CacheCustodyKind::Git, cache_root, &self.cache_parent)?;
+        verify_retained_git_directory_identity(
+            &self.cache_parent,
+            &self.entry_name,
+            &self.entry,
+            &self.entry_identity,
+            &self.entry_root,
+            "cache entry root no longer identifies the retained directory",
+        )?;
+        verify_retained_git_directory_identity(
+            &self.entry,
+            OsStr::new(GIT_CACHE_REPOSITORY),
+            &self.repository,
+            &self.repository_identity,
+            &self.repository_path,
+            "repository no longer identifies the retained directory",
+        )?;
+        verify_retained_git_directory_identity(
+            &self.repository,
+            OsStr::new("objects"),
+            &self.objects,
+            &self.objects_identity,
+            &self.repository_path.join("objects"),
+            "Git object directory no longer identifies the retained directory",
+        )
+    }
+
+    fn verify_current(&self, limits: LocalSourceLimits) -> Result<(), SourceResolveError> {
+        self.verify_identity()?;
+        verify_cache_custody_from_open_root(
+            &self.entry_root,
+            self.entry
+                .try_clone()
+                .map_err(|error| io_error(&self.entry_root, error))?,
+            CacheCustodyKind::Git,
+            git_cache_custody_byte_limit(limits),
+        )?;
+        let actual_metadata = read_bounded_cache_record_from_open_directory(
+            CacheCustodyKind::Git,
+            &self.entry,
+            &self.entry_root,
+            Path::new(GIT_CACHE_METADATA),
+            self.expected_metadata.len(),
+        )?;
+        if actual_metadata != self.expected_metadata {
             return Err(cache_invalid(
-                &forbidden,
-                "external Git object or directory indirection is forbidden",
+                &self.entry_root,
+                "resolver metadata does not match the exact source locator and revision",
             ));
         }
+        verify_git_repository_tree_from_open_root(&self.repository, &self.repository_path)?;
+        reject_retained_git_path(
+            &self.objects,
+            &self.repository_path.join("objects"),
+            &["info", "alternates"],
+        )?;
+        reject_retained_git_path(
+            &self.objects,
+            &self.repository_path.join("objects"),
+            &["info", "http-alternates"],
+        )?;
+        reject_retained_git_path(&self.repository, &self.repository_path, &["commondir"])?;
+        self.read_canonical_config()?;
+        self.verify_identity()
     }
 
-    let config_path = repository.join("config");
-    require_regular_file(
-        &config_path,
-        "local Git configuration is not a regular file",
-    )?;
-    let config = std::fs::read(&config_path).map_err(|error| io_error(&config_path, error))?;
-    if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+    fn read_canonical_config(&self) -> Result<Vec<u8>, SourceResolveError> {
+        let config_path = self.repository_path.join("config");
+        let config = read_bounded_cache_record_from_open_directory(
+            CacheCustodyKind::Git,
+            &self.repository,
+            &self.repository_path,
+            Path::new("config"),
+            GIT_CONFIG_SHA256.len(),
+        )?;
+        if config.as_slice() != GIT_CONFIG_SHA1 && config.as_slice() != GIT_CONFIG_SHA256 {
+            return Err(cache_invalid(
+                &config_path,
+                "local Git configuration is not the exact resolver-owned canonical file",
+            ));
+        }
+        Ok(config)
+    }
+
+    fn restore_canonical_config(&self, canonical_config: &[u8]) -> Result<(), SourceResolveError> {
+        debug_assert!(canonical_config == GIT_CONFIG_SHA1 || canonical_config == GIT_CONFIG_SHA256);
+        self.verify_identity()?;
+        let result = replace_canonical_git_control_file_from_open_repository(
+            &self.repository,
+            &self.repository_path,
+            canonical_config,
+        );
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git<I, S>(&self, executor: &GitExecutor, args: I) -> Result<(), SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::Fetch,
+            args,
+        );
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git_stdout<I, S>(
+        &self,
+        executor: &GitExecutor,
+        args: I,
+    ) -> Result<String, SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git_stdout(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::RepositoryInspection,
+            args,
+        );
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn run_git_bytes_stdout<I, S>(
+        &self,
+        executor: &GitExecutor,
+        args: I,
+    ) -> Result<Vec<u8>, SourceResolveError>
+    where
+        I: IntoIterator<Item = S>,
+        S: AsRef<OsStr>,
+    {
+        self.verify_identity()?;
+        let result = run_git_bytes_stdout(
+            executor,
+            &self.repository_path,
+            ResolverExecutionPhase::RepositoryInspection,
+            args,
+        );
+        reconcile_git_cache_operation_result(result, self.verify_identity(), None)
+    }
+
+    fn open_or_create_snapshots(&self) -> Result<RetainedGitSnapshots, SourceResolveError> {
+        self.verify_identity()?;
+        let path = self.entry_root.join(GIT_CACHE_SNAPSHOTS);
+        let name = OsStr::new(GIT_CACHE_SNAPSHOTS);
+        let (directory, identity) = match self.entry.symlink_metadata(name) {
+            Ok(_) => {
+                let (directory, identity) = open_retained_git_directory(
+                    &self.entry,
+                    name,
+                    &path,
+                    "Git snapshot collection is not a concrete directory",
+                )?;
+                verify_capability_cache_node_owner_and_mode(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &identity,
+                )?;
+                verify_macos_open_cache_extended_acl_custody(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &directory
+                        .try_clone()
+                        .map_err(|error| io_error(&path, error))?
+                        .into_std_file(),
+                )?;
+                verify_windows_open_cache_custody(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &directory
+                        .try_clone()
+                        .map_err(|error| io_error(&path, error))?
+                        .into_std_file(),
+                )?;
+                (directory, identity)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                create_private_cache_directory(&self.entry, name)
+                    .map_err(|error| io_error(&path, error))?;
+                let provisional = ProvisionalCacheDirectory::new(&self.entry, name);
+                let directory = retain_private_cache_directory(
+                    CacheCustodyKind::Git,
+                    &self.entry,
+                    name,
+                    &path,
+                )?;
+                let identity = directory
+                    .dir_metadata()
+                    .map_err(|error| io_error(&path, error))?;
+                provisional.disarm();
+                (directory, identity)
+            }
+            Err(error) => return Err(io_error(&path, error)),
+        };
+        let snapshots = RetainedGitSnapshots {
+            path,
+            entry: self
+                .entry
+                .try_clone()
+                .map_err(|error| io_error(&self.entry_root, error))?,
+            directory,
+            identity,
+        };
+        snapshots.verify_identity()?;
+        self.verify_identity()?;
+        Ok(snapshots)
+    }
+}
+
+struct RetainedGitSnapshots {
+    path: PathBuf,
+    entry: CapabilityDirectory,
+    directory: CapabilityDirectory,
+    identity: CapabilityMetadata,
+}
+
+impl RetainedGitSnapshots {
+    fn verify_identity(&self) -> Result<(), SourceResolveError> {
+        verify_retained_git_directory_identity(
+            &self.entry,
+            OsStr::new(GIT_CACHE_SNAPSHOTS),
+            &self.directory,
+            &self.identity,
+            &self.path,
+            "Git snapshot collection no longer identifies the retained directory",
+        )
+    }
+
+    fn publication_exists(&self, publication: &Path) -> Result<bool, SourceResolveError> {
+        self.verify_identity()?;
+        let name = direct_cache_child_name(CacheCustodyKind::Git, &self.path, publication)?;
+        match self.directory.symlink_metadata(name) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                Err(cache_invalid(
+                    publication,
+                    "Git snapshot publication is not a concrete directory",
+                ))
+            }
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(io_error(publication, error)),
+        }
+    }
+}
+
+fn open_retained_git_directory(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    message: &str,
+) -> Result<(CapabilityDirectory, CapabilityMetadata), SourceResolveError> {
+    let classified = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
+        return Err(cache_invalid(path, message));
+    }
+    let directory = parent
+        .open_dir_nofollow(name)
+        .map_err(|error| cache_invalid(path, error.to_string()))?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_capability_file_identity(&classified, &opened) {
         return Err(cache_invalid(
-            &config_path,
-            "local Git configuration is not the exact resolver-owned canonical file",
+            path,
+            "Git directory changed between classification and no-follow open",
+        ));
+    }
+    Ok((directory, opened))
+}
+
+fn verify_retained_git_directory_identity(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    retained: &CapabilityDirectory,
+    expected: &CapabilityMetadata,
+    path: &Path,
+    message: &str,
+) -> Result<(), SourceResolveError> {
+    let named = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let opened = retained
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if named.file_type().is_symlink()
+        || !named.is_dir()
+        || !opened.is_dir()
+        || !same_capability_file_identity(expected, &named)
+        || !same_capability_file_identity(expected, &opened)
+    {
+        return Err(cache_invalid(path, message));
+    }
+    Ok(())
+}
+
+fn verify_git_repository_tree_from_open_root(
+    repository: &CapabilityDirectory,
+    repository_path: &Path,
+) -> Result<(), SourceResolveError> {
+    let root_metadata = repository
+        .dir_metadata()
+        .map_err(|error| io_error(repository_path, error))?;
+    let mut pending = vec![(
+        PathBuf::new(),
+        repository_path.to_path_buf(),
+        root_metadata,
+        0usize,
+    )];
+    let mut observed = 0usize;
+    while let Some((relative_path, path, classified, depth)) = pending.pop() {
+        observed = observed
+            .checked_add(1)
+            .ok_or_else(|| cache_invalid(&path, "Git repository entry count overflowed"))?;
+        if observed > CACHE_CUSTODY_ENTRY_LIMIT {
+            return Err(cache_invalid(
+                repository_path,
+                format!("Git repository exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry ceiling"),
+            ));
+        }
+        let directory = open_cache_custody_directory(
+            repository,
+            &relative_path,
+            &path,
+            &classified,
+            CacheCustodyKind::Git,
+        )?;
+        for child in directory
+            .entries()
+            .map_err(|error| io_error(&path, error))?
+        {
+            let child = child.map_err(|error| io_error(&path, error))?;
+            let name = child.file_name();
+            let child_path = path.join(&name);
+            let metadata = directory
+                .symlink_metadata(&name)
+                .map_err(|error| io_error(&child_path, error))?;
+            if metadata.file_type().is_symlink() {
+                return Err(cache_invalid(
+                    &child_path,
+                    "symlinks are forbidden in the native Git repository",
+                ));
+            }
+            if metadata.is_file() {
+                verify_retained_git_regular_file(&directory, &name, &child_path, &metadata)?;
+                observed = observed.checked_add(1).ok_or_else(|| {
+                    cache_invalid(&child_path, "Git repository entry count overflowed")
+                })?;
+            } else if metadata.is_dir() {
+                let child_depth = depth
+                    .checked_add(1)
+                    .ok_or_else(|| cache_invalid(&child_path, "Git repository depth overflowed"))?;
+                if child_depth > CACHE_CUSTODY_DEPTH_LIMIT {
+                    return Err(cache_invalid(
+                        &child_path,
+                        format!(
+                            "Git repository exceeds its {CACHE_CUSTODY_DEPTH_LIMIT}-level depth ceiling"
+                        ),
+                    ));
+                }
+                pending.push((relative_path.join(&name), child_path, metadata, child_depth));
+            } else {
+                return Err(cache_invalid(
+                    &child_path,
+                    "native Git repository contains an unsupported filesystem entry kind",
+                ));
+            }
+            if observed
+                .checked_add(pending.len())
+                .is_none_or(|total| total > CACHE_CUSTODY_ENTRY_LIMIT)
+            {
+                return Err(cache_invalid(
+                    repository_path,
+                    format!("Git repository exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry ceiling"),
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+fn verify_retained_git_regular_file(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent
+        .open_with(name, &options)
+        .map_err(|error| cache_invalid(path, error.to_string()))?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_invalid(
+            path,
+            "Git repository file changed between classification and no-follow open",
+        ));
+    }
+    verify_git_regular_file_link_count(path, &opened)
+}
+
+#[cfg(unix)]
+fn verify_git_regular_file_link_count(
+    path: &Path,
+    metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    use cap_fs_ext::OsMetadataExt;
+
+    if metadata.nlink() != 1 {
+        return Err(cache_invalid(
+            path,
+            "multiply-linked files are forbidden in the native Git repository",
         ));
     }
     Ok(())
 }
 
-fn invalidate_git_cache_entry(entry_root: &Path) {
-    let metadata_path = entry_root.join(GIT_CACHE_METADATA);
-    let _ = std::fs::remove_file(metadata_path);
+#[cfg(not(unix))]
+fn verify_git_regular_file_link_count(
+    _path: &Path,
+    _metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+fn reject_retained_git_path(
+    root: &CapabilityDirectory,
+    root_path: &Path,
+    components: &[&str],
+) -> Result<(), SourceResolveError> {
+    let Some((leaf, parents)) = components.split_last() else {
+        return Err(cache_invalid(root_path, "forbidden Git path is empty"));
+    };
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(root_path, error))?;
+    let mut path = root_path.to_path_buf();
+    for parent in parents {
+        path.push(parent);
+        let metadata = match directory.symlink_metadata(parent) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(error) => return Err(io_error(&path, error)),
+        };
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(cache_invalid(
+                &path,
+                "cannot prove forbidden Git path absent beneath a non-directory",
+            ));
+        }
+        let opened = directory
+            .open_dir_nofollow(parent)
+            .map_err(|error| cache_invalid(&path, error.to_string()))?;
+        let opened_metadata = opened
+            .dir_metadata()
+            .map_err(|error| io_error(&path, error))?;
+        if !same_capability_file_identity(&metadata, &opened_metadata) {
+            return Err(cache_invalid(
+                &path,
+                "Git directory changed while checking forbidden indirection",
+            ));
+        }
+        directory = opened;
+    }
+    path.push(leaf);
+    match directory.symlink_metadata(leaf) {
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(io_error(&path, error)),
+        Ok(_) => Err(cache_invalid(
+            &path,
+            "external Git object or directory indirection is forbidden",
+        )),
+    }
+}
+
+#[cfg(test)]
+fn invalidate_git_cache_entry_from_retained_parent(
+    entry_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let cache_root = entry_root
+        .parent()
+        .ok_or_else(|| cache_invalid(entry_root, "Git cache entry has no cache parent"))?;
+    verify_git_cache_root_custody(cache_root)?;
+    let cache_directory = open_absolute_directory_nofollow(cache_root)
+        .map_err(|error| cache_invalid(cache_root, error.to_string()))?;
+    let entry_name = direct_cache_child_name(CacheCustodyKind::Git, cache_root, entry_root)?;
+    invalidate_git_cache_entry_from_open_parent(
+        cache_root,
+        &cache_directory,
+        entry_name,
+        entry_root,
+    )
+}
+
+fn invalidate_git_cache_entry_from_open_parent(
+    cache_root: &Path,
+    cache_directory: &CapabilityDirectory,
+    entry_name: &OsStr,
+    entry_root: &Path,
+) -> Result<(), SourceResolveError> {
+    let classified = cache_directory
+        .symlink_metadata(entry_name)
+        .map_err(|error| io_error(entry_root, error))?;
+    if classified.file_type().is_symlink() || !classified.is_dir() {
+        return Err(cache_invalid(
+            entry_root,
+            "Git cache invalidation target is not a concrete directory",
+        ));
+    }
+    let entry_directory = cache_directory
+        .open_dir_nofollow(entry_name)
+        .map_err(|error| cache_invalid(entry_root, error.to_string()))?;
+    let opened = entry_directory
+        .dir_metadata()
+        .map_err(|error| io_error(entry_root, error))?;
+    if !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_invalid(
+            entry_root,
+            "Git cache entry changed while opening it for invalidation",
+        ));
+    }
+    entry_directory
+        .remove_file(GIT_CACHE_METADATA)
+        .map_err(|error| io_error(&entry_root.join(GIT_CACHE_METADATA), error))?;
+    cache_directory
+        .try_clone()
+        .map_err(|error| io_error(cache_root, error))?
+        .into_std_file()
+        .sync_all()
+        .map_err(|error| io_error(cache_root, error))
 }
 
 fn git_cache_identity(
@@ -3116,26 +5225,58 @@ fn local_snapshot_invalid(path: &Path, message: impl Into<String>) -> SourceReso
     }
 }
 
-fn require_real_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(cache_invalid(path, message));
-    }
-    Ok(())
-}
-
-fn require_regular_file(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_file() {
-        return Err(cache_invalid(path, message));
-    }
-    Ok(())
-}
-
 #[derive(Debug, Clone, Copy)]
 enum CacheCustodyKind {
     Git,
     LocalSnapshot,
+}
+
+fn read_bounded_cache_record(
+    kind: CacheCustodyKind,
+    root: &Path,
+    relative_path: &Path,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, SourceResolveError> {
+    verify_cache_custody_root(root, kind)?;
+    let directory = open_absolute_directory_nofollow(root)
+        .map_err(|error| cache_custody_invalid(kind, root, error.to_string()))?;
+    read_bounded_cache_record_from_open_directory(
+        kind,
+        &directory,
+        root,
+        relative_path,
+        maximum_bytes,
+    )
+}
+
+fn read_bounded_cache_record_from_open_directory(
+    kind: CacheCustodyKind,
+    directory: &CapabilityDirectory,
+    root: &Path,
+    relative_path: &Path,
+    maximum_bytes: usize,
+) -> Result<Vec<u8>, SourceResolveError> {
+    let directory = directory
+        .try_clone()
+        .map_err(|error| io_error(root, error))?;
+    let record_root =
+        RecordFileRoot::from_directory(directory, root.to_path_buf()).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                root,
+                format!("failed to retain cache record directory: {error:?}"),
+            )
+        })?;
+    let record = record_root
+        .read(relative_path, RecordFileLimits { maximum_bytes })
+        .map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                &root.join(relative_path),
+                format!("failed to read bounded cache record: {error:?}"),
+            )
+        })?;
+    Ok(record.bytes().to_vec())
 }
 
 fn verify_git_cache_custody(
@@ -3181,7 +5322,9 @@ fn verify_cache_custody_root(
             "cache custody root is not a concrete directory",
         ));
     }
-    verify_cache_node_owner_and_mode(kind, root, &metadata)
+    verify_cache_node_owner_and_mode(kind, root, &metadata)?;
+    verify_macos_open_cache_directory_acl_custody(kind, root, &metadata)?;
+    verify_windows_open_cache_directory_custody(kind, root, &metadata)
 }
 
 #[cfg(unix)]
@@ -3214,12 +5357,29 @@ fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), Sour
                 "cache custody ancestry is externally writable without sticky-entry protection",
             ));
         }
-        verify_macos_cache_extended_acl_custody(kind, ancestor, true)?;
+        verify_macos_open_cache_directory_acl_custody(kind, ancestor, &metadata)?;
     }
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn verify_cache_ancestry(kind: CacheCustodyKind, root: &Path) -> Result<(), SourceResolveError> {
+    for ancestor in root.ancestors() {
+        let metadata =
+            std::fs::symlink_metadata(ancestor).map_err(|error| io_error(ancestor, error))?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(cache_custody_invalid(
+                kind,
+                ancestor,
+                "cache custody ancestry contains a non-directory or reparse point",
+            ));
+        }
+        verify_windows_open_cache_ancestry_custody(kind, ancestor, &metadata)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_cache_ancestry(_kind: CacheCustodyKind, _root: &Path) -> Result<(), SourceResolveError> {
     Ok(())
 }
@@ -3245,11 +5405,24 @@ fn verify_cache_custody(
     byte_limit: u64,
 ) -> Result<(), SourceResolveError> {
     verify_cache_custody_root(root, kind)?;
+    let root_directory = open_absolute_directory_nofollow(root)
+        .map_err(|error| cache_custody_invalid(kind, root, error.to_string()))?;
+    verify_cache_custody_from_open_root(root, root_directory, kind, byte_limit)
+}
 
-    let mut pending = vec![root.to_path_buf()];
+fn verify_cache_custody_from_open_root(
+    root: &Path,
+    root_directory: CapabilityDirectory,
+    kind: CacheCustodyKind,
+    byte_limit: u64,
+) -> Result<(), SourceResolveError> {
+    let root_metadata = root_directory
+        .dir_metadata()
+        .map_err(|error| io_error(root, error))?;
+    let mut pending = vec![(PathBuf::new(), root.to_path_buf(), root_metadata, 0usize)];
     let mut observed = 0usize;
     let mut logical_bytes = 0u64;
-    while let Some(path) = pending.pop() {
+    while let Some((relative_path, path, classified, depth)) = pending.pop() {
         observed = observed.checked_add(1).ok_or_else(|| {
             cache_custody_invalid(kind, &path, "cache custody entry count overflowed")
         })?;
@@ -3262,45 +5435,333 @@ fn verify_cache_custody(
                 ),
             ));
         }
-        let metadata = std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-        verify_cache_node_owner_and_mode(kind, &path, &metadata)?;
-        let file_type = metadata.file_type();
-        if file_type.is_file() || file_type.is_symlink() {
-            logical_bytes = logical_bytes
-                .checked_add(metadata.len())
-                .filter(|bytes| *bytes <= byte_limit)
-                .ok_or_else(|| {
-                    cache_custody_invalid(
-                        kind,
-                        root,
-                        format!(
-                            "cache custody tree exceeds its {byte_limit}-byte logical resident ceiling"
-                        ),
-                    )
+        let directory = open_cache_custody_directory(
+            &root_directory,
+            &relative_path,
+            &path,
+            &classified,
+            kind,
+        )?;
+        let metadata = directory
+            .dir_metadata()
+            .map_err(|error| io_error(&path, error))?;
+        verify_capability_cache_node_owner_and_mode(kind, &path, &metadata)?;
+        let directory_file = directory
+            .try_clone()
+            .map_err(|error| io_error(&path, error))?
+            .into_std_file();
+        verify_macos_open_cache_extended_acl_custody(kind, &path, &directory_file)?;
+        verify_windows_open_cache_custody(kind, &path, &directory_file)?;
+
+        let children = directory
+            .entries()
+            .map_err(|error| io_error(&path, error))?;
+        for child in children {
+            let child = child.map_err(|error| io_error(&path, error))?;
+            let name = child.file_name();
+            let child_path = path.join(&name);
+            if !cache_custody_has_capacity(observed, pending.len()) {
+                return Err(cache_custody_invalid(
+                    kind,
+                    root,
+                    format!(
+                        "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+                    ),
+                ));
+            }
+            let metadata = directory
+                .symlink_metadata(&name)
+                .map_err(|error| io_error(&child_path, error))?;
+            verify_capability_cache_node_owner_and_mode(kind, &child_path, &metadata)?;
+            let file_type = metadata.file_type();
+            if file_type.is_file() {
+                verify_macos_open_cache_regular_file_acl_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
+                verify_windows_open_cache_regular_file_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
+            } else if file_type.is_symlink() {
+                verify_macos_cache_link_extended_acl_custody(kind, &child_path)?;
+                verify_windows_open_cache_link_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
+            }
+            if file_type.is_file() || file_type.is_symlink() {
+                logical_bytes = logical_bytes
+                    .checked_add(metadata.len())
+                    .filter(|bytes| *bytes <= byte_limit)
+                    .ok_or_else(|| {
+                        cache_custody_invalid(
+                            kind,
+                            root,
+                            format!(
+                                "cache custody tree exceeds its {byte_limit}-byte logical resident ceiling"
+                            ),
+                        )
+                    })?;
+                observed = observed.checked_add(1).ok_or_else(|| {
+                    cache_custody_invalid(kind, &child_path, "cache custody entry count overflowed")
                 })?;
-        }
-        if file_type.is_dir() {
-            let children = std::fs::read_dir(&path).map_err(|error| io_error(&path, error))?;
-            for child in children {
-                if pending.len() >= CACHE_CUSTODY_ENTRY_LIMIT {
+            } else if file_type.is_dir() {
+                let child_depth = depth.checked_add(1).ok_or_else(|| {
+                    cache_custody_invalid(kind, &child_path, "cache custody depth overflowed")
+                })?;
+                if child_depth > CACHE_CUSTODY_DEPTH_LIMIT {
                     return Err(cache_custody_invalid(
                         kind,
-                        root,
+                        &child_path,
                         format!(
-                            "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+                            "cache custody tree exceeds its {CACHE_CUSTODY_DEPTH_LIMIT}-level depth ceiling"
                         ),
                     ));
                 }
-                pending.push(child.map_err(|error| io_error(&path, error))?.path());
+                pending.push((relative_path.join(&name), child_path, metadata, child_depth));
+            } else {
+                return Err(cache_custody_invalid(
+                    kind,
+                    &child_path,
+                    "cache custody contains an unsupported filesystem entry kind",
+                ));
             }
-        } else if !file_type.is_file() && !file_type.is_symlink() {
-            return Err(cache_custody_invalid(
-                kind,
-                &path,
-                "cache custody contains an unsupported filesystem entry kind",
-            ));
+            if observed > CACHE_CUSTODY_ENTRY_LIMIT {
+                // The retained-entry check above should make this unreachable, but keep the
+                // ceiling explicit if traversal accounting changes.
+                return Err(cache_custody_invalid(
+                    kind,
+                    root,
+                    format!(
+                        "cache custody tree exceeds its {CACHE_CUSTODY_ENTRY_LIMIT}-entry metadata ceiling"
+                    ),
+                ));
+            }
         }
     }
+    Ok(())
+}
+
+fn cache_custody_has_capacity(observed: usize, pending: usize) -> bool {
+    observed
+        .checked_add(pending)
+        .is_some_and(|retained| retained < CACHE_CUSTODY_ENTRY_LIMIT)
+}
+
+#[cfg(test)]
+fn publish_cache_directory(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    staged: &Path,
+    publication: &Path,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(parent, kind)?;
+    let directory = open_absolute_directory_nofollow(parent)
+        .map_err(|error| cache_custody_invalid(kind, parent, error.to_string()))?;
+    let staged_name = direct_cache_child_name(kind, parent, staged)?;
+    let publication_name = direct_cache_child_name(kind, parent, publication)?;
+    publish_cache_directory_from_open_parent(
+        kind,
+        parent,
+        &directory,
+        staged_name,
+        publication_name,
+        None,
+    )
+}
+
+fn direct_cache_child_name<'a>(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    child: &'a Path,
+) -> Result<&'a OsStr, SourceResolveError> {
+    let relative = child.strip_prefix(parent).map_err(|_| {
+        cache_custody_invalid(
+            kind,
+            child,
+            "cache publication is outside its retained parent",
+        )
+    })?;
+    let mut components = relative.components();
+    let name = match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(name)), None) => name,
+        _ => {
+            return Err(cache_custody_invalid(
+                kind,
+                child,
+                "cache publication is not a direct child of its retained parent",
+            ));
+        }
+    };
+    Ok(name)
+}
+
+fn retained_cache_directory_exists(
+    kind: CacheCustodyKind,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+) -> Result<bool, SourceResolveError> {
+    match parent.symlink_metadata(name) {
+        Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => Err(
+            cache_custody_invalid(kind, path, "cache entry is not a concrete directory"),
+        ),
+        Ok(_) => Ok(true),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+        Err(error) => Err(io_error(path, error)),
+    }
+}
+
+fn publish_cache_directory_from_open_parent(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    directory: &CapabilityDirectory,
+    staged_name: &OsStr,
+    publication_name: &OsStr,
+    expected_staged: Option<&CapabilityMetadata>,
+) -> Result<(), SourceResolveError> {
+    let staged_path = parent.join(staged_name);
+    let publication_path = parent.join(publication_name);
+    let staged_metadata = directory
+        .symlink_metadata(staged_name)
+        .map_err(|error| io_error(&staged_path, error))?;
+    if staged_metadata.file_type().is_symlink() || !staged_metadata.is_dir() {
+        return Err(cache_custody_invalid(
+            kind,
+            &staged_path,
+            "cache publication stage is not a concrete directory",
+        ));
+    }
+    if expected_staged
+        .is_some_and(|expected| !same_capability_file_identity(expected, &staged_metadata))
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            &staged_path,
+            "cache publication stage no longer identifies the retained directory",
+        ));
+    }
+    match directory.symlink_metadata(publication_name) {
+        Ok(_) => {
+            return Err(cache_custody_invalid(
+                kind,
+                &publication_path,
+                "cache publication destination already exists",
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(io_error(&publication_path, error)),
+    }
+
+    directory
+        .rename(staged_name, directory, publication_name)
+        .map_err(|error| io_error(&publication_path, error))?;
+    let published_metadata = directory
+        .symlink_metadata(publication_name)
+        .map_err(|error| io_error(&publication_path, error))?;
+    if !published_metadata.is_dir()
+        || !same_capability_file_identity(&staged_metadata, &published_metadata)
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            &publication_path,
+            "published cache directory does not identify the staged directory",
+        ));
+    }
+    directory
+        .try_clone()
+        .map_err(|error| io_error(parent, error))?
+        .into_std_file()
+        .sync_all()
+        .map_err(|error| io_error(parent, error))?;
+    Ok(())
+}
+
+fn open_cache_custody_directory(
+    root: &CapabilityDirectory,
+    relative_path: &Path,
+    display_path: &Path,
+    classified: &CapabilityMetadata,
+    kind: CacheCustodyKind,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let mut directory = root
+        .try_clone()
+        .map_err(|error| io_error(display_path, error))?;
+    for component in relative_path.components() {
+        use std::path::Component;
+
+        let Component::Normal(name) = component else {
+            return Err(cache_custody_invalid(
+                kind,
+                display_path,
+                "cache custody queued a noncanonical relative directory path",
+            ));
+        };
+        directory = directory
+            .open_dir_nofollow(name)
+            .map_err(|error| cache_custody_invalid(kind, display_path, error.to_string()))?;
+    }
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(display_path, error))?;
+    if !opened.is_dir() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            display_path,
+            "cache directory changed between classification and no-follow open",
+        ));
+    }
+    Ok(directory)
+}
+
+fn same_capability_file_identity(left: &CapabilityMetadata, right: &CapabilityMetadata) -> bool {
+    use cap_fs_ext::MetadataExt;
+
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(unix)]
+fn verify_capability_cache_node_owner_and_mode(
+    kind: CacheCustodyKind,
+    path: &Path,
+    metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    use cap_fs_ext::OsMetadataExt;
+
+    let effective_user = nix::unistd::Uid::effective().as_raw();
+    if metadata.uid() != effective_user {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache entry is not owned by the resolver's effective user",
+        ));
+    }
+    if !metadata.file_type().is_symlink() && metadata.mode() & 0o022 != 0 {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache entry is writable by group or other users",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(unix))]
+fn verify_capability_cache_node_owner_and_mode(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _metadata: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
@@ -3327,7 +5788,6 @@ fn verify_cache_node_owner_and_mode(
             "cache entry is writable by group or other users",
         ));
     }
-    verify_macos_cache_extended_acl_custody(kind, path, !metadata.file_type().is_symlink())?;
     Ok(())
 }
 
@@ -3337,9 +5797,9 @@ fn verify_cache_node_owner_and_mode(
     _path: &Path,
     _metadata: &std::fs::Metadata,
 ) -> Result<(), SourceResolveError> {
-    // Windows ownership/DACL enforcement belongs to the native isolation
-    // backend. The portable floor still checks concrete kinds and bounded
-    // topology instead of asking Git to describe its own cache.
+    // Windows owner/DACL custody is verified through retained handles at each
+    // concrete call site. Other non-Unix targets retain only the portable
+    // kind and bounded-topology floor.
     Ok(())
 }
 
@@ -3354,26 +5814,235 @@ fn cache_custody_invalid(
     }
 }
 
-#[cfg(target_os = "macos")]
-fn verify_macos_cache_extended_acl_custody(
+#[cfg(windows)]
+fn verify_windows_open_cache_custody(
     kind: CacheCustodyKind,
     path: &Path,
-    follow_symbolic_link: bool,
+    file: &File,
 ) -> Result<(), SourceResolveError> {
-    let symbolic_link_behavior = if follow_symbolic_link {
-        omega_platform_custody::SymbolicLinkBehavior::Follow
-    } else {
-        omega_platform_custody::SymbolicLinkBehavior::InspectLink
-    };
-    let has_allow_entry =
-        omega_platform_custody::extended_acl_has_allow_entry(path, symbolic_link_behavior)
-            .map_err(|error| {
-                cache_custody_invalid(
-                    kind,
-                    path,
-                    format!("could not inspect cache extended ACL custody: {error}"),
-                )
-            })?;
+    verify_windows_open_cache_custody_with_owner_policy(
+        kind,
+        path,
+        file,
+        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserOnly,
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_custody_with_owner_policy(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+    owner_policy: omega_platform_custody::WindowsFileOwnerPolicy,
+) -> Result<(), SourceResolveError> {
+    use omega_platform_custody::{WindowsFileCustodyViolation, inspect_open_windows_file_custody};
+
+    let violation = inspect_open_windows_file_custody(file, owner_policy).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not inspect retained Windows cache custody: {error}"),
+        )
+    })?;
+    if let Some(violation) = violation {
+        let message = match violation {
+            WindowsFileCustodyViolation::UntrustedOwner => {
+                "cache entry is not owned by the resolver's current Windows user"
+            }
+            WindowsFileCustodyViolation::NullDacl => {
+                "cache entry has a null DACL granting unrestricted access"
+            }
+            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
+                "cache entry grants mutation authority to an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::UnsupportedAllowAce => {
+                "cache entry contains an unsupported access-allowing Windows ACE"
+            }
+        };
+        return Err(cache_custody_invalid(kind, path, message));
+    }
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _file: &File,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_directory_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache custody directory: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_ancestry_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache ancestry: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache ancestry changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody_with_owner_policy(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+        omega_platform_custody::WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
+    )
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_directory_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_regular_file_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache file without following links: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache file changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_regular_file_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_open_cache_link_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain Windows cache reparse point: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache reparse point changed between classification and no-follow open",
+        ));
+    }
+    verify_windows_open_cache_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(windows))]
+fn verify_windows_open_cache_link_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_cache_link_extended_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+) -> Result<(), SourceResolveError> {
+    let has_allow_entry = omega_platform_custody::extended_acl_has_allow_entry(
+        path,
+        omega_platform_custody::SymbolicLinkBehavior::InspectLink,
+    )
+    .map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not inspect cache symbolic-link extended ACL custody: {error}"),
+        )
+    })?;
     if has_allow_entry {
         return Err(cache_custody_invalid(
             kind,
@@ -3384,40 +6053,207 @@ fn verify_macos_cache_extended_acl_custody(
     Ok(())
 }
 
-#[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_cache_extended_acl_custody(
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_cache_link_extended_acl_custody(
     _kind: CacheCustodyKind,
     _path: &Path,
-    _follow_symbolic_link: bool,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_extended_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let has_allow_entry = omega_platform_custody::open_file_extended_acl_has_allow_entry(file)
+        .map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                path,
+                format!("could not inspect retained cache extended ACL custody: {error}"),
+            )
+        })?;
+    if has_allow_entry {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody contains an extended ACL allow entry",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_directory_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not retain cache custody directory: {error}"),
+        )
+    })?;
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody directory changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_open_cache_extended_acl_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_directory_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_extended_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _file: &File,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_regular_file_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not open cache file without following links: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache file changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_open_cache_extended_acl_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_regular_file_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_cache_link_extended_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
 struct CacheEntryLock {
     file: File,
+    parent: CapabilityDirectory,
+    kind: CacheCustodyKind,
+    path: PathBuf,
+    lock_name: OsString,
 }
 
 impl CacheEntryLock {
-    fn open_git(path: &Path) -> Result<File, SourceResolveError> {
-        if let Ok(metadata) = std::fs::symlink_metadata(path)
-            && (metadata.file_type().is_symlink() || !metadata.is_file())
-        {
-            return Err(cache_invalid(path, "cache lock is not a regular file"));
-        }
-        OpenOptions::new()
+    fn open_retained(
+        kind: CacheCustodyKind,
+        path: &Path,
+    ) -> Result<(File, CapabilityDirectory, OsString), SourceResolveError> {
+        let parent_path = path.parent().ok_or_else(|| {
+            cache_custody_invalid(kind, path, "cache lock has no publication parent")
+        })?;
+        verify_cache_custody_root(parent_path, kind)?;
+        let parent = open_absolute_directory_nofollow(parent_path)
+            .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+        let lock_name = direct_cache_child_name(kind, parent_path, path)?.to_os_string();
+        let mut options = CapabilityOpenOptions::new();
+        options
             .read(true)
             .write(true)
             .create(true)
             .truncate(false)
-            .open(path)
-            .map_err(|error| io_error(path, error))
+            .follow(FollowSymlinks::No);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let capability_file = parent.open_with(&lock_name, &options).map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                path,
+                format!("could not open cache lock without following links: {error}"),
+            )
+        })?;
+        let handle_metadata = capability_file
+            .metadata()
+            .map_err(|error| io_error(path, error))?;
+        let path_metadata = parent
+            .symlink_metadata(&lock_name)
+            .map_err(|error| io_error(path, error))?;
+        if !handle_metadata.is_file()
+            || path_metadata.file_type().is_symlink()
+            || !path_metadata.is_file()
+            || !same_capability_file_identity(&handle_metadata, &path_metadata)
+        {
+            return Err(cache_custody_invalid(
+                kind,
+                path,
+                "cache lock is not a stable regular file beneath its retained parent",
+            ));
+        }
+        verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+        let file = capability_file.into_std();
+        verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+        verify_windows_open_cache_custody(kind, path, &file)?;
+        Ok((file, parent, lock_name))
+    }
+
+    #[cfg(test)]
+    fn open_git(path: &Path) -> Result<File, SourceResolveError> {
+        let (file, _, _) = Self::open_retained(CacheCustodyKind::Git, path)?;
+        Ok(file)
     }
 
     fn acquire_with_git_budget(
         path: &Path,
         executor: &GitExecutor,
     ) -> Result<Self, SourceResolveError> {
-        let file = Self::open_git(path)?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         loop {
             executor.verify_budget()?;
             match file.try_lock() {
@@ -3435,16 +6271,28 @@ impl CacheEntryLock {
             let _ = file.unlock();
             return Err(error);
         }
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
+        })
     }
 
     #[cfg(test)]
     fn acquire(path: &Path) -> Result<Self, SourceResolveError> {
-        let file = Self::open_git(path)?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::Git, path)?;
         file.lock().map_err(|error| io_error(path, error))?;
-        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(CacheCustodyKind::Git, path, &parent, &lock_name, &file)?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::Git,
+            path: path.to_path_buf(),
+            lock_name,
+        })
     }
 
     fn acquire_local(path: &Path) -> Result<Self, SourceResolveError> {
@@ -3455,21 +6303,7 @@ impl CacheEntryLock {
         path: &Path,
         timeout: Duration,
     ) -> Result<Self, SourceResolveError> {
-        if let Ok(metadata) = std::fs::symlink_metadata(path)
-            && (metadata.file_type().is_symlink() || !metadata.is_file())
-        {
-            return Err(local_snapshot_invalid(
-                path,
-                "cache lock is not a regular file",
-            ));
-        }
-        let file = OpenOptions::new()
-            .read(true)
-            .write(true)
-            .create(true)
-            .truncate(false)
-            .open(path)
-            .map_err(|error| io_error(path, error))?;
+        let (file, parent, lock_name) = Self::open_retained(CacheCustodyKind::LocalSnapshot, path)?;
         let started = Instant::now();
         loop {
             match file.try_lock() {
@@ -3492,8 +6326,34 @@ impl CacheEntryLock {
             let _ = file.unlock();
             return Err(local_snapshot_lock_timed_out(path, timeout));
         }
-        verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, path, &file)?;
-        Ok(Self { file })
+        verify_cache_lock_path_identity(
+            CacheCustodyKind::LocalSnapshot,
+            path,
+            &parent,
+            &lock_name,
+            &file,
+        )?;
+        Ok(Self {
+            file,
+            parent,
+            kind: CacheCustodyKind::LocalSnapshot,
+            path: path.to_path_buf(),
+            lock_name,
+        })
+    }
+
+    fn parent(&self) -> &CapabilityDirectory {
+        &self.parent
+    }
+
+    fn verify_path_identity(&self) -> Result<(), SourceResolveError> {
+        verify_cache_lock_path_identity(
+            self.kind,
+            &self.path,
+            &self.parent,
+            &self.lock_name,
+            &self.file,
+        )
     }
 }
 
@@ -3507,9 +6367,13 @@ fn local_snapshot_lock_timed_out(path: &Path, timeout: Duration) -> SourceResolv
 fn verify_cache_lock_path_identity(
     kind: CacheCustodyKind,
     path: &Path,
+    parent: &CapabilityDirectory,
+    lock_name: &OsStr,
     file: &File,
 ) -> Result<(), SourceResolveError> {
-    let path_metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
+    let path_metadata = parent
+        .symlink_metadata(lock_name)
+        .map_err(|error| io_error(path, error))?;
     if path_metadata.file_type().is_symlink() || !path_metadata.is_file() {
         return Err(cache_custody_invalid(
             kind,
@@ -3518,42 +6382,73 @@ fn verify_cache_lock_path_identity(
         ));
     }
     let handle_metadata = file.metadata().map_err(|error| io_error(path, error))?;
-    if !handle_metadata.is_file() || !same_file_identity(&handle_metadata, &path_metadata) {
+    if !handle_metadata.is_file()
+        || !same_std_and_capability_file_identity(&handle_metadata, &path_metadata)
+    {
         return Err(cache_custody_invalid(
             kind,
             path,
             "cache lock path does not identify the locked file",
         ));
     }
-    verify_cache_node_owner_and_mode(kind, path, &path_metadata)
+    verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+    verify_macos_open_cache_extended_acl_custody(kind, path, file)?;
+    verify_windows_open_cache_custody(kind, path, file)?;
+
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| cache_custody_invalid(kind, path, "cache lock has no publication parent"))?;
+    verify_retained_cache_parent_path(kind, parent_path, parent)
 }
 
-#[cfg(unix)]
-fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::MetadataExt;
+fn verify_retained_cache_parent_path(
+    kind: CacheCustodyKind,
+    parent_path: &Path,
+    retained_parent: &CapabilityDirectory,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(parent_path, kind)?;
+    let current_parent = open_absolute_directory_nofollow(parent_path)
+        .map_err(|error| cache_custody_invalid(kind, parent_path, error.to_string()))?;
+    let retained_metadata = retained_parent
+        .dir_metadata()
+        .map_err(|error| io_error(parent_path, error))?;
+    let current_metadata = current_parent
+        .dir_metadata()
+        .map_err(|error| io_error(parent_path, error))?;
+    if !same_capability_file_identity(&retained_metadata, &current_metadata) {
+        return Err(cache_custody_invalid(
+            kind,
+            parent_path,
+            "cache parent pathname no longer identifies the retained directory",
+        ));
+    }
+    Ok(())
+}
+
+fn same_std_and_capability_file_identity(
+    left: &std::fs::Metadata,
+    right: &CapabilityMetadata,
+) -> bool {
+    use cap_fs_ext::MetadataExt;
 
     left.dev() == right.dev() && left.ino() == right.ino()
 }
 
-#[cfg(windows)]
-fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
-    use std::os::windows::fs::MetadataExt;
-
-    matches!(
-        (
-            left.volume_serial_number(),
-            left.file_index(),
-            right.volume_serial_number(),
-            right.file_index(),
-        ),
-        (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index))
-            if left_volume == right_volume && left_index == right_index
-    )
-}
-
-#[cfg(not(any(unix, windows)))]
-fn same_file_identity(_left: &std::fs::Metadata, _right: &std::fs::Metadata) -> bool {
-    false
+#[cfg(test)]
+fn verify_cache_lock_path_identity_for_test(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path.parent().expect("test cache lock has a parent");
+    let canonical_parent = parent_path
+        .canonicalize()
+        .map_err(|error| io_error(parent_path, error))?;
+    let lock_name = path.file_name().expect("test cache lock has a name");
+    let canonical_path = canonical_parent.join(lock_name);
+    let parent = open_absolute_directory_nofollow(&canonical_parent)
+        .map_err(|error| io_error(&canonical_parent, error))?;
+    verify_cache_lock_path_identity(kind, &canonical_path, &parent, lock_name, file)
 }
 
 impl Drop for CacheEntryLock {
@@ -3566,21 +6461,43 @@ impl Drop for CacheEntryLock {
 
 struct PendingCacheEntry {
     root: PathBuf,
+    parent: CapabilityDirectory,
+    directory: Option<CapabilityDirectory>,
+    stage_name: OsString,
     published: bool,
 }
 
 impl PendingCacheEntry {
-    fn create(cache_dir: &Path, cache_identity: &str) -> Result<Self, SourceResolveError> {
+    fn create(
+        cache_dir: &Path,
+        cache_directory: &CapabilityDirectory,
+        cache_identity: &str,
+    ) -> Result<Self, SourceResolveError> {
+        let parent = cache_directory
+            .try_clone()
+            .map_err(|error| io_error(cache_dir, error))?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
-            let root = cache_dir.join(format!(
+            let stage_name = OsString::from(format!(
                 ".git-{cache_identity}.stage-{}-{sequence}",
                 std::process::id()
             ));
-            match std::fs::create_dir(&root) {
+            let root = cache_dir.join(&stage_name);
+            match create_private_cache_directory(&parent, &stage_name) {
                 Ok(()) => {
+                    let provisional = ProvisionalCacheDirectory::new(&parent, &stage_name);
+                    let directory = retain_private_cache_directory(
+                        CacheCustodyKind::Git,
+                        &parent,
+                        &stage_name,
+                        &root,
+                    )?;
+                    provisional.disarm();
                     return Ok(Self {
                         root,
+                        parent,
+                        directory: Some(directory),
+                        stage_name,
                         published: false,
                     });
                 }
@@ -3593,14 +6510,198 @@ impl PendingCacheEntry {
             "could not allocate a unique Git cache staging directory",
         ))
     }
+
+    fn directory(&self) -> Result<&CapabilityDirectory, SourceResolveError> {
+        self.directory
+            .as_ref()
+            .ok_or_else(|| cache_invalid(&self.root, "Git cache stage handle is absent"))
+    }
+
+    fn create_private_directory(&self, name: &str, path: &Path) -> Result<(), SourceResolveError> {
+        let directory = self.directory()?;
+        create_private_cache_directory(directory, name).map_err(|error| io_error(path, error))?;
+        let provisional = ProvisionalCacheDirectory::new(directory, OsStr::new(name));
+        retain_private_cache_directory(CacheCustodyKind::Git, directory, OsStr::new(name), path)?;
+        provisional.disarm();
+        Ok(())
+    }
+
+    fn verify_path_identity(&self) -> Result<CapabilityMetadata, SourceResolveError> {
+        let retained = self
+            .directory()?
+            .dir_metadata()
+            .map_err(|error| io_error(&self.root, error))?;
+        let named = self
+            .parent
+            .symlink_metadata(&self.stage_name)
+            .map_err(|error| io_error(&self.root, error))?;
+        if !named.is_dir() || !same_capability_file_identity(&retained, &named) {
+            return Err(cache_invalid(
+                &self.root,
+                "Git cache stage pathname no longer identifies the retained directory",
+            ));
+        }
+        Ok(retained)
+    }
+
+    fn verify_parent_path_identity(&self, cache_dir: &Path) -> Result<(), SourceResolveError> {
+        verify_retained_cache_parent_path(CacheCustodyKind::Git, cache_dir, &self.parent)
+    }
+
+    fn verify_ambient_path_identity(&self, cache_dir: &Path) -> Result<(), SourceResolveError> {
+        self.verify_parent_path_identity(cache_dir)?;
+        self.verify_path_identity().map(|_| ())
+    }
+
+    fn publish(
+        &mut self,
+        cache_dir: &Path,
+        entry_root: &Path,
+        entry_name: &OsStr,
+    ) -> Result<(), SourceResolveError> {
+        let retained = self.verify_path_identity()?;
+        publish_cache_directory_from_open_parent(
+            CacheCustodyKind::Git,
+            cache_dir,
+            &self.parent,
+            &self.stage_name,
+            entry_name,
+            Some(&retained),
+        )?;
+        let published = self
+            .parent
+            .symlink_metadata(entry_name)
+            .map_err(|error| io_error(entry_root, error))?;
+        if !same_capability_file_identity(&retained, &published) {
+            return Err(cache_invalid(
+                entry_root,
+                "published Git cache entry does not identify the retained stage",
+            ));
+        }
+        self.published = true;
+        Ok(())
+    }
+}
+
+struct ProvisionalCacheDirectory<'a> {
+    parent: &'a CapabilityDirectory,
+    name: &'a OsStr,
+    armed: bool,
+}
+
+impl<'a> ProvisionalCacheDirectory<'a> {
+    fn new(parent: &'a CapabilityDirectory, name: &'a OsStr) -> Self {
+        Self {
+            parent,
+            name,
+            armed: true,
+        }
+    }
+
+    fn disarm(mut self) {
+        self.armed = false;
+    }
+}
+
+impl Drop for ProvisionalCacheDirectory<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            let _ = self.parent.remove_dir_all(self.name);
+        }
+    }
 }
 
 impl Drop for PendingCacheEntry {
     fn drop(&mut self) {
-        if !self.published {
-            let _ = std::fs::remove_dir_all(&self.root);
+        if !self.published
+            && let Some(directory) = self.directory.take()
+        {
+            make_open_tree_owner_writable(&directory);
+            let _ = directory.remove_open_dir_all();
         }
     }
+}
+
+fn create_private_cache_directory(
+    parent: &CapabilityDirectory,
+    name: impl AsRef<Path>,
+) -> std::io::Result<()> {
+    #[cfg(not(target_os = "wasi"))]
+    {
+        let mut builder = CapabilityDirBuilder::new();
+        #[cfg(unix)]
+        builder.mode(0o700);
+        parent.create_dir_with(name, &builder)
+    }
+    #[cfg(target_os = "wasi")]
+    {
+        parent.create_dir(name)
+    }
+}
+
+fn retain_private_cache_directory(
+    kind: CacheCustodyKind,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let classified = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let directory = parent
+        .open_dir_nofollow(name)
+        .map_err(|error| cache_custody_invalid(kind, path, error.to_string()))?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file()
+            .set_permissions(std::fs::Permissions::from_mode(0o700))
+            .map_err(|error| io_error(path, error))?;
+    }
+    let opened = directory
+        .dir_metadata()
+        .map_err(|error| io_error(path, error))?;
+    if !classified.is_dir() || !same_capability_file_identity(&classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "private cache directory changed while being retained",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(kind, path, &opened)?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+
+        if opened.mode() & 0o777 != 0o700 {
+            return Err(cache_custody_invalid(
+                kind,
+                path,
+                "private cache directory does not have exact mode 0700",
+            ));
+        }
+    }
+    verify_macos_open_cache_extended_acl_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )?;
+    verify_windows_open_cache_custody(
+        kind,
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| io_error(path, error))?
+            .into_std_file(),
+    )?;
+    Ok(directory)
 }
 
 #[derive(Debug)]
@@ -3612,8 +6713,8 @@ struct SourceEntry {
 
 #[derive(Debug)]
 enum SourceEntryKind {
-    Directory { path: PathBuf },
-    File { path: PathBuf },
+    Directory,
+    File { bytes: Vec<u8>, executable: bool },
     Symlink { target_bytes: Vec<u8> },
 }
 
@@ -3645,6 +6746,7 @@ enum SourceTreePolicy {
     ExactMaterialized,
 }
 
+#[cfg(test)]
 fn resolve_materialized_source(
     root: &Path,
     limits: LocalSourceLimits,
@@ -3664,16 +6766,86 @@ fn capture_local_source(
         return Err(SourceResolveError::NotDirectory { path: root });
     }
 
+    let root_directory = open_canonical_source_root(&root)?;
+    capture_local_source_from_open_root(root, root_directory, limits, policy)
+}
+
+fn open_canonical_source_root(
+    canonical_root: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(canonical_root)
+        .map_err(|error| io_error(canonical_root, error))?;
+    let metadata = directory
+        .dir_metadata()
+        .map_err(|error| io_error(canonical_root, error))?;
+    if !metadata.is_dir() {
+        return Err(SourceResolveError::NotDirectory {
+            path: canonical_root.to_path_buf(),
+        });
+    }
+    Ok(directory)
+}
+
+fn open_absolute_directory_nofollow(
+    canonical_root: &Path,
+) -> Result<CapabilityDirectory, std::io::Error> {
+    use std::path::Component;
+
+    let mut anchor = PathBuf::new();
+    let mut relative_components = Vec::new();
+    for component in canonical_root.components() {
+        match component {
+            Component::Prefix(prefix) => anchor.push(prefix.as_os_str()),
+            Component::RootDir => anchor.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::Normal(name) => relative_components.push(name.to_os_string()),
+            Component::ParentDir => {
+                return Err(std::io::Error::new(
+                    std::io::ErrorKind::InvalidInput,
+                    "canonical directory contains a parent component",
+                ));
+            }
+        }
+    }
+    if anchor.as_os_str().is_empty() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "canonical directory is not absolute",
+        ));
+    }
+
+    let mut directory = CapabilityDirectory::open_ambient_dir(&anchor, ambient_authority())?;
+    for component in relative_components {
+        directory = directory.open_dir_nofollow(&component)?;
+    }
+    let metadata = directory.dir_metadata()?;
+    if !metadata.is_dir() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::NotADirectory,
+            "opened path is not a directory",
+        ));
+    }
+    Ok(directory)
+}
+
+fn capture_local_source_from_open_root(
+    root: PathBuf,
+    root_directory: CapabilityDirectory,
+    limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
+) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
-    let mut visited_dirs = BTreeSet::new();
+    let mut captured_file_bytes = 0_u64;
     visit_directory(
+        &root_directory,
+        &root_directory,
         &root,
         PathBuf::new(),
         0,
         &root,
         limits,
         policy,
-        &mut visited_dirs,
+        &mut captured_file_bytes,
         &mut source_entries,
     )?;
     source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
@@ -3688,22 +6860,11 @@ fn capture_local_source(
         })?;
     for entry in source_entries {
         let kind = match entry.kind {
-            SourceEntryKind::Directory { path } => {
-                let metadata =
-                    std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                    return Err(SourceResolveError::UnsupportedFileType { path });
-                }
+            SourceEntryKind::Directory => {
                 identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
                 CapturedLocalEntryKind::Directory
             }
-            SourceEntryKind::File { path } => {
-                let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
-                    SourceResolveError::TooManyBytes {
-                        limit: limits.max_bytes,
-                    },
-                )?;
-                let (bytes, executable) = read_file_bounded(&path, remaining, limits.max_bytes)?;
+            SourceEntryKind::File { bytes, executable } => {
                 identity.add_file(&entry.relative_bytes, executable, &bytes)?;
                 file_count += 1;
                 CapturedLocalEntryKind::File { bytes, executable }
@@ -3742,16 +6903,8 @@ fn publish_local_snapshot(
         validate_local_snapshot_topology(&captured.normalized.root, cache_dir)?;
     std::fs::create_dir_all(&canonical_cache_dir)
         .map_err(|error| io_error(&canonical_cache_dir, error))?;
-    require_local_snapshot_directory(
-        &canonical_cache_dir,
-        "local snapshot cache is not a real directory",
-    )?;
     let snapshots = canonical_cache_dir.join(LOCAL_CACHE_SNAPSHOTS);
     std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
-    require_local_snapshot_directory(
-        &snapshots,
-        "local snapshot collection is not a real directory",
-    )?;
     verify_local_cache_root_custody(&canonical_cache_dir)?;
     verify_local_cache_root_custody(&snapshots)?;
 
@@ -3859,49 +7012,62 @@ fn materialize_local_snapshot(
     limits: LocalSourceLimits,
 ) -> Result<ResolvedLocalSource, SourceResolveError> {
     let identity = &captured.normalized.content_identity;
-    let mut pending = PendingLocalSnapshot::create(snapshots, identity)?;
+    let mut pending = PendingMaterializedSnapshot::create(
+        CacheCustodyKind::LocalSnapshot,
+        snapshots,
+        &format!(".source-{identity}.stage"),
+    )?;
     let source = pending.root.join(LOCAL_SNAPSHOT_SOURCE);
-    std::fs::create_dir(&source).map_err(|error| io_error(&source, error))?;
+    pending
+        .directory()?
+        .create_dir(LOCAL_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
+    let source_directory = pending
+        .directory()?
+        .open_dir_nofollow(LOCAL_SNAPSHOT_SOURCE)
+        .map_err(|error| io_error(&source, error))?;
 
     for entry in &captured.entries {
-        let destination = source.join(&entry.relative_path);
         match &entry.kind {
             CapturedLocalEntryKind::Directory => {
-                std::fs::create_dir_all(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
+                open_or_create_snapshot_directory(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                )?;
             }
             CapturedLocalEntryKind::File { bytes, executable } => {
-                let parent = destination
-                    .parent()
-                    .expect("captured local paths always have a snapshot parent");
-                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
-                let mut file = OpenOptions::new()
-                    .write(true)
-                    .create_new(true)
-                    .open(&destination)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.write_all(bytes)
-                    .map_err(|error| io_error(&destination, error))?;
-                file.sync_all()
-                    .map_err(|error| io_error(&destination, error))?;
-                set_snapshot_file_mode(&destination, *executable)?;
+                write_snapshot_file_from_open_root(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    bytes,
+                    *executable,
+                )?;
             }
             CapturedLocalEntryKind::Symlink { target_bytes } => {
-                let parent = destination
-                    .parent()
-                    .expect("captured local paths always have a snapshot parent");
-                std::fs::create_dir_all(parent).map_err(|error| io_error(parent, error))?;
-                create_snapshot_symlink(target_bytes, &destination)?;
+                create_snapshot_symlink_from_open_root(
+                    CacheCustodyKind::LocalSnapshot,
+                    &source_directory,
+                    &entry.relative_path,
+                    &source,
+                    target_bytes,
+                )?;
             }
-        }
-    }
-    for entry in captured.entries.iter().rev() {
-        if matches!(entry.kind, CapturedLocalEntryKind::Directory) {
-            set_snapshot_directory_read_only(&source.join(&entry.relative_path))?;
         }
     }
 
-    let staged = resolve_materialized_source(&source, limits)?;
+    let staged = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
     if !same_source_identity(&staged, &captured.normalized) {
         return Err(local_snapshot_invalid(
             &source,
@@ -3910,21 +7076,35 @@ fn materialize_local_snapshot(
     }
     verify_live_source_unchanged(&captured.normalized, limits)?;
 
-    let metadata_path = pending.root.join(LOCAL_SNAPSHOT_METADATA);
-    let mut metadata = OpenOptions::new()
-        .write(true)
-        .create_new(true)
-        .open(&metadata_path)
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .write_all(&local_snapshot_metadata(&staged))
-        .map_err(|error| io_error(&metadata_path, error))?;
-    metadata
-        .sync_all()
-        .map_err(|error| io_error(&metadata_path, error))?;
-    make_snapshot_read_only(&pending.root)?;
-    std::fs::rename(&pending.root, publication).map_err(|error| io_error(publication, error))?;
-    pending.published = true;
+    write_snapshot_file_from_open_root(
+        CacheCustodyKind::LocalSnapshot,
+        pending.directory()?,
+        Path::new(LOCAL_SNAPSHOT_METADATA),
+        &pending.root,
+        &local_snapshot_metadata(&staged),
+        false,
+    )?;
+    make_open_snapshot_read_only(
+        CacheCustodyKind::LocalSnapshot,
+        pending.directory()?,
+        &pending.root,
+    )?;
+    let finalized = capture_local_source_from_open_root(
+        source.clone(),
+        source_directory
+            .try_clone()
+            .map_err(|error| io_error(&source, error))?,
+        limits,
+        SourceTreePolicy::ExactMaterialized,
+    )?
+    .normalized;
+    if !same_source_identity(&finalized, &captured.normalized) {
+        return Err(local_snapshot_invalid(
+            &source,
+            "finalized snapshot does not match the captured local tree",
+        ));
+    }
+    pending.publish(snapshots, publication)?;
     verify_local_snapshot(publication, identity, limits)
 }
 
@@ -3952,32 +7132,22 @@ fn same_source_identity(left: &ResolvedLocalSource, right: &ResolvedLocalSource)
 }
 
 fn visit_directory(
-    real_dir: &Path,
+    root_directory: &CapabilityDirectory,
+    directory: &CapabilityDirectory,
+    display_dir: &Path,
     logical_dir: PathBuf,
     depth: usize,
     root: &Path,
     limits: LocalSourceLimits,
     policy: SourceTreePolicy,
-    visited_dirs: &mut BTreeSet<PathBuf>,
+    captured_file_bytes: &mut u64,
     entries: &mut Vec<SourceEntry>,
 ) -> Result<(), SourceResolveError> {
     if depth > limits.max_depth {
         return Err(SourceResolveError::TooDeep {
-            path: real_dir.to_path_buf(),
+            path: display_dir.to_path_buf(),
             limit: limits.max_depth,
         });
-    }
-    let canonical_dir = real_dir
-        .canonicalize()
-        .map_err(|error| io_error(real_dir, error))?;
-    if !canonical_dir.starts_with(root) {
-        return Err(SourceResolveError::SymlinkEscapesRoot {
-            link: real_dir.to_path_buf(),
-            target: canonical_dir,
-        });
-    }
-    if !visited_dirs.insert(canonical_dir) {
-        return Ok(());
     }
 
     let remaining_entries = limits.max_files.saturating_sub(entries.len());
@@ -3987,31 +7157,51 @@ fn visit_directory(
         SourceTreePolicy::LocalPackage => 1,
     };
     let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
-    let mut directory_entries = Vec::new();
-    for entry in std::fs::read_dir(real_dir).map_err(|error| io_error(real_dir, error))? {
-        if directory_entries.len() >= directory_listing_limit {
+    let mut entry_names = Vec::new();
+    for entry in directory
+        .entries()
+        .map_err(|error| io_error(display_dir, error))?
+    {
+        if entry_names.len() >= directory_listing_limit {
             return Err(SourceResolveError::TooManyFiles {
                 limit: limits.max_files,
             });
         }
-        directory_entries.push(entry.map_err(|error| io_error(real_dir, error))?);
+        entry_names.push(
+            entry
+                .map_err(|error| io_error(display_dir, error))?
+                .file_name(),
+        );
     }
-    directory_entries.sort_by_key(|entry| entry.file_name());
+    entry_names.sort();
 
-    for entry in directory_entries {
-        let name = entry.file_name();
+    for name in entry_names {
         if policy == SourceTreePolicy::LocalPackage
             && (name == ".git"
                 || (logical_dir.as_os_str().is_empty() && name == DEFAULT_BUILD_OUTPUT_DIRECTORY))
         {
             continue;
         }
-        let real_path = entry.path();
+        if entries.len() >= limits.max_files {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_files,
+            });
+        }
+        let display_path = display_dir.join(&name);
         let logical_path = logical_dir.join(&name);
-        let metadata =
-            std::fs::symlink_metadata(&real_path).map_err(|error| io_error(&real_path, error))?;
+        let metadata = directory
+            .symlink_metadata(&name)
+            .map_err(|error| io_error(&display_path, error))?;
         if metadata.file_type().is_symlink() {
-            let raw_target = read_and_validate_symlink_target(root, &real_path, policy)?;
+            let raw_target = read_and_validate_symlink_target(
+                root_directory,
+                root,
+                directory,
+                &logical_dir,
+                &name,
+                &display_path,
+                policy,
+            )?;
             push_entry(
                 entries,
                 logical_path,
@@ -4021,40 +7211,62 @@ fn visit_directory(
                 limits,
             )?;
         } else if metadata.is_dir() {
+            let child = open_captured_directory(directory, &name, &display_path)?;
             push_entry(
                 entries,
                 logical_path.clone(),
-                SourceEntryKind::Directory {
-                    path: real_path.clone(),
-                },
+                SourceEntryKind::Directory,
                 limits,
             )?;
             visit_directory(
-                &real_path,
+                root_directory,
+                &child,
+                &display_path,
                 logical_path,
                 depth + 1,
                 root,
                 limits,
                 policy,
-                visited_dirs,
+                captured_file_bytes,
                 entries,
             )?;
         } else if metadata.is_file() {
+            let remaining = limits.max_bytes.checked_sub(*captured_file_bytes).ok_or(
+                SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                },
+            )?;
+            let (bytes, executable) = read_capability_file_bounded(
+                directory,
+                &name,
+                &display_path,
+                remaining,
+                limits.max_bytes,
+            )?;
+            *captured_file_bytes = captured_file_bytes.checked_add(bytes.len() as u64).ok_or(
+                SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                },
+            )?;
             push_entry(
                 entries,
                 logical_path,
-                SourceEntryKind::File { path: real_path },
+                SourceEntryKind::File { bytes, executable },
                 limits,
             )?;
         } else {
-            return Err(SourceResolveError::UnsupportedFileType { path: real_path });
+            return Err(SourceResolveError::UnsupportedFileType { path: display_path });
         }
     }
     Ok(())
 }
 
 fn read_and_validate_symlink_target(
+    root_directory: &CapabilityDirectory,
     root: &Path,
+    directory: &CapabilityDirectory,
+    logical_directory: &Path,
+    name: &OsStr,
     link: &Path,
     policy: SourceTreePolicy,
 ) -> Result<PathBuf, SourceResolveError> {
@@ -4062,26 +7274,23 @@ fn read_and_validate_symlink_target(
     // root, and rejects targets under paths excluded from that package view. Exact resolver-owned
     // materializations have no exclusions. Target contents are visited independently through the
     // ordinary tree walk rather than dereferenced through the link.
-    let raw_target = std::fs::read_link(link).map_err(|error| io_error(link, error))?;
-    let absolute_target = if raw_target.is_absolute() {
-        raw_target.clone()
-    } else {
-        link.parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join(&raw_target)
-    };
-    let target = absolute_target
-        .canonicalize()
-        .map_err(|error| io_error(&absolute_target, error))?;
-    if !target.starts_with(root) {
+    let raw_target = directory
+        .read_link_contents(name)
+        .map_err(|error| io_error(link, error))?;
+    if raw_target.is_absolute() {
         return Err(SourceResolveError::SymlinkEscapesRoot {
             link: link.to_path_buf(),
-            target,
+            target: raw_target,
         });
     }
-    let relative_target = target
-        .strip_prefix(root)
-        .expect("root containment was checked above");
+    let target_request = logical_directory.join(&raw_target);
+    let target_display = root.join(&target_request);
+    let relative_target = root_directory.canonicalize(&target_request).map_err(|_| {
+        SourceResolveError::SymlinkEscapesRoot {
+            link: link.to_path_buf(),
+            target: target_display,
+        }
+    })?;
     if policy == SourceTreePolicy::LocalPackage
         && relative_target
             .components()
@@ -4089,7 +7298,7 @@ fn read_and_validate_symlink_target(
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedMetadata {
             link: link.to_path_buf(),
-            target,
+            target: root.join(&relative_target),
         });
     }
     if policy == SourceTreePolicy::LocalPackage
@@ -4100,7 +7309,7 @@ fn read_and_validate_symlink_target(
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedBuildOutput {
             link: link.to_path_buf(),
-            target,
+            target: root.join(&relative_target),
         });
     }
     Ok(raw_target)
@@ -4125,16 +7334,43 @@ fn push_entry(
     Ok(())
 }
 
-fn read_file_bounded(
-    path: &Path,
+fn open_captured_directory(
+    directory: &CapabilityDirectory,
+    name: &OsStr,
+    display_path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let child = directory
+        .open_dir_nofollow(name)
+        .map_err(|error| io_error(display_path, error))?;
+    let metadata = child
+        .dir_metadata()
+        .map_err(|error| io_error(display_path, error))?;
+    if !metadata.is_dir() {
+        return Err(SourceResolveError::UnsupportedFileType {
+            path: display_path.to_path_buf(),
+        });
+    }
+    Ok(child)
+}
+
+fn read_capability_file_bounded(
+    directory: &CapabilityDirectory,
+    name: &OsStr,
+    display_path: &Path,
     remaining: u64,
     limit: u64,
 ) -> Result<(Vec<u8>, bool), SourceResolveError> {
-    let mut file = std::fs::File::open(path).map_err(|error| io_error(path, error))?;
-    let metadata = file.metadata().map_err(|error| io_error(path, error))?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let mut file = directory
+        .open_with(name, &options)
+        .map_err(|error| io_error(display_path, error))?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| io_error(display_path, error))?;
     if !metadata.is_file() {
         return Err(SourceResolveError::UnsupportedFileType {
-            path: path.to_path_buf(),
+            path: display_path.to_path_buf(),
         });
     }
     if metadata.len() > remaining {
@@ -4151,7 +7387,7 @@ fn read_file_bounded(
     loop {
         let count = file
             .read(&mut chunk)
-            .map_err(|error| io_error(path, error))?;
+            .map_err(|error| io_error(display_path, error))?;
         if count == 0 {
             break;
         }
@@ -4164,10 +7400,22 @@ fn read_file_bounded(
         bytes.extend_from_slice(&chunk[..count]);
     }
 
-    Ok((bytes, is_executable(&metadata)))
+    Ok((bytes, capability_metadata_is_executable(&metadata)))
 }
 
 #[cfg(unix)]
+fn capability_metadata_is_executable(metadata: &cap_std::fs::Metadata) -> bool {
+    use cap_fs_ext::OsMetadataExt;
+
+    metadata.mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn capability_metadata_is_executable(_metadata: &cap_std::fs::Metadata) -> bool {
+    false
+}
+
+#[cfg(all(test, unix))]
 fn is_executable(metadata: &std::fs::Metadata) -> bool {
     use std::os::unix::fs::PermissionsExt;
 
@@ -4255,7 +7503,11 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
 }
 
 impl GitExecutor {
-    fn system(execution_transport: GitExecutionTransport) -> Result<Self, SourceResolveError> {
+    fn system(
+        execution_transport: GitExecutionTransport,
+        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
+        limits: LocalSourceLimits,
+    ) -> Result<Self, SourceResolveError> {
         for candidate in system_git_candidates() {
             let path = Path::new(candidate);
             if path.is_file() {
@@ -4263,7 +7515,10 @@ impl GitExecutor {
                     path,
                     GIT_FIXED_COMMAND_ALLOWANCE,
                     GIT_RESOLUTION_TIMEOUT,
+                    git_resolution_captured_output_ceiling(limits),
+                    git_resolution_network_transfer_ceiling(limits),
                     execution_transport,
+                    requested_network_endpoint,
                 );
             }
         }
@@ -4276,7 +7531,10 @@ impl GitExecutor {
             path,
             GIT_FIXED_COMMAND_ALLOWANCE,
             GIT_RESOLUTION_TIMEOUT,
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
+            test_file_network_endpoint(),
         )
     }
 
@@ -4290,7 +7548,28 @@ impl GitExecutor {
             path,
             maximum_launches,
             timeout,
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
+            test_file_network_endpoint(),
+        )
+    }
+
+    #[cfg(test)]
+    fn open_with_resource_budgets(
+        path: &Path,
+        maximum_launches: usize,
+        timeout: Duration,
+        captured_output_ceiling: u64,
+    ) -> Result<Self, SourceResolveError> {
+        Self::open_with_budget_for_transport(
+            path,
+            maximum_launches,
+            timeout,
+            captured_output_ceiling,
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
+            GitExecutionTransport::File,
+            test_file_network_endpoint(),
         )
     }
 
@@ -4298,7 +7577,10 @@ impl GitExecutor {
         path: &Path,
         maximum_launches: usize,
         timeout: Duration,
+        captured_output_ceiling: u64,
+        network_transfer_ceiling: u64,
         execution_transport: GitExecutionTransport,
+        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     ) -> Result<Self, SourceResolveError> {
         let started = Instant::now();
         if !path.is_absolute() {
@@ -4325,6 +7607,18 @@ impl GitExecutor {
             #[cfg(test)]
             GitExecutionTransport::File => None,
         };
+        let execution_helpers = open_resolver_execution_helpers(execution_transport)?;
+        let execution_backend = ResolverExecutionBackend::open().map_err(|error| {
+            SourceResolveError::GitExecutionBoundaryInvalid {
+                message: error.to_string(),
+            }
+        })?;
+        let network_transfer_budget =
+            ResolverExecutionTransferBudget::new(network_transfer_ceiling).map_err(|error| {
+                SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot establish network-transfer budget: {error}"),
+                }
+            })?;
         Ok(Self {
             identity: GitExecutableIdentity {
                 path: canonical,
@@ -4332,11 +7626,18 @@ impl GitExecutor {
             },
             metadata_identity,
             transport_executable,
+            execution_helpers,
             execution_transport,
+            requested_network_endpoint,
             started,
             timeout,
             launches: Cell::new(0),
+            execution_policy_observations: RefCell::new(Vec::new()),
+            command_execution_observations: RefCell::new(Vec::new()),
+            captured_output_budget: GitCapturedOutputBudget::new(captured_output_ceiling),
+            network_transfer_budget,
             maximum_launches,
+            execution_backend,
         })
     }
 
@@ -4350,6 +7651,14 @@ impl GitExecutor {
         if let Some(transport_executable) = &self.transport_executable {
             verify_git_transport_executable(transport_executable)?;
         }
+        for helper in &self.execution_helpers {
+            verify_git_transport_executable(helper)?;
+        }
+        self.execution_backend.verify().map_err(|error| {
+            SourceResolveError::GitExecutionBoundaryInvalid {
+                message: error.to_string(),
+            }
+        })?;
         Ok(())
     }
 
@@ -4368,8 +7677,201 @@ impl GitExecutor {
                 path: transport_executable.identity.path.clone(),
             });
         }
+        for helper in &self.execution_helpers {
+            if hash_git_executable(&helper.identity.path)? != helper.identity.content_identity {
+                return Err(SourceResolveError::GitExecutableChanged {
+                    path: helper.identity.path.clone(),
+                });
+            }
+        }
         self.verify()?;
         self.verify_budget()
+    }
+
+    fn validate_execution_policy_observations(&self) -> Result<(), SourceResolveError> {
+        let observations = self.execution_policy_observations.borrow();
+        if observations.len() != self.launches.get() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "native policy observation count does not match launched command count"
+                    .to_owned(),
+            });
+        }
+        let command_observations = self.command_execution_observations.borrow();
+        if command_observations.len() != self.launches.get() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "native command outcome count does not match launched command count"
+                    .to_owned(),
+            });
+        }
+        for observation in observations.iter() {
+            if observation.executable() != self.identity.path {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation names a different Git executable"
+                        .to_owned(),
+                });
+            }
+            let network_phase = matches!(
+                observation.phase(),
+                ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+            );
+            let expected_network_transport =
+                network_phase.then(|| self.execution_transport.resolver_network_transport());
+            if observation.network_transport() != expected_network_transport {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation transport authority does not match the validated source transport"
+                        .to_owned(),
+                });
+            }
+            let mut expected = BTreeSet::new();
+            if network_phase {
+                for executable in self
+                    .transport_executable
+                    .iter()
+                    .chain(self.execution_helpers.iter())
+                {
+                    expected.insert(executable.identity.invocation_path.clone());
+                    expected.insert(executable.identity.path.clone());
+                }
+            }
+            expected.remove(&self.identity.path);
+            let observed = observation
+                .additional_executables()
+                .iter()
+                .cloned()
+                .collect::<BTreeSet<_>>();
+            if observed != expected {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native policy observation executable paths do not match verified executable content custody"
+                        .to_owned(),
+                });
+            }
+        }
+        for (policy, command) in observations.iter().zip(command_observations.iter()) {
+            if command.phase != policy.phase()
+                || command.policy_identity
+                    != format_sha256(&Sha256::digest(policy.canonical_bytes()))
+            {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command outcome is not joined to its policy observation"
+                        .to_owned(),
+                });
+            }
+            match (policy.endpoint_route(), &command.endpoint_observation) {
+                (Some(route), Some(endpoint)) if endpoint.route() == route => {
+                    #[cfg(not(test))]
+                    let requires_connection = true;
+                    #[cfg(test)]
+                    let requires_connection =
+                        self.execution_transport != GitExecutionTransport::File;
+                    if requires_connection
+                        && !endpoint.events().iter().any(|event| {
+                            event.outcome() == ResolverExecutionEndpointOutcome::Connected
+                        })
+                    {
+                        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                            message: "successful remote Git command did not traverse its compiler-owned endpoint route"
+                                .to_owned(),
+                        });
+                    }
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                        message:
+                            "native endpoint activity is not joined to its sealed route policy"
+                                .to_owned(),
+                    });
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn captured_output_observation(
+        &self,
+    ) -> Result<GitCapturedOutputObservation, SourceResolveError> {
+        let expected = git_captured_output_observation(
+            &self.command_execution_observations.borrow(),
+            self.captured_output_budget.ceiling,
+        )?;
+        if expected.observed != self.captured_output_budget.observed() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git captured-output counter does not match retained command outcomes"
+                    .to_owned(),
+            });
+        }
+        Ok(expected)
+    }
+
+    fn network_transfer_observation(
+        &self,
+    ) -> Result<GitNetworkTransferObservation, SourceResolveError> {
+        let expected = git_network_transfer_observation(
+            &self.execution_policy_observations.borrow(),
+            &self.command_execution_observations.borrow(),
+            self.network_transfer_budget.ceiling(),
+        )?;
+        if expected.observed() != self.network_transfer_budget.observed() {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "Git network-transfer counter does not match retained endpoint outcomes"
+                    .to_owned(),
+            });
+        }
+        Ok(expected)
+    }
+
+    fn record_command_execution(
+        &self,
+        phase: ResolverExecutionPhase,
+        command_identity: String,
+        output: &BoundedCommandOutput,
+        endpoint_observation: Option<ResolverExecutionEndpointObservation>,
+    ) -> Result<(), SourceResolveError> {
+        let policy_identity = {
+            let policies = self.execution_policy_observations.borrow();
+            let index = self.command_execution_observations.borrow().len();
+            let policy = policies.get(index).ok_or_else(|| {
+                SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command completed without a matching policy observation"
+                        .to_owned(),
+                }
+            })?;
+            if policy.phase() != phase {
+                return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: "native command phase does not match its policy observation"
+                        .to_owned(),
+                });
+            }
+            format_sha256(&Sha256::digest(policy.canonical_bytes()))
+        };
+        #[cfg(unix)]
+        let termination_signal = {
+            use std::os::unix::process::ExitStatusExt;
+            output.status.signal()
+        };
+        #[cfg(not(unix))]
+        let termination_signal = None;
+        self.command_execution_observations
+            .borrow_mut()
+            .push(GitCommandExecutionObservation {
+                phase,
+                policy_identity,
+                command_identity,
+                status_code: output.status.code(),
+                termination_signal,
+                stdout_length: output.stdout.len() as u64,
+                stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
+                stderr_length: output.stderr.len() as u64,
+                stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
+                endpoint_observation,
+            });
+        Ok(())
+    }
+
+    fn resolver_connect_helper(&self) -> Option<&GitTransportExecutableObservation> {
+        (self.execution_transport == GitExecutionTransport::Ssh)
+            .then(|| self.execution_helpers.last())
+            .flatten()
     }
 
     fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
@@ -4398,6 +7900,109 @@ impl GitExecutor {
             Ok(self.timeout - elapsed)
         }
     }
+}
+
+#[cfg(test)]
+fn test_file_network_endpoint() -> ResolverExecutionRequestedEndpoint {
+    ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
+        .expect("the fixed test endpoint is valid")
+}
+
+#[cfg(test)]
+fn test_system_git_executor(
+    transport: GitExecutionTransport,
+) -> Result<GitExecutor, SourceResolveError> {
+    GitExecutor::system(
+        transport,
+        test_file_network_endpoint(),
+        LocalSourceLimits::default(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn open_resolver_execution_helpers(
+    execution_transport: GitExecutionTransport,
+) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
+    let mut paths = match execution_transport {
+        GitExecutionTransport::Ssh => vec![PathBuf::from("/bin/sh"), PathBuf::from("/bin/bash")],
+        GitExecutionTransport::Https => Vec::new(),
+        #[cfg(test)]
+        GitExecutionTransport::File => [
+            "/bin/sh",
+            "/bin/bash",
+            "/bin/mv",
+            "/bin/sleep",
+            "/usr/bin/git-upload-pack",
+        ]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect(),
+    };
+    if execution_transport == GitExecutionTransport::Ssh {
+        paths.push(resolver_connect_helper_path()?);
+    }
+    paths
+        .iter()
+        .map(|path| open_git_transport_executable(path))
+        .collect()
+}
+
+#[cfg(not(target_os = "macos"))]
+fn open_resolver_execution_helpers(
+    execution_transport: GitExecutionTransport,
+) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
+    if execution_transport != GitExecutionTransport::Ssh {
+        return Ok(Vec::new());
+    }
+    [resolver_connect_helper_path()?]
+        .iter()
+        .map(|path| open_git_transport_executable(path))
+        .collect()
+}
+
+fn resolver_connect_helper_path() -> Result<PathBuf, SourceResolveError> {
+    let current_executable = std::env::current_exe().map_err(|error| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("cannot locate the Omega resolver CONNECT helper: {error}"),
+        }
+    })?;
+    let executable_directory = current_executable.parent().ok_or_else(|| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "the running Omega executable has no installation directory".to_owned(),
+        }
+    })?;
+    let helper_name = if cfg!(windows) {
+        format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")
+    } else {
+        RESOLVER_CONNECT_HELPER_BASENAME.to_owned()
+    };
+    let sibling = executable_directory.join(&helper_name);
+    if sibling.is_file() {
+        return Ok(sibling);
+    }
+    #[cfg(test)]
+    {
+        if executable_directory.file_name() == Some(OsStr::new("deps")) {
+            let cargo_sibling = executable_directory
+                .parent()
+                .expect("Cargo deps directory has a target-profile parent")
+                .join(&helper_name);
+            if cargo_sibling.is_file() {
+                return Ok(cargo_sibling);
+            }
+        }
+        #[cfg(unix)]
+        return Ok(PathBuf::from("/usr/bin/true"));
+        #[cfg(windows)]
+        return Ok(PathBuf::from(r"C:\Windows\System32\where.exe"));
+    }
+    #[cfg(not(test))]
+    Err(SourceResolveError::GitExecutionBoundaryInvalid {
+        message: format!(
+            "compiler-owned resolver CONNECT helper is missing at {}",
+            sibling.display()
+        ),
+    })
 }
 
 fn open_ssh_transport_executable(
@@ -4532,11 +8137,23 @@ fn verify_git_transport_invocation_node_custody(
             message: "transport invocation entry is owned by an unrelated user".to_owned(),
         });
     }
-    verify_macos_extended_acl_custody(path, false)?;
+    if metadata.file_type().is_symlink() {
+        verify_macos_path_extended_acl_custody(path, false)?;
+    } else {
+        verify_macos_open_executable_acl_custody(path, metadata)?;
+    }
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(windows)]
+fn verify_git_transport_invocation_node_custody(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    verify_windows_executable_path_custody(path, metadata)
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_git_transport_invocation_node_custody(
     _path: &Path,
     _metadata: &std::fs::Metadata,
@@ -4589,7 +8206,7 @@ fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> 
             message: "resolver executable has no executable mode bit".to_owned(),
         });
     }
-    verify_macos_extended_acl_custody(path, true)?;
+    verify_macos_open_executable_acl_custody(path, &metadata)?;
 
     verify_git_executable_ancestry(path)
 }
@@ -4635,13 +8252,13 @@ fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError>
                         .to_owned(),
             });
         }
-        verify_macos_extended_acl_custody(ancestor, true)?;
+        verify_macos_open_executable_ancestry_acl_custody(ancestor, &metadata)?;
     }
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn verify_macos_extended_acl_custody(
+fn verify_macos_path_extended_acl_custody(
     path: &Path,
     follow_symbolic_link: bool,
 ) -> Result<(), SourceResolveError> {
@@ -4667,22 +8284,308 @@ fn verify_macos_extended_acl_custody(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_acl_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no absolute custody parent".to_owned(),
+        })?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no concrete filename".to_owned(),
+        })?;
+    let parent = open_absolute_directory_nofollow(parent_path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: parent_path.to_path_buf(),
+            message: format!("could not retain resolver executable parent: {error}"),
+        }
+    })?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not open resolver executable without following links: {error}"),
+        }
+    })?;
+    let opened = file
+        .metadata()
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not inspect retained resolver executable: {error}"),
+        })?;
+    if !opened.is_file() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_macos_open_executable_extended_acl_custody(path, &file.into_std())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_ancestry_acl_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not retain resolver executable ancestry: {error}"),
+        }
+    })?;
+    let opened =
+        directory
+            .dir_metadata()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "could not inspect retained resolver executable ancestry: {error}"
+                ),
+            })?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_macos_open_executable_extended_acl_custody(
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!("could not clone retained executable ancestry: {error}"),
+            })?
+            .into_std_file(),
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_executable_extended_acl_custody(
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let has_allow_entry = omega_platform_custody::open_file_extended_acl_has_allow_entry(file)
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "could not inspect retained resolver executable extended ACL custody: {error}"
+            ),
+        })?;
+    if has_allow_entry {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable custody contains an extended ACL allow entry".to_owned(),
+        });
+    }
+    Ok(())
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
-fn verify_macos_extended_acl_custody(
+fn verify_macos_path_extended_acl_custody(
     _path: &Path,
     _follow_symbolic_link: bool,
 ) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-#[cfg(not(unix))]
-fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
-    // Windows ownership and DACL enforcement belongs to the native isolation
-    // backend. The portable floor still commits the concrete file identity.
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_open_executable_acl_custody(
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
     Ok(())
 }
 
-#[cfg(not(unix))]
+#[cfg(all(unix, not(target_os = "macos")))]
+fn verify_macos_open_executable_ancestry_acl_custody(
+    _path: &Path,
+    _classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_git_executable_custody(path: &Path) -> Result<(), SourceResolveError> {
+    let metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: error.to_string(),
+        }
+    })?;
+    if metadata.file_type().is_symlink() || !metadata.is_file() {
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "canonical resolver executable is not a concrete regular file".to_owned(),
+        });
+    }
+    verify_windows_executable_path_custody(path, &metadata)?;
+    verify_git_executable_ancestry(path)
+}
+
+#[cfg(windows)]
+fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
+    let parent = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable has no absolute custody ancestry".to_owned(),
+        })?;
+    for ancestor in parent.ancestors() {
+        let metadata = std::fs::symlink_metadata(ancestor).map_err(|error| {
+            SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: error.to_string(),
+            }
+        })?;
+        if metadata.file_type().is_symlink() || !metadata.is_dir() {
+            return Err(SourceResolveError::GitExecutableInvalid {
+                path: ancestor.to_path_buf(),
+                message: "resolver executable ancestry contains a non-directory or reparse point"
+                    .to_owned(),
+            });
+        }
+        verify_windows_executable_directory_custody(ancestor, &metadata)?;
+    }
+    Ok(())
+}
+
+#[cfg(windows)]
+fn verify_windows_executable_path_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let parent_path = path
+        .parent()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable entry has no absolute custody parent".to_owned(),
+        })?;
+    let name = path
+        .file_name()
+        .ok_or_else(|| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: "resolver executable entry has no concrete filename".to_owned(),
+        })?;
+    let parent = open_absolute_directory_nofollow(parent_path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: parent_path.to_path_buf(),
+            message: format!("could not retain resolver executable parent: {error}"),
+        }
+    })?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!(
+                "could not retain resolver executable entry without following reparse points: {error}"
+            ),
+        }
+    })?;
+    let opened = file
+        .metadata()
+        .map_err(|error| SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not inspect retained resolver executable entry: {error}"),
+        })?;
+    if !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_windows_open_executable_custody(path, &file.into_std())
+}
+
+#[cfg(windows)]
+fn verify_windows_executable_directory_custody(
+    path: &Path,
+    classified: &std::fs::Metadata,
+) -> Result<(), SourceResolveError> {
+    let directory = open_absolute_directory_nofollow(path).map_err(|error| {
+        SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: format!("could not retain resolver executable ancestry: {error}"),
+        }
+    })?;
+    let opened =
+        directory
+            .dir_metadata()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!(
+                    "could not inspect retained resolver executable ancestry: {error}"
+                ),
+            })?;
+    if !opened.is_dir() || !same_std_and_capability_file_identity(classified, &opened) {
+        return Err(SourceResolveError::GitExecutableChanged {
+            path: path.to_path_buf(),
+        });
+    }
+    verify_windows_open_executable_custody(
+        path,
+        &directory
+            .try_clone()
+            .map_err(|error| SourceResolveError::GitExecutableInvalid {
+                path: path.to_path_buf(),
+                message: format!("could not clone retained executable ancestry: {error}"),
+            })?
+            .into_std_file(),
+    )
+}
+
+#[cfg(windows)]
+fn verify_windows_open_executable_custody(
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    use omega_platform_custody::{
+        WindowsFileCustodyViolation, WindowsFileOwnerPolicy, inspect_open_windows_file_custody,
+    };
+
+    let violation = inspect_open_windows_file_custody(
+        file,
+        WindowsFileOwnerPolicy::CurrentUserSystemOrAdministrators,
+    )
+    .map_err(|error| SourceResolveError::GitExecutableInvalid {
+        path: path.to_path_buf(),
+        message: format!("could not inspect retained Windows executable custody: {error}"),
+    })?;
+    if let Some(violation) = violation {
+        let message = match violation {
+            WindowsFileCustodyViolation::UntrustedOwner => {
+                "resolver executable is owned by an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::NullDacl => {
+                "resolver executable has a null DACL granting unrestricted access"
+            }
+            WindowsFileCustodyViolation::UntrustedMutationAuthority => {
+                "resolver executable grants mutation authority to an untrusted Windows principal"
+            }
+            WindowsFileCustodyViolation::UnsupportedAllowAce => {
+                "resolver executable contains an unsupported access-allowing Windows ACE"
+            }
+        };
+        return Err(SourceResolveError::GitExecutableInvalid {
+            path: path.to_path_buf(),
+            message: message.to_owned(),
+        });
+    }
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
+fn verify_git_executable_custody(_path: &Path) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(all(not(unix), not(windows)))]
 fn verify_git_executable_ancestry(path: &Path) -> Result<(), SourceResolveError> {
     if path.parent().is_none() {
         return Err(SourceResolveError::GitExecutableInvalid {
@@ -4849,16 +8752,108 @@ fn observe_git_executable_metadata(
     }
 }
 
+enum GitCommandStdinIdentity {
+    Null,
+    ExactBytes { length: u64, identity: String },
+}
+
+fn git_batch_stdin_identity(entries: &[GitTreeEntry]) -> GitCommandStdinIdentity {
+    let mut hasher = Sha256::new();
+    let mut length = 0_u64;
+    for entry in entries
+        .iter()
+        .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
+    {
+        hasher.update(entry.oid.as_bytes());
+        hasher.update(b"\n");
+        length = length
+            .saturating_add(entry.oid.len() as u64)
+            .saturating_add(1);
+    }
+    GitCommandStdinIdentity::ExactBytes {
+        length,
+        identity: format_sha256(&hasher.finalize()),
+    }
+}
+
+fn git_command_configuration_identity(
+    command: &Command,
+    phase: ResolverExecutionPhase,
+    stdin: &GitCommandStdinIdentity,
+) -> String {
+    let mut hasher = Sha256::new();
+    hasher.update(b"omega-git-command-configuration-v1\0");
+    hasher.update([match phase {
+        ResolverExecutionPhase::TransportDiscovery => 1,
+        ResolverExecutionPhase::RepositoryInitialization => 2,
+        ResolverExecutionPhase::Fetch => 3,
+        ResolverExecutionPhase::RepositoryInspection => 4,
+    }]);
+    hash_command_os_str(&mut hasher, command.get_program());
+    let arguments = command.get_args().collect::<Vec<_>>();
+    hash_length(&mut hasher, arguments.len() as u64);
+    for argument in arguments {
+        hash_command_os_str(&mut hasher, argument);
+    }
+    let mut environment = command.get_envs().collect::<Vec<_>>();
+    environment.sort_by(|left, right| left.0.cmp(right.0));
+    hash_length(&mut hasher, environment.len() as u64);
+    for (name, value) in environment {
+        hash_command_os_str(&mut hasher, name);
+        match value {
+            Some(value) => {
+                hasher.update([1]);
+                hash_command_os_str(&mut hasher, value);
+            }
+            None => hasher.update([0]),
+        }
+    }
+    match command.get_current_dir() {
+        Some(directory) => {
+            hasher.update([1]);
+            hash_command_os_str(&mut hasher, directory.as_os_str());
+        }
+        None => hasher.update([0]),
+    }
+    match stdin {
+        GitCommandStdinIdentity::Null => hasher.update([1]),
+        GitCommandStdinIdentity::ExactBytes { length, identity } => {
+            hasher.update([2]);
+            hasher.update(length.to_le_bytes());
+            hash_bytes(&mut hasher, identity.as_bytes());
+        }
+    }
+    format_sha256(&hasher.finalize())
+}
+
+fn hash_command_os_str(hasher: &mut Sha256, value: &OsStr) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::ffi::OsStrExt;
+        hash_bytes(hasher, value.as_bytes());
+    }
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        let units = value.encode_wide().collect::<Vec<_>>();
+        hash_length(hasher, units.len() as u64);
+        for unit in units {
+            hasher.update(unit.to_le_bytes());
+        }
+    }
+}
+
 fn run_git<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<(), SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(())
     } else {
@@ -4873,13 +8868,14 @@ where
 fn run_git_stdout<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<String, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
@@ -4894,13 +8890,14 @@ where
 fn run_git_bytes_stdout<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<Vec<u8>, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let output = run_git_output(executor, working_directory, args)?;
+    let output = run_git_output(executor, working_directory, phase, args)?;
     if output.status.success() {
         Ok(output.stdout)
     } else {
@@ -4915,23 +8912,98 @@ where
 fn run_git_output<I, S>(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
     args: I,
 ) -> Result<BoundedCommandOutput, SourceResolveError>
 where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = sealed_git_command(executor, working_directory)?;
+    let endpoint_route = if matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    ) {
+        Some(
+            executor
+                .execution_backend
+                .open_endpoint_route(
+                    executor.requested_network_endpoint.clone(),
+                    executor.network_transfer_budget.clone(),
+                )
+                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
+                })?,
+        )
+    } else {
+        None
+    };
+    let mut command =
+        sealed_git_command_with_route(executor, working_directory, phase, endpoint_route.as_ref())?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
-    let result = run_command_bounded(
+    let command_identity =
+        git_command_configuration_identity(&command, phase, &GitCommandStdinIdentity::Null);
+    let result = run_command_bounded_with_budget(
         &mut command,
         "command",
         GIT_STDOUT_LIMIT,
         GIT_STDERR_LIMIT,
         command_timeout,
+        executor.captured_output_budget.clone(),
     );
-    reconcile_git_command_result(result, executor.verify(), executor.verify_budget())
+    let endpoint_result = endpoint_route
+        .map(ResolverExecutionEndpointRoute::finish)
+        .transpose()
+        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("compiler-owned endpoint route failed: {error}"),
+        });
+    let endpoint_validation = endpoint_result
+        .as_ref()
+        .map_err(Clone::clone)
+        .and_then(|observation| validate_network_transfer_outcome(observation.as_ref()));
+    let output = reconcile_git_command_endpoint_result(
+        result,
+        endpoint_validation,
+        executor.verify(),
+        executor.verify_budget(),
+    )?;
+    let endpoint_observation =
+        endpoint_result.expect("successful reconciliation checked endpoint result");
+    executor.record_command_execution(phase, command_identity, &output, endpoint_observation)?;
+    Ok(output)
+}
+
+fn validate_network_transfer_outcome(
+    observation: Option<&ResolverExecutionEndpointObservation>,
+) -> Result<(), SourceResolveError> {
+    let Some(observation) = observation else {
+        return Ok(());
+    };
+    if observation
+        .events()
+        .iter()
+        .any(|event| event.outcome() == ResolverExecutionEndpointOutcome::TransferCeilingReached)
+    {
+        return Err(SourceResolveError::GitResolutionNetworkTransferCeiling {
+            ceiling: observation.route().transfer_byte_ceiling(),
+        });
+    }
+    Ok(())
+}
+
+fn reconcile_git_command_endpoint_result<T>(
+    result: Result<T, SourceResolveError>,
+    endpoint_result: Result<(), SourceResolveError>,
+    executable_result: Result<(), SourceResolveError>,
+    budget_result: Result<(), SourceResolveError>,
+) -> Result<T, SourceResolveError> {
+    match (result, endpoint_result, executable_result, budget_result) {
+        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _, _, _) => Err(error),
+        (_, Err(error), _, _) => Err(error),
+        (_, _, Err(error), _) => Err(error),
+        (_, _, _, Err(error)) => Err(error),
+        (result, Ok(()), Ok(()), Ok(())) => result,
+    }
 }
 
 fn reconcile_git_command_result<T>(
@@ -4945,6 +9017,20 @@ fn reconcile_git_command_result<T>(
         (_, _, Err(error)) => Err(error),
         (result, Ok(()), Ok(())) => result,
     }
+}
+
+fn reconcile_git_cache_operation_result<T>(
+    operation_result: Result<T, SourceResolveError>,
+    namespace_result: Result<(), SourceResolveError>,
+    invalidation_result: Option<Result<(), SourceResolveError>>,
+) -> Result<T, SourceResolveError> {
+    if let Err(error) = namespace_result {
+        return Err(error);
+    }
+    if let Some(Err(error)) = invalidation_result {
+        return Err(error);
+    }
+    operation_result
 }
 
 #[derive(Debug)]
@@ -4972,6 +9058,7 @@ impl CapturedStream {
 enum StreamCaptureResult {
     Complete(Vec<u8>),
     Overflow,
+    ResolutionOverflow(CapturedOutputLimitExceeded),
     Failed(String),
 }
 
@@ -4980,6 +9067,7 @@ struct StreamCapture {
     result: StreamCaptureResult,
 }
 
+#[cfg(test)]
 fn run_command_bounded(
     command: &mut Command,
     operation: &str,
@@ -4987,51 +9075,72 @@ fn run_command_bounded(
     stderr_limit: usize,
     timeout: Duration,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
-    run_command_bounded_with_stdin(
+    run_command_bounded_with_budget(
+        command,
+        operation,
+        stdout_limit,
+        stderr_limit,
+        timeout,
+        GitCapturedOutputBudget::new(u64::MAX),
+    )
+}
+
+fn run_command_bounded_with_budget(
+    command: &mut Command,
+    operation: &str,
+    stdout_limit: usize,
+    stderr_limit: usize,
+    timeout: Duration,
+    captured_output_budget: GitCapturedOutputBudget,
+) -> Result<BoundedCommandOutput, SourceResolveError> {
+    run_command_bounded_with_stdin_and_budget(
         command,
         Stdio::null(),
         operation,
         stdout_limit,
         stderr_limit,
         timeout,
+        captured_output_budget,
     )
 }
 
-fn run_command_bounded_with_stdin(
+fn run_command_bounded_with_stdin_and_budget(
     command: &mut Command,
     stdin: Stdio,
     operation: &str,
     stdout_limit: usize,
     stderr_limit: usize,
     timeout: Duration,
+    captured_output_budget: GitCapturedOutputBudget,
 ) -> Result<BoundedCommandOutput, SourceResolveError> {
     let started = Instant::now();
-    let mut child = command
+    let deadline = started.checked_add(timeout).unwrap_or(started);
+    let cleanup_reserve = command_cleanup_reserve(timeout);
+    let execution_deadline = deadline.checked_sub(cleanup_reserve).unwrap_or(started);
+    command
         .stdin(stdin)
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .group_spawn()
-        .map_err(|error| SourceResolveError::Git {
+        .stderr(Stdio::piped());
+    let mut child =
+        ResolverExecutionChild::spawn(command).map_err(|error| SourceResolveError::Git {
             operation: format!("{operation} spawn"),
             status: None,
             stderr: error.to_string(),
         })?;
-    let stdout = child
-        .inner()
-        .stdout
-        .take()
-        .expect("command stdout was piped");
-    let stderr = child
-        .inner()
-        .stderr
-        .take()
-        .expect("command stderr was piped");
+    let stdout = child.take_stdout().expect("command stdout was piped");
+    let stderr = child.take_stderr().expect("command stderr was piped");
     let (sender, receiver) = mpsc::channel();
-    if let Err(error) = spawn_stream_capture(stdout, CapturedStream::Stdout, stdout_limit, &sender)
-    {
-        return fail_after_cleanup(
+    if let Err(error) = spawn_stream_capture(
+        stdout,
+        CapturedStream::Stdout,
+        stdout_limit,
+        captured_output_budget.clone(),
+        &sender,
+    ) {
+        return fail_after_cleanup_before(
             &mut child,
             operation,
+            deadline,
             SourceResolveError::Git {
                 operation: format!("{operation} stdout capture"),
                 status: None,
@@ -5039,11 +9148,17 @@ fn run_command_bounded_with_stdin(
             },
         );
     }
-    if let Err(error) = spawn_stream_capture(stderr, CapturedStream::Stderr, stderr_limit, &sender)
-    {
-        return fail_after_cleanup(
+    if let Err(error) = spawn_stream_capture(
+        stderr,
+        CapturedStream::Stderr,
+        stderr_limit,
+        captured_output_budget,
+        &sender,
+    ) {
+        return fail_after_cleanup_before(
             &mut child,
             operation,
+            deadline,
             SourceResolveError::Git {
                 operation: format!("{operation} stderr capture"),
                 status: None,
@@ -5057,17 +9172,29 @@ fn run_command_bounded_with_stdin(
     let mut stdout = None;
     let mut stderr = None;
     loop {
+        if Instant::now() >= deadline {
+            return fail_after_cleanup_before(
+                &mut child,
+                operation,
+                deadline,
+                SourceResolveError::GitTimedOut {
+                    operation: operation.to_owned(),
+                    timeout_millis: duration_millis(timeout),
+                },
+            );
+        }
         if status.is_none() {
             status = match child.try_wait() {
                 Ok(Some(status)) => {
-                    terminate_child_bounded(&mut child, operation)?;
+                    terminate_child_before(&mut child, operation, deadline)?;
                     Some(status)
                 }
                 Ok(None) => None,
                 Err(error) => {
-                    return fail_after_cleanup(
+                    return fail_after_cleanup_before(
                         &mut child,
                         operation,
+                        deadline,
                         SourceResolveError::Git {
                             operation: format!("{operation} wait"),
                             status: None,
@@ -5085,26 +9212,28 @@ fn run_command_bounded_with_stdin(
             });
         }
 
-        let elapsed = started.elapsed();
-        if elapsed >= timeout {
-            return fail_after_cleanup(
+        let now = Instant::now();
+        if now >= execution_deadline {
+            return fail_after_cleanup_before(
                 &mut child,
                 operation,
+                deadline,
                 SourceResolveError::GitTimedOut {
                     operation: operation.to_owned(),
                     timeout_millis: duration_millis(timeout),
                 },
             );
         }
-        let wait = PROCESS_POLL_INTERVAL.min(timeout.saturating_sub(elapsed));
+        let wait = PROCESS_POLL_INTERVAL.min(execution_deadline.saturating_duration_since(now));
         match receiver.recv_timeout(wait) {
             Ok(capture) => {
                 let bytes = match capture.result {
                     StreamCaptureResult::Complete(bytes) => bytes,
                     StreamCaptureResult::Overflow => {
-                        return fail_after_cleanup(
+                        return fail_after_cleanup_before(
                             &mut child,
                             operation,
+                            deadline,
                             SourceResolveError::GitOutputOverflow {
                                 operation: operation.to_owned(),
                                 stream: capture.stream.name().to_owned(),
@@ -5115,10 +9244,22 @@ fn run_command_bounded_with_stdin(
                             },
                         );
                     }
-                    StreamCaptureResult::Failed(message) => {
-                        return fail_after_cleanup(
+                    StreamCaptureResult::ResolutionOverflow(exceeded) => {
+                        return fail_after_cleanup_before(
                             &mut child,
                             operation,
+                            deadline,
+                            SourceResolveError::GitResolutionCapturedOutputLimit {
+                                ceiling: exceeded.ceiling,
+                                attempted: exceeded.attempted,
+                            },
+                        );
+                    }
+                    StreamCaptureResult::Failed(message) => {
+                        return fail_after_cleanup_before(
+                            &mut child,
+                            operation,
+                            deadline,
                             SourceResolveError::Git {
                                 operation: format!("{operation} {} capture", capture.stream.name()),
                                 status: None,
@@ -5135,9 +9276,10 @@ fn run_command_bounded_with_stdin(
             Err(RecvTimeoutError::Timeout) => {}
             Err(RecvTimeoutError::Disconnected) => {
                 if stdout.is_none() || stderr.is_none() {
-                    return fail_after_cleanup(
+                    return fail_after_cleanup_before(
                         &mut child,
                         operation,
+                        deadline,
                         SourceResolveError::Git {
                             operation: format!("{operation} capture"),
                             status: None,
@@ -5155,6 +9297,7 @@ fn spawn_stream_capture<R>(
     reader: R,
     stream: CapturedStream,
     limit: usize,
+    captured_output_budget: GitCapturedOutputBudget,
     sender: &mpsc::Sender<StreamCapture>,
 ) -> std::io::Result<()>
 where
@@ -5164,13 +9307,25 @@ where
     std::thread::Builder::new()
         .name(format!("omega-git-{}", stream.name()))
         .spawn(move || {
-            let result = capture_stream_bounded(reader, limit);
+            let result = capture_stream_bounded_with_budget(reader, limit, &captured_output_budget);
             let _ = sender.send(StreamCapture { stream, result });
         })?;
     Ok(())
 }
 
+#[cfg(test)]
 fn capture_stream_bounded<R>(mut reader: R, limit: usize) -> StreamCaptureResult
+where
+    R: Read,
+{
+    capture_stream_bounded_with_budget(&mut reader, limit, &GitCapturedOutputBudget::new(u64::MAX))
+}
+
+fn capture_stream_bounded_with_budget<R>(
+    mut reader: R,
+    limit: usize,
+    captured_output_budget: &GitCapturedOutputBudget,
+) -> StreamCaptureResult
 where
     R: Read,
 {
@@ -5188,6 +9343,9 @@ where
         if next_length > limit {
             return StreamCaptureResult::Overflow;
         }
+        if let Err(exceeded) = captured_output_budget.charge(count) {
+            return StreamCaptureResult::ResolutionOverflow(exceeded);
+        }
         if bytes.try_reserve(count).is_err() {
             return StreamCaptureResult::Failed("output capture allocation failed".to_owned());
         }
@@ -5195,23 +9353,32 @@ where
     }
 }
 
-fn fail_after_cleanup<T>(
-    child: &mut GroupChild,
+fn command_cleanup_reserve(timeout: Duration) -> Duration {
+    GIT_COMMAND_CLEANUP_TIMEOUT.min(timeout / 4)
+}
+
+fn fail_after_cleanup_before<T>(
+    child: &mut ResolverExecutionChild,
     operation: &str,
+    deadline: Instant,
     original: SourceResolveError,
 ) -> Result<T, SourceResolveError> {
-    match terminate_child_bounded(child, operation) {
+    match terminate_child_before(child, operation, deadline) {
         Ok(()) => Err(original),
         Err(cleanup) => Err(cleanup),
     }
 }
 
-fn terminate_child_bounded(
-    child: &mut GroupChild,
+fn terminate_child_before(
+    child: &mut ResolverExecutionChild,
     operation: &str,
+    command_deadline: Instant,
 ) -> Result<(), SourceResolveError> {
     let kill_error = child.kill().err();
     let started = Instant::now();
+    let cleanup_budget =
+        GIT_COMMAND_CLEANUP_TIMEOUT.min(command_deadline.saturating_duration_since(started));
+    let cleanup_deadline = started.checked_add(cleanup_budget).unwrap_or(started);
     loop {
         match child.try_wait() {
             Ok(Some(_)) => {
@@ -5234,15 +9401,15 @@ fn terminate_child_bounded(
                 });
             }
         }
-        if started.elapsed() >= GIT_COMMAND_CLEANUP_TIMEOUT {
+        if Instant::now() >= cleanup_deadline {
             let message = match &kill_error {
                 Some(error) => format!(
                     "could not terminate the process group ({error}) or reap it within {} milliseconds",
-                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                    duration_millis(cleanup_budget)
                 ),
                 None => format!(
                     "could not reap the terminated process within {} milliseconds",
-                    duration_millis(GIT_COMMAND_CLEANUP_TIMEOUT)
+                    duration_millis(cleanup_budget)
                 ),
             };
             return Err(SourceResolveError::GitCleanupFailed {
@@ -5250,7 +9417,9 @@ fn terminate_child_bounded(
                 message,
             });
         }
-        std::thread::sleep(PROCESS_POLL_INTERVAL);
+        std::thread::sleep(
+            PROCESS_POLL_INTERVAL.min(cleanup_deadline.saturating_duration_since(Instant::now())),
+        );
     }
 }
 
@@ -5271,9 +9440,11 @@ fn duration_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-fn sealed_git_command(
+fn sealed_git_command_with_route(
     executor: &GitExecutor,
     working_directory: &Path,
+    phase: ResolverExecutionPhase,
+    endpoint_route: Option<&ResolverExecutionEndpointRoute>,
 ) -> Result<Command, SourceResolveError> {
     executor.verify()?;
     if !working_directory.is_absolute() {
@@ -5294,7 +9465,72 @@ fn sealed_git_command(
         });
     }
 
-    let mut command = Command::new(&executor.identity.path);
+    let network_phase = matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    );
+    let mut helper_executables = Vec::new();
+    if network_phase && let Some(helper) = &executor.transport_executable {
+        helper_executables.push(helper.identity.invocation_path.clone());
+        if helper.identity.path != helper.identity.invocation_path {
+            helper_executables.push(helper.identity.path.clone());
+        }
+    }
+    if network_phase {
+        for helper in &executor.execution_helpers {
+            helper_executables.push(helper.identity.invocation_path.clone());
+            if helper.identity.path != helper.identity.invocation_path {
+                helper_executables.push(helper.identity.path.clone());
+            }
+        }
+    }
+    let mutable_root = match phase {
+        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
+            Some(working_directory)
+        }
+        ResolverExecutionPhase::TransportDiscovery
+        | ResolverExecutionPhase::RepositoryInspection => None,
+    };
+    let network_transport =
+        network_phase.then(|| executor.execution_transport.resolver_network_transport());
+    let command_result = match phase {
+        ResolverExecutionPhase::RepositoryInspection => executor
+            .execution_backend
+            .command_with_inspection_read_root_observation(
+                &executor.identity.path,
+                &helper_executables,
+                working_directory,
+            ),
+        ResolverExecutionPhase::TransportDiscovery => executor
+            .execution_backend
+            .command_with_discovery_route_observation(
+                &executor.identity.path,
+                &helper_executables,
+                network_transport.expect("discovery transport derived from the closed phase"),
+                endpoint_route.expect("discovery route opened from the validated request"),
+                working_directory,
+            ),
+        ResolverExecutionPhase::RepositoryInitialization | ResolverExecutionPhase::Fetch => {
+            executor
+                .execution_backend
+                .command_with_endpoint_route_observation(
+                    &executor.identity.path,
+                    &helper_executables,
+                    phase,
+                    network_transport,
+                    endpoint_route,
+                    mutable_root,
+                )
+        }
+    };
+    let (mut command, execution_policy_observation) =
+        command_result.map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+            message: error.to_string(),
+        })?;
+    executor
+        .execution_policy_observations
+        .borrow_mut()
+        .push(execution_policy_observation);
     command
         .env_clear()
         .current_dir(working_directory)
@@ -5372,7 +9608,7 @@ fn sealed_git_command(
             "-c",
             "filter.lfs.required=false",
         ]);
-    if executor.execution_transport == GitExecutionTransport::Https {
+    if network_phase && executor.execution_transport == GitExecutionTransport::Https {
         let helper = executor
             .transport_executable
             .as_ref()
@@ -5383,18 +9619,67 @@ fn sealed_git_command(
             .parent()
             .expect("validated HTTPS helper has an absolute parent");
         command.env("GIT_EXEC_PATH", helper_directory);
+        let route = endpoint_route.expect("networked HTTPS command retains an endpoint route");
+        command
+            .arg("-c")
+            .arg(format!("http.proxy={}", route.policy().http_proxy_url()));
     }
     if let Some(transport_executable) = &executor.transport_executable {
-        if executor.execution_transport == GitExecutionTransport::Ssh {
+        if network_phase && executor.execution_transport == GitExecutionTransport::Ssh {
+            let route = endpoint_route.expect("networked SSH command retains an endpoint route");
+            let connector = executor
+                .resolver_connect_helper()
+                .expect("validated SSH executor retains its CONNECT helper");
+            let connector_directory = connector
+                .identity
+                .invocation_path
+                .parent()
+                .expect("validated CONNECT helper has an absolute parent");
             command
                 .env(
                     "GIT_SSH_COMMAND",
                     sealed_ssh_command(&transport_executable.identity.path),
                 )
-                .env("GIT_SSH_VARIANT", "ssh");
+                .env("GIT_SSH_VARIANT", "ssh")
+                .env("PATH", connector_directory)
+                .env(
+                    RESOLVER_CONNECT_BROKER_ENVIRONMENT,
+                    route.policy().broker_endpoint().to_string(),
+                )
+                .env(
+                    RESOLVER_CONNECT_TARGET_ENVIRONMENT,
+                    route.policy().requested_endpoint().authority(),
+                );
         }
     }
     Ok(command)
+}
+
+#[cfg(test)]
+fn sealed_git_command(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    phase: ResolverExecutionPhase,
+) -> Result<Command, SourceResolveError> {
+    let route = if matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    ) {
+        Some(
+            executor
+                .execution_backend
+                .open_endpoint_route(
+                    executor.requested_network_endpoint.clone(),
+                    executor.network_transfer_budget.clone(),
+                )
+                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
+                })?,
+        )
+    } else {
+        None
+    };
+    sealed_git_command_with_route(executor, working_directory, phase, route.as_ref())
 }
 
 #[cfg(unix)]
@@ -5414,9 +9699,18 @@ fn git_helper_path(executor: &GitExecutor) -> OsString {
 #[cfg(unix)]
 fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "{} -F /dev/null -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
-        ssh_executable.display()
+        "{} -F none -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes -oProxyUseFdpass=no -oProxyCommand={}",
+        ssh_executable.display(),
+        resolver_connect_helper_command_name(),
     ))
+}
+
+fn resolver_connect_helper_command_name() -> String {
+    if cfg!(windows) {
+        format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")
+    } else {
+        RESOLVER_CONNECT_HELPER_BASENAME.to_owned()
+    }
 }
 
 #[cfg(windows)]
@@ -5495,7 +9789,10 @@ mod tests {
             .duration_since(UNIX_EPOCH)
             .expect("system clock")
             .as_nanos();
-        std::env::temp_dir().join(format!(
+        let temporary_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonicalize test temporary directory");
+        temporary_directory.join(format!(
             "omega-packages-{name}-{}-{stamp}",
             std::process::id()
         ))
@@ -5551,6 +9848,122 @@ mod tests {
                 ssh.execution_transport(),
             )
         );
+    }
+
+    #[test]
+    fn git_request_derives_requested_endpoint_from_accepted_lineage() {
+        for (locator, expected_host, expected_port) in [
+            (
+                "https://GitHub.com/CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                443,
+            ),
+            (
+                "ssh://git@GITHUB.COM/CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                22,
+            ),
+            (
+                "git@github.com:CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                22,
+            ),
+            (
+                "https://GitLab.com/CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                443,
+            ),
+            (
+                "ssh://git@GITLAB.COM/CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                22,
+            ),
+            (
+                "git@gitlab.com:CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                22,
+            ),
+            ("https://Git.Example/Group/tool.git", "git.example", 443),
+            (
+                "https://Git.Example:8443/Group/tool.git",
+                "git.example",
+                8443,
+            ),
+            ("ssh://deploy@Git.Example/Group/tool.git", "git.example", 22),
+            (
+                "ssh://deploy@Git.Example:2222/Group/tool.git",
+                "git.example",
+                2222,
+            ),
+            ("deploy@Git.Example:Group/tool.git", "git.example", 22),
+        ] {
+            let request = GitSourceRequest::new(locator, None).expect("accepted Git locator");
+            assert_eq!(
+                request.requested_network_endpoint().host(),
+                expected_host,
+                "wrong endpoint host for {locator:?}"
+            );
+            assert_eq!(
+                request.requested_network_endpoint().port(),
+                expected_port,
+                "wrong endpoint port for {locator:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn requested_endpoint_equality_is_sensitive_to_normalized_host_and_port() {
+        let first = GitSourceRequest::new("https://Git.Example/Group/first.git", None)
+            .expect("first request");
+        let same_endpoint = GitSourceRequest::new("https://git.example/Other/second.git", None)
+            .expect("same endpoint request");
+        let other_host = GitSourceRequest::new("https://other.example/Group/first.git", None)
+            .expect("other host request");
+        let other_port = GitSourceRequest::new("https://git.example:444/Group/first.git", None)
+            .expect("other port request");
+
+        assert_eq!(
+            first.requested_network_endpoint(),
+            same_endpoint.requested_network_endpoint()
+        );
+        assert_ne!(
+            first.requested_network_endpoint(),
+            other_host.requested_network_endpoint()
+        );
+        assert_ne!(
+            first.requested_network_endpoint(),
+            other_port.requested_network_endpoint()
+        );
+    }
+
+    #[test]
+    fn git_request_rejects_malformed_and_ambiguous_endpoint_ports() {
+        for locator in [
+            "https://git.example:/Group/tool.git",
+            "https://git.example:0/Group/tool.git",
+            "https://git.example:01/Group/tool.git",
+            "https://git.example:65536/Group/tool.git",
+            "https://git.example:-1/Group/tool.git",
+            "https://git.example:port/Group/tool.git",
+            "ssh://git@git.example:/Group/tool.git",
+            "ssh://git@git.example:0/Group/tool.git",
+            "ssh://git@git.example:01/Group/tool.git",
+            "ssh://git@git.example:65536/Group/tool.git",
+            "ssh://git@git.example:-1/Group/tool.git",
+            "ssh://git@git.example:port/Group/tool.git",
+            "https://github.com:443/CathedralOS/tool.git",
+            "ssh://git@github.com:22/CathedralOS/tool.git",
+            "https://gitlab.com:443/CathedralOS/tool.git",
+            "ssh://git@gitlab.com:22/CathedralOS/tool.git",
+        ] {
+            assert!(
+                matches!(
+                    GitSourceRequest::new(locator, None),
+                    Err(GitSourceRequestError::InvalidLocator(_))
+                ),
+                "accepted {locator:?}"
+            );
+        }
     }
 
     #[test]
@@ -5737,6 +10150,48 @@ mod tests {
         ))
     }
 
+    fn open_verified_git_repository(
+        cache: &Path,
+        request: &GitSourceRequest,
+    ) -> VerifiedGitRepository {
+        let canonical_cache = cache.canonicalize().expect("canonicalize Git cache");
+        let cache_directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("retain Git cache parent");
+        let entry_root = git_cache_entry_root(&canonical_cache, request);
+        let entry_name = entry_root.file_name().expect("Git cache entry has a name");
+        VerifiedGitRepository::open(
+            &cache_directory,
+            entry_name,
+            &entry_root,
+            request.locator_identity(),
+            request.requested_revision(),
+            request.execution_transport(),
+            LocalSourceLimits::default(),
+        )
+        .expect("retain verified Git repository")
+    }
+
+    #[cfg(unix)]
+    fn first_regular_descendant(root: &Path) -> PathBuf {
+        let mut pending = vec![root.to_path_buf()];
+        while let Some(directory) = pending.pop() {
+            for entry in std::fs::read_dir(&directory).expect("read test directory") {
+                let path = entry.expect("read test entry").path();
+                let metadata = std::fs::symlink_metadata(&path).expect("classify test entry");
+                if metadata.is_file() {
+                    return path;
+                }
+                if metadata.is_dir() {
+                    pending.push(path);
+                }
+            }
+        }
+        panic!(
+            "test tree contains no regular file beneath {}",
+            root.display()
+        );
+    }
+
     #[cfg(unix)]
     fn shell_command(script: &str) -> Command {
         let mut command = Command::new("sh");
@@ -5754,7 +10209,7 @@ mod tests {
             "test-null-stdin",
             16,
             16,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
         )
         .expect("null stdin must reach EOF without blocking");
         assert!(output.status.success());
@@ -5769,12 +10224,35 @@ mod tests {
             "test-both-streams",
             128 * 1024,
             128 * 1024,
-            Duration::from_secs(2),
+            Duration::from_secs(10),
         )
         .expect("stdout and stderr must be drained concurrently");
         assert!(output.status.success());
         assert_eq!(output.stdout.len(), 128 * 1024);
         assert_eq!(output.stderr.len(), 128 * 1024);
+
+        let shared_budget = GitCapturedOutputBudget::new(192 * 1024);
+        let mut aggregate_overflow = shell_command(
+            "dd if=/dev/zero bs=65536 count=2 1>&2 2>/dev/null; \
+             dd if=/dev/zero bs=65536 count=2 2>/dev/null",
+        );
+        let error = run_command_bounded_with_budget(
+            &mut aggregate_overflow,
+            "test-shared-output-budget",
+            128 * 1024,
+            128 * 1024,
+            Duration::from_secs(10),
+            shared_budget.clone(),
+        )
+        .expect_err("stdout and stderr must consume one shared cumulative budget");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitResolutionCapturedOutputLimit {
+                ceiling,
+                attempted,
+            } if ceiling == 192 * 1024 && attempted > ceiling
+        ));
+        assert!(shared_budget.observed() <= shared_budget.ceiling);
     }
 
     #[cfg(unix)]
@@ -5812,6 +10290,20 @@ mod tests {
                 "unexpected overflow error: {error:?}"
             );
         }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn command_deadline_reserves_cleanup_inside_the_same_budget() {
+        assert_eq!(command_cleanup_reserve(Duration::ZERO), Duration::ZERO);
+        assert_eq!(
+            command_cleanup_reserve(Duration::from_millis(50)),
+            Duration::from_micros(12_500)
+        );
+        assert_eq!(
+            command_cleanup_reserve(Duration::from_secs(120)),
+            GIT_COMMAND_CLEANUP_TIMEOUT
+        );
     }
 
     #[cfg(unix)]
@@ -5989,16 +10481,18 @@ mod tests {
         run_test_git(&repo, ["add", "."]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "add batched sources"]);
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let tree = run_git_stdout(
             &executor,
             &repo,
+            ResolverExecutionPhase::RepositoryInspection,
             [OsStr::new("rev-parse"), OsStr::new("HEAD^{tree}")],
         )
         .expect("resolve tree");
         let listing = run_git_bytes_stdout(
             &executor,
             &repo,
+            ResolverExecutionPhase::RepositoryInspection,
             [
                 OsStr::new("ls-tree"),
                 OsStr::new("--full-tree"),
@@ -6020,11 +10514,28 @@ mod tests {
         )
         .expect("parse tree");
         let launches_before = executor.launches.get();
-        read_git_blobs_batch(&executor, &repo, &mut entries, LocalSourceLimits::default())
-            .expect("read all blobs in one batch");
+        let captured_before = executor.captured_output_budget.observed();
+        read_git_blobs_batch_from_path(
+            &executor,
+            &repo,
+            &mut entries,
+            LocalSourceLimits::default(),
+        )
+        .expect("read all blobs in one batch");
 
         assert_eq!(entries.len(), 33);
         assert_eq!(executor.launches.get() - launches_before, 1);
+        let last_command = executor
+            .command_execution_observations
+            .borrow()
+            .last()
+            .expect("blob batch command observation")
+            .clone();
+        assert_eq!(
+            executor.captured_output_budget.observed() - captured_before,
+            last_command.stdout_length + last_command.stderr_length,
+            "blob batch output must be charged exactly once"
+        );
         assert_eq!(executor.maximum_launches, GIT_FIXED_COMMAND_ALLOWANCE);
         assert!(entries.iter().any(|entry| {
             entry.relative_bytes == b"main.omg"
@@ -6059,6 +10570,69 @@ mod tests {
         ));
 
         let _ = std::fs::remove_dir_all(&repo);
+    }
+
+    #[test]
+    fn git_batch_request_creation_and_cleanup_remain_in_the_retained_entry() {
+        let (repo, _) = create_git_source("retained-batch-request-source");
+        let cache = temp_root("retained-batch-request-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let entry = verified.entry_root.clone();
+        let displaced = entry.with_file_name("entry.displaced");
+        std::fs::rename(&entry, &displaced).expect("displace retained entry");
+        std::fs::create_dir(&entry).expect("create replacement entry");
+
+        let mut batch = PendingGitBatchRequest::create(&verified.entry, &verified.entry_root)
+            .expect("create request through retained entry");
+        let name = batch.name.clone();
+        assert!(displaced.join(&name).is_file());
+        assert!(!entry.join(&name).exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                std::fs::metadata(displaced.join(&name))
+                    .expect("read batch request mode")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        batch.remove().expect("remove retained batch request");
+        assert!(!displaced.join(&name).exists());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_batch_request_cleanup_does_not_remove_a_replacement_name() {
+        let (repo, _) = create_git_source("replaced-batch-request-source");
+        let cache = temp_root("replaced-batch-request-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let batch = PendingGitBatchRequest::create(&verified.entry, &verified.entry_root)
+            .expect("create retained batch request");
+        let path = batch.display_path.clone();
+        let displaced = path.with_extension("displaced");
+        std::fs::rename(&path, &displaced).expect("displace batch request");
+        std::fs::write(&path, b"replacement").expect("install replacement request name");
+
+        drop(batch);
+        assert_eq!(
+            std::fs::read(&path).expect("read replacement request"),
+            b"replacement"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     #[test]
@@ -6265,18 +10839,13 @@ mod tests {
     #[test]
     fn git_object_rejection_precedes_snapshot_staging() {
         let entry_root = temp_root("git-object-rejection-before-stage");
-        let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
-        let error = resolve_git_snapshot(
-            &executor,
-            &entry_root,
+        let error = preflight_git_snapshot(
             "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
-            vec![authenticated_file_entry(
+            &[authenticated_file_entry(
                 "ce013625030ba8dba906f756967f9e9ca394464a",
                 "main.omg",
                 b"tampered\n",
             )],
-            LocalSourceLimits::default(),
         )
         .expect_err("mismatched object bytes must reject before staging");
         assert!(matches!(error, SourceResolveError::GitObjectInvalid { .. }));
@@ -6291,14 +10860,8 @@ mod tests {
             b"hello\n",
         );
         escaping.relative_path = std::env::temp_dir().join("omega-escaped-snapshot.omg");
-        let error = resolve_git_snapshot(
-            &executor,
-            &entry_root,
-            "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
-            vec![escaping],
-            LocalSourceLimits::default(),
-        )
-        .expect_err("destination escape must reject before staging");
+        let error = preflight_git_snapshot("6e3b5fe3c2f6b56c4d150929f0df706a5356004a", &[escaping])
+            .expect_err("destination escape must reject before staging");
         assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
         assert!(
             !entry_root.exists(),
@@ -6407,6 +10970,129 @@ mod tests {
         assert_ne!(first.content_identity, second.content_identity);
 
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_regular_leaf() {
+        let root = temp_root("nofollow-replaced-file");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("source.omg"), "classified bytes")
+            .expect("write classified source");
+        std::fs::write(root.join("replacement.omg"), "replacement bytes")
+            .expect("write replacement source");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+        assert!(
+            directory
+                .symlink_metadata("source.omg")
+                .expect("classify source leaf")
+                .is_file()
+        );
+
+        std::fs::remove_file(root.join("source.omg")).expect("remove classified source");
+        std::os::unix::fs::symlink("replacement.omg", root.join("source.omg"))
+            .expect("replace source with symlink");
+        let _error = read_capability_file_bounded(
+            &directory,
+            OsStr::new("source.omg"),
+            &canonical_root.join("source.omg"),
+            LocalSourceLimits::default().max_bytes,
+            LocalSourceLimits::default().max_bytes,
+        )
+        .expect_err("capture must not follow a replacement symlink");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_directory_leaf() {
+        let root = temp_root("nofollow-replaced-directory");
+        std::fs::create_dir_all(root.join("source")).expect("create classified directory");
+        std::fs::create_dir_all(root.join("replacement")).expect("create replacement directory");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+        assert!(
+            directory
+                .symlink_metadata("source")
+                .expect("classify source directory")
+                .is_dir()
+        );
+
+        std::fs::remove_dir(root.join("source")).expect("remove classified directory");
+        std::os::unix::fs::symlink("replacement", root.join("source"))
+            .expect("replace directory with symlink");
+        let _error = open_captured_directory(
+            &directory,
+            OsStr::new("source"),
+            &canonical_root.join("source"),
+        )
+        .expect_err("capture must not follow a replacement directory symlink");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_root_leaf() {
+        let root = temp_root("nofollow-replaced-root");
+        let retained = root.with_extension("retained");
+        let replacement = root.with_extension("replacement");
+        std::fs::create_dir_all(&root).expect("create classified source root");
+        std::fs::create_dir_all(&replacement).expect("create replacement source root");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+
+        std::fs::rename(&root, &retained).expect("relocate classified source root");
+        std::os::unix::fs::symlink(&replacement, &root).expect("replace source root with symlink");
+        let _error = open_canonical_source_root(&canonical_root)
+            .expect_err("root acquisition must not follow a replacement symlink");
+
+        std::fs::remove_file(&root).expect("remove replacement root symlink");
+        let _ = std::fs::remove_dir_all(&retained);
+        let _ = std::fs::remove_dir_all(&replacement);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_remains_bound_to_open_root_after_path_replacement() {
+        let root = temp_root("open-root-replacement");
+        let retained = root.with_extension("retained");
+        std::fs::create_dir_all(&root).expect("create source root");
+        std::fs::write(root.join("main.omg"), "retained bytes").expect("write retained source");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+
+        std::fs::rename(&root, &retained).expect("relocate opened source root");
+        std::fs::create_dir_all(&root).expect("create replacement root");
+        std::fs::write(root.join("main.omg"), "replacement bytes")
+            .expect("write replacement source");
+
+        let captured = capture_local_source_from_open_root(
+            canonical_root,
+            directory,
+            LocalSourceLimits::default(),
+            SourceTreePolicy::LocalPackage,
+        )
+        .expect("capture through retained root capability");
+        let retained_identity = resolve_local_source(&retained, LocalSourceLimits::default())
+            .expect("resolve retained source");
+        let replacement_identity = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve replacement source");
+        assert_eq!(
+            captured.normalized.content_identity,
+            retained_identity.content_identity
+        );
+        assert_ne!(
+            captured.normalized.content_identity,
+            replacement_identity.content_identity
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&retained);
     }
 
     #[test]
@@ -6539,6 +11225,26 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn local_source_rejects_absolute_symlink_targets_inside_the_live_root() {
+        let root = temp_root("absolute-symlink-target");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        let target = root.join("target.omg");
+        std::fs::write(&target, "target bytes").expect("write target");
+        std::os::unix::fs::symlink(&target, root.join("linked.omg"))
+            .expect("create absolute source symlink");
+
+        let error = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect_err("absolute spelling cannot remain snapshot-rooted after publication");
+        assert!(matches!(
+            error,
+            SourceResolveError::SymlinkEscapesRoot { .. }
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn local_source_identity_hashes_internal_symlink_spelling_and_reachable_target() {
         let root = temp_root("symlink-identity");
         std::fs::create_dir_all(&root).expect("create source tree");
@@ -6640,6 +11346,28 @@ mod tests {
         .expect_err("file limit should reject");
 
         assert_eq!(error, SourceResolveError::TooManyFiles { limit: 0 });
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_entry_limit_rejects_excess_before_classification_or_read() {
+        let root = temp_root("entry-limit-before-read");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("a.omg"), "accepted entry").expect("write accepted source");
+        std::os::unix::fs::symlink("/outside-source-root", root.join("b.omg"))
+            .expect("create excess escaping link");
+
+        let error = resolve_local_source(
+            &root,
+            LocalSourceLimits {
+                max_files: 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("entry limit must reject before classifying the excess leaf");
+        assert_eq!(error, SourceResolveError::TooManyFiles { limit: 1 });
 
         let _ = std::fs::remove_dir_all(&root);
     }
@@ -7002,16 +11730,179 @@ mod tests {
         let (repo, commit) = create_git_source("git");
         let cache = temp_root("git-cache");
 
-        let resolved = resolve_git_source(
-            &local_git_request(&repo, &commit),
-            &cache,
-            LocalSourceLimits::default(),
-        )
-        .expect("resolve git source");
+        let request = local_git_request(&repo, &commit);
+        let resolved = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("resolve git source");
 
         assert_eq!(resolved.commit, commit);
         assert_eq!(resolved.local.file_count, 1);
         assert!(!resolved.tree.is_empty());
+        assert!(!resolved.execution_policy_observations().is_empty());
+        assert_eq!(
+            resolved.command_execution_observations().len(),
+            resolved.execution_policy_observations().len()
+        );
+        assert_eq!(resolved.resolution_observation().schema_version(), 4);
+        assert_eq!(resolved.resolution_observation().identity().len(), 64);
+        assert_eq!(
+            resolved.resolution_observation().command_count(),
+            resolved.command_execution_observations().len()
+        );
+        assert_eq!(
+            resolved.captured_output_observation().ceiling(),
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default())
+        );
+        assert_eq!(
+            resolved.captured_output_observation().observed(),
+            resolved
+                .command_execution_observations()
+                .iter()
+                .map(|command| command.stdout_length() + command.stderr_length())
+                .sum::<u64>()
+        );
+        assert_eq!(
+            resolved.resolution_observation().captured_output_ceiling(),
+            resolved.captured_output_observation().ceiling()
+        );
+        assert_eq!(
+            resolved.resolution_observation().captured_output_observed(),
+            resolved.captured_output_observation().observed()
+        );
+        assert_eq!(
+            resolved.network_transfer_observation().ceiling(),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default())
+        );
+        assert_eq!(resolved.network_transfer_observation().observed(), 0);
+        assert_eq!(
+            resolved.resolution_observation().network_transfer_ceiling(),
+            resolved.network_transfer_observation().ceiling()
+        );
+        assert_eq!(
+            resolved
+                .resolution_observation()
+                .network_transfer_uploaded(),
+            resolved.network_transfer_observation().uploaded()
+        );
+        assert_eq!(
+            resolved
+                .resolution_observation()
+                .network_transfer_downloaded(),
+            resolved.network_transfer_observation().downloaded()
+        );
+        let alternate_policy_result = PendingResolvedGitSource::from_issued(&resolved);
+        let alternate_policy_observation = issue_git_source_resolution_observation(
+            &alternate_policy_result,
+            LocalSourceLimits {
+                max_files: LocalSourceLimits::default().max_files - 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect("issue observation for an alternate source policy");
+        assert_ne!(
+            alternate_policy_observation.identity(),
+            resolved.resolution_observation().identity(),
+            "the final observation must bind compiler source ceilings"
+        );
+        let mut unjoined_result = PendingResolvedGitSource::from_issued(&resolved);
+        unjoined_result.command_execution_observations.pop();
+        assert!(
+            issue_git_source_resolution_observation(&unjoined_result, LocalSourceLimits::default())
+                .is_err(),
+            "final issuance must reject missing command outcome rows"
+        );
+        let mut unjoined_endpoint = PendingResolvedGitSource::from_issued(&resolved);
+        unjoined_endpoint
+            .command_execution_observations
+            .iter_mut()
+            .find(|command| command.endpoint_observation.is_some())
+            .expect("resolved fixture retains a network command")
+            .endpoint_observation = None;
+        assert!(
+            issue_git_source_resolution_observation(
+                &unjoined_endpoint,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject endpoint activity detached from its route policy"
+        );
+        let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
+        mismatched_output_accounting
+            .captured_output_observation
+            .observed += 1;
+        assert!(
+            issue_git_source_resolution_observation(
+                &mismatched_output_accounting,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject changed cumulative output accounting"
+        );
+        let mut mismatched_network_accounting = PendingResolvedGitSource::from_issued(&resolved);
+        mismatched_network_accounting
+            .network_transfer_observation
+            .uploaded += 1;
+        assert!(
+            issue_git_source_resolution_observation(
+                &mismatched_network_accounting,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject changed network-transfer accounting"
+        );
+        let mut mismatched_transport = PendingResolvedGitSource::from_issued(&resolved);
+        mismatched_transport.transport_profile = GitTransportProfile::Https;
+        assert!(validate_pending_git_request(&mismatched_transport, &request).is_err());
+        assert!(
+            resolved
+                .command_execution_observations()
+                .iter()
+                .all(|observation| observation.policy_identity().len() == 64
+                    && observation.command_identity().len() == 64
+                    && observation.status_code() == Some(0)
+                    && observation.termination_signal().is_none()
+                    && observation.stdout_identity().len() == 64
+                    && observation.stderr_identity().len() == 64)
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .all(|observation| observation.executable() == resolved.git_executable.path())
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .all(|observation| observation.require_strict().is_err()),
+            "the current native backend must not overstate strict resolution"
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .any(
+                    |observation| observation.phase() == ResolverExecutionPhase::Fetch
+                        && observation.mutable_root().is_some()
+                )
+        );
+        assert!(
+            resolved
+                .execution_policy_observations()
+                .iter()
+                .any(|observation| observation.phase()
+                    == ResolverExecutionPhase::RepositoryInspection
+                    && observation.mutable_root().is_none())
+        );
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(resolved.execution_helper_executables().len(), 5);
+            assert!(
+                resolved
+                    .execution_helper_executables()
+                    .iter()
+                    .all(|executable| executable.content_identity().len() == 64)
+            );
+        }
 
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&cache);
@@ -7035,6 +11926,33 @@ mod tests {
         assert!(resolved.snapshot_root.join("empty").is_dir());
 
         let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_resolution_issuance_rejects_final_snapshot_drift() {
+        let (repo, commit) = create_git_source("git-final-issuance-drift");
+        let cache = temp_root("git-final-issuance-drift-cache");
+        let resolved = resolve_git_source(
+            &local_git_request(&repo, &commit),
+            &cache,
+            LocalSourceLimits::default(),
+        )
+        .expect("resolve source before issuance-drift probe");
+        let pending = PendingResolvedGitSource::from_issued(&resolved);
+        let payload = pending.snapshot_root.join("main.omg");
+        let mut permissions = std::fs::metadata(&payload)
+            .expect("stat published payload")
+            .permissions();
+        permissions.set_readonly(false);
+        std::fs::set_permissions(&payload, permissions).expect("make payload mutable for probe");
+        std::fs::write(&payload, "machine Drift::main() {}\n")
+            .expect("mutate published payload for probe");
+
+        assert!(verify_pending_git_snapshot(&pending, LocalSourceLimits::default()).is_err());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&cache);
     }
 
@@ -7220,17 +12138,23 @@ mod tests {
         let canonical_cache = cache.canonicalize().expect("canonical resolver cache");
         verify_git_cache_root_custody(&canonical_cache).expect("verify resolver cache custody");
         let execution_transport = request.execution_transport();
-        let executor = GitExecutor::system(execution_transport).expect("select test Git executor");
+        let executor =
+            test_system_git_executor(execution_transport).expect("select test Git executor");
         let cache_identity = git_cache_identity(
             request.locator_identity(),
             request.requested_revision(),
             execution_transport,
         );
         let entry_root = canonical_cache.join(format!("git-{cache_identity}"));
+        let cache_directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("retain resolver cache");
+        let entry_name = entry_root.file_name().expect("cache entry has a name");
         create_git_cache_entry(
             &executor,
             &canonical_cache,
+            &cache_directory,
             &entry_root,
+            entry_name,
             &cache_identity,
             request.locator_identity(),
             request.fetch_locator(),
@@ -7241,6 +12165,8 @@ mod tests {
         .expect("create quarantined Git cache entry");
         let error = resolve_verified_git_cache_entry(
             &executor,
+            &cache_directory,
+            entry_name,
             &entry_root,
             request.requested_locator(),
             request.locator_identity(),
@@ -7606,7 +12532,7 @@ mod tests {
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let mut entries = vec![GitTreeEntry {
             relative_bytes: b"missing.omg".to_vec(),
             relative_path: PathBuf::from("missing.omg"),
@@ -7617,7 +12543,7 @@ mod tests {
                 bytes: GitBlobBytes::empty(),
             },
         }];
-        let error = read_git_blobs_batch(
+        let error = read_git_blobs_batch_from_path(
             &executor,
             &repository,
             &mut entries,
@@ -7722,7 +12648,7 @@ mod tests {
         std::fs::write(&lock_path, []).expect("replace lock path");
 
         assert!(matches!(
-            verify_cache_lock_path_identity(CacheCustodyKind::Git, &lock_path, &file),
+            verify_cache_lock_path_identity_for_test(CacheCustodyKind::Git, &lock_path, &file),
             Err(SourceResolveError::GitCacheInvalid { .. })
         ));
 
@@ -7748,12 +12674,88 @@ mod tests {
         std::fs::write(&lock_path, []).expect("replace lock path");
 
         assert!(matches!(
-            verify_cache_lock_path_identity(CacheCustodyKind::LocalSnapshot, &lock_path, &file,),
+            verify_cache_lock_path_identity_for_test(
+                CacheCustodyKind::LocalSnapshot,
+                &lock_path,
+                &file,
+            ),
             Err(SourceResolveError::LocalSnapshotInvalid { .. })
         ));
 
         file.unlock().expect("unlock displaced cache entry");
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_lock_open_does_not_follow_a_preexisting_symlink() {
+        let root = temp_root("cache-lock-symlink");
+        std::fs::create_dir_all(&root).expect("create cache lock root");
+        let target = root.join("target");
+        std::fs::write(&target, b"untouched").expect("create symlink target");
+
+        for (name, kind) in [
+            ("git.lock", CacheCustodyKind::Git),
+            ("local.lock", CacheCustodyKind::LocalSnapshot),
+        ] {
+            let lock_path = root.join(name);
+            std::os::unix::fs::symlink(&target, &lock_path).expect("create cache lock symlink");
+            let error = CacheEntryLock::open_retained(kind, &lock_path)
+                .expect_err("cache lock open must not follow a symlink");
+            assert!(matches!(
+                (kind, error),
+                (
+                    CacheCustodyKind::Git,
+                    SourceResolveError::GitCacheInvalid { .. }
+                ) | (
+                    CacheCustodyKind::LocalSnapshot,
+                    SourceResolveError::LocalSnapshotInvalid { .. }
+                )
+            ));
+            std::fs::remove_file(&lock_path).expect("remove cache lock symlink");
+        }
+        assert_eq!(
+            std::fs::read(&target).expect("read symlink target"),
+            b"untouched"
+        );
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn cache_lock_identity_rejects_a_replaced_parent_path() {
+        for (name, kind) in [
+            ("git", CacheCustodyKind::Git),
+            ("local", CacheCustodyKind::LocalSnapshot),
+        ] {
+            let root = temp_root(&format!("cache-lock-parent-replaced-{name}"));
+            let cache = root.join("cache");
+            let retained = root.join("retained");
+            std::fs::create_dir_all(&cache).expect("create cache lock parent");
+            let lock_path = cache.join("entry.lock");
+            let (file, parent, lock_name) = CacheEntryLock::open_retained(kind, &lock_path)
+                .expect("open lock through retained parent");
+            file.lock().expect("lock retained cache entry");
+
+            std::fs::rename(&cache, &retained).expect("replace cache lock parent path");
+            std::fs::create_dir(&cache).expect("create replacement cache lock parent");
+            std::fs::write(cache.join("entry.lock"), []).expect("create replacement lock leaf");
+            let error =
+                verify_cache_lock_path_identity(kind, &lock_path, &parent, &lock_name, &file)
+                    .expect_err("replaced cache lock parent must reject");
+            assert!(matches!(
+                (kind, error),
+                (
+                    CacheCustodyKind::Git,
+                    SourceResolveError::GitCacheInvalid { .. }
+                ) | (
+                    CacheCustodyKind::LocalSnapshot,
+                    SourceResolveError::LocalSnapshotInvalid { .. }
+                )
+            ));
+
+            file.unlock().expect("unlock retained cache entry");
+            let _ = std::fs::remove_dir_all(&root);
+        }
     }
 
     #[cfg(unix)]
@@ -7851,6 +12853,107 @@ mod tests {
     }
 
     #[test]
+    fn network_transfer_ceiling_outranks_ordinary_git_failure() {
+        let operation = Err(SourceResolveError::Git {
+            operation: "command".to_owned(),
+            status: Some(1),
+            stderr: "connection closed".to_owned(),
+        });
+        let endpoint =
+            Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 });
+
+        assert!(matches!(
+            reconcile_git_command_endpoint_result::<()>(operation, endpoint, Ok(()), Ok(())),
+            Err(SourceResolveError::GitResolutionNetworkTransferCeiling { ceiling: 1024 })
+        ));
+    }
+
+    #[test]
+    fn cache_namespace_and_invalidation_failures_outrank_operation_failure() {
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "operation failed".to_owned(),
+        });
+        let namespace = Err(cache_invalid(
+            Path::new("cache"),
+            "namespace reconciliation failed",
+        ));
+        let error = reconcile_git_cache_operation_result(operation, namespace, None)
+            .expect_err("namespace custody must outrank operation failure");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("namespace reconciliation")
+        ));
+
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "operation failed".to_owned(),
+        });
+        let invalidation = Err(cache_invalid(
+            Path::new("cache"),
+            "invalidation synchronization failed",
+        ));
+        let error = reconcile_git_cache_operation_result(operation, Ok(()), Some(invalidation))
+            .expect_err("invalidation custody must outrank operation failure");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("invalidation synchronization")
+        ));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_operation_still_reconciles_the_retained_lock_parent() {
+        let cache = temp_root("git-failed-operation-parent-reconciliation");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create cache parent");
+        let cache = cache.canonicalize().expect("canonicalize cache parent");
+        let lock_path = cache.join("entry.lock");
+        let lock = CacheEntryLock::acquire(&lock_path).expect("acquire retained cache lock");
+
+        std::fs::rename(&cache, &retained).expect("replace retained cache parent path");
+        std::fs::create_dir(&cache).expect("create replacement cache parent");
+        let operation = Err::<(), _>(SourceResolveError::Git {
+            operation: "test".to_owned(),
+            status: Some(1),
+            stderr: "native operation failed".to_owned(),
+        });
+        let error =
+            reconcile_git_cache_operation_result(operation, lock.verify_path_identity(), None)
+                .expect_err("post-operation namespace reconciliation must still run");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { path, message }
+                if path == cache && message.contains("retained directory")
+        ));
+        drop(lock);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[test]
+    fn provisional_git_cache_directory_is_cleaned_if_retention_fails() {
+        let cache = temp_root("git-provisional-stage-cleanup");
+        std::fs::create_dir_all(&cache).expect("create provisional cache parent");
+        let cache = cache.canonicalize().expect("canonicalize cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain cache parent");
+        create_private_cache_directory(&parent, "provisional")
+            .expect("create provisional cache directory");
+        {
+            let _provisional = ProvisionalCacheDirectory::new(&parent, OsStr::new("provisional"));
+            // Returning from a failed retention path drops this guard while it
+            // still owns the just-created parent-relative name.
+        }
+        assert!(!cache.join("provisional").exists());
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_cache_rejects_resolver_metadata_substitution() {
         let (repo, _) = create_git_source("git-metadata-source");
         let (substitute, _) = create_git_source("git-metadata-substitute");
@@ -7872,6 +12975,28 @@ mod tests {
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
         let _ = std::fs::remove_dir_all(&repo);
         let _ = std::fs::remove_dir_all(&substitute);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_invalidation_does_not_follow_a_substituted_entry_symlink() {
+        let cache = temp_root("git-invalidation-symlink");
+        let target = cache.join("target");
+        let entry = cache.join("git-substituted");
+        std::fs::create_dir_all(&target).expect("create invalidation target");
+        let target_metadata = target.join(GIT_CACHE_METADATA);
+        std::fs::write(&target_metadata, b"must remain").expect("write target metadata");
+        std::os::unix::fs::symlink(&target, &entry).expect("substitute Git cache entry");
+
+        let error = invalidate_git_cache_entry_from_retained_parent(&entry)
+            .expect_err("invalidation must reject a substituted entry symlink");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert_eq!(
+            std::fs::read(&target_metadata).expect("read retained target metadata"),
+            b"must remain"
+        );
         let _ = std::fs::remove_dir_all(&cache);
     }
 
@@ -7921,6 +13046,135 @@ mod tests {
         assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
         assert!(!entry.join(GIT_CACHE_METADATA).exists());
         let _ = std::fs::remove_dir_all(&repo);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn verified_git_repository_rejects_replaced_repository_path() {
+        let (repo, _) = create_git_source("git-retained-repository-source");
+        let cache = temp_root("git-retained-repository-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let repository = verified.path().to_path_buf();
+        let displaced = repository.with_file_name("repository.displaced");
+        std::fs::rename(&repository, &displaced).expect("displace retained repository");
+        std::fs::create_dir_all(repository.join("objects")).expect("create replacement repository");
+
+        let error = verified
+            .verify_identity()
+            .expect_err("repository replacement must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn verified_git_repository_rejects_replaced_objects_path() {
+        let (repo, _) = create_git_source("git-retained-objects-source");
+        let cache = temp_root("git-retained-objects-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let objects = verified.path().join("objects");
+        let displaced = verified.path().join("objects.displaced");
+        std::fs::rename(&objects, &displaced).expect("displace retained object store");
+        std::fs::create_dir(&objects).expect("create replacement object store");
+
+        let error = verified
+            .verify_identity()
+            .expect_err("object-store replacement must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_cache_forbidden_record_probe_rejects_non_not_found_errors() {
+        let (repo, _) = create_git_source("git-forbidden-probe-source");
+        let cache = temp_root("git-forbidden-probe-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        let info = entry.join(GIT_CACHE_REPOSITORY).join("objects/info");
+        std::fs::remove_dir(&info).expect("remove empty Git info directory");
+        std::fs::write(&info, b"not a directory").expect("replace info with a regular file");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("NotADirectory must not prove a forbidden record absent");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_rejects_symlinks_in_owned_repository_namespaces() {
+        for relative in ["config", "FETCH_HEAD", "HEAD"] {
+            let (repo, _) = create_git_source(&format!("git-symlink-{relative}-source"));
+            let cache = temp_root(&format!("git-symlink-{relative}-cache"));
+            let request = local_git_request(&repo, "HEAD");
+            resolve_git_source(&request, &cache, LocalSourceLimits::default())
+                .expect("prime cache");
+            let entry = git_cache_entry_root(&cache, &request);
+            let repository = entry.join(GIT_CACHE_REPOSITORY);
+            let path = repository.join(relative);
+            let displaced = repository.join(format!("{relative}.displaced"));
+            std::fs::rename(&path, &displaced).expect("displace repository file");
+            std::os::unix::fs::symlink(&displaced, &path).expect("install repository symlink");
+
+            let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+                .expect_err("repository symlink must reject");
+            assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+            let _ = std::fs::remove_dir_all(&repo);
+            make_tree_owner_writable(&cache);
+            let _ = std::fs::remove_dir_all(&cache);
+        }
+
+        let (repo, _) = create_git_source("git-symlink-object-source");
+        let cache = temp_root("git-symlink-object-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let repository = git_cache_entry_root(&cache, &request).join(GIT_CACHE_REPOSITORY);
+        let object = first_regular_descendant(&repository.join("objects"));
+        let displaced = object.with_extension("displaced");
+        std::fs::rename(&object, &displaced).expect("displace object payload");
+        std::os::unix::fs::symlink(&displaced, &object).expect("install object symlink");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("object-store symlink must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_rejects_multiply_linked_regular_files() {
+        let (repo, _) = create_git_source("git-hardlink-source");
+        let cache = temp_root("git-hardlink-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let entry = git_cache_entry_root(&cache, &request);
+        let config = entry.join(GIT_CACHE_REPOSITORY).join("config");
+        std::fs::hard_link(&config, cache.join("config-alias"))
+            .expect("add external hard link to repository file");
+
+        let error = resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect_err("multiply-linked repository file must reject");
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
         let _ = std::fs::remove_dir_all(&cache);
     }
 
@@ -7979,6 +13233,647 @@ mod tests {
         ));
 
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn bounded_cache_record_read_rejects_content_above_its_exact_limit() {
+        let cache = temp_root("bounded-cache-record");
+        std::fs::create_dir_all(&cache).expect("create cache record root");
+        std::fs::write(cache.join("record"), b"12345").expect("write oversized cache record");
+
+        let error =
+            read_bounded_cache_record(CacheCustodyKind::Git, &cache, Path::new("record"), 4)
+                .expect_err("oversized cache record must reject before unbounded allocation");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn bounded_cache_record_read_does_not_follow_a_symlink_leaf() {
+        let cache = temp_root("bounded-cache-record-symlink");
+        std::fs::create_dir_all(&cache).expect("create cache record root");
+        let target = cache.join("target");
+        std::fs::write(&target, b"outside").expect("write cache record target");
+        std::os::unix::fs::symlink(&target, cache.join("record"))
+            .expect("create cache record symlink");
+
+        let error = read_bounded_cache_record(
+            CacheCustodyKind::LocalSnapshot,
+            &cache,
+            Path::new("record"),
+            64,
+        )
+        .expect_err("cache record read must not follow a symlink leaf");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert_eq!(std::fs::read(&target).expect("read target"), b"outside");
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_publication_renames_a_direct_child_through_its_parent_capability() {
+        let cache = temp_root("capability-publication");
+        std::fs::create_dir_all(&cache).expect("create publication parent");
+        let canonical_cache = cache
+            .canonicalize()
+            .expect("canonicalize publication parent");
+        let staged = canonical_cache.join("staged");
+        let publication = canonical_cache.join("published");
+        std::fs::create_dir_all(&staged).expect("create publication stage");
+        std::fs::write(staged.join("payload"), b"retained").expect("write staged payload");
+
+        publish_cache_directory(
+            CacheCustodyKind::Git,
+            &canonical_cache,
+            &staged,
+            &publication,
+        )
+        .expect("publish through retained cache parent");
+
+        assert!(!staged.exists());
+        assert_eq!(
+            std::fs::read(publication.join("payload")).expect("read published payload"),
+            b"retained"
+        );
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_publication_rejects_a_preexisting_destination() {
+        let cache = temp_root("capability-publication-existing");
+        std::fs::create_dir_all(&cache).expect("create publication parent");
+        let canonical_cache = cache
+            .canonicalize()
+            .expect("canonicalize publication parent");
+        let staged = canonical_cache.join("staged");
+        let publication = canonical_cache.join("published");
+        std::fs::create_dir_all(&staged).expect("create publication stage");
+        std::fs::create_dir(&publication).expect("create existing publication");
+
+        let error = publish_cache_directory(
+            CacheCustodyKind::LocalSnapshot,
+            &canonical_cache,
+            &staged,
+            &publication,
+        )
+        .expect_err("publication must not replace an existing cache child");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert!(staged.is_dir());
+        assert!(publication.is_dir());
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_stage_and_metadata_use_explicit_private_modes() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let (repository, _) = create_git_source("git-private-cache-modes");
+        let cache = temp_root("git-private-cache-modes-cache");
+        let request = local_git_request(&repository, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default())
+            .expect("materialize private Git cache entry");
+        let entry = git_cache_entry_root(&cache, &request);
+
+        assert_eq!(
+            std::fs::symlink_metadata(&entry)
+                .expect("inspect published cache entry")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o700
+        );
+        assert_eq!(
+            std::fs::symlink_metadata(entry.join(GIT_CACHE_METADATA))
+                .expect("inspect resolver metadata")
+                .permissions()
+                .mode()
+                & 0o777,
+            0o600
+        );
+
+        let _ = std::fs::remove_dir_all(&repository);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn pending_git_cache_cleanup_does_not_remove_a_replacement_stage_name() {
+        let cache = temp_root("git-retained-stage-cleanup");
+        let retained_stage = cache.join("retained-stage");
+        std::fs::create_dir_all(&cache).expect("create Git cache parent");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+        let pending = PendingCacheEntry::create(&cache, &parent, "cleanup")
+            .expect("create retained Git cache stage");
+        let stage = pending.root.clone();
+
+        std::fs::rename(&stage, &retained_stage).expect("relocate retained Git stage");
+        std::fs::create_dir(&stage).expect("create replacement Git stage");
+        std::fs::write(stage.join("sentinel"), b"replacement").expect("write replacement sentinel");
+        drop(pending);
+
+        assert_eq!(
+            std::fs::read(stage.join("sentinel")).expect("read replacement sentinel"),
+            b"replacement"
+        );
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_stage);
+    }
+
+    #[test]
+    fn pending_git_cache_publication_rejects_a_replaced_stage_name() {
+        let cache = temp_root("git-retained-stage-publication");
+        let retained_stage = cache.join("retained-stage");
+        std::fs::create_dir_all(&cache).expect("create Git cache parent");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+        let mut pending = PendingCacheEntry::create(&cache, &parent, "publication")
+            .expect("create retained Git cache stage");
+        let stage = pending.root.clone();
+        let publication = cache.join("published");
+
+        std::fs::rename(&stage, &retained_stage).expect("relocate retained Git stage");
+        std::fs::create_dir(&stage).expect("create replacement Git stage");
+        let error = pending
+            .publish(&cache, &publication, OsStr::new("published"))
+            .expect_err("publication must reject a replaced Git stage name");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert!(!publication.exists());
+        drop(pending);
+        assert!(stage.is_dir(), "cleanup must not remove the replacement");
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_stage);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn retained_git_cache_parent_owns_staging_and_invalidation_after_path_replacement() {
+        let cache = temp_root("git-retained-parent-namespace");
+        let retained_cache = cache.with_extension("retained");
+        std::fs::create_dir_all(cache.join("entry")).expect("create retained cache entry");
+        std::fs::write(cache.join("entry").join(GIT_CACHE_METADATA), b"retained")
+            .expect("write retained metadata");
+        let cache = cache.canonicalize().expect("canonicalize Git cache parent");
+        let parent = open_absolute_directory_nofollow(&cache).expect("retain Git cache parent");
+
+        std::fs::rename(&cache, &retained_cache).expect("replace Git cache parent path");
+        std::fs::create_dir_all(cache.join("entry")).expect("create replacement cache entry");
+        std::fs::write(cache.join("entry").join(GIT_CACHE_METADATA), b"replacement")
+            .expect("write replacement metadata");
+
+        let pending = PendingCacheEntry::create(&cache, &parent, "parent")
+            .expect("create stage beneath retained cache parent");
+        let retained_stage_name = pending.stage_name.clone();
+        assert!(retained_cache.join(&retained_stage_name).is_dir());
+        assert!(!cache.join(&retained_stage_name).exists());
+        drop(pending);
+
+        invalidate_git_cache_entry_from_open_parent(
+            &cache,
+            &parent,
+            OsStr::new("entry"),
+            &cache.join("entry"),
+        )
+        .expect("invalidate through retained Git cache parent");
+        assert!(
+            !retained_cache
+                .join("entry")
+                .join(GIT_CACHE_METADATA)
+                .exists()
+        );
+        assert_eq!(
+            std::fs::read(cache.join("entry").join(GIT_CACHE_METADATA))
+                .expect("read replacement metadata"),
+            b"replacement"
+        );
+
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained_cache);
+    }
+
+    #[test]
+    fn materialized_snapshot_writes_and_cleanup_remain_bound_to_the_open_stage() {
+        let root = temp_root("retained-materialized-stage");
+        let snapshots = root.join("snapshots");
+        let retained_parent = root.join("retained-snapshots");
+        std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+        let pending = PendingMaterializedSnapshot::create(
+            CacheCustodyKind::LocalSnapshot,
+            &snapshots,
+            ".source-test.stage",
+        )
+        .expect("create retained materialization stage");
+        let stage_name = pending.stage_name.clone();
+
+        std::fs::rename(&snapshots, &retained_parent).expect("replace snapshot parent path");
+        std::fs::create_dir(&snapshots).expect("create replacement snapshot parent");
+        write_snapshot_file_from_open_root(
+            CacheCustodyKind::LocalSnapshot,
+            pending.directory().expect("retain stage directory"),
+            Path::new("payload"),
+            &pending.root,
+            b"retained",
+            false,
+        )
+        .expect("write through retained stage");
+
+        assert_eq!(
+            std::fs::read(retained_parent.join(&stage_name).join("payload"))
+                .expect("read retained stage payload"),
+            b"retained"
+        );
+        assert!(!snapshots.join(&stage_name).exists());
+        drop(pending);
+        assert!(!retained_parent.join(&stage_name).exists());
+        assert!(snapshots.is_dir());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
+        let (repo, _) = create_git_source("retained-snapshot-bootstrap-source");
+        let cache = temp_root("retained-snapshot-bootstrap-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let snapshots_path = verified.entry_root.join(GIT_CACHE_SNAPSHOTS);
+        make_tree_owner_writable(&snapshots_path);
+        std::fs::remove_dir_all(&snapshots_path).expect("remove primed snapshot collection");
+
+        let snapshots = verified
+            .open_or_create_snapshots()
+            .expect("bootstrap snapshots through retained entry");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                std::fs::metadata(&snapshots_path)
+                    .expect("read snapshot collection mode")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o700
+            );
+        }
+
+        let displaced_entry = verified.entry_root.with_file_name("entry.displaced");
+        std::fs::rename(&verified.entry_root, &displaced_entry)
+            .expect("displace retained cache entry");
+        std::fs::create_dir(&verified.entry_root).expect("create replacement cache entry");
+        let pending = PendingMaterializedSnapshot::create_from_open_parent(
+            CacheCustodyKind::Git,
+            &snapshots.path,
+            &snapshots.directory,
+            ".tree-retained.stage",
+        )
+        .expect("stage through retained snapshots collection");
+        let stage_name = pending.stage_name.clone();
+        assert!(
+            displaced_entry
+                .join(GIT_CACHE_SNAPSHOTS)
+                .join(&stage_name)
+                .is_dir()
+        );
+        assert!(
+            !verified
+                .entry_root
+                .join(GIT_CACHE_SNAPSHOTS)
+                .join(&stage_name)
+                .exists()
+        );
+        drop(pending);
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn materialized_snapshot_publication_rejects_a_replaced_stage_name() {
+        let root = temp_root("replaced-materialized-stage");
+        let snapshots = root.join("snapshots");
+        std::fs::create_dir_all(&snapshots).expect("create snapshot parent");
+        let mut pending = PendingMaterializedSnapshot::create(
+            CacheCustodyKind::Git,
+            &snapshots,
+            ".tree-test.stage",
+        )
+        .expect("create retained materialization stage");
+        let displaced = snapshots.join("displaced-stage");
+        std::fs::rename(&pending.root, &displaced).expect("displace retained stage name");
+        std::fs::create_dir(&pending.root).expect("create replacement stage directory");
+        let replacement = pending.root.clone();
+        let publication = snapshots.join("tree-test");
+
+        let error = pending
+            .publish(&snapshots, &publication)
+            .expect_err("replacement stage name must not publish");
+
+        assert!(matches!(error, SourceResolveError::GitCacheInvalid { .. }));
+        assert!(pending.root.is_dir());
+        assert!(!publication.exists());
+        drop(pending);
+        assert!(!displaced.exists());
+        assert!(replacement.is_dir());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn materialized_snapshot_write_rejects_a_nested_directory_symlink_substitution() {
+        let root = temp_root("materialized-stage-nested-symlink");
+        let stage = root.join("stage");
+        let target = root.join("target");
+        std::fs::create_dir_all(stage.join("nested")).expect("create stage directory");
+        std::fs::create_dir(&target).expect("create substitution target");
+        let stage_directory = open_absolute_directory_nofollow(
+            &stage.canonicalize().expect("canonicalize stage directory"),
+        )
+        .expect("open stage directory");
+        std::fs::remove_dir(stage.join("nested")).expect("remove nested stage directory");
+        std::os::unix::fs::symlink(&target, stage.join("nested"))
+            .expect("substitute nested directory symlink");
+
+        let error = write_snapshot_file_from_open_root(
+            CacheCustodyKind::LocalSnapshot,
+            &stage_directory,
+            Path::new("nested/payload"),
+            &stage,
+            b"must not escape",
+            false,
+        )
+        .expect_err("nested symlink substitution must reject");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert!(!target.join("payload").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn published_snapshot_mode_verification_remains_bound_to_its_open_root() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let parent = temp_root("published-snapshot-open-root");
+        let publication = parent.join("publication");
+        let retained = parent.join("retained");
+        std::fs::create_dir_all(publication.join("nested"))
+            .expect("create published snapshot tree");
+        std::fs::write(publication.join("nested/payload"), b"retained")
+            .expect("write published snapshot payload");
+        make_snapshot_read_only(&publication).expect("finalize published snapshot modes");
+        let canonical_publication = publication
+            .canonicalize()
+            .expect("canonicalize published snapshot");
+        let directory = open_absolute_directory_nofollow(&canonical_publication)
+            .expect("open published snapshot root");
+
+        std::fs::rename(&publication, &retained).expect("replace publication root path");
+        std::fs::create_dir(&publication).expect("create replacement publication root");
+        std::fs::set_permissions(&publication, std::fs::Permissions::from_mode(0o777))
+            .expect("make replacement publication writable");
+
+        verify_open_snapshot_tree_modes(
+            CacheCustodyKind::LocalSnapshot,
+            &directory,
+            &canonical_publication,
+        )
+        .expect("verification must remain on the retained publication");
+        assert_eq!(
+            std::fs::read(retained.join("nested/payload")).expect("read retained payload"),
+            b"retained"
+        );
+        std::fs::set_permissions(&publication, std::fs::Permissions::from_mode(0o700)).unwrap();
+        make_tree_owner_writable(&retained);
+        let _ = std::fs::remove_dir_all(&parent);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn open_cache_parent_publication_is_not_redirected_by_path_replacement() {
+        let root = temp_root("capability-publication-parent-replacement");
+        let cache = root.join("cache");
+        let retained = root.join("retained");
+        std::fs::create_dir_all(cache.join("staged")).expect("create publication stage");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache parent");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache parent");
+
+        std::fs::rename(&cache, &retained).expect("replace opened cache parent path");
+        std::fs::create_dir(&cache).expect("create replacement cache parent");
+        publish_cache_directory_from_open_parent(
+            CacheCustodyKind::Git,
+            &canonical_cache,
+            &directory,
+            OsStr::new("staged"),
+            OsStr::new("published"),
+            None,
+        )
+        .expect("publish through retained parent handle");
+
+        assert!(retained.join("published").is_dir());
+        assert!(!cache.join("published").exists());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn git_cache_custody_does_not_follow_replaced_directory_leaf() {
+        assert_cache_custody_does_not_follow_replaced_directory_leaf(CacheCustodyKind::Git);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_cache_custody_does_not_follow_replaced_directory_leaf() {
+        assert_cache_custody_does_not_follow_replaced_directory_leaf(
+            CacheCustodyKind::LocalSnapshot,
+        );
+    }
+
+    #[cfg(unix)]
+    fn assert_cache_custody_does_not_follow_replaced_directory_leaf(kind: CacheCustodyKind) {
+        let cache = temp_root("cache-nofollow-replaced-directory");
+        std::fs::create_dir_all(cache.join("classified")).expect("create classified directory");
+        std::fs::create_dir_all(cache.join("replacement")).expect("create replacement directory");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+        let classified = directory
+            .symlink_metadata("classified")
+            .expect("classify cache directory");
+        assert!(classified.is_dir());
+
+        std::fs::remove_dir(cache.join("classified")).expect("remove classified directory");
+        std::os::unix::fs::symlink("replacement", cache.join("classified"))
+            .expect("replace cache directory with symlink");
+        let error = open_cache_custody_directory(
+            &directory,
+            Path::new("classified"),
+            &canonical_cache.join("classified"),
+            &classified,
+            kind,
+        )
+        .expect_err("cache custody must not follow a replacement directory symlink");
+        assert!(matches!(
+            (kind, error),
+            (
+                CacheCustodyKind::Git,
+                SourceResolveError::GitCacheInvalid { .. }
+            ) | (
+                CacheCustodyKind::LocalSnapshot,
+                SourceResolveError::LocalSnapshotInvalid { .. }
+            )
+        ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_custody_rejects_replaced_concrete_directory_identity() {
+        let cache = temp_root("cache-replaced-concrete-directory");
+        std::fs::create_dir_all(cache.join("classified")).expect("create classified directory");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+        let classified = directory
+            .symlink_metadata("classified")
+            .expect("classify cache directory");
+
+        std::fs::rename(cache.join("classified"), cache.join("retained"))
+            .expect("retain classified directory identity");
+        std::fs::create_dir(cache.join("classified")).expect("replace with concrete directory");
+        let error = open_cache_custody_directory(
+            &directory,
+            Path::new("classified"),
+            &canonical_cache.join("classified"),
+            &classified,
+            CacheCustodyKind::Git,
+        )
+        .expect_err("cache custody must reject a different concrete directory identity");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("changed between classification")
+        ));
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_custody_entry_capacity_accepts_the_exact_ceiling_only() {
+        assert!(cache_custody_has_capacity(CACHE_CUSTODY_ENTRY_LIMIT - 1, 0));
+        assert!(!cache_custody_has_capacity(CACHE_CUSTODY_ENTRY_LIMIT, 0));
+        assert!(!cache_custody_has_capacity(usize::MAX, 1));
+    }
+
+    #[test]
+    fn cache_custody_wide_tree_does_not_retain_one_handle_per_sibling() {
+        let cache = temp_root("cache-wide-directory");
+        std::fs::create_dir_all(&cache).expect("create cache root");
+        for index in 0..1_024 {
+            std::fs::create_dir(cache.join(format!("directory-{index:04}")))
+                .expect("create sibling cache directory");
+        }
+        let cache = cache.canonicalize().expect("canonicalize cache root");
+
+        verify_cache_custody(&cache, CacheCustodyKind::Git, 0)
+            .expect("wide custody walk must retain paths rather than sibling handles");
+
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn cache_custody_walk_remains_bound_to_open_root_after_path_replacement() {
+        let cache = temp_root("cache-open-root-replacement");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create cache root");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+
+        std::fs::rename(&cache, &retained).expect("relocate opened cache root");
+        std::fs::create_dir_all(&cache).expect("create replacement cache root");
+        std::fs::write(
+            cache.join("replacement"),
+            b"payload exceeding retained ceiling",
+        )
+        .expect("write replacement payload");
+
+        verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 3)
+            .expect("custody walk must remain bound to the opened cache root");
+
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_custody_acl_observation_remains_bound_to_open_root() {
+        let cache = temp_root("cache-open-root-acl-replacement");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create cache root");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+
+        std::fs::rename(&cache, &retained).expect("relocate opened cache root");
+        std::fs::create_dir_all(&cache).expect("create replacement cache root");
+        change_macos_acl(&cache, &["+a", "everyone allow write"]);
+
+        verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 0)
+            .expect("ACL observation must remain on the retained cache root");
+
+        change_macos_acl(&cache, &["-N"]);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_ancestry_acl_open_rejects_classified_directory_replacement() {
+        let cache = temp_root("cache-ancestry-acl-replacement");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create classified cache directory");
+        let cache = cache.canonicalize().expect("canonicalize cache directory");
+        let classified =
+            std::fs::symlink_metadata(&cache).expect("classify cache directory before replacement");
+
+        std::fs::rename(&cache, &retained).expect("relocate classified cache directory");
+        std::fs::create_dir(&cache).expect("create replacement cache directory");
+        change_macos_acl(&cache, &["+a", "everyone allow write"]);
+
+        let error = verify_macos_open_cache_directory_acl_custody(
+            CacheCustodyKind::Git,
+            &cache,
+            &classified,
+        )
+        .expect_err("different directory identity must reject before its ACL can contribute");
+        assert!(matches!(
+            error,
+            SourceResolveError::GitCacheInvalid { message, .. }
+                if message.contains("changed between classification")
+        ));
+
+        change_macos_acl(&cache, &["-N"]);
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
     }
 
     #[cfg(target_os = "macos")]
@@ -8045,7 +13940,7 @@ mod tests {
                 .open(&path)
                 .expect("open cache lock");
             change_macos_acl(&path, &["+a", "everyone allow write"]);
-            let error = verify_cache_lock_path_identity(kind, &path, &file)
+            let error = verify_cache_lock_path_identity_for_test(kind, &path, &file)
                 .expect_err("extended ACL allow on cache lock must reject");
             assert!(
                 matches!(
@@ -8204,7 +14099,7 @@ mod tests {
     #[test]
     fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let helper_directory = executor
             .transport_executable
             .as_ref()
@@ -8218,7 +14113,8 @@ mod tests {
             .canonicalize()
             .expect("canonical temporary directory");
         let command =
-            sealed_git_command(&executor, &working_directory).expect("sealed absolute Git command");
+            sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                .expect("sealed absolute Git command");
         let environment = command
             .get_envs()
             .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
@@ -8270,6 +14166,16 @@ mod tests {
             (OsString::from("PATH"), Some(git_helper_path(&executor))),
         ]);
         assert_eq!(environment, expected_environment);
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
+            assert!(
+                arguments
+                    .iter()
+                    .any(|argument| { Path::new(argument) == executor.identity.path.as_path() })
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(command.get_program(), executor.identity.path.as_os_str());
         assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
         assert!(
@@ -8340,9 +14246,10 @@ mod tests {
             (GitExecutionTransport::Ssh, "ssh"),
             (GitExecutionTransport::File, "file"),
         ] {
-            let executor = GitExecutor::system(transport).expect("system Git executor");
-            let command = sealed_git_command(&executor, &working_directory)
-                .expect("sealed absolute Git command");
+            let executor = test_system_git_executor(transport).expect("system Git executor");
+            let command =
+                sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                    .expect("sealed absolute Git command");
             let environment = command
                 .get_envs()
                 .map(|(key, value)| (key.to_owned(), value.map(OsStr::to_owned)))
@@ -8376,6 +14283,17 @@ mod tests {
                     );
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
+                    assert!(
+                        !environment.contains_key(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT))
+                    );
+                    assert!(
+                        !environment.contains_key(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT))
+                    );
+                    assert!(
+                        arguments.iter().any(|argument| {
+                            argument.starts_with("http.proxy=http://127.0.0.1:")
+                        })
+                    );
                 }
                 GitExecutionTransport::Ssh => {
                     let transport_executable = executor
@@ -8394,6 +14312,38 @@ mod tests {
                         environment.get(OsStr::new("GIT_SSH_VARIANT")),
                         Some(&Some(OsString::from("ssh")))
                     );
+                    let connector = executor
+                        .resolver_connect_helper()
+                        .expect("SSH CONNECT helper identity");
+                    assert_eq!(
+                        environment.get(OsStr::new("PATH")),
+                        Some(&Some(
+                            connector
+                                .identity
+                                .invocation_path
+                                .parent()
+                                .expect("CONNECT helper parent")
+                                .as_os_str()
+                                .to_owned()
+                        ))
+                    );
+                    assert_eq!(
+                        environment.get(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT)),
+                        Some(&Some(OsString::from("127.0.0.1:9")))
+                    );
+                    assert!(
+                        environment
+                            .get(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT))
+                            .and_then(Option::as_ref)
+                            .is_some_and(|endpoint| endpoint
+                                .to_string_lossy()
+                                .starts_with("127.0.0.1:"))
+                    );
+                    assert!(
+                        !arguments
+                            .iter()
+                            .any(|argument| argument.starts_with("http.proxy="))
+                    );
                     assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
                 }
                 GitExecutionTransport::File => {
@@ -8401,6 +14351,11 @@ mod tests {
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
                     assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
                     assert!(executor.transport_executable.is_none());
+                    assert!(
+                        !arguments
+                            .iter()
+                            .any(|argument| argument.starts_with("http.proxy="))
+                    );
                 }
             }
             for (configured, candidate) in [
@@ -8418,6 +14373,106 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[cfg(target_os = "macos")]
+    fn loopback_acceptance_canary() -> (u16, std::thread::JoinHandle<()>) {
+        use std::io::ErrorKind;
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind(("127.0.0.1", 0)).expect("bind helper-chain canary");
+        listener
+            .set_nonblocking(true)
+            .expect("make helper-chain canary nonblocking");
+        let port = listener.local_addr().expect("read canary address").port();
+        let acceptance = std::thread::spawn(move || {
+            let deadline = Instant::now() + Duration::from_secs(4);
+            loop {
+                match listener.accept() {
+                    Ok((_connection, _address)) => return,
+                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
+                        assert!(
+                            Instant::now() < deadline,
+                            "resolver helper chain did not reach the loopback listener"
+                        );
+                        std::thread::sleep(Duration::from_millis(5));
+                    }
+                    Err(error) => panic!("helper-chain listener failed: {error}"),
+                }
+            }
+        });
+        (port, acceptance)
+    }
+
+    #[cfg(target_os = "macos")]
+    fn bounded_system_executor(transport: GitExecutionTransport, port: u16) -> GitExecutor {
+        let executable = system_git_candidates()
+            .iter()
+            .map(Path::new)
+            .find(|path| path.is_file())
+            .expect("find concrete system Git");
+        GitExecutor::open_with_budget_for_transport(
+            executable,
+            1,
+            Duration::from_secs(3),
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
+            transport,
+            ResolverExecutionRequestedEndpoint::new("127.0.0.1", port)
+                .expect("construct loopback execution endpoint"),
+        )
+        .expect("open bounded system Git executor")
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_https_execution_chain_reaches_the_selected_endpoint() {
+        let (port, acceptance) = loopback_acceptance_canary();
+        let executor = bounded_system_executor(GitExecutionTransport::Https, port);
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        let locator = format!("https://127.0.0.1:{port}/repository");
+        let output = run_git_output(
+            &executor,
+            &working_directory,
+            ResolverExecutionPhase::TransportDiscovery,
+            [OsStr::new("ls-remote"), OsStr::new(&locator)],
+        )
+        .expect("launch the retained HTTPS executable chain");
+        assert!(!output.status.success());
+        acceptance.join().expect("observe HTTPS helper connection");
+        let transfer = executor
+            .network_transfer_observation()
+            .expect("reconcile HTTPS transfer accounting");
+        assert!(transfer.uploaded() > 0 || transfer.downloaded() > 0);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_ssh_execution_chain_reaches_the_selected_endpoint() {
+        if resolver_connect_helper_path()
+            .ok()
+            .and_then(|path| path.file_name().map(OsStr::to_owned))
+            != Some(OsString::from(RESOLVER_CONNECT_HELPER_BASENAME))
+        {
+            return;
+        }
+        let (port, acceptance) = loopback_acceptance_canary();
+        let executor = bounded_system_executor(GitExecutionTransport::Ssh, port);
+        let working_directory = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary directory");
+        let locator = format!("ssh://127.0.0.1:{port}/repository");
+        let output = run_git_output(
+            &executor,
+            &working_directory,
+            ResolverExecutionPhase::TransportDiscovery,
+            [OsStr::new("ls-remote"), OsStr::new(&locator)],
+        )
+        .expect("launch the retained SSH executable chain");
+        assert!(!output.status.success());
+        acceptance.join().expect("observe SSH helper connection");
     }
 
     #[cfg(unix)]
@@ -8444,6 +14499,7 @@ mod tests {
         let output = run_git_output(
             &executor,
             &working_directory,
+            ResolverExecutionPhase::Fetch,
             [OsStr::new("ignored-by-test-helper")],
         )
         .expect("run sealed fake Git");
@@ -8456,8 +14512,19 @@ mod tests {
         assert!(stdout.contains("home=unset\n"));
         assert!(stdout.contains("path=/usr/bin:/bin\n"));
 
-        let command = sealed_git_command(&executor, &working_directory)
-            .expect("construct sealed fake Git command");
+        let command =
+            sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
+                .expect("construct sealed fake Git command");
+        #[cfg(target_os = "macos")]
+        {
+            assert_eq!(command.get_program(), OsStr::new("/usr/bin/sandbox-exec"));
+            assert!(
+                command
+                    .get_args()
+                    .any(|argument| argument == fake_git.canonicalize().unwrap().as_os_str())
+            );
+        }
+        #[cfg(not(target_os = "macos"))]
         assert_eq!(command.get_program(), fake_git.canonicalize().unwrap());
         assert_eq!(command.get_current_dir(), Some(working_directory.as_path()));
 
@@ -8491,7 +14558,7 @@ mod tests {
             Err(SourceResolveError::GitExecutableChanged { .. })
         ));
         assert!(matches!(
-            sealed_git_command(&executor, &root),
+            sealed_git_command(&executor, &root, ResolverExecutionPhase::Fetch),
             Err(SourceResolveError::GitExecutableChanged { .. })
         ));
 
@@ -8606,9 +14673,42 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn executable_acl_handle_open_rejects_classified_path_replacement() {
+        use std::os::unix::fs::PermissionsExt;
+
+        let temporary_root = temp_root("git-executable-acl-handle-replacement");
+        std::fs::create_dir_all(&temporary_root).expect("create executable ACL test root");
+        let root = temporary_root
+            .canonicalize()
+            .expect("canonicalize executable ACL test root");
+        let executable = root.join("git");
+        let retained = root.join("retained");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 0\n").expect("write classified executable");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("make classified executable private");
+        let classified =
+            std::fs::symlink_metadata(&executable).expect("classify executable before replacement");
+
+        std::fs::rename(&executable, &retained).expect("relocate classified executable");
+        std::fs::write(&executable, b"#!/bin/sh\nexit 1\n").expect("write replacement executable");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("make replacement executable private");
+        change_macos_acl(&executable, &["+a", "everyone allow write"]);
+
+        assert!(matches!(
+            verify_macos_open_executable_acl_custody(&executable, &classified),
+            Err(SourceResolveError::GitExecutableChanged { path }) if path == executable
+        ));
+
+        change_macos_acl(&executable, &["-N"]);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn system_git_executor_excludes_the_apple_dispatcher() {
-        let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("concrete macOS Git executor");
+        let executor = test_system_git_executor(GitExecutionTransport::Https)
+            .expect("concrete macOS Git executor");
         assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
         assert!(executor.identity.path.is_absolute());
     }
@@ -8637,7 +14737,12 @@ mod tests {
             let executor = GitExecutor::open(&fake_git).expect("capture original Git identity");
 
             assert!(matches!(
-                run_git_output(&executor, &root, [OsStr::new("ignored")]),
+                run_git_output(
+                    &executor,
+                    &root,
+                    ResolverExecutionPhase::Fetch,
+                    [OsStr::new("ignored")],
+                ),
                 Err(SourceResolveError::GitExecutableChanged { .. })
             ));
 
@@ -8650,6 +14755,29 @@ mod tests {
     fn git_executor_enforces_whole_resolution_launch_and_time_budgets() {
         use std::os::unix::fs::PermissionsExt;
 
+        assert_eq!(
+            git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
+            LocalSourceLimits::default().max_bytes + GIT_CAPTURED_OUTPUT_FIXED_ALLOWANCE
+        );
+        assert_eq!(
+            git_resolution_captured_output_ceiling(LocalSourceLimits {
+                max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
+                ..LocalSourceLimits::default()
+            }),
+            GIT_CAPTURED_OUTPUT_ABSOLUTE_LIMIT
+        );
+        assert_eq!(
+            git_resolution_network_transfer_ceiling(LocalSourceLimits::default()),
+            LocalSourceLimits::default().max_bytes + GIT_NETWORK_TRANSFER_FIXED_ALLOWANCE
+        );
+        assert_eq!(
+            git_resolution_network_transfer_ceiling(LocalSourceLimits {
+                max_bytes: SOURCE_BYTE_ABSOLUTE_LIMIT,
+                ..LocalSourceLimits::default()
+            }),
+            GIT_NETWORK_TRANSFER_ABSOLUTE_LIMIT
+        );
+
         let root = temp_root("git-resolution-budget");
         std::fs::create_dir_all(&root).expect("create Git budget root");
         let fast_git = root.join("fast-git");
@@ -8658,10 +14786,20 @@ mod tests {
             .expect("make fast fake Git executable");
         let launch_bounded = GitExecutor::open_with_budget(&fast_git, 1, Duration::from_secs(1))
             .expect("capture launch-bounded Git");
-        run_git_output(&launch_bounded, &root, [OsStr::new("first")])
-            .expect("first launch fits the budget");
+        run_git_output(
+            &launch_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("first")],
+        )
+        .expect("first launch fits the budget");
         assert!(matches!(
-            run_git_output(&launch_bounded, &root, [OsStr::new("second")]),
+            run_git_output(
+                &launch_bounded,
+                &root,
+                ResolverExecutionPhase::Fetch,
+                [OsStr::new("second")],
+            ),
             Err(SourceResolveError::GitResolutionCommandLimit { limit: 1 })
         ));
 
@@ -8672,9 +14810,50 @@ mod tests {
         let time_bounded = GitExecutor::open_with_budget(&slow_git, 1, Duration::from_millis(30))
             .expect("capture time-bounded Git");
         assert!(matches!(
-            run_git_output(&time_bounded, &root, [OsStr::new("slow")]),
+            run_git_output(
+                &time_bounded,
+                &root,
+                ResolverExecutionPhase::Fetch,
+                [OsStr::new("slow")],
+            ),
             Err(SourceResolveError::GitResolutionTimedOut { .. })
         ));
+
+        let output_git = root.join("output-git");
+        std::fs::write(
+            &output_git,
+            b"#!/bin/sh\nfor argument do last=$argument; done\nprintf 12345678\nif [ \"$last\" = second ]; then while :; do :; done; fi\n",
+        )
+        .expect("write output fake Git");
+        std::fs::set_permissions(&output_git, std::fs::Permissions::from_mode(0o700))
+            .expect("make output fake Git executable");
+        let output_bounded =
+            GitExecutor::open_with_resource_budgets(&output_git, 2, Duration::from_secs(1), 12)
+                .expect("capture output-bounded Git");
+        run_git_output(
+            &output_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("first")],
+        )
+        .expect("first command fits cumulative output budget");
+        let output_error = run_git_output(
+            &output_bounded,
+            &root,
+            ResolverExecutionPhase::Fetch,
+            [OsStr::new("second")],
+        )
+        .expect_err("second command must exhaust cumulative output budget");
+        assert!(
+            matches!(
+            &output_error,
+            SourceResolveError::GitResolutionCapturedOutputLimit {
+                ceiling: 12,
+                attempted,
+            } if *attempted > 12
+            ),
+            "unexpected cumulative output error: {output_error:?}"
+        );
 
         let _ = std::fs::remove_dir_all(root);
     }

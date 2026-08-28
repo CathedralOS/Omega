@@ -16,6 +16,7 @@ omega-build-output = { path = "../omega-build-output" }
 omega-target = { path = "../../representations/omega-target" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
 psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
+psi-checked-interpreter = { path = "../../../psi/semantics/psi-checked-interpreter" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-source = { path = "../../../psi/foundation/psi-source" }

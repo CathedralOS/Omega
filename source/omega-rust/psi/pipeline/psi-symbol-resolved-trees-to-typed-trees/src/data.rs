@@ -32,6 +32,30 @@ pub(crate) fn lower_data_definition(
             .quotient
             .as_ref()
             .map(|quotient| {
+                crate::type_reference::retain_static_path_selection(
+                    &mut lowerer.typed_trees,
+                    &quotient.relation,
+                    quotient.relation_symbol,
+                    lowerer.type_reference_exposure,
+                    "quotient relation",
+                )?;
+                if let Some(selection) = &quotient.equivalence {
+                    crate::type_reference::retain_static_path_selection(
+                        &mut lowerer.typed_trees,
+                        &selection.relation,
+                        selection.relation_symbol,
+                        lowerer.type_reference_exposure,
+                        "quotient equivalence subject",
+                    )?;
+                    crate::type_reference::retain_type_reference_selection(
+                        lowerer.source_trees,
+                        &mut lowerer.typed_trees,
+                        &selection.trait_name,
+                        selection.trait_symbol,
+                        lowerer.type_reference_exposure,
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                    )?;
+                }
                 Ok::<_, Diagnostic>(typed::data::QuotientDefinition {
                     carrier: lower_type_reference_into_table(lowerer, &quotient.carrier)?,
                     relation: quotient
@@ -145,10 +169,38 @@ pub(crate) fn lower_type_parameter_kind(
                 resolved::data::MachineParameterContract::Nominal {
                     trait_definition,
                     requirement,
-                } => typed::data::MachineParameterContract::Nominal {
-                    trait_definition: *trait_definition,
-                    requirement: *requirement,
-                },
+                    authored_path,
+                } => {
+                    let [trait_path @ .., requirement_name] = authored_path.as_slice() else {
+                        return Err(Diagnostic::error(
+                            "a nominal machine-parameter requirement lost its authored `Trait::requirement` path before typed lowering",
+                        ));
+                    };
+                    if trait_path.is_empty() {
+                        return Err(Diagnostic::error(
+                            "a nominal machine-parameter requirement lost its authored trait path before typed lowering",
+                        ));
+                    }
+                    crate::type_reference::retain_path_selection(
+                        &mut lowerer.typed_trees,
+                        trait_path,
+                        *trait_definition,
+                        lowerer.type_reference_exposure,
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                        "nominal machine-parameter trait requirement",
+                    )?;
+                    crate::type_reference::retain_static_path_selection(
+                        &mut lowerer.typed_trees,
+                        std::slice::from_ref(requirement_name),
+                        *requirement,
+                        lowerer.type_reference_exposure,
+                        "nominal machine-parameter requirement",
+                    )?;
+                    typed::data::MachineParameterContract::Nominal {
+                        trait_definition: *trait_definition,
+                        requirement: *requirement,
+                    }
+                }
             };
             Ok(typed::data::TypeParameterKind::Machine { contract })
         }

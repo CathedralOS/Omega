@@ -99,9 +99,6 @@ fn inherited_guarantee(
     machine: &typed::machine::Machine,
 ) -> Result<Option<TerminationGuarantee>, Diagnostic> {
     for conformance in program.machine_trait_conformances(machine) {
-        let Some(requirement_name) = conformance.requirement.as_ref() else {
-            continue;
-        };
         let trait_definition = program
             .traits()
             .iter()
@@ -112,7 +109,7 @@ fn inherited_guarantee(
         let requirement = program
             .trait_machine_signatures(trait_definition)
             .iter()
-            .find(|requirement| requirement.name == *requirement_name);
+            .find(|requirement| requirement.symbol == conformance.requirement_symbol);
         let Some(requirement) = requirement else {
             continue;
         };

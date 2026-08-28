@@ -160,6 +160,9 @@ pub enum MachineParameterContract {
     Nominal {
         trait_definition: SymbolHandle,
         requirement: SymbolHandle,
+        /// Exact source-backed `Trait::requirement` path retained until typed
+        /// lowering records both authored declaration selections.
+        authored_path: Vec<DiagnosticName>,
     },
 }
 

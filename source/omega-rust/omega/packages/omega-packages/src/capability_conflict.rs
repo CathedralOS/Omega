@@ -20,10 +20,10 @@ use std::cmp::Ordering;
 use std::fmt;
 
 const CONFLICT_FINGERPRINT_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CAPABILITY-CONFLICT\0";
-const CONFLICT_FINGERPRINT_VERSION: u16 = 11;
+const CONFLICT_FINGERPRINT_VERSION: u16 = 16;
 const CANDIDATE_CLOSURE_DOMAIN: &[u8] = b"OMEGA-PACKAGE-CANDIDATE-CLOSURE\0";
 const CANDIDATE_CLOSURE_VERSION: u16 = 2;
-const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V10\n";
+const CONFLICT_RENDER_SCHEMA: &str = "OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V15\n";
 
 /// Resource ceilings for exact review-row comparison.
 ///
@@ -1642,6 +1642,12 @@ const fn source_location_role_tag(role: PackageReviewSourceLocationRole) -> u8 {
         PackageReviewSourceLocationRole::Suspension => 16,
         PackageReviewSourceLocationRole::Blocking => 17,
         PackageReviewSourceLocationRole::ExternalBinding => 18,
+        PackageReviewSourceLocationRole::ConstInitializer => 19,
+        PackageReviewSourceLocationRole::PropositionFormula => 20,
+        PackageReviewSourceLocationRole::ProofFact => 21,
+        PackageReviewSourceLocationRole::TraitRequirement => 22,
+        PackageReviewSourceLocationRole::DataMember => 23,
+        PackageReviewSourceLocationRole::CallableParameter => 24,
     }
 }
 
@@ -1672,6 +1678,12 @@ const fn source_location_role_token(role: PackageReviewSourceLocationRole) -> &'
         PackageReviewSourceLocationRole::Suspension => "suspension",
         PackageReviewSourceLocationRole::Blocking => "blocking",
         PackageReviewSourceLocationRole::ExternalBinding => "external_binding",
+        PackageReviewSourceLocationRole::ConstInitializer => "const_initializer",
+        PackageReviewSourceLocationRole::PropositionFormula => "proposition_formula",
+        PackageReviewSourceLocationRole::ProofFact => "proof_fact",
+        PackageReviewSourceLocationRole::TraitRequirement => "trait_requirement",
+        PackageReviewSourceLocationRole::DataMember => "data_member",
+        PackageReviewSourceLocationRole::CallableParameter => "callable_parameter",
     }
 }
 

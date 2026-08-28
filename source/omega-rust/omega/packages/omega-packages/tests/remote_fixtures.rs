@@ -129,19 +129,27 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
         )
         .expect("local fixture should resolve");
 
-        assert_eq!(resolved.commit, pin.commit, "{} commit drift", pin.package);
         assert_eq!(
-            resolved.local.content_identity, local.content_identity,
+            resolved.commit(),
+            pin.commit,
+            "{} commit drift",
+            pin.package
+        );
+        assert_eq!(
+            resolved.local().content_identity,
+            local.content_identity,
             "{} content drift",
             pin.package
         );
         assert_eq!(
-            resolved.local.file_count, local.file_count,
+            resolved.local().file_count,
+            local.file_count,
             "{} file-count drift",
             pin.package
         );
         assert_eq!(
-            resolved.local.byte_count, local.byte_count,
+            resolved.local().byte_count,
+            local.byte_count,
             "{} byte-count drift",
             pin.package
         );
@@ -161,9 +169,9 @@ fn remote_fixture_pins_resolve_to_local_fixture_contents() {
             "{} dependency projection drift",
             pin.package
         );
-        assert_eq!(declared.source().commit, pin.commit);
+        assert_eq!(declared.source().commit(), pin.commit);
         assert_eq!(
-            declared.source().local.content_identity,
+            declared.source().local().content_identity,
             local.content_identity,
             "{} declared-source content drift",
             pin.package

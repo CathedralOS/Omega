@@ -126,10 +126,26 @@ real package fixture demonstrates an irreducible external contract.
   targets do not invalidate location custody, which proves authorship location
   rather than target finalization. Generated calls retain neither occurrence
   nor location. External executable-supply rows additionally retain their exact
-  authored `via` occurrence under `external_binding`. Recovery envelope v8,
-  conflict fingerprint v11, and renderer V10 retain what review displays. Later nested
-  carriers must come from existing compiler owners rather than package-layer
-  source parsing.
+  authored `via` occurrence under `external_binding`. Public const rows retain
+  their parsed initializer under `const_initializer`, distinct from the
+  declaration-name anchor. Transparent public propositions retain the full
+  semantic-token extent of their authored formula under
+  `proposition_formula`; primitive and witness propositions retain no invented
+  formula location. Formula custody is captured at the parser boundary before
+  application lowering can erase its enclosing handle or an operator-root span
+  can narrow it to one token. Every authored proof fact likewise retains its
+  full semantic-token extent under `proof_fact`, separately from its clause
+  keyword; public domain/data facts and authored public contracts reject if
+  that custody is missing. Source-free compiler synthesis receives no invented
+  fact location. Public trait requirements and public data fields/cases/payloads
+  retain exact declaration coordinates under `trait_requirement` and
+  `data_member`; callable, public-operator, and public-trait-requirement value
+  parameters use `callable_parameter`, including parameters nested in
+  structural static-machine contracts. Generated declarations expose their
+  real derivation origin.
+  Recovery envelope v13, conflict fingerprint v16, and renderer V15 retain what
+  review displays. Later nested carriers must come
+  from existing compiler owners rather than package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.
@@ -222,15 +238,75 @@ The production source-custody and typed graph paths have received focused
 review; the hardened native resolver boundary, sealed admission projection, and
 accepted-lock path remain incomplete.
 
+The sibling `omega-resolver-execution` crate now supplies the concrete macOS
+engineering floor: closed discovery/initialization/fetch/inspection phases,
+Seatbelt write/network/exec canaries, inherited Unix rlimits, and opaque bounded
+policy observations issued from the same inputs as each native command.
+Successful Git resolutions retain every configured-command row, including the
+generated policy hash, exact numeric ceilings, normalized executable path set,
+discovery/inspection content-read roots when applicable, and mutable root. Every macOS
+phase uses a host-profile-free default-deny policy with exact selected
+executables and write-data to `/dev/null`. SSH discovery/fetch retain broad
+reads. Initialization, inspection, and HTTPS discovery/fetch confine metadata
+and content to their exact phase root plus exact executable/runtime paths and
+required literal ancestors, and therefore mark their filesystem-read rows
+enforced. HTTPS discovery/fetch also admit metadata-only lookup within their
+compiler-selected Git helper directory and fixed `/etc/ssl` alias path, and read
+the fixed `/private/etc/ssl` system TLS configuration root; this does not
+establish TLS trust or custody.
+Initialization and fetch additionally confine writes to the exact mutable
+quarantine root. Discovery and fetch require one closed authority matching the
+already-validated HTTPS or SSH transport and admit outbound network. Only SSH
+receives exact OpenDirectory libinfo, hostname, and Rust runtime page-size
+reads for the pinned client and connector; HTTPS receives none. Both route
+through an exact compiler-owned loopback broker. On macOS direct child egress
+outside that broker port is denied; Linux and Windows retain unavailable
+endpoint-confinement rows. Initialization and
+inspection deny network, reject transport authority, and omit process-fork
+authority, so even allowlisted executables cannot become descendants in those
+phases. The applicable write/network/exec and nonnetwork descendant rows are
+enforced; strict checking still rejects the remaining
+unavailable guarantees.
+Before returning a successful resolution, the package layer requires one observation
+per bounded launch and exact equality between every observed allowlist path and
+the verified content identities for Git, the selected transport, and fixed
+platform helpers; all helper identities remain in the result. Each completed
+command also retains a domain-separated digest of
+its actual program, ordered arguments, sealed environment, cwd, and stdin class,
+then exact exit/signal and bounded stdout/stderr length/digest results joined to
+the corresponding native policy digest. Both streams and every command charge
+one overflow-safe cumulative captured-output counter under
+`min(source-byte ceiling + 64 MiB, 576 MiB)`. Counts must match before success,
+and the counter must exactly equal the sum of all retained stream lengths.
+Every discovery/fetch route also shares one separately derived bidirectional
+broker-transfer ceiling with the same formula. Endpoint events retain uploaded
+and downloaded bytes accepted for relay; CONNECT framing and DNS are excluded.
+Any ceiling event rejects, and successful issuance requires the event sum to
+equal the live whole-resolution counter.
+Only after cache custody, executable content, those command rows, authenticated
+Git objects, and a final physical re-read of the immutable snapshot all
+reconcile under the retained cache lock does the resolver seal its private
+pending result and issue one compact canonical final-result observation. The
+public result exposes read-only accessors rather than mutable evidence fields.
+The observation also binds the source ceilings, request/selector, object format
+and identities, snapshot subject, tool identities, cumulative captured-output,
+and directional broker-transfer ceiling and counts. The fixed outcome is
+explicitly `resolved-non-admitting`:
+unavailable native guarantees remain unavailable. Linux/Windows strict
+backends, TLS/SSH credential evidence, direct-egress prevention outside macOS,
+object-store and non-Windows descendant aggregate-resource accounting, and the
+complete source receipt remain open, so this does not promote diagnostic source
+commands into admission.
+
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
-Legacy source-cache policy files remain diagnostics rather than receipts, but
-their persistence is now bounded and canonical. Reads reject symlink or
-non-regular leaves and noncanonical bytes; writes use one checked canonical
-parent, an exclusive private same-directory stage, synchronized byte
-revalidation, no-overwrite atomic publication, cleanup, and parent-directory
-synchronization on Unix. This does not give their free strings or mutable cache paths
-admission standing.
+The obsolete JSON source-cache policy record and its CLI persistence command
+are deleted rather than retained beside the sealed in-memory resolver
+observation. `omega audit source` remains a non-admitting live diagnostic; no
+caller-readable intermediate record can be promoted into future receipt or
+lock authority. Git reports expose the compiler-selected broker-transfer
+ceiling and observed upload/download counts; local reports omit those
+inapplicable rows.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git
@@ -250,8 +326,9 @@ entering resolver custody. Exact object-ID pins re-authenticate and reuse an
 existing cache entry without transport; symbolic selectors still refetch. This
 is a transport floor, not selective package checkout: until the resolver has an
 exact selected member path, every admissible blob in the whole authenticated
-root is still required. Strict transferred-byte and object-store quotas still
-require a hardened execution backend.
+root is still required. Broker-routed bytes are now strictly bounded, but a
+universal transferred-byte guarantee still requires endpoint confinement on
+every execution backend; object-store quotas remain separate work.
 Selected Git objects are not trusted merely because Git named them. Before any
 snapshot stage exists, an exact requested object ID must equal the selected
 commit. The parent recomputes SHA-256 commit and blob IDs, computes SHA-1 with
@@ -278,12 +355,19 @@ ACLs do not broaden custody, unreadable ACLs fail closed, and symlinks are
 inspected without following them. The same walk applies source-scaled,
 absolutely capped
 logical resident-byte ceilings to accepted Git entries and local publications.
+On Windows, every cache root, retained directory, regular file, reparse point,
+and lock is inspected through its no-follow retained handle. Cache objects must
+be owned by the current process user; ancestry may instead be owned by that
+user, LocalSystem, or BUILTIN Administrators. A null DACL, an unknown granting
+ACE form, or mutation authority granted to any other SID rejects without
+resolving principal names. Inherit-only ACEs are ignored for the current
+object, while inheritable ACEs that also apply to it are checked normally.
 Git lock waiting consumes its ten-minute whole-resolution budget; local
 snapshot publication lock waiting has a separate compiler-owned two-minute
 deadline and rejects explicitly instead of blocking indefinitely. Those
 post-helper checks can reject an oversized cache but cannot prevent
-temporary disk exhaustion during an unconfined fetch. Hostile same-user racing,
-Windows ownership/DACL enforcement, and native isolation remain open.
+temporary disk exhaustion during an unconfined fetch. Hostile trusted-principal
+racing and complete native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.
@@ -306,19 +390,40 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v12 separates entries
-predating this transport-executable floor. This does not certify any
-executable, bind other Git components, or establish TLS/endpoint custody. SSH
-is noninteractive and strict about host keys, but still consumes
+and an unreadable ACL fails closed. Windows applies the equivalent closed
+owner/DACL mutation-authority policy through retained handles to invocation
+entries, canonical targets, and every ancestor. Cache policy v28 separates entries
+predating this transport-executable, cumulative-output, endpoint-brokerage,
+network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
+metadata/HTTPS-network-metadata/deadline/Windows-Job/Windows-custody floor. HTTPS receives
+an exact command-scoped proxy. SSH uses the separately
+custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
+authored environment fields carry the broker and normalized target without
+placing locator text in shell syntax. This does not certify any executable or
+establish TLS/SSH host trust. SSH is noninteractive and strict about host keys,
+but still consumes
 the user's default known-host and key files. Strict OS confinement, explicit
 credential custody and during-write byte/resource enforcement remain. Ordinary
 resolution is now bounded to 64 Git launches, independent of package file
-count, and ten minutes, including cache-lock acquisition. Validated blobs use
+count, ten minutes including cache-lock acquisition, cumulative parent-captured
+output, and broker-routed bidirectional bytes. Each byte ceiling is separately
+derived as `min(source-byte ceiling + 64 MiB, 576 MiB)`. Neither is an
+object-store or universal descendant aggregate-resource quota, and the transfer
+ceiling does not prevent direct egress on an unconfining backend. On Windows,
+the resolver-owned Job Object separately enforces 16 active processes, 2 GiB
+committed memory per process, 4 GiB aggregate committed memory, and 120 aggregate
+user-CPU seconds; filesystem, executable, and endpoint confinement remain
+unavailable there. Here executable confinement means constraining which images
+descendants may load; selected resolver executable owner/DACL custody is
+enforced separately.
+Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.
-Cleanup/reaping has a separate two-second
-deadline; the combined operation is therefore not a strict ten-minute
-wall-clock bound.
+Each command reserves cleanup/reaping within its existing deadline: at most two
+seconds for ordinary budgets and one quarter of a smaller budget. Cleanup
+therefore no longer receives a compiler-authored extension beyond either the
+command or whole-resolution interval. Host scheduling and uninterruptible
+kernel work are still not a hard wall-clock guarantee.
 Git, workspace-member, and external-local resolution now bind those pieces into
 a `ResolvedPackageSource`: declaration and identity come from the immutable
 snapshot and canonical source lineage, and canonical literal dependency rows
@@ -541,6 +646,17 @@ reach still has a `Volatile` ceiling; broader operations and output shapes
 remain realized `Volatile`. Operation schema v18 and baseline capsule v2 do not
 change. A separate 16 MiB aggregate retained-evidence ceiling rejects before
 replay cloning; validated attempts are shared across evaluator handoff.
+
+Summary v26 and replay-record v8 additionally admit one exact successful
+Source-rooted flags-zero `open` -> `read_file_metadata` -> `close` event. Its
+descriptor is created and retired inside that indivisible event, and replay
+retains the exact `OpenDescriptor` row, mutable carrier states, descriptor
+lineage, results, and post-error states. The event composes with the ordered
+Source stream and existing Output grammar, but arbitrary descriptor-metadata/
+read interleaving remains outside the rung. Recovery rejects changed kind,
+ordinal, lineage, carrier shape, operation order, missing close, and descriptor
+reuse. Filesystem-attempt v19 and baseline capsule v2 remain unchanged.
+
 Raw byte-valued inputs are evaluated once by the shared preparer and reject
 above the current 16 MiB evaluator sponsor ceiling before provider cloning/
 allocation. Read/count capacities use one checked conversion and reject
@@ -860,6 +976,12 @@ receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable. Other compiler intrinsics remain
 fail-closed.
+Authored unary `!` and `~` operators retain their exact operator-token spans,
+including when nested in a public proposition or contract. Checked lowering
+must finalize that exact occurrence as the closed builtin-operator meaning,
+and review rejoins it before projecting the structural unary discriminant.
+This does not change v76/canonical row v34 bytes; it prevents a canonical unary
+expression from bypassing its authored public-interface custody.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 rows. The compiler retains `pub` through checked proposition vocabulary,
 rejects public-interface selection of a private proposition, and records every
@@ -950,8 +1072,9 @@ arguments in selected conformance applications and non-public or lifetime-
 parameterized trait realizations fail closed until complete rows land, except
 that binder-free generic requirements, explicit evidence binders, and non-
 generic selected conformances use the canonical public-trait row. Review
-v71/canonical row v29 additionally retains an exact public ordinary,
-nongeneric, lifetime-free operator coordinate for each unaliased checked-body realization,
+v76/canonical row v34 additionally retains an exact public ordinary,
+nongeneric, lifetime-free operator coordinate plus optional conformance alias
+for each checked-body realization,
 whether or not the declaration owns a fixed token,
 after checked lowering retains and projection exactly rederives the selected
 machine/operator symbols, conformance/admission form, normalized overload
@@ -962,8 +1085,8 @@ specific or crash contracts, and providers with any nonempty checked crash
 behavior, reject until their refinement rules land. The
 association is a retained compiler-private checked baseline, not a hash,
 persisted package format, or defense against a trusted component rewriting both
-typed state and checked facts. Private, generic/lifetime-parameterized, aliased,
-and bodyless checked realizations still fail closed. Operator-bound external
+typed state and checked facts. Private, generic/lifetime-parameterized, and
+bodyless checked realizations still fail closed. Operator-bound external
 supply uses the tagged v72/canonical-row-v30 trust association below. A fixed-
 token checked realization uses the same declaration coordinate as its named
 call surface; the public-operator row owns the closed compiler spelling, so the
@@ -994,7 +1117,9 @@ lane binds the template to the proposition application's concrete arguments;
 the local evidence alias is not identity. Matching checked evidence-term,
 interface, and projection facts are mandatory. Direct parameter-rooted member
 paths retain the receiver ordinal and exact package-qualified case/field chain
-only when a unique checked semantic-place row agrees. Computed members,
+only when a unique checked semantic-place row and exactly one finalized public-
+interface member-token selection agree on the field. Missing, duplicate, or
+mismatched token custody rejects without changing canonical row bytes. Computed members,
 proposition-argument members without that join, unsupported advanced call
 forms, and aggregate expressions still fail closed. Contract casts retain the
 structural operand, alpha-normalized target, arithmetic policy, package-qualified
@@ -1192,6 +1317,51 @@ carrier and the named conformance. Machine and trait bounds inherit their
 enclosing declaration's exposure. This direct-authority custody is independent
 of the still-open rule for publishing declaration families.
 
+Trait composition follows that same authority rule. Header parents and body
+`requires` clauses normalize to one edge, but each authored edge retains its
+exact resolved trait as a type-reference selection with the enclosing trait's
+public/private exposure. A parent available only through a transitive package
+therefore rejects; the existing `trait_parent` source location is explanatory
+review provenance, not package admission.
+
+An attached declaration head such as `machine Data::operation` also selects the
+exact `Data` declaration. That carrier coordinate is retained as a type-
+reference row under the machine's interface exposure, including exported
+boundary supply even when the boundary declaration is not spelled `pub`.
+Qualification does not relabel or implicitly admit a transitive carrier.
+
+Quotient formation retains each authored declaration coordinate separately:
+the carrier type, right-hand relation path, repeated static-`where` relation
+subject, sealed `Equivalence` trait and its arguments, and named proof
+conformance. Relation and trait coordinates inherit the quotient data
+declaration's exposure. The selected conformance remains private formation
+custody and stays outside quotient API identity, though ordinary package
+visibility and direct-dependency admission still govern selecting it.
+
+An exact `machine ... satisfies Namespace::requirement` edge retains the
+declarations selected at both parts of the path. Trait edges retain the exact
+trait and result-dispatch-selected requirement; operator edges retain the exact
+signature-selected overload. These rows follow the realizing machine's actual
+interface exposure, including boundary and accepted supply. The compiler
+settles them from the complete typed declaration graph, then validation,
+progress, checked operator facts, provider planning, and review cross-check the
+same symbol. Supply-mode policy is separate: external supply cannot substitute
+a boundary declaration for the ordinary operator the source actually named.
+
+Domain `established by Trait::requirement` paths use the same two exact row
+kinds at the earlier signature-free normalization point that already proves
+uniqueness and subject authorization. Their exposure comes from the domain,
+not the selected trait. Normalized establishment alternatives may deduplicate,
+but authored source occurrences do not disappear from direct-authority
+custody.
+
+Nominal callable machine-parameter contracts retain their complete authored
+`Trait::requirement` path after signature-free resolution. Typed lowering emits
+the exact trait-path and requirement-token rows with the enclosing
+declaration's exposure, recursively for nested machine contracts. Generic
+nesting therefore cannot hide a transitive-only or private requirement from
+package admission.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free
@@ -1257,12 +1427,15 @@ or contradictory custody. It does not parse source text in package
 orchestration or invent locations for inference and closure. Public operational
 facts remain may-ceilings; the review does not mislabel a permissive public
 contract as an observation that its current body exercised the permission.
-Other nested clause/use-site coordinates remain unfinished engineering work;
-none independently motivates nominal Chi. Checked invocation facts retain exact
+Public const initializer, transparent public-proposition formula, and authored
+proof-fact coordinates also survive their owning frontend stages; none is
+reconstructed from source text after value substitution or expression lowering.
+Other nested clause/use-site coordinates remain unfinished engineering work; none
+independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v74/row v32,
-canonical recovery v8, conflict fingerprint v11, and conflict renderer V10 bind
+calls. Package review v76/row v34,
+canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
@@ -1350,7 +1523,6 @@ omega-packages/
 |   |-- identity.rs        # Package/source lineage and instance identity.
 |   |-- source.rs          # Source requests and immutable snapshots.
 |   |-- package_source.rs  # Snapshot-to-declared-PackageKey custody.
-|   |-- resolver.rs        # Fetch/cache boundary and transport receipts.
 |   |-- record_file.rs     # Private bounded path and directory-capability persistence.
 |   |-- declaration.rs     # Hermetic builder.package projection.
 |   |-- dependency_projection.rs # Hermetic literal source requests.
@@ -1463,4 +1635,4 @@ each standalone private mirror is resolved into full custody and compiled
 through package-aware review; the resulting package key, projection identity,
 immutable resolution, and source-consumption commitment must remain bound to
 that lineage. The local `generated-table` fixture also round-trips its verified
-v24/v6 filesystem replay record through canonical review-baseline recovery.
+v26/v8 filesystem replay record through canonical review-baseline recovery.

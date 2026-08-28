@@ -143,8 +143,13 @@ impl SyntaxTrees {
     /// Deep-copy one proof fact from another syntax tree. Generic-instance
     /// synthesis uses this to retain field-dependent default-domain facts
     /// while discharging facts that depend only on concrete const arguments.
-    pub fn copy_proof_fact_from(&mut self, other: &SyntaxTrees, fact: &ProofFact) -> ProofFact {
-        match fact {
+    pub fn copy_proof_fact_from(
+        &mut self,
+        other: &SyntaxTrees,
+        source: Handle<ProofFact>,
+    ) -> Handle<ProofFact> {
+        let fact = other.items.proof_fact(source);
+        let copied = match fact {
             ProofFact::Expression(expression) => {
                 ProofFact::Expression(self.copy_expression_handle(other, *expression))
             }
@@ -152,7 +157,12 @@ impl SyntaxTrees {
                 value: self.copy_expression_handle(other, membership.value),
                 domain: self.copy_item_identifier_span(other, membership.domain),
             }),
+        };
+        let copied = self.items.append_proof_fact(copied);
+        if let Some(source_span) = other.items.proof_fact_source_span(source) {
+            self.items.set_proof_fact_source_span(copied, source_span);
         }
+        copied
     }
 
     /// Deep-copy one trait signature and its authored default body from a
@@ -310,6 +320,7 @@ impl SyntaxTrees {
                         .copy_type_parameter_span(other, proposition.type_parameters),
                     parameters: self
                         .copy_state_parameter_handle_span(other, proposition.parameters),
+                    transparent_formula_source_span: proposition.transparent_formula_source_span,
                     body: match proposition.body {
                         crate::item::PropositionBody::Primitive => {
                             crate::item::PropositionBody::Primitive
@@ -748,11 +759,18 @@ impl SyntaxTrees {
         other: &SyntaxTrees,
         span: HandleSpan<ProofFact>,
     ) -> HandleSpan<ProofFact> {
-        self.copy_mapped_span(
-            other.items.proof_facts(span),
-            |this, fact| this.copy_proof_fact_from(other, fact),
-            |this, fact| this.items.append_proof_fact(fact),
-        )
+        let mut copied = HandleSpan::empty();
+        for offset in 0..span.count() {
+            let source = Handle::from_parts(
+                span.start()
+                    .arena_index()
+                    .checked_add(offset)
+                    .expect("proof fact copy handle index overflow"),
+                span.start().generation(),
+            );
+            copied.push_contiguous(self.copy_proof_fact_from(other, source));
+        }
+        copied
     }
 
     fn copy_target_host_setting_span(

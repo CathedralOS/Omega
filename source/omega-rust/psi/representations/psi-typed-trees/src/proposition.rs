@@ -14,6 +14,9 @@ pub struct PropositionDefinition {
     pub is_public: bool,
     pub binders: HandleSpan<PropositionBinder>,
     pub parameters: HandleSpan<crate::signature::StateParameter>,
+    /// Exact authored expression occurrence for a transparent formula. This
+    /// is review custody, not normalized proposition identity.
+    pub transparent_formula_source_span: Option<psi_source::SourceSpan>,
     pub body: PropositionBody,
 }
 

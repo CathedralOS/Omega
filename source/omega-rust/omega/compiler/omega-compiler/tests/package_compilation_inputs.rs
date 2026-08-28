@@ -389,6 +389,850 @@ fn authored_selection_requires_the_declaration_owner_as_a_direct_dependency() {
 }
 
 #[test]
+fn boundary_machine_signatures_are_public_package_selection_positions() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\nboundary machine expose(value: LeafValue);\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: LeafValue) { }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        "pub data LeafValue { value: u64; }\n",
+    );
+
+    let transitive_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+            PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive boundary-signature graph should validate structurally");
+    let diagnostics =
+        compile_to_checked_with_packages(&root.join("main.omg"), None, transitive_only)
+            .expect_err("a boundary signature may not select a transitive-only type");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.message.contains("`root`")
+                && diagnostic.message.contains("`leaf`")
+                && diagnostic.message.contains("direct dependency")
+        }),
+        "unexpected boundary-signature diagnostics: {diagnostics:#?}"
+    );
+
+    let directly_admitted = PackageCompilationInputs::new(
+        identity(1),
+        vec![
+            PackageSourceBinding::new(identity(1), "root", root.clone()),
+            PackageSourceBinding::new(identity(2), "middle", middle),
+            PackageSourceBinding::new(identity(3), "leaf", leaf),
+        ],
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct boundary-signature graph should validate");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, directly_admitted)
+        .expect("direct dependency should admit the boundary signature type");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.exposure()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+            && matches!(
+                selection.target(),
+                psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target)
+                    if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafValue")
+            )
+    }));
+
+    TempTree::write(
+        root.join("main.omg"),
+        "data PrivateValue { value: u64; }\nboundary machine expose_private(value: PrivateValue);\n",
+    );
+    let root_only = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only boundary-signature graph should validate structurally");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only)
+        .expect_err("a boundary signature may not expose a private same-package type");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private data")
+                && diagnostic.message.contains("PrivateValue")
+        }),
+        "unexpected private boundary-signature diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn transparent_domain_alias_constituents_require_direct_package_admission() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        "use middle::middle;\npub domain u64::RootAllowed = u64::LeafAllowed;\n",
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub domain u64::LeafAllowed;\n");
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive alias graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("a domain alias may not select a transitive-only constituent");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected domain-alias diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct alias graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit the alias constituent");
+    assert!(checked.authored_declaration_selections().iter().any(|selection| {
+        selection.exposure()
+            == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+            && selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment
+            && checked.symbols.source_file(selection.source_span()).is_some_and(|source| source.package_identity == Some(identity(1)))
+            && matches!(selection.target(), psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafAllowed"))
+    }));
+}
+
+#[test]
+fn domain_establishment_routes_retain_exact_declarations_and_visibility() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub data Ticket { }
+trait HiddenIssues {
+    machine issue() -> Ticket in Ticket::Issued;
+}
+pub domain Ticket::Issued
+established by HiddenIssues::issue;
+"#,
+    );
+    let root_only = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only establishment graph should close")
+    };
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
+        .expect_err("a public domain may not authorize a private trait requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private trait")
+                && diagnostic.message.contains("HiddenIssues")
+        }),
+        "unexpected private establishment-route diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub data Ticket { }
+pub trait Issues {
+    machine issue() -> Ticket in Ticket::Issued;
+}
+pub domain Ticket::Issued
+established by Issues::issue;
+
+trait InternalIssues {
+    machine hide() -> Ticket in Ticket::Internal;
+}
+domain Ticket::Internal
+established by InternalIssues::hide;
+"#,
+    );
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, root_only())
+        .expect("matching route visibility should admit exact establishment selections");
+    let rows = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+                && matches!(
+                    selection.target(),
+                    Target::Resolved(target)
+                        if ["Issues", "Issues::issue", "InternalIssues", "InternalIssues::hide"]
+                            .iter()
+                            .any(|path| checked.symbols.display_path(target.selected_symbol(), "::").ends_with(path))
+                )
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(rows.len(), 4, "rows={rows:#?}");
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.kind() == Kind::TypeReference)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.kind() == Kind::StaticPathSegment)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+            .count(),
+        2
+    );
+}
+
+#[test]
+fn trait_composition_requires_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub trait HeaderComposition: LeafPolicy {
+}
+pub trait BodyComposition {
+    requires LeafPolicy;
+}
+trait PrivateComposition: LeafPolicy {
+}
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub trait LeafPolicy {\n}\n");
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive trait-composition graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("trait composition may not select a transitive-only trait");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected trait-composition diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct trait-composition graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit trait composition");
+    let leaf_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == Kind::TypeReference
+                && checked
+                    .symbols
+                    .source_file(selection.source_span())
+                    .is_some_and(|source| source.package_identity == Some(identity(1)))
+                && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafPolicy"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(leaf_selections.len(), 3);
+    assert_eq!(
+        leaf_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+            .count(),
+        2,
+    );
+    assert_eq!(
+        leaf_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+            .count(),
+        1,
+    );
+}
+
+#[test]
+fn attached_machine_carriers_require_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub machine LeafData::public_extension(value: u64) -> u64 {
+    value
+}
+machine LeafData::private_extension(value: u64) -> u64 {
+    value
+}
+boundary machine LeafData::boundary_extension(value: u64) -> u64;
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(leaf.join("leaf.omg"), "pub data LeafData {\n}\n");
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive attached-carrier graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("an attached machine may not select a transitive-only carrier");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected attached-carrier diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct attached-carrier graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit attached-machine carriers");
+    let carrier_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            selection.kind() == Kind::TypeReference
+                && checked
+                    .symbols
+                    .source_file(selection.source_span())
+                    .is_some_and(|source| source.package_identity == Some(identity(1)))
+                && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("LeafData"))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(carrier_selections.len(), 3);
+    assert_eq!(
+        carrier_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+            .count(),
+        2,
+    );
+    assert_eq!(
+        carrier_selections
+            .iter()
+            .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+            .count(),
+        1,
+    );
+}
+
+#[test]
+fn machine_satisfies_edges_require_exact_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub machine public_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply
+{
+    value
+}
+machine private_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply
+{
+    value
+}
+boundary machine boundary_apply(value: u64) -> u64
+    satisfies LeafPolicy::apply;
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait LeafPolicy {
+    machine apply(value: u64) -> u64;
+}
+"#,
+    );
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive satisfies graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("a machine may not satisfy a transitive-only requirement");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected machine-satisfies diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct satisfies graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit exact machine-satisfies edges");
+    let root_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+        })
+        .collect::<Vec<_>>();
+    for kind in [Kind::TypeReference, Kind::StaticPathSegment] {
+        let selections = root_selections
+            .iter()
+            .filter(|selection| {
+                selection.kind() == kind
+                    && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains(if kind == Kind::TypeReference { "LeafPolicy" } else { "apply" }))
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(selections.len(), 3);
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+                .count(),
+            2,
+        );
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+                .count(),
+            1,
+        );
+    }
+    for machine in checked.machines().iter().filter(|machine| {
+        matches!(
+            machine.name.as_str(),
+            "public_apply" | "private_apply" | "boundary_apply"
+        )
+    }) {
+        let [conformance] = checked.machine_trait_conformances(machine) else {
+            panic!("one exact satisfies edge for {}", machine.name)
+        };
+        assert!(conformance.requirement_symbol.is_valid());
+        assert_eq!(
+            checked.symbols.name(conformance.requirement_symbol),
+            "apply"
+        );
+    }
+}
+
+#[test]
+fn public_machine_satisfies_edges_reject_private_requirements() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only satisfies graph should close")
+    };
+    let source = |machine_prefix: &str| {
+        format!(
+            r#"trait PrivatePolicy {{
+    machine apply(value: u64) -> u64;
+}}
+{machine_prefix}machine apply(value: u64) -> u64
+    satisfies PrivatePolicy::apply
+{{
+    value
+}}
+"#,
+        )
+    };
+
+    TempTree::write(root.join("main.omg"), &source("pub "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public satisfier may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected public private-requirement diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(root.join("main.omg"), &source(""));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("a private satisfier may select its package-private requirement");
+
+    TempTree::write(root.join("main.omg"), &source("boundary "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("an exported boundary satisfier may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected boundary private-requirement diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn nominal_machine_parameter_requirements_need_exact_direct_package_admission() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let middle = tree.package("middle");
+    let leaf = tree.package("leaf");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"use middle::middle;
+pub machine public_register<machine Schema>()
+where machine Schema<machine Selected>()
+where machine Selected satisfies LeafPolicy::apply;
+{}
+machine private_register<machine Selected>()
+where machine Selected satisfies LeafPolicy::apply;
+{}
+boundary machine boundary_register<machine Selected>()
+where machine Selected satisfies LeafPolicy::apply;
+"#,
+    );
+    TempTree::write(
+        middle.join("middle.omg"),
+        "use leaf::leaf;\npub machine relay(value: u64) -> u64 { value }\n",
+    );
+    TempTree::write(
+        leaf.join("leaf.omg"),
+        r#"pub trait LeafPolicy {
+    machine apply(value: u64) -> u64;
+}
+"#,
+    );
+    let bindings = vec![
+        PackageSourceBinding::new(identity(1), "root", root.clone()),
+        PackageSourceBinding::new(identity(2), "middle", middle.clone()),
+        PackageSourceBinding::new(identity(3), "leaf", leaf.clone()),
+    ];
+    let transitive = PackageCompilationInputs::new(
+        identity(1),
+        bindings.clone(),
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("transitive nominal-requirement graph should close");
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, transitive)
+        .expect_err("a nominal machine parameter may not select a transitive-only requirement");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.message.contains("direct dependency")),
+        "unexpected nominal machine-parameter diagnostics: {diagnostics:#?}"
+    );
+
+    let direct = PackageCompilationInputs::new(
+        identity(1),
+        bindings,
+        vec![
+            PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+            PackageDependencyBinding::new(identity(1), "leaf", identity(3)),
+            PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+        ],
+    )
+    .expect("direct nominal-requirement graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, direct)
+        .expect("direct admission should admit exact nominal machine-parameter requirements");
+    let root_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+        })
+        .collect::<Vec<_>>();
+    for (kind, selected_name) in [
+        (Kind::TypeReference, "LeafPolicy"),
+        (Kind::StaticPathSegment, "apply"),
+    ] {
+        let selections = root_selections
+            .iter()
+            .filter(|selection| {
+                selection.kind() == kind
+                    && matches!(selection.target(), Target::Resolved(target) if checked.symbols.name(target.selected_symbol()) == selected_name)
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(selections.len(), 3);
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PublicInterface)
+                .count(),
+            2,
+        );
+        assert_eq!(
+            selections
+                .iter()
+                .filter(|selection| selection.exposure() == Exposure::PrivateImplementation)
+                .count(),
+            1,
+        );
+    }
+}
+
+#[test]
+fn public_nominal_machine_parameters_reject_private_requirements() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    let inputs = || {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+            Vec::new(),
+        )
+        .expect("root-only nominal-requirement graph should close")
+    };
+    let source = |machine_prefix: &str| {
+        format!(
+            r#"trait PrivatePolicy {{
+    machine apply(value: u64) -> u64;
+}}
+{machine_prefix}machine register<machine Selected>()
+where machine Selected satisfies PrivatePolicy::apply;
+{{}}
+"#,
+        )
+    };
+
+    TempTree::write(root.join("main.omg"), &source("pub "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a public nominal binder may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected public nominal-requirement diagnostics: {diagnostics:#?}"
+    );
+
+    TempTree::write(root.join("main.omg"), &source(""));
+    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect("a private nominal binder may select its package-private requirement");
+
+    TempTree::write(root.join("main.omg"), &source("boundary "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("an exported boundary nominal binder may not expose a private requirement");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private")
+                && (diagnostic.message.contains("PrivatePolicy")
+                    || diagnostic.message.contains("apply"))
+        }),
+        "unexpected boundary nominal-requirement diagnostics: {diagnostics:#?}"
+    );
+}
+
+#[test]
+fn machine_satisfies_retains_the_exact_result_dispatch_overload() {
+    let tree = TempTree::new();
+    let root = tree.package("root");
+    TempTree::write(
+        root.join("main.omg"),
+        r#"pub domain u64::First;
+pub domain u64::Second;
+pub trait Choice {
+    machine choose(value: u64) -> u64 in First;
+    machine choose(value: u64) -> u64 in Second;
+}
+boundary machine choose_first(value: u64) -> u64 in First
+    satisfies Choice::choose;
+"#,
+    );
+    let inputs = PackageCompilationInputs::new(
+        identity(1),
+        vec![PackageSourceBinding::new(identity(1), "root", root.clone())],
+        Vec::new(),
+    )
+    .expect("root-only overload graph should close");
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs)
+        .expect("result dispatch should select one exact requirement overload");
+    let machine = checked
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "choose_first")
+        .expect("overload satisfier");
+    let [conformance] = checked.machine_trait_conformances(machine) else {
+        panic!("one exact overload edge")
+    };
+    let choice = checked
+        .traits()
+        .iter()
+        .find(|definition| definition.name.as_str() == "Choice")
+        .expect("choice trait");
+    let selected = checked
+        .trait_machine_signatures(choice)
+        .iter()
+        .find(|requirement| requirement.symbol == conformance.requirement_symbol)
+        .expect("settled requirement symbol must name one Choice overload");
+    assert!(
+        checked
+            .normalized_result_dispatch_set(selected.return_type)
+            .identity()
+            .contains("First")
+    );
+}
+
+#[test]
 fn package_compilation_rejects_authored_reserved_cleanup_selection() {
     let tree = TempTree::new();
     let root = tree.package("root");
@@ -969,6 +1813,19 @@ where Element satisfies Card::PowerOrder
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
         .expect("a public interface may cite its public conformance");
 
+    TempTree::write(root.join("main.omg"), &source("", "boundary "));
+    let diagnostics = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .expect_err("a boundary interface cannot cite its package-private conformance");
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic
+                .message
+                .contains("public interface selects private conformance")
+                && diagnostic.message.contains("PowerOrder")
+        }),
+        "unexpected boundary-conformance diagnostics: {diagnostics:#?}"
+    );
+
     TempTree::write(root.join("main.omg"), &source("", ""));
     compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
         .expect("a private implementation may cite its package-private conformance");
@@ -1046,11 +1903,46 @@ ensures a == c
     );
 
     TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-        |diagnostics| {
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .unwrap_or_else(|diagnostics| {
             panic!("public quotient proof evidence should be selectable: {diagnostics:#?}")
-        },
+        });
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let root_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        root_selections
+            .iter()
+            .filter(|selection| {
+                selection.kind() == Kind::StaticPathSegment
+                    && selection.exposure() == Exposure::PublicInterface
+                    && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("equivalent"))
+            })
+            .count(),
+        2,
+        "the quotient relation and repeated equivalence subject need exact public path rows",
     );
+    assert!(root_selections.iter().any(|selection| {
+        selection.kind() == Kind::TypeReference
+            && selection.exposure() == Exposure::PublicInterface
+            && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("Equivalence"))
+    }));
+    assert!(root_selections.iter().any(|selection| {
+        selection.kind() == Kind::Conformance
+            && selection.exposure() == Exposure::PrivateImplementation
+            && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("Evidence"))
+    }));
 }
 
 #[test]

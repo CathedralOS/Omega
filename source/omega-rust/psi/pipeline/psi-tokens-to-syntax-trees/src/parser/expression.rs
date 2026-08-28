@@ -412,31 +412,45 @@ fn parse_unary_expression_handle<'tokens, 'source>(
     }
 
     if input.at_punctuation(PunctuationKind::Exclamation) {
+        let operator_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized unary punctuation has a source token");
         let input = input.take_punctuation(PunctuationKind::Exclamation, "!")?;
         let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        return Ok((
+        let expression =
             syntax_trees
                 .expressions
                 .insert(ExpressionNode::Unary(TableUnaryExpression {
                     operator: UnaryOperator::LogicalNot,
                     operand,
-                })),
-            rest,
-        ));
+                }));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, operator_span);
+        return Ok((expression, rest));
     }
 
     if input.at_punctuation(PunctuationKind::Tilde) {
+        let operator_span = input
+            .tokens
+            .first()
+            .map(|token| input.source_span(token))
+            .expect("recognized unary punctuation has a source token");
         let input = input.take_punctuation(PunctuationKind::Tilde, "~")?;
         let (operand, rest) = parse_unary_expression_handle(syntax_trees, input, context)?;
-        return Ok((
+        let expression =
             syntax_trees
                 .expressions
                 .insert(ExpressionNode::Unary(TableUnaryExpression {
                     operator: UnaryOperator::BitwiseNot,
                     operand,
-                })),
-            rest,
-        ));
+                }));
+        syntax_trees
+            .expressions
+            .set_source_span(expression, operator_span);
+        return Ok((expression, rest));
     }
 
     if input.at_punctuation(PunctuationKind::Minus) {

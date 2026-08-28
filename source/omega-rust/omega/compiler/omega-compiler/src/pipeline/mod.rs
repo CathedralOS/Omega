@@ -21,7 +21,6 @@ mod timing;
 mod wire_report;
 
 pub(crate) use crate::compiler::CompileOptions;
-
 pub(crate) use artifacts::write_checked_snapshot;
 pub(crate) use checked_entry::CheckedCompilation;
 pub(crate) use omega_build_evaluation::{

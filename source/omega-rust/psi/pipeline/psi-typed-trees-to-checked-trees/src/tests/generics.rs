@@ -554,7 +554,7 @@ fn bounded_installation_reach_rejects_provider_outside_upper_bound() {
 #[test]
 fn nominal_callback_use_retains_exact_evaluated_placement_identity() {
     let source = r#"
-        boundary trait Handler {
+        pub boundary trait Handler {
             machine call(value: i32) -> i32;
         }
 
@@ -1104,7 +1104,7 @@ fn generic_body_call_is_accepted_modularly_by_checked_lowering() {
 #[test]
 fn higher_order_machine_schema_specializes_nested_selection_to_fixed_point() {
     let source = r#"
-        data Index {
+        pub data Index {
             case Zero;
             case Next(previous: Index);
         }
@@ -1565,8 +1565,8 @@ fn value_machine_type_parameter_is_inferred_through_a_borrowed_place() {
 #[test]
 fn public_visibility_survives_value_type_specialization() {
     let source = r#"
-        data Light [copy] { weight: i32 in Wrapping; }
-        data Main { light: Light; }
+        pub data Light [copy] { weight: i32 in Wrapping; }
+        pub data Main { light: Light; }
 
         pub machine Main::weigh<T [copy]>(&self, value: &T) -> i32 {
             70
@@ -4257,7 +4257,7 @@ fn const_generic_result_indices_produce_distinct_concrete_machine_instances() {
 #[test]
 fn contract_only_static_selections_do_not_consume_generic_machine_schema() {
     let source = r#"
-        data Index { case Zero; }
+        pub data Index { case Zero; }
         data Stream<machine S>
         where machine S(index: Index) -> Index;
         { case Empty; case More(tail: Stream<S>); }

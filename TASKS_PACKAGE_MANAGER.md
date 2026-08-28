@@ -208,11 +208,12 @@ complete.
   also runs in a fresh Unix process group or Windows Job Object. Every exit
   path attempts termination, preventing ordinary helper/SSH descendants from
   surviving or holding capture pipes open in tested cases; overflow or timeout
-  rejects once cleanup returns. Cleanup and reaping receive a separate bounded
-  two-second deadline. A whole-resolution budget permits at most 64 launches,
-  independent of package file count, and ten minutes of ordinary elapsed
-  execution, including bounded cache-lock acquisition, and passes only the
-  smaller remaining interval to each command. Cleanup failure outranks ordinary
+  rejects once cleanup returns. Each command reserves cleanup and reaping inside
+  its existing deadline, capped at two seconds and one quarter of a smaller
+  budget. A whole-resolution budget permits at most 64 launches, independent of package
+  file count, and ten minutes of ordinary elapsed execution, including bounded
+  cache-lock acquisition, and passes only the smaller remaining interval to
+  each command. Cleanup failure outranks ordinary
   budget expiry; on Unix only `ESRCH`, not `EPERM`, proves that a process group
   is absent. One
   exactly framed `cat-file --batch` launch reads all validated blobs in tree
@@ -248,32 +249,43 @@ complete.
 
   Remaining suspect points:
 
-  - Windows cache ownership and DACL enforcement remain for the native
-    isolation backend; the portable non-Unix floor currently checks only
-    concrete kinds and bounded topology;
   - the local before/after check does not defend against a deliberately hostile
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
-  - on Unix the selected Git executable now has resolver/root ownership,
-    non-writable/non-set-id executable mode, and safe owned ancestry checks;
-    Windows executable ownership/DACL custody, provenance, the already loaded
-    image, and executable components Git may launch other than the separately
-    observed HTTPS transport helper and SSH client remain;
-  - the Git subprocess has no OS sandbox or CPU/memory/process/transfer
-    ceilings; process-container cleanup contains ordinary descendants but not a
-    hostile Unix process that deliberately changes session; cleanup has its own
-    two-second allowance, so neither the per-command nor whole-resolution
-    deadline is a strict wall-clock guarantee; the launch ceiling is not a CPU,
-    memory, during-write object-store, or transfer-work budget; the post-helper
-    logical resident ceiling can reject an oversized cache but cannot prevent
-    temporary disk exhaustion while Git is running;
-  - SSH uses a content-observed absolute client with Unix custody checks, user
-    configuration disabled, batch mode, zero password prompts, and strict
-    host-key checking, but still consumes the user's default known-host and key
-    files without explicit credential custody;
-  - resolver process/network/filesystem authority is not yet represented by a
-    hardened execution boundary and receipt.
+  - on Unix the selected Git executable has resolver/root ownership,
+    non-writable/non-set-id executable mode, and safe owned ancestry checks. On
+    Windows, selected invocation entries, canonical targets, and ancestry have
+    closed owner/DACL mutation-authority checks. Executable provenance, the
+    already loaded image, and any platform-specific executable chain not
+    admitted by the closed backend remain;
+  - macOS Git launches now have a concrete Seatbelt and inherited-resource-limit
+    floor, but SSH discovery/fetch content reads and metadata reads remain broad,
+    and the deprecated host launcher is not a portable or future-stable backend
+    contract. Network children are confined to one compiler-owned loopback
+    broker port and the broker admits only the validated requested endpoint;
+    Linux and Windows route through the broker without yet denying direct egress.
+    The broker now enforces one whole-resolution bidirectional transfer ceiling,
+    but only macOS prevents helpers from bypassing it. Linux currently receives
+    inherited rlimits without filesystem/network/exec confinement. Windows now
+    receives a resolver-owned limited Job Object but still lacks filesystem/
+    network/exec confinement. Unix backends do not yet enforce process-count or
+    aggregate descendant CPU/memory, and no backend enforces during-write
+    object-store ceilings. Process-container cleanup contains ordinary
+    descendants but
+    not a hostile Unix process that deliberately changes session. Cleanup is
+    now reserved within command and whole-resolution deadlines, but host
+    scheduling and uninterruptible kernel work still prevent a hard wall-clock
+    guarantee. Post-helper logical resident ceilings can
+    reject oversized custody but cannot prevent temporary disk exhaustion;
+  - SSH uses a content-observed absolute client and compiler-owned CONNECT
+    companion with Unix custody checks, user configuration disabled, batch
+    mode, zero password prompts, and strict host-key checking, but still
+    consumes the user's default known-host and key files without explicit
+    credential custody;
+  - native enforcement is not yet represented by the opaque resolver receipt;
+    the macOS backend therefore remains an engineering floor, not accepted
+    package-source evidence.
 
   Milestone 2026-08-24: parent-owned Git object authentication recomputes
   commit/blob identities, proves the commit-to-root-tree edge, reconstructs the
@@ -348,7 +360,7 @@ complete.
   remains reachable solely through the test adapter. The cache key and exact
   resolver metadata bind this profile, and policy v10 invalidates cache custody
   created under the former HTTPS/SSH/file union. Resolved-source observations,
-  source-audit output, and diagnostic cache-policy schema v3 retain the selected
+  source-audit output retain the selected
   profile rather than showing only transport-neutral hosted lineage. This
   closes cross-protocol authority and cache reuse, not effective endpoint, TLS,
   known-host, credential, transport-helper, or native-network custody.
@@ -403,17 +415,682 @@ complete.
   handle-relative custody remains open, and no diagnostic record can become the
   future opaque resolver receipt or accepted lock evidence.
 
+  Cleanup 2026-08-28: the obsolete diagnostic cache-policy JSON record and
+  `omega audit source-cache-policy` command are deleted. They had no consumer
+  beyond printing or persisting a non-authoritative duplicate of resolver
+  state, and preserving a strict parser did not justify retaining a second
+  record-shaped surface that could be mistaken for the future opaque receipt.
+  `omega audit source` remains an explicitly non-admitting live resolver
+  exercise; authoritative persistence must start from the future sealed receipt
+  rather than evolve the deleted schema.
+
   Milestone 2026-08-26: resolver-owned Git configuration replacement no longer
   removes `repository/config` and recreates it through an exposed pathname
   gap. A synchronized same-directory stage remains open across a
   handle-relative atomic rename; the parent then confirms exact bytes, file
-  identity, and directory synchronization. Local/workspace snapshot
+  identity, and directory synchronization. Milestone 2026-08-27 additionally
+  acquires that repository parent component-by-component no-follow before
+  constructing the record root, rather than opening the full repository path
+  ambiently. Local/workspace snapshot
   publication lock acquisition now also polls under a compiler-owned two-minute
   deadline and returns a typed timeout instead of blocking indefinitely. Git
   lock waits continue to consume the whole-resolution budget. These close an
   avoidable control-file race window and one unbounded availability wait; they
   do not claim hostile same-user exclusion, during-write quotas, Windows DACL
   custody, or native process confinement.
+
+  Milestone 2026-08-27: local-package and exact-materialized source capture now
+  acquires the canonical source root by walking from its filesystem anchor and
+  opening every directory component no-follow, then walks only retained
+  directory capabilities. Child directories open without following the final
+  component; regular files open no-follow and are read immediately from that
+  retained handle, so a leaf reclassified as a symlink cannot redirect the
+  later read.
+  Symlink spelling and target validation are likewise rooted through the open
+  source capability; absolute local-link spellings reject because they cannot
+  remain rooted in the published snapshot. Canaries replace a previously
+  classified file, directory, and not-yet-opened root with symlinks and replace
+  the root pathname after opening; capture rejects the symlink substitutions
+  and remains bound to the original open root. This closes the concrete
+  classify-then-pathname-reopen gap. It does not make the complete
+  capture atomic, exclude a hostile same-user mutator, or close handle-relative
+  cache publication, native confinement, or resource quotas. Strict SSH trust
+  and credential custody is separately blocked on OWNER Q19.
+
+  Milestone 2026-08-27: Git and local cache-custody validation now acquires the
+  canonical cache root through a component-by-component no-follow walk and
+  traverses only retained directory capabilities. Child directories are
+  classified relative to their retained parent, opened no-follow, and required
+  to preserve file identity before descent. Existing entry-count, logical-byte,
+  Unix owner/mode, and macOS ACL checks remain in force. Canaries replace a
+  classified child directory with a symlink for both cache classes and replace
+  a classified child with a different concrete directory, replace an
+  already-opened root, and exercise a 1,024-directory sibling fanout;
+  substitution rejects and the walk remains bound to the opened root without
+  retaining one descriptor per queued sibling. A fixed 260-level cache depth
+  ceiling bounds no-follow reacquisition work. This closes the custody walk's concrete
+  classify-then-`read_dir` redirection gap. Lock acquisition, metadata reads,
+  staging, publication, and invalidation still contain pathname operations;
+  At this milestone, path-based macOS ACL observation and a hostile same-user
+  mutator remained open.
+
+  Milestone 2026-08-27: Git cache-entry, Git snapshot, and local snapshot
+  publication now open the canonical publication parent component-by-component
+  no-follow and rename only validated direct-child names through that retained
+  directory capability. Publication rejects a preexisting destination, confirms
+  that the published directory retains the staged directory's file identity,
+  and synchronizes the retained parent handle. A canary replaces the opened
+  parent pathname and proves publication remains in the retained directory
+  rather than being redirected into the replacement. Ambient staging creation
+  and cleanup, lock opening/path confirmation, metadata reads, invalidation,
+  and path-based macOS ACL observation remain open; this does not claim defense
+  against an active same-user process racing the destination-existence check.
+
+  Milestone 2026-08-27: Git and local publication locks now open only a
+  validated direct-child name through a retained, component-by-component
+  no-follow parent capability. The resolver verifies regular-file identity and
+  custody relative to that parent before waiting, retains the parent for the
+  lock lifetime, and after acquisition requires both the leaf and canonical
+  parent pathname to retain their captured identities. Existing Git whole-
+  resolution and local two-minute wait ceilings remain in force. Canaries prove
+  that preexisting lock symlinks are not followed and that replacement of an
+  opened parent pathname rejects for both cache classes. At this milestone,
+  lock-node macOS ACL observation still used the display pathname, and an
+  active same-user process remained outside this cooperative custody floor.
+
+  Milestone 2026-08-27: Git cache invalidation no longer removes resolver
+  metadata through the ambient entry pathname. It retains the canonical cache
+  parent, validates the entry as a direct concrete child, opens that directory
+  no-follow with stable identity, and removes `source.identity` relative to the
+  retained entry capability. Invalidation remains best-effort after the primary
+  resolution error, but a substituted entry symlink now rejects internally and
+  cannot redirect deletion into its target. Recursive staging cleanup and the
+  remaining metadata reads are still pathname-based.
+
+  Milestone 2026-08-27: all resolver-owned cache control-record reads now use
+  the retained no-follow `RecordFileRoot` path: Git repository configuration,
+  Git entry `source.identity`, Git snapshot `snapshot.identity`, and local
+  snapshot `snapshot.identity`. Each read opens only a direct regular-file
+  child, proves handle/path identity, enforces the record's exact byte ceiling
+  while reading, rereads the retained handle, and confirms the leaf still names
+  that handle. This removes the check-one-inode/unbounded-read-another gap.
+  Oversized records and symlink leaves have explicit canaries. Other structural
+  metadata observations, staging creation/cleanup, and path-based macOS ACL
+  inspection remained separate work at this milestone.
+
+  Milestone 2026-08-27: immutable Git-tree and local-source snapshot staging is
+  now capability-relative end to end. One shared pending-stage type creates a
+  unique child through a retained no-follow snapshots parent, retains the exact
+  stage handle, and materializes directories, create-new files, symlinks, and
+  identity metadata beneath that handle. Staged identity is recaptured from the
+  already-open Source directory before metadata emission and again after
+  read-only finalization; finalization proves each classified child retains its
+  opened identity. Publication requires the stage name still identify the
+  retained stage; failure cleanup begins from the retained stage handle. Canaries replace
+  the snapshots parent, replace the stage name, and substitute a nested
+  directory symlink; writes remain confined, structural substitutions return the
+  cache class's typed custody error, and stale-name publication rejects.
+  This does not cover the mutable Git object-cache stage passed by pathname to
+  native Git: that stage remains coupled to native
+  process confinement. `remove_open_dir_all` uses the opened stage where the
+  host permits, but its contract is not atomic against concurrent rename and
+  its Windows fallback is pathname-based (after clearing read-only attributes
+  through retained child handles). Cleanup is therefore best-effort and
+  makes no hostile-same-user no-replacement guarantee; a raced stage may leak.
+
+  Milestone 2026-08-27: published Git and local snapshot structural verification
+  now opens the publication root and Source child no-follow, recursively checks
+  directory/file identities and canonical modes through retained handles, and
+  captures content from that same open Source root. Git verification compares
+  the captured directory/leaf set, entry kinds, and executable bits directly
+  with the authenticated tree; its content identity continues to bind file
+  bytes and symlink spelling. Package-compilation snapshot revalidation uses the
+  same handle-rooted mode walk and capture instead of separate pathname passes.
+  A canary replaces the publication pathname after opening and proves mode
+  verification remains on the retained root. Native Git object-cache structure
+  and path-based macOS ACL observations remained separate at this milestone.
+
+  Milestone 2026-08-27: macOS ACL custody for retained cache objects now uses
+  the object descriptor rather than reopening its display pathname. The narrow
+  `omega-platform-custody` wrapper exposes only whether `acl_get_fd_np`
+  observes an allow entry. Every directory in the bounded Git/local custody
+  walk is queried through its retained directory descriptor; every regular
+  file is opened no-follow relative to that retained parent, required to match
+  its classified identity, and queried through the resulting descriptor; and
+  publication locks are queried through their retained locked files both at
+  open and after waiting. Empty and deny-only ACLs remain non-broadening, while
+  unknown or unreadable ACL state fails closed. A native canary relocates an
+  open object, places an allow ACL on a replacement pathname, and proves the
+  query remains on the retained object; an integration canary does the same for
+  an opened cache root. Pre-open root/ancestry checks, symlink ACL inspection,
+  and executable ACL inspection remained path-based at this milestone, and
+  this still made no claim against an actively hostile same-user mutator.
+
+  Milestone 2026-08-27: concrete macOS executable ACL observations now use
+  retained descriptors too. The selected Git executable and every concrete
+  HTTPS/SSH invocation entry and canonical target open no-follow beneath a
+  retained parent, preserve the file identity classified by the Unix custody
+  check, and query the open file. Every executable ancestry directory is
+  opened component-by-component no-follow, preserves its classified identity,
+  and is queried through that directory descriptor. A canary replaces a
+  classified executable before descriptor acquisition and proves the different
+  inode rejects rather than contributing an ACL fact. Symlink invocation
+  entries still use Darwin's path-oriented link ACL interface; executable
+  launch remains path-based and therefore does not prove loaded-image identity
+  or exclude a hostile same-user launch race.
+
+  Milestone 2026-08-27: macOS cache-root and ancestry ACL facts are now
+  descriptor-bound as well. After the existing Unix owner/mode and concrete-
+  directory classification, each ancestor opens component-by-component
+  no-follow, must retain the classified device/inode identity, and contributes
+  its ACL fact only through that directory descriptor. Root-only custody calls
+  receive the same check, so they do not depend on a later full-tree walk. A
+  canary replaces a classified ancestry directory and confirms that the
+  different inode rejects before its allow ACL can contribute. Ordinary Unix
+  owner/mode classification and symlink ACL inspection remain path-based;
+  Darwin provides no descriptor form for a symlink itself, and hostile
+  same-user mutation remains outside this cooperative floor.
+
+  Milestone 2026-08-27: one retained Git-cache parent now survives from lock
+  acquisition through entry discovery, mutable staging, publication,
+  invalidation, and final namespace reconciliation. Entry existence is
+  classified relative to that parent and only exact `NotFound` means absent.
+  The mutable stage is created beneath it with exact Unix mode `0700`, retained
+  by an open directory and file identity, and owned first by a provisional
+  parent-relative cleanup guard that attempts best-effort removal if retention
+  fails, so no newly created directory is ever left without cleanup ownership.
+  Stage and parent pathnames are checked around each setup-time
+  native Git operation even when that operation fails. Resolver metadata is
+  created no-follow through the stage at exact mode `0600`. Publication passes
+  the retained stage identity into the parent-relative rename; invalidation
+  removes metadata through the same parent and synchronizes it. Failure cleanup
+  starts from the open stage rather than its possibly replaced name. Canaries
+  replace the parent and stage names, prove creation/invalidation remain in the
+  retained namespace, prove stale-name publication rejects, and prove cleanup
+  leaves a replacement stage untouched. Namespace and invalidation/sync
+  failures outrank an ordinary operation failure rather than being discarded.
+  Native Git and the later published-
+  repository command path remain pathname consumers, so races during a launch
+  and strict mutation confinement still belong to the native isolation backend.
+
+  Milestone 2026-08-27: native Git cache verification now returns one retained
+  repository object owning the exact cache entry, Omega-created bare
+  `repository`, and `objects` directory capabilities. Resolver metadata,
+  canonical configuration, repository traversal, and forbidden-indirection
+  probes derive from those handles. Only exact `NotFound` proves an
+  `alternates`, `http-alternates`, or `commondir` record absent; permission,
+  I/O, and non-directory failures reject. Because this is provenance validation
+  of Omega's freshly initialized repository rather than admission of arbitrary
+  Git layouts, every repository symlink rejects and Unix regular files must
+  have one link. Fetch, revision/tree discovery, commit authentication,
+  `ls-tree`, and the bespoke `cat-file --batch` launch all require the retained
+  repository object and reconcile entry/repository/object identities after
+  success or failure. Full static shape is rechecked after mutating fetch and
+  before acceptance. Canaries replace the retained repository and object-store
+  names, turn a forbidden probe's parent into a regular file, substitute
+  control/ref/object files with symlinks, and add an external hard link. Native
+  Git still receives a pathname, so active-launch confinement remains
+  subsequent native-isolation work.
+
+  Milestone 2026-08-27: the `cat-file --batch` request is now created no-follow
+  at exact Unix mode `0600` through the retained cache-entry capability. Its
+  open file and parent-relative name must preserve one identity before launch
+  and cleanup; cleanup synchronizes the retained parent, reports failure ahead
+  of an ordinary operation error, and preserves a replacement already observed
+  at the old name. The final identity-check/unlink pair is not atomic against
+  an active same-user rename race. Snapshot collection bootstrap likewise
+  classifies `snapshots` through the retained entry and treats only exact
+  `NotFound` as absent. A newly created
+  collection is provisionally cleanup-owned and exact mode `0700`; existing
+  collections are opened no-follow with stable identity and custody checks.
+  Publication lookup and mutable materialization staging then remain beneath
+  that retained collection instead of reopening its ambient pathname. Canaries
+  replace the entry and batch-request names, check private modes and replacement-
+  preserving cleanup, remove and bootstrap the snapshot collection, and prove
+  later staging remains in the displaced retained entry. Native Git's working-
+  directory pathname and active same-user replacement remain isolation-backend
+  work rather than a property claimed by these capability-relative files.
+
+  Milestone 2026-08-27: `omega-resolver-execution` now owns one closed native
+  launch vocabulary: transport discovery, repository initialization, fetch,
+  and repository inspection. On macOS it verifies and content-binds the
+  root-owned `/usr/bin/sandbox-exec` launcher, including mode, ancestry, and
+  extended-ACL custody, and rechecks it around command construction. Its fixed
+  Seatbelt profile admits outbound network only for discovery/fetch, mutation
+  only beneath the selected quarantine for initialization/fetch, and execution
+  only of the already observed Git/transport/helper chain. Git, HTTPS, SSH, and
+  the macOS shell chain needed by fixed SSH command execution retain file
+  identity, content hash, Unix custody, and ACL checks; local Git helpers exist
+  only in the test adapter. Every Unix child also inherits zero core dumps,
+  at most 120 CPU seconds, a 1 GiB single-file ceiling, and at most 256 open
+  files; Linux and Android additionally inherit an 8 GiB address-space ceiling.
+  Native canaries prove ordinary-path write denial outside quarantine,
+  descendant-exec denial outside the closed path set, remote TCP denial during
+  inspection, and network availability during discovery. Hermetic loopback canaries additionally prove the selected
+  production HTTPS helper and fixed shell/SSH executable chains can launch
+  through that allowlist. All 153 source-resolver tests pass through the new
+  backend.
+  This is a real macOS enforcement floor, not completion of strict isolation:
+  Seatbelt still permits broad reads, network destinations are not brokered,
+  the launcher is deprecated, rlimits are per-process/inherited rather than
+  aggregate, and Linux and Windows strict backends remain.
+
+  Milestone 2026-08-28: native command construction now returns one bounded
+  opaque canonical policy observation binding the verified backend, closed
+  phase, generated policy hash, numeric resource ceilings, primary executable,
+  normalized bounded descendant-executable path set, mutable root, and every
+  fixed native guarantee as enforced, unavailable, or not required. No public
+  constructor or decoder exists; persisted bytes cannot mint a containment
+  fact, and strict checking rejects the first unavailable required row.
+  Successful Git resolution retains one observation per configured command
+  rather than collapsing different roots or executable sets into a phase
+  summary. Adversarial review found that Apple's imported `system.sb` grants
+  special-file writes and local socket access. The importing phases'
+  filesystem, network, and executable-path guarantee rows therefore remain
+  unavailable despite narrower canaries; only exact inherited rlimit rows were
+  enforced at this milestone. This observation is configuration
+  provenance, not proof of execution or the future source receipt. Exact
+  executable content, environment/protocol sealing, command outcome,
+  endpoint/credential trust, object authentication, snapshot publication, and
+  final verdict still require a package-layer canonical join.
+
+  Follow-up 2026-08-28: the macOS backend now opens, custody-checks, and hashes
+  exact root-owned `system.sb` and `dyld-support.sb` bytes; requires exactly the
+  currently audited canonical import-line spellings; revalidates metadata, ACL,
+  recognized topology, and content around command construction; and includes
+  both profile identities in canonical backend observation. Changed recognized
+  topology rejects. The recognizer is not a complete Seatbelt grammar parser,
+  so it does not prove absence of every syntactically possible hidden import.
+  This binds the exact known host-profile bytes without claiming semantic
+  safety: the known broad and special grants keep strict filesystem/network/
+  exec rows unavailable.
+
+  Follow-up 2026-08-28: the import recognizer is now a bounded syntax-aware
+  scanner over the complete profile bytes. It balances every list, ignores
+  strings plus line and nested block comments, rejects unterminated syntax,
+  escaped/case-folded identifiers, nonliteral import arguments,
+  noncanonical filenames, and known first-class or reflective routes to
+  `import`; direct imports are found independent of line layout. The accepted
+  subset requires exactly the direct edge `system.sb -> dyld-support.sb` and no
+  direct import in `dyld-support.sb`. Noncanonical direct imports and known
+  indirect routes reject. This removes the line-matching assumption but does
+  not claim a complete Seatbelt
+  parser or semantic proof that no dynamically constructed import exists;
+  strict filesystem/network/exec claims for importing profiles remain
+  unavailable.
+
+  Follow-up 2026-08-28: successful Git resolution now requires the retained
+  policy-observation count to equal the bounded launch count and requires each
+  observation's executable path set to equal the paths backed by the verified
+  Git, selected transport, and fixed platform-helper content identities for
+  that phase. Fixed helper identities are retained in the result rather than
+  discarded. This closes configuration-to-content association but does not
+  claim that a standalone observation proves command execution or outcome.
+
+  Follow-up 2026-08-28: every completed Git command now retains a bounded
+  package-layer outcome observation only after capture, backend/executable
+  revalidation, and budget reconciliation succeed. Its command commitment binds
+  the closed phase, actual native program, ordered arguments, complete explicit
+  environment, working directory, and null or exact object-batch stdin. Exit
+  code or signal and exact bounded stdout/stderr lengths and digests join
+  positionally to the native policy-observation digest. Successful resolution
+  requires launch, policy, and outcome counts to agree. Effective endpoint,
+  transferred bytes, object-store and descendant aggregate-resource
+  observations, and strict acceptance remain outside this provenance rung.
+
+  Follow-up 2026-08-28: one compiler-owned whole-resolution captured-output
+  budget now spans both capture threads and every Git command. Its ceiling is
+  `min(source-byte ceiling + 64 MiB, 576 MiB)` and remains independent of each
+  command's stdout/stderr ceilings. Overflow-safe atomic charging rejects with a
+  distinct cumulative-output error and terminates/reaps the command container.
+  Successful issuance requires the observed counter to equal the sum of every
+  retained stdout/stderr length; schema-2 final observations bind both ceiling
+  and observed count. Git cache policy v13 prevents reuse of entries fetched
+  before this floor. This closes cumulative parent-captured output only and does
+  not mark aggregate-resource confinement: network transfer, object-store and
+  temporary disk usage, descendant CPU/memory/process count, and true during-
+  operation quotas remain separate work.
+
+  Follow-up 2026-08-28: after the outer resolver also reconciles retained cache
+  namespace/custody and final executable content, it physically reopens and
+  re-hashes the published snapshot under the original exact-tree policy while
+  the cache lock remains held. Only then does it convert the private pending
+  result into a sealed public `ResolvedGitSource` and issue one compact
+  canonical `GitSourceResolutionObservation`. Public result state is read-only.
+  The observation binds compiler source ceilings, request and normalized
+  locator, transport/object format, commit/tree, immutable snapshot subject,
+  exact Git/transport/helper content, all native policy rows, and all completed-
+  command rows. It has no public constructor or decoder, is sensitive to policy
+  changes, and carries only the fixed outcome `resolved-non-admitting`. This
+  closes the final successful-result join without pretending unavailable
+  containment, endpoint/credential trust, network-transfer/object-store/
+  descendant aggregate-resource accounting, or strict receipt acceptance exists.
+
+  Follow-up 2026-08-28: repository inspection no longer imports a mutable host
+  profile on macOS. Its compiler-generated default-deny Seatbelt policy admits
+  broad reads, the exact selected executable set, and write-data only to the
+  fixed `/dev/null` sink; it grants neither network nor ordinary filesystem
+  mutation. The inspection filesystem-write, network-denial, and executable-
+  path rows are now enforced. Native canaries prove the generated policy has no
+  import, deny ordinary writes and loopback TCP, reject unlisted executables,
+  and admit only the fixed null sink; a real exact-commit Git resolution proves
+  the complete inspection command vocabulary still works. At this milestone,
+  discovery, initialization, and fetch retained their conservative imported-
+  profile rows.
+
+  Follow-up 2026-08-28: repository initialization now uses the same self-
+  contained macOS policy floor. Its default-deny profile admits broad reads,
+  exact selected executables, `/dev/null`, and writes only beneath the exact
+  mutable quarantine root; it imports no host profile and grants no network.
+  Initialization's filesystem-write, network-denial, and executable-path rows
+  are enforced. Policy canaries prove inside-root writes succeed while outside
+  writes, loopback TCP, and unlisted execution fail. Real SHA-1 and SHA-256 Git
+  resolutions prove the production bare-repository initialization vocabulary
+  still works. At this milestone, discovery and fetch remained conservative
+  imported network phases.
+
+  Follow-up 2026-08-28: transport discovery no longer imports a host profile on
+  macOS. Its default-deny policy admits broad reads, exact selected executables,
+  `/dev/null`, and outbound network. Empirical SSH isolation identified two
+  additional requirements, admitted exactly rather than through `system.sb`:
+  OpenDirectory's read-only libinfo service and the `kern.hostname` sysctl.
+  Discovery's filesystem-write and executable-path rows are enforced;
+  network denial is inapplicable and endpoint confinement remains unavailable.
+  Native loopback canaries prove HTTPS and SSH helper execution, and a complete
+  diagnostic resolution of an exact public GitHub commit proves real DNS, TLS,
+  discovery, fetch, object authentication, and snapshot materialization still
+  work. Fetch is now the only macOS phase retaining the imported profile.
+
+  Follow-up 2026-08-28: fetch now uses the same self-contained macOS policy
+  floor and no generated resolver policy imports a mutable host profile. Fetch
+  admits broad reads, exact selected executables, `/dev/null`, outbound network,
+  the exact OpenDirectory libinfo and hostname services required by the pinned
+  SSH client, and writes only beneath its exact mutable quarantine root. Its
+  filesystem-write and executable-path rows are enforced; endpoint confinement
+  remains unavailable. A fresh-cache diagnostic resolution of an exact public
+  GitHub commit proves real DNS, TLS, fetch, object authentication, and snapshot
+  materialization under the no-import policy. The obsolete `system.sb` and
+  `dyld-support.sb` identity fields, custody checks, import scanner, and scanner
+  tests were removed; native policy-observation schema 2 records the smaller
+  backend identity.
+
+  Follow-up 2026-08-28: native network policy now requires one closed transport
+  authority matching the package resolver's already-validated HTTPS or SSH
+  request. Network phases reject a missing authority and nonnetwork phases
+  reject an extraneous one. Both receive outbound network, but only SSH receives
+  the exact OpenDirectory libinfo and `kern.hostname` services required by the
+  pinned client; HTTPS receives neither. The selected authority enters schema-3
+  policy observations and package-layer reconciliation requires exact equality
+  with the validated source transport. Native policy-shape tests and all 154
+  source-resolver tests pass. Git cache policy v14 prevents reuse of entries
+  fetched under the broader network profile. This removes excess HTTPS host-
+  service authority and creates the typed seam for endpoint brokerage; outbound
+  destinations remain unconfined.
+
+  Follow-up 2026-08-28: every transport-discovery and fetch command now opens
+  one compiler-owned, fixed-bound HTTP CONNECT route to the normalized host and
+  port derived from the already-validated Git locator. HTTPS receives an exact
+  command-scoped proxy. SSH uses the separately installed and content-custodied
+  `omega-resolver-connect` companion through a fixed ProxyCommand name; only
+  compiler-authored broker and target environment fields reach it, so locator
+  text never enters shell syntax. The broker resolves and bounds the complete
+  DNS answer before opening an upstream socket, accepts at most 16 CONNECT
+  attempts, rejects changed/malformed/oversized destinations, and records each
+  closed outcome plus the actual connected peer. macOS Seatbelt permits the
+  child only the exact loopback broker port, so endpoint confinement is
+  enforced there; Linux and Windows retain unavailable endpoint-confinement
+  rows because their current backends cannot deny direct egress. Successful
+  remote resolution requires each network command to retain a connected route
+  event joined exactly to its native policy and command outcome. Final
+  observation schema 3 binds those endpoint rows, and Git cache policy v15
+  prevents reuse of state fetched with direct network authority. Native and all
+  157 source-resolver tests cover HTTPS and SSH chains. This does not establish
+  TLS trust, SSH host trust, credential custody, transferred-byte or object-
+  store quotas, or package admission.
+
+  Follow-up 2026-08-28: macOS repository initialization and inspection no
+  longer receive `process-fork`. Their fixed Git vocabulary (`init`,
+  `rev-parse`, `ls-tree`, and `cat-file`) completes in-process, while discovery
+  and fetch retain descendant creation for the verified transport chain. Native
+  policy-observation schema 5 marks `DescendantProcessesContained` enforced
+  only for those two nonnetwork phases. A native canary proves an explicitly
+  allowlisted executable still cannot be forked, and all 157 source-resolver
+  tests prove the supported Git built-ins continue to work. Git cache policy
+  v16 prevents reuse of repositories initialized under the broader policy.
+  This is phase-local
+  descendant denial, not process-count or aggregate descendant-resource
+  confinement for network phases.
+
+  Follow-up 2026-08-28: macOS repository inspection now requires an explicit
+  exact retained-repository read root. Its generated policy retains broad
+  metadata reads but confines file-content reads to that root, the exact
+  selected executable set, `/dev/null`, and the literal filesystem-root
+  directory entry empirically required by native process startup. The root is
+  validated separately from mutable authority and enters native policy-
+  observation schema 6. Canaries prove inside-root content succeeds while an
+  adjacent file and an in-root symlink escaping to it both fail; the supported
+  real Git inspection commands continue to pass. Git cache policy v17 prevents
+  reuse of repositories inspected under the broader policy. This is content-
+  read confinement for one phase, not complete `FilesystemReadsConfined`:
+  inspection metadata remains broad and the other phases retain broad reads.
+
+  Follow-up 2026-08-28: macOS repository initialization now applies the same
+  content/metadata split. File-content reads are confined to the exact mutable
+  quarantine root plus the same fixed executable/runtime files; broad metadata
+  reads remain. Canaries prove inside-root content succeeds while an adjacent
+  file and an in-root escaping symlink fail, and all 157 source-resolver tests
+  prove real bare-repository initialization still works. Git cache policy v18
+  prevents reuse of repositories initialized under the broader read policy.
+  Discovery and fetch still retain broad reads, and complete filesystem-read
+  confinement remains unavailable.
+
+  Follow-up 2026-08-28: macOS HTTPS fetch now confines file-content reads to
+  the exact mutable quarantine, exact executable/runtime files, and the fixed
+  root-owned `/private/etc/ssl` system TLS configuration subtree. A fresh
+  public GitHub canary first failed closed on LibreSSL's exact
+  `/private/etc/ssl/openssl.cnf` read; admitting that fixed subtree was
+  sufficient for the complete fetch, authentication, and snapshot path.
+  Native canaries prove mutable-root and TLS-configuration reads succeed while
+  adjacent content and an escaping symlink fail. Test-only local Git transport
+  remains on the broad-read profile and cannot enter production requests. Git
+  cache policy v19 prevents reuse of HTTPS state fetched under the broader
+  policy. This does not establish TLS trust/custody, and discovery plus SSH
+  fetch remain broad; Q19 separately blocks strict SSH authority.
+
+  Follow-up 2026-08-28: macOS HTTPS transport discovery now receives one
+  separately validated exact working read root. File-content reads are confined
+  to that root, exact executable/runtime files, and `/private/etc/ssl`; broad
+  metadata reads remain. The root enters native policy-observation schema 7,
+  and changing it changes canonical policy identity. Native canaries prove
+  working-root and TLS-configuration reads succeed while adjacent content and
+  an escaping symlink fail. A fresh symbolic `HEAD` public GitHub audit proves
+  real `ls-remote`, fetch, authentication, and publication under the narrowed
+  policies. Git cache policy v20 prevents reuse of state discovered under the
+  broader policy. The only remaining broad macOS file-content reads are SSH
+  discovery/fetch, whose trust and credential authority is blocked on Q19.
+
+  Follow-up 2026-08-28: every discovery/fetch endpoint route now shares one
+  compiler-owned whole-resolution bidirectional transfer budget across all
+  commands, routes, connections, and relay workers. Its ceiling is independently
+  derived as `min(source-byte ceiling + 64 MiB, 576 MiB)`. CONNECT framing and
+  DNS traffic are excluded; encrypted TLS/SSH tunnel bytes are included.
+  Endpoint schema 2 retains exact uploaded/downloaded counts and a closed
+  `TransferCeilingReached` outcome. Atomic charging cannot overshoot; an
+  over-ceiling read is neither charged nor forwarded. Successful final issuance
+  rejects any ceiling event and requires exact equality between the live counter
+  and the checked sum of all retained events. Native policy schema 8 binds the
+  route ceiling, final observation schema/domain 4 binds directional aggregate
+  evidence, and Git cache policy v21 prevents reuse of state fetched without
+  this floor. A ceiling event becomes a typed package-layer transfer failure
+  before an ordinary Git transport error can hide it; process-container cleanup
+  failure still outranks both. Native tests cover directional counts, shared-
+  route exhaustion, canonical sensitivity, and concurrent non-overshoot; all 158 source-resolver
+  tests pass. This is a strict broker-routed quota, not a universal network
+  guarantee: macOS endpoint confinement prevents direct child egress, while
+  Linux/Windows helpers can still bypass the broker. It does not mark
+  `AggregateResourcesConfined` or close object-store, descendant-resource,
+  transport-trust, credential-custody, or package-admission work. The live
+  non-admitting `omega audit source` report exposes the broker ceiling and
+  directional counts for Git sources; local sources omit those inapplicable
+  rows.
+
+  Follow-up 2026-08-28: macOS repository inspection no longer receives broad
+  `file-read-metadata`. Its generated policy admits metadata and content beneath
+  the exact retained bare repository, plus only the compiler-derived exact
+  executable/runtime paths and literal ancestors needed to reach them. The
+  bounded, deduplicated metadata set is supplied through compiler-authored
+  Seatbelt parameters, so package path bytes never enter policy syntax. A native
+  canary proves in-root metadata and the in-root symlink entry succeed while an
+  adjacent path and following that symlink outside both fail; the content,
+  write, network, descendant, and real Git inspection canaries continue to pass.
+  `FilesystemReadsConfined` is now `Enforced` only for macOS inspection. Native
+  policy schema 9 records the stronger guarantee and Git cache policy v22
+  prevents reuse of state inspected under broad metadata authority. Other
+  At that checkpoint, other phases were unchanged: initialization/HTTPS network
+  phases retained broad metadata, SSH discovery/fetch retained broad content
+  and metadata, and strict resolver-wide read confinement remained open.
+
+  Follow-up 2026-08-28: macOS repository initialization now applies that same
+  bounded metadata policy to its exact mutable root. Metadata and content reads
+  are confined beneath that root plus only compiler-derived exact executable/
+  runtime paths and literal ancestors; writes remain confined beneath the
+  mutable root, and network and descendant processes remain denied. Native
+  canaries prove in-root metadata and the in-root symlink entry succeed while an
+  adjacent path and following the symlink outside both fail. All 158 source-
+  resolver tests exercise real bare Git initialization under the narrowed
+  profile. `FilesystemReadsConfined` is therefore now `Enforced` for macOS
+  initialization and inspection. Native policy schema 10 records the stronger
+  guarantee and Git cache policy v23 prevents reuse of state initialized under
+  broad metadata authority. HTTPS discovery/fetch still retain broad metadata,
+  SSH retains broad content and metadata, and resolver-wide read confinement
+  remains open.
+
+  Follow-up 2026-08-28: macOS HTTPS transport discovery now confines metadata
+  as well as content. Its admitted metadata is bounded to the exact discovery
+  root, exact executable/runtime paths and literal ancestors, the fixed
+  canonical and `/etc/ssl` alias TLS roots, and metadata-only lookup within the
+  compiler-selected Git helper directory. The latter two were found fail-closed:
+  Git otherwise could not select its already-custodied `git-remote-https`
+  helper, and LibreSSL could not locate `/etc/ssl/cert.pem`; no ambient metadata
+  grant was restored. File existence probes share those same selectors. Native
+  canaries deny adjacent metadata and following an escaping symlink, while the
+  real HTTPS helper-chain canary reaches only its selected loopback endpoint.
+  All 158 source-resolver tests and a fresh symbolic-`HEAD` public GitHub audit
+  pass. Guarantee classification now consumes transport authority:
+  `FilesystemReadsConfined` is `Enforced` for HTTPS discovery but remains
+  `Unavailable` for SSH discovery. Native policy schema 11 and Git cache policy
+  v24 prevent reuse of state discovered under broad metadata authority. HTTPS
+  fetch metadata and all SSH reads remain broad.
+
+  Follow-up 2026-08-28: macOS HTTPS fetch now uses the same bounded metadata
+  policy, rooted at its exact mutable quarantine and the same compiler-selected
+  helper/TLS paths. Writes remain confined beneath that mutable root, and the
+  endpoint remains confined to its broker route. Native canaries prove mutable-
+  root and both fixed TLS metadata spellings succeed while adjacent metadata and
+  following an escaping symlink fail. All 158 source-resolver tests and a fresh
+  exact-revision public GitHub audit pass with discovery and fetch both narrowed.
+  `FilesystemReadsConfined` is now `Enforced` for every non-SSH macOS resolver
+  phase; SSH discovery/fetch deliberately remain `Unavailable` and broad pending
+  OWNER Q19. Native policy schema 12 and Git cache policy v25 prevent reuse of
+  HTTPS state fetched under broad metadata authority.
+
+  Follow-up 2026-08-28: bounded Git commands now reserve process-container
+  cleanup inside the command's existing deadline instead of granting cleanup a
+  separate two-second extension. Ordinary budgets reserve at most two seconds;
+  budgets below eight seconds reserve one quarter, preserving execution and
+  cleanup time. Every early failure, output overflow, timeout, normal parent exit, and
+  descendant-pipe path shares the same absolute deadline. Timeout/descendant
+  canaries pass, and all 159 source-resolver tests remain green. Git cache policy
+  v26 prevents reuse of state produced under the compiler-authored deadline
+  extension. This removes that known overrun but does not claim a hard kernel
+  wall-clock guarantee under scheduling stalls or uninterruptible operations.
+
+  Follow-up 2026-08-28: Windows resolver launches now move process-container
+  ownership beneath `omega-resolver-execution` instead of relying on an opaque
+  package-layer `command-group` handle. The backend creates each child
+  suspended, configures an unnamed Job Object, assigns the child before any
+  helper code executes, and only then resumes it. Assignment, configuration, or
+  resume failure terminates and reaps rather than falling back. The job denies
+  breakaway, kills on close, and enforces 16 active processes, 2 GiB committed
+  memory per process, 4 GiB aggregate committed memory, and 120 aggregate user-
+  CPU seconds. Completion waits for both primary status and active-process zero.
+  Windows policy rows now mark descendant containment, process count, CPU time,
+  and aggregate CPU/memory `Enforced`; filesystem, executable, address-space,
+  file, descriptor, core, and endpoint rows remain unavailable. Policy schema
+  13 and Git cache policy v27 bind the stronger backend. Windows-native normal-
+  completion and whole-job termination canaries are compiled. Follow-up
+  2026-08-28 adds test-only reduced ceilings and self-hosted workers for active-
+  process, per-process committed-memory, aggregate descendant-memory, and
+  aggregate user-CPU exhaustion. Every negative case has a below-limit control,
+  requires the exact completion-port limit event, and still waits for active-
+  process zero. Production ceilings and policy identity are unchanged. The
+  complete Windows test surface passes cross-target `cargo check --tests` and
+  strict Clippy; this host lacks `link.exe`, so native execution of those four
+  exhaustion pairs remains required on a Windows worker before treating
+  platform coverage as complete.
+
+  Follow-up 2026-08-28: Windows cache and selected-executable custody now use a
+  narrow compiler-owned security-descriptor reader over already-open handles.
+  Cache roots, retained directories, regular files, reparse points, and locks
+  require current-user ownership; cache ancestry may additionally be owned by
+  LocalSystem or BUILTIN Administrators. Selected Git/HTTPS/SSH invocation
+  entries, canonical targets, and every ancestor use the same three trusted
+  owner SIDs. A null DACL, unknown access-allowing ACE form, or file/directory/
+  security-descriptor mutation grant to any other SID rejects without account-
+  name lookup. Pure policy canaries run on every host, the native handle canary
+  compiles for Windows, and the complete package crate cross-compiles for
+  `x86_64-pc-windows-msvc`. Git cache policy v28 prevents reuse of state created
+  before this custody floor. This closes ordinary Windows cross-user owner/DACL
+  substitution; trusted-principal racing, executable provenance/loaded-image
+  identity, and native filesystem/network/exec confinement remain open.
+
+  Milestone 2026-08-27: each package compilation handoff now derives one
+  complete, bounded canonical metadata index for the package whose build
+  machine may execute. Resolver custody is freshly revalidated first; the
+  compiler then independently recaptures that same immutable root. Dependency
+  indexes are not retained
+  merely because their source is reachable; each dependency receives its own
+  root index when review re-roots compilation to it. The index
+  binds the source-content commitment and raw relative paths, entry kinds,
+  executable bits, file lengths, symlink-target spelling lengths, and the
+  implicit root directory; it accepts at most 65,537 rows including that root.
+  Build-time `stat`, `lstat`, and `fstat` on the read-only Source grant now
+  expose fixed target-neutral modes, lengths, and timestamps from this closed
+  index rather than checkout inode metadata. Followed `stat` uses the resolved
+  target row, `lstat` uses the authored leaf, and `fstat` retains the row fixed
+  at open. A missing row rejects without physical fallback. The writable
+  Output grant remains physically observed. Package-aware filesystem execution
+  rejects if root metadata is absent and anchors the grant to the exact package
+  root rather than the authored entry file's parent. Callers cannot supply
+  package index rows or their commitment: the compiler captures canonical
+  shape, mode, length, and full file/symlink content itself under a 512 MiB
+  aggregate-content ceiling, then input construction independently recaptures
+  the complete physical root and requires exact index equality. The compiler
+  repeats that content check at compilation entry and immediately before
+  returning checked evidence or publishing a legacy result. Non-root dependency
+  indexes reject rather than accumulating in one compilation.
+  Observation summary v25,
+  filesystem-attempt v19, and replay-record v7 bind the metadata policy and
+  exact source-content commitment; package-aware replay requires equality with
+  the current root index before no-host execution. Provider, build-scope,
+  replay-framing, physical-root, and package-handoff tests pin the layers; the
+  broader build integration fixture remains blocked only at OWNER Q7's stale
+  boundary-service identity seam.
+
+  Follow-up 2026-08-28: observation summary v26 and replay-record v8 admit one
+  exact successful Source-rooted `open(flags = 0)` ->
+  `read_file_metadata` -> `close` event. The descriptor is created and retired
+  inside that indivisible event; its identity cannot overlap another Source
+  event or the Output descriptor. Replay retains the exact open/close results,
+  descriptor input, `OpenDescriptor` semantic row, mutable resolution and
+  provider pre/post carrier, and post-error states. Recovery rejects a changed
+  operation, metadata kind, ordinal, descriptor lineage, carrier shape, missing
+  close, or extra event. The event composes with the existing ordered Source
+  stream and one-file Output grammar but does not permit arbitrary metadata/read
+  interleaving. Filesystem-attempt v19 and the canonical source-metadata policy
+  remain unchanged. Typed replay and strict recovery canaries pass; the full
+  build-machine canary remains at the already-recorded OWNER Q7 boundary-
+  service identity seam.
 
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
@@ -425,18 +1102,19 @@ complete.
   malformed locators, and refspec-shaped revisions; persists only sanitized
   lineage; and applies compiler-owned locator, revision, entry, byte, and depth
   ceilings. The local-repository route is explicitly test-only. Remaining P0
-  work is native fetch/materialization confinement, effective endpoint and SSH
-  credential custody, during-operation resource quotas, handle-relative cache
-  custody, canonical build-observable source metadata, and a locally
-  reconstructed opaque strict receipt. Public requests now admit only HTTPS and
+  work is strict Linux/Windows native backends, narrowing the macOS read grants,
+  cross-platform endpoint confinement and SSH credential custody, aggregate
+  during-operation resource quotas, hostile same-user mutation confinement,
+  remaining path-based symlink ACL observations, and a locally reconstructed
+  opaque strict receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
   unselected protocol, and HTTP redirects, and permits file transport only
   through the explicit test adapter. Cache identity and metadata bind that
   execution profile even when hosted lineage normalizes HTTPS and SSH together.
-  This removes cross-protocol authority and redirect-selected endpoint
-  substitution but does not yet retain or confine the effective
-  socket/DNS/TLS/SSH endpoint. Helper,
+  Endpoint brokerage now retains the requested endpoint and effective connected
+  peer and confines macOS children to that route; TLS/SSH host trust and
+  Linux/Windows direct-egress denial remain open. Helper,
   diagnostic, and future resolver routes must not bypass the same request
   validator.
 
@@ -727,6 +1405,26 @@ complete.
   declaration-spelling surface, so nested expression origins no longer leave
   an ordinary `&&` occurrence unresolved at package admission.
 
+  Milestone 2026-08-27: proof-static member finalization now recovers the
+  receiver's exact declared type from its retained symbol. A package field is
+  selected first; only `len` on a checked fixed array or slice finalizes as the
+  closed compiler-owned `CollectionLength` meaning. Package review v75 and
+  canonical row v33 encode that meaning as a structural receiver expression,
+  require exactly one public-interface authored-selection occurrence, and do
+  not assign it a fictional package owner. A transparent public-proposition
+  canary exercises the intrinsic, while a package field named `len` remains an
+  ordinary package-qualified nominal member. Other unrepresented compiler
+  intrinsics remain fail-closed.
+
+  Follow-up 2026-08-28: authored `!` and `~` expressions now retain their
+  exact operator-token spans, including when nested under another public
+  contract expression. Checked lowering finalizes each as the closed compiler-
+  owned builtin-operator selection, and package review requires that exact
+  public-interface occurrence before projecting the already-structural unary
+  operator. Package review remains v76/canonical row v34 because the operator
+  discriminant was already canonical evidence; this closes its missing source-
+  custody join rather than changing row bytes.
+
   Milestone 2026-08-25: source-backed static conformance arguments on generic
   calls now retain the exact package-scoped conformance selected by each
   authored argument, including nested static applications. Checked trait-backed
@@ -815,15 +1513,127 @@ complete.
   private typed or checked handles. This reuses the existing coherent checked
   derivation and introduces neither a public IR contract nor nominal Chi.
 
+  Follow-up 2026-08-28: non-`pub` boundary machines now retain their actual
+  exported-interface exposure through typed type-reference lowering, entry-
+  state parameter/result lowering, named-conformance-bound selection
+  collection, and carried-semantic-dependency classification. Syntax lowering
+  already classified boundary signature/contract expressions as public, but
+  these nested paths had regressed to the ordinary `machine.is_public` bit. A
+  root-middle-leaf canary now rejects a boundary parameter type owned only by a
+  transitive dependency, accepts it after direct admission, and observes the
+  exact public-interface row. A same-package canary likewise rejects a boundary
+  generic bound naming a private conformance. Boundary and accepted supply are
+  derived from the retained semantic supply mode, not source spelling. This
+  closes that exported-boundary slice; the other visibility-dependent nested
+  positions below remain.
+
+  Follow-up 2026-08-28: every source-backed right-hand constituent of a
+  transparent domain alias now contributes an exact `StaticPathSegment`
+  authored-selection row under the alias declaration's public/private
+  exposure. The row binds the resolved domain symbol and complete authored path
+  span; compiler `Carry::*` atoms remain outside nominal package selection.
+  A root-middle-leaf canary rejects a public alias of a transitive-only public
+  domain and accepts it after direct admission while retaining the exact public
+  row. This closes the domain-alias constituent slice.
+
+  Follow-up 2026-08-28: every source-backed trait-composition edge now retains
+  the exact resolved trait as a `TypeReference` authored-selection row. Header
+  composition (`trait Child: Parent`) and body composition
+  (`requires Parent;`) already normalize to one resolved edge, so both use the
+  enclosing trait's public/private exposure and the same direct-dependency
+  rule. A root-middle-leaf canary covers both spellings, rejects transitive-only
+  selection, accepts direct admission, and observes two public rows plus one
+  private row bound to the exact leaf trait. Existing `trait_parent` review
+  locations remain provenance for the same edges; they do not substitute for
+  admission. This closes trait parents/requirements. Attached carriers,
+  `satisfies` traits, quotient paths, establishment routes, and nominal
+  machine-parameter requirements remain separate exact-symbol audits.
+
+  Follow-up 2026-08-28: every source-backed attached-machine carrier now
+  retains its exact resolved data declaration as a `TypeReference` authored-
+  selection row. The carrier coordinate uses the enclosing machine interface
+  exposure: ordinary `pub` attached declarations and exported boundary supply
+  are public interface, while ordinary private attached declarations remain
+  private implementation. A root-middle-leaf canary rejects a transitive-only
+  carrier, accepts it after direct admission, and verifies all three exposure
+  cases against the exact leaf data symbol. This closes attached carriers;
+  `satisfies` traits, quotient paths, establishment routes, and nominal machine-
+  parameter requirements remain separate exact-symbol audits.
+
+  Follow-up 2026-08-28: quotient declarations now retain exact authored rows
+  for the right-hand relation path, the repeated static-`where` relation
+  subject, and the selected sealed `Equivalence` trait. Carrier and trait-
+  argument type references were already retained, and the named equivalence
+  conformance remains separately retained as private formation custody. The
+  relation/trait rows inherit the quotient data declaration's public/private
+  exposure; changing valid proof implementations still does not change
+  quotient API identity. The existing package canary now verifies two exact
+  public relation-path rows, the public sealed-trait row, and the private exact
+  conformance row. This closes quotient declaration paths. `satisfies` traits,
+  establishment routes, and nominal machine-parameter requirements remain
+  separate exact-symbol audits.
+
+  Follow-up 2026-08-28: every source-backed exact
+  `machine ... satisfies Namespace::requirement` edge now retains the authored
+  declaration coordinates it actually selects. Trait edges retain the exact
+  trait as a `TypeReference` row and the exact overload-resolved requirement as
+  a `StaticPathSegment` row. Operator edges retain the exact signature-selected
+  operator at the requirement token. Settlement runs after the complete typed
+  declaration graph exists and before progress, validation, checked operator
+  facts, provider planning, or package review consume the edge; those consumers
+  cross-check the retained symbol instead of reselecting by spelling. Trait
+  result-dispatch overloads and operator signature overloads therefore remain
+  distinct. Operator identity settles independently from supply mode, so an
+  unsupported external association still retains the exact subject before
+  admission rejects it. Rows follow the enclosing machine's interface
+  exposure, including non-`pub` boundary/accepted supply. Root-middle-leaf,
+  same-package visibility, result-dispatch overload, and operator-overload
+  canaries pin direct admission and public/private behavior. This closes exact
+  `satisfies` trait/requirement/operator selections; establishment routes and
+  nominal machine-parameter requirements remain separate exact-symbol audits.
+
+  Follow-up 2026-08-28: every source-backed `established by
+  Trait::requirement` occurrence now retains the exact uniquely resolved trait
+  as a `TypeReference` row and requirement as a `StaticPathSegment` row. The
+  existing signature-free resolver proves uniqueness and domain-subject
+  authorization after all symbols exist; that same normalization point records
+  selection custody before typed lowering. Semantic route alternatives may be
+  sorted or deduplicated downstream, but repeated authored occurrences remain
+  distinct source rows. Both rows inherit the domain declaration's
+  public/private exposure, so a public domain cannot hide a private route while
+  a private same-package route remains legal. Resolver and package-aware
+  canaries pin exact symbols, both exposure modes, and the early visibility
+  rejection. This closes establishment-route selections; nominal machine-
+  parameter requirements remain the final exact-symbol audit in this slice.
+
+  Follow-up 2026-08-28: nominal callable machine-parameter contracts authored
+  as `where machine Selected satisfies Trait::requirement` now preserve their
+  complete source path alongside the exact signature-free trait and requirement
+  symbols until typed lowering records both selections. The trait path becomes
+  one exact `TypeReference` row and the requirement token one exact
+  `StaticPathSegment` row. The enclosing machine/type-parameter lowering
+  supplies public/private exposure, including exported boundary interfaces;
+  recursively nested nominal contracts use the same path. Overloaded
+  signature-free requirements still reject before this point. Root-middle-leaf
+  canaries reject transitive-only selection and admit a direct dependency,
+  while same-package canaries reject public/boundary exposure of a private
+  requirement and permit private implementation use. Package-review tests now
+  expect that visibility violation at compiler admission rather than as a later
+  projection error. This closes the nominal machine-parameter requirement
+  exact-symbol audit named above.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
   explicit static conformance arguments, expression and statement calls,
   all source-backed static declaration arguments, inferred generic-call
-  conformances, checked trait-operator conformances, and declaration-owned
-  expression positions whose visibility is settled, and named conformance
-  selectors in callable and trait bounds. Visibility-dependent nested positions
-  are not yet total. The package manager stays disabled until those gaps close.
+  conformances, checked trait-operator conformances, declaration-owned
+  expression positions whose visibility is settled, named conformance
+  selectors in callable and trait bounds, and exact `satisfies` trait,
+  requirement, and operator coordinates, plus exact establishment-route trait
+  and requirement coordinates and nominal callable machine-parameter
+  requirements. Visibility-dependent nested positions are not yet total. The
+  package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted
   artifact/lock admission are not complete. Visibility implementation for all
@@ -1473,7 +2283,8 @@ complete.
   Declaration kinds without retained visibility reject
   `pub` instead of silently compiling a private API. The remaining
   advanced call-bearing domain predicates, semantic-role/operator lanes,
-  source-free compiler-semantic subjects beyond the closed builtin type atoms,
+  source-free compiler-semantic subjects beyond the closed builtin type atoms
+  and collection-length contract projection,
   compiler-intrinsic provider-binding ownership, exact semantic-
   subject commitments, receipted build-operation transcripts, staged-output
   commitments, certificate closure, and reproducibility verdicts still need
@@ -1591,6 +2402,16 @@ complete.
   facts. Operators with outcome-specific or crash contracts, and providers with
   any nonempty checked crash behavior, reject until checked operator refinement
   covers those clauses.
+  Follow-up 2026-08-28: review v76/canonical row v34 retains the optional
+  conformance alias beside each supported checked-body operator coordinate.
+  The alias already survives checked lowering and participates in realization
+  identity; package review now compares that retained custody before projecting
+  it instead of rejecting the form. Alias spelling changes only the owning
+  callable row, and canonical bytes distinguish aliased from unaliased or
+  differently aliased realizations. Post-check alias mutation rejects. This
+  extension does not admit aliases on bodyless external supply, private,
+  generic/lifetime-bearing, crash-refined, or otherwise unsupported operator
+  forms, and it does not alter OWNER Q10's overloaded boundary-provider choice.
   Public callable `requires` and `ensures` retain exact structural rows for the
   closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified
@@ -1622,6 +2443,14 @@ complete.
   target type, exact arithmetic policy, package-qualified semantic domain and
   arguments, and value/recast form. Diagnostic target/domain spellings are
   absent, and a private package domain cannot leak through a public cast.
+
+  Follow-up 2026-08-28: every nominal member admitted by the existing contract
+  projector now also requires exactly one public-interface `MemberAccess`
+  occurrence whose finalized declaration equals the checked semantic-place or
+  call-projection field. Missing, duplicate, intrinsic, late-bound, private, or
+  mismatched token custody rejects. This closes the source-selection join for
+  already-supported member expressions without admitting the computed-member
+  forms named above or changing review v76/canonical row v34 bytes.
   The settled proposition path is a join, not a new nominal stage: typed trees
   supply structural declaration, binder, and value-expression coordinates;
   checked proof facts supply acceptance, evidence-term/interface routing, and
@@ -2030,8 +2859,9 @@ complete.
   returning the original commitment; invalid shape, nonempty or symlink
   destinations, write failure, extra/missing state, and drift reject. Hard-link
   topology is neither retained nor leaked through the content count. This tree
-  custody alone is not a receipt; the v24/v6 grammar above is the first narrow
-  case that joins it to complete operation replay and generated-output handoff.
+  custody alone is not a receipt; the operation grammar introduced by v24/v6
+  and retained by v26/v8 is the first narrow case that joins it to complete
+  operation replay and generated-output handoff.
   Broader operation/output coverage and complete remaining preparation-failure
   evidence remain. Same-user host racing is not solved by this custody rung.
   Raw byte-valued inputs reject above a
@@ -2584,11 +3414,11 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v74/canonical row v32, conflict fingerprint v11, renderer V10, and
-  canonical-row recovery envelope v8 bind the appended roles; stale envelopes
-  reject rather than being reinterpreted. Remaining per-fact spans are
-  incremental engineering work and require deliberate retention before typed
-  lowering, not later source-text reconstruction.
+  review v76/canonical row v34, conflict fingerprint v16, renderer V15, and
+  canonical-row recovery envelope v13 bind the appended roles; stale envelopes
+  reject rather than being reinterpreted. Any later nested source carriers
+  remain incremental engineering work and require deliberate retention before
+  their owning frontend stage erases them, not later source-text reconstruction.
   Milestone 2026-08-27: every authored external executable leaf now retains
   the exact `via` keyword occurrence on the same conformance that owns its
   normalized binding identity. Syntax copying, resolution, and typed lowering
@@ -2600,6 +3430,65 @@ complete.
   unchanged. Canonical-row recovery envelope v8, conflict fingerprint v11,
   and renderer V10 bind the appended explanatory role; stale recovery records
   reject.
+  Milestone 2026-08-27: public const declarations now retain the exact parsed
+  initializer-expression span before const substitution erases the value tree.
+  Symbol-resolved and typed const declarations carry that occurrence, and the
+  `PublicConst` row emits it under the closed `const_initializer` role beside
+  the independent declaration-name anchor. Recovery envelope v9, conflict
+  fingerprint v12, and renderer V11 bind the new role and exact coordinates;
+  semantic package-review bytes remain v75/canonical row v33 because source
+  locations are explanatory sidecars. Canaries require the two source slices
+  to be exactly `LIMIT` and `4`, preserve the role through recovery and conflict
+  rendering, and prove that relocating identical semantics changes coordinates
+  without changing canonical review identity.
+  Milestone 2026-08-27: transparent public propositions now retain the exact
+  semantic-token extent of their authored formula at the proposition parser
+  boundary. This occurs before typed application lowering can erase the
+  enclosing expression handle and before operator-root spans can narrow the
+  formula to one token. Syntax, symbol-resolved, and typed proposition
+  declarations carry that custody directly; a `PublicProposition` row emits it
+  under the closed `proposition_formula` role. Projection requires exactly one
+  formula location for a transparent proposition and none for primitive or
+  witness propositions. Recovery envelope v10, conflict fingerprint v13, and
+  renderer V12 bind the role and coordinates. Semantic package-review bytes
+  remain v75/canonical row v33: the normalized proposition body remains the
+  compatibility identity, while the formula location is explanatory custody.
+  Boolean and application-form canaries require the exact source slices and
+  reject missing or contradictory custody.
+  Milestone 2026-08-27: every authored proof fact now retains its full
+  semantic-token extent at the common fact parser boundary. A sparse sidecar
+  binds that occurrence to the existing exact fact handle through syntax,
+  resolution, typed lowering, generic-instance synthesis, and checked
+  monomorphization; semantic fact variants and canonical identity remain
+  unchanged. Public domain predicates and public data invariants require exact
+  custody for every fact. Authored callable, trait-requirement, operator, and
+  recursively structural machine-parameter contracts likewise require one
+  fact location per retained fact, while source-free compiler-synthesized
+  contracts receive no invented coordinates. The closed `proof_fact` role
+  exposes those extents beside the independent clause keyword. Recovery
+  envelope v11, conflict fingerprint v14, and renderer V13 bind the role and
+  coordinates; semantic package-review bytes remain v75/canonical row v33.
+  Vertical canaries cover expression and membership parsing, data/domain/trait
+  projection, recovery, and changed-domain conflict rendering.
+  Milestone 2026-08-27: public trait rows now retain each exact machine-
+  requirement declaration under `trait_requirement`, and public data rows
+  retain every exact field, sum case, and sum payload-field declaration under
+  `data_member`. Both use the already-retained typed declaration symbol; a
+  source-backed symbol must resolve to its direct authored span, while a
+  compiler-derived declaration exposes only its real derivation origin rather
+  than a fictional nested anchor. Recovery envelope v12, conflict fingerprint
+  v15, and renderer V14 bind the roles and coordinates without changing review
+  v75/canonical row v33. Real-source canaries require exact identifier slices
+  and changed-row conflict rendering for both declaration families.
+  Milestone 2026-08-27: every value parameter on a reviewed package callable,
+  public operator, and public trait requirement now retains its exact typed
+  declaration symbol under `callable_parameter`. The same walk covers value
+  parameters nested in structural static-machine contracts. Direct declarations
+  expose their authored identifier span; compiler-derived declarations expose
+  only their real derivation origin. Recovery envelope v13, conflict fingerprint
+  v16, and renderer V15 bind the role and coordinates without changing review
+  v75/canonical row v33. Vertical canaries cover callable, operator, trait,
+  recovery, and changed-callable conflict rendering.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 
@@ -3014,7 +3903,7 @@ complete.
   ordinary `main.omg` source patch rather than a standalone or lineage-
   replacement packet.
   Progress 2026-08-26: `generated-table` exercises canonical observation-
-  summary v24 and replay-record v6 evidence and becomes `Receipted` only after
+  summary v26 and replay-record v8 evidence and becomes `Receipted` only after
   exact no-host replay reproduces its generated file and `include_source`
   handoff. Its package-level review baseline now captures, canonically encodes,
   recovers, and rejoins that verified replay record instead of limiting capsule

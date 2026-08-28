@@ -10,6 +10,9 @@ pub struct ConstDeclaration {
     pub symbol: SymbolHandle,
     pub is_public: bool,
     pub declared_type: crate::types::TypeReference,
+    /// Exact authored initializer occurrence retained after value
+    /// substitution erases the expression from semantic trees.
+    pub initializer_source_span: psi_source::SourceSpan,
     /// Canonical structural value encoding for public compatibility. Private
     /// const-v0 declarations retain no review value requirement.
     pub canonical_value_encoding: Option<String>,

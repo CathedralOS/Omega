@@ -250,6 +250,7 @@ fn lower_item_with_exposure(
                     symbol: psi_symbols::SymbolHandle::invalid(),
                     is_public: definition.is_public,
                     declared_type,
+                    initializer_source_span: syntax_trees.expressions.source_span(definition.value),
                     canonical_value_encoding,
                 },
             );

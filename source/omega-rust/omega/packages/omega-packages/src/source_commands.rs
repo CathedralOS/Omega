@@ -1,7 +1,3 @@
-use crate::resolver::{
-    SourceCachePolicyRecord, SourceCachePolicyRecordPersistenceError, SourceCacheRequest,
-    resolve_source_cache_record,
-};
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
     resolve_git_source, resolve_local_source,
@@ -72,6 +68,9 @@ pub struct PackageSourceAudit {
     pub requested_rev: Option<String>,
     pub resolved_commit: Option<String>,
     pub resolved_tree: Option<String>,
+    pub network_transfer_ceiling: Option<u64>,
+    pub network_uploaded_bytes: Option<u64>,
+    pub network_downloaded_bytes: Option<u64>,
     pub content_identity: String,
     pub file_count: usize,
     pub byte_count: u64,
@@ -81,12 +80,6 @@ pub struct PackageSourceAudit {
 pub enum PackageSourceAuditCommandError {
     Parse(PackageSourceRequestParseError),
     Resolve(SourceResolveError),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SourceCachePolicyCommandError {
-    Parse(PackageSourceRequestParseError),
-    Write(SourceCachePolicyRecordPersistenceError),
 }
 
 impl PackageSourceAudit {
@@ -117,6 +110,21 @@ impl PackageSourceAudit {
         if let Some(tree) = &self.resolved_tree {
             report.push_str("resolved tree: ");
             report.push_str(tree);
+            report.push('\n');
+        }
+        if let Some(ceiling) = self.network_transfer_ceiling {
+            report.push_str("broker transfer ceiling: ");
+            report.push_str(&ceiling.to_string());
+            report.push('\n');
+        }
+        if let Some(uploaded) = self.network_uploaded_bytes {
+            report.push_str("broker uploaded bytes: ");
+            report.push_str(&uploaded.to_string());
+            report.push('\n');
+        }
+        if let Some(downloaded) = self.network_downloaded_bytes {
+            report.push_str("broker downloaded bytes: ");
+            report.push_str(&downloaded.to_string());
             report.push('\n');
         }
         report.push_str("content identity: ");
@@ -174,6 +182,9 @@ pub fn audit_package_source(
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
+                network_transfer_ceiling: None,
+                network_uploaded_bytes: None,
+                network_downloaded_bytes: None,
                 content_identity: resolved.content_identity,
                 file_count: resolved.file_count,
                 byte_count: resolved.byte_count,
@@ -181,16 +192,20 @@ pub fn audit_package_source(
         }
         PackageSourceRequest::Git(request) => {
             let resolved = resolve_git_source(&request, cache_dir, limits)?;
+            let network_transfer = resolved.network_transfer_observation();
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
-                transport_profile: Some(resolved.transport_profile.as_str().to_owned()),
-                requested_rev: Some(resolved.requested_rev),
-                resolved_commit: Some(resolved.commit),
-                resolved_tree: Some(resolved.tree),
-                content_identity: resolved.local.content_identity,
-                file_count: resolved.local.file_count,
-                byte_count: resolved.local.byte_count,
+                transport_profile: Some(resolved.transport_profile().as_str().to_owned()),
+                requested_rev: Some(resolved.requested_revision().to_owned()),
+                resolved_commit: Some(resolved.commit().to_owned()),
+                resolved_tree: Some(resolved.tree().to_owned()),
+                network_transfer_ceiling: Some(network_transfer.ceiling()),
+                network_uploaded_bytes: Some(network_transfer.uploaded()),
+                network_downloaded_bytes: Some(network_transfer.downloaded()),
+                content_identity: resolved.local().content_identity.clone(),
+                file_count: resolved.local().file_count,
+                byte_count: resolved.local().byte_count,
             })
         }
     }
@@ -207,44 +222,6 @@ pub fn audit_package_source_locator(
         .map_err(PackageSourceAuditCommandError::Parse)?;
     audit_package_source(request, cache_dir, limits)
         .map_err(PackageSourceAuditCommandError::Resolve)
-}
-
-pub fn resolve_source_cache_record_locator(
-    adapter: SourceAdapter,
-    locator: impl Into<String>,
-    rev: Option<String>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let request = PackageSourceRequest::parse(adapter, locator, rev)
-        .map_err(SourceCachePolicyCommandError::Parse)?;
-    Ok(resolve_source_cache_record(
-        source_cache_request_from_package_request(request),
-        cache_dir,
-        limits,
-    ))
-}
-
-pub fn write_source_cache_record_locator(
-    adapter: SourceAdapter,
-    locator: impl Into<String>,
-    rev: Option<String>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-    out_path: impl AsRef<Path>,
-) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let record = resolve_source_cache_record_locator(adapter, locator, rev, cache_dir, limits)?;
-    record
-        .write_to_path(out_path)
-        .map_err(SourceCachePolicyCommandError::Write)?;
-    Ok(record)
-}
-
-fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
-    match request {
-        PackageSourceRequest::LocalPath(path) => SourceCacheRequest::LocalPath(path),
-        PackageSourceRequest::Git(request) => SourceCacheRequest::Git(request),
-    }
 }
 
 #[cfg(test)]
@@ -361,18 +338,6 @@ mod tests {
                 PackageSourceRequestParseError::InvalidGitRequest(_)
             ))
         ));
-        assert!(matches!(
-            resolve_source_cache_record_locator(
-                SourceAdapter::Git,
-                "https://token@github.com/CathedralOS/tool.git",
-                None,
-                ".",
-                LocalSourceLimits::default(),
-            ),
-            Err(SourceCachePolicyCommandError::Parse(
-                PackageSourceRequestParseError::InvalidGitRequest(_)
-            ))
-        ));
     }
 
     #[test]
@@ -401,48 +366,11 @@ mod tests {
         assert_eq!(direct.file_count, 1);
         assert_eq!(direct.content_identity.len(), 64);
         assert!(direct.to_text().contains("package source audit"));
+        assert!(direct.network_transfer_ceiling.is_none());
         assert_eq!(wrapped.content_identity, direct.content_identity);
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);
-    }
-
-    #[test]
-    fn source_cache_policy_wrappers_resolve_and_publish_local_records() {
-        let root = temp_root("cache-policy-local");
-        let cache = temp_root("cache-policy-cache");
-        let out_path = temp_root("cache-policy-record").with_extension("json");
-        std::fs::create_dir_all(&root).expect("create local package");
-        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
-
-        let resolved = resolve_source_cache_record_locator(
-            SourceAdapter::Local,
-            root.display().to_string(),
-            None,
-            &cache,
-            LocalSourceLimits::default(),
-        )
-        .expect("resolve local source-cache policy record");
-        let written = write_source_cache_record_locator(
-            SourceAdapter::Local,
-            root.display().to_string(),
-            None,
-            &cache,
-            LocalSourceLimits::default(),
-            &out_path,
-        )
-        .expect("write local source-cache policy record");
-        let recovered = SourceCachePolicyRecord::read_from_path(&out_path).expect("read record");
-
-        assert_eq!(resolved.source_kind, "local-path");
-        assert_eq!(resolved.verdict.as_str(), "diagnostic-observed");
-        assert_eq!(resolved.file_count, Some(1));
-        assert_eq!(written, resolved);
-        assert_eq!(recovered, resolved);
-
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&cache);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     #[test]
@@ -475,6 +403,10 @@ mod tests {
         assert_eq!(audit.file_count, 1);
         assert_eq!(audit.resolved_commit.as_ref().expect("commit").len(), 40);
         assert_eq!(audit.resolved_tree.as_ref().expect("tree").len(), 40);
+        assert!(audit.network_transfer_ceiling.is_some());
+        assert_eq!(audit.network_uploaded_bytes, Some(0));
+        assert_eq!(audit.network_downloaded_bytes, Some(0));
+        assert!(audit.to_text().contains("broker transfer ceiling: "));
 
         let _ = std::fs::remove_dir_all(&repository);
         let _ = std::fs::remove_dir_all(&cache);

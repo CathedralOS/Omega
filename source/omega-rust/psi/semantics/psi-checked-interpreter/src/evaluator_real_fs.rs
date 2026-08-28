@@ -34,7 +34,8 @@ use super::{
     host_open_flags, synthetic_handle_fd,
 };
 use crate::{
-    FilesystemAuthorizedPath, FilesystemGrantRootIdentity, FilesystemMetadataObservationKind,
+    CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRowKind, FilesystemAuthorizedPath,
+    FilesystemGrantRootIdentity, FilesystemMetadataObservationKind,
     FilesystemObservedByteRegionKind, FilesystemReturnedPathCompleteness,
     FilesystemReturnedPathKind,
 };
@@ -131,6 +132,7 @@ struct Grants {
 struct GrantRoot {
     identity: FilesystemGrantRootIdentity,
     path: PathBuf,
+    canonical_metadata: Option<CanonicalFilesystemMetadataIndex>,
 }
 
 /// Canonicalize a grant root before execution. Scoped evidence needs one exact
@@ -179,36 +181,44 @@ impl Grants {
 fn canonical_grants(grants: crate::FsGrants) -> Result<Grants, String> {
     let mut identities = BTreeSet::new();
     let mut physical_roots = BTreeMap::<PathBuf, FilesystemGrantRootIdentity>::new();
-    let mut canonicalize = |root: crate::FilesystemGrantRoot| -> Result<GrantRoot, String> {
-        if !identities.insert(root.identity()) {
-            return Err(format!(
-                "filesystem grant-root identity `{}` is duplicated",
-                root.identity().get()
-            ));
-        }
-        let path = canonical_root(root.path())?;
-        if let Some(previous) = physical_roots.insert(path.clone(), root.identity()) {
-            return Err(format!(
-                "filesystem grant root `{}` has conflicting identities `{}` and `{}`",
-                path.display(),
-                previous.get(),
-                root.identity().get()
-            ));
-        }
-        Ok(GrantRoot {
-            identity: root.identity(),
-            path,
-        })
-    };
+    let mut canonicalize =
+        |root: crate::FilesystemGrantRoot, write: bool| -> Result<GrantRoot, String> {
+            if write && root.canonical_metadata().is_some() {
+                return Err(format!(
+                    "writable filesystem grant root `{}` cannot carry immutable canonical metadata",
+                    root.identity().get()
+                ));
+            }
+            if !identities.insert(root.identity()) {
+                return Err(format!(
+                    "filesystem grant-root identity `{}` is duplicated",
+                    root.identity().get()
+                ));
+            }
+            let path = canonical_root(root.path())?;
+            if let Some(previous) = physical_roots.insert(path.clone(), root.identity()) {
+                return Err(format!(
+                    "filesystem grant root `{}` has conflicting identities `{}` and `{}`",
+                    path.display(),
+                    previous.get(),
+                    root.identity().get()
+                ));
+            }
+            Ok(GrantRoot {
+                identity: root.identity(),
+                path,
+                canonical_metadata: root.canonical_metadata().cloned(),
+            })
+        };
     let read_roots = grants
         .read_roots
         .into_iter()
-        .map(&mut canonicalize)
+        .map(|root| canonicalize(root, false))
         .collect::<Result<Vec<_>, _>>()?;
     let write_roots = grants
         .write_roots
         .into_iter()
-        .map(canonicalize)
+        .map(|root| canonicalize(root, true))
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Grants {
         read_roots,
@@ -229,6 +239,9 @@ struct RealFd {
     /// compiler write grant. This is independent of the OS open mode: metadata
     /// operations can succeed on read-only descriptors on some hosts.
     write_granted: bool,
+    /// Canonical immutable-source row selected at open time. `None` means the
+    /// descriptor belongs to an ordinary root and retains physical metadata.
+    canonical_metadata: Option<CanonicalFilesystemMetadataRowKind>,
 }
 
 pub(super) struct RealFs {
@@ -279,6 +292,24 @@ impl RealFs {
         path: PathBuf,
         sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
         append: bool,
+    ) -> Result<i64, i32> {
+        let canonical_metadata = self.canonical_metadata_for_path(&path)?;
+        if let Some(kind) = canonical_metadata {
+            let metadata = file.metadata().map_err(|error| io_errno(&error))?;
+            if !host_metadata_matches_canonical_kind(&metadata, kind) {
+                return Err(EACCES);
+            }
+        }
+        Ok(self.insert_preselected(file, path, sponsor_descriptor, append, canonical_metadata))
+    }
+
+    fn insert_preselected(
+        &mut self,
+        file: std::fs::File,
+        path: PathBuf,
+        sponsor_descriptor: Option<crate::FilesystemOpenDescriptor>,
+        append: bool,
+        canonical_metadata: Option<CanonicalFilesystemMetadataRowKind>,
     ) -> i64 {
         let write_granted = self
             .grants
@@ -294,9 +325,34 @@ impl RealFs {
                 sponsor_descriptor,
                 append,
                 write_granted,
+                canonical_metadata,
             },
         );
         i64::from(fd)
+    }
+
+    /// Select metadata for an already-authorized physical path. `Ok(None)` is
+    /// the explicit physical-metadata policy; a canonical root with no exact
+    /// row returns `EACCES` and must never fall back to the host value.
+    fn canonical_metadata_for_path(
+        &self,
+        path: &Path,
+    ) -> Result<Option<CanonicalFilesystemMetadataRowKind>, i32> {
+        let Some(grants) = self.grants.as_ref() else {
+            return Ok(None);
+        };
+        let Some(root) = grants.matching_root(path, false) else {
+            return Err(EACCES);
+        };
+        let Some(index) = root.canonical_metadata.as_ref() else {
+            return Ok(None);
+        };
+        let relative = path
+            .strip_prefix(&root.path)
+            .ok()
+            .and_then(canonical_relative_path)
+            .ok_or(EACCES)?;
+        index.row(&relative).map(Some).ok_or(EACCES)
     }
 
     fn descriptor_write_granted(&self, fd: i32) -> Option<bool> {
@@ -667,15 +723,27 @@ impl<'program> super::Evaluator<'program> {
                     Some(entry) => entry
                         .file
                         .try_clone()
-                        .map(|file| (file, entry.path.clone(), entry.append))
+                        .map(|file| {
+                            (
+                                file,
+                                entry.path.clone(),
+                                entry.append,
+                                entry.canonical_metadata,
+                            )
+                        })
                         .map_err(|error| io_errno(&error)),
                     None => Err(EBADF),
                 };
                 match cloned {
-                    Ok((file, path, append)) => {
+                    Ok((file, path, append, canonical_metadata)) => {
                         let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
-                        self.real_fs_mut()
-                            .insert(file, path, sponsor_descriptor, append)
+                        self.real_fs_mut().insert_preselected(
+                            file,
+                            path,
+                            sponsor_descriptor,
+                            append,
+                            canonical_metadata,
+                        )
                     }
                     Err(errno) => {
                         self.real_fs_mut().errno = errno;
@@ -987,11 +1055,26 @@ impl<'program> super::Evaluator<'program> {
                 )?,
             PreparedFilesystemCall::ReadFileMetadata { fd, buffer } => {
                 let looked_up = match self.real_fs_mut().files.get(&fd) {
-                    Some(entry) => entry.file.metadata().map_err(|error| io_errno(&error)),
+                    Some(entry) => match entry.canonical_metadata {
+                        Some(metadata) => Ok(SelectedFilesystemMetadata::Canonical(metadata)),
+                        None => entry
+                            .file
+                            .metadata()
+                            .map(SelectedFilesystemMetadata::Physical)
+                            .map_err(|error| io_errno(&error)),
+                    },
                     None => Err(EBADF),
                 };
                 match looked_up {
-                    Ok(metadata) => {
+                    Ok(SelectedFilesystemMetadata::Canonical(metadata)) => {
+                        self.write_canonical_fs_stat(
+                            &buffer,
+                            FilesystemMetadataObservationKind::OpenDescriptor,
+                            metadata,
+                        )?;
+                        0
+                    }
+                    Ok(SelectedFilesystemMetadata::Physical(metadata)) => {
                         self.write_real_fs_stat(
                             &buffer,
                             FilesystemMetadataObservationKind::OpenDescriptor,
@@ -1662,9 +1745,16 @@ impl<'program> super::Evaluator<'program> {
         match opened {
             Ok(file) => {
                 let sponsor_descriptor = self.commit_sponsored_open(prepared)?;
-                Ok(self
+                match self
                     .real_fs_mut()
-                    .insert(file, path, sponsor_descriptor, append))
+                    .insert(file, path, sponsor_descriptor, append)
+                {
+                    Ok(fd) => Ok(fd),
+                    Err(errno) => {
+                        self.real_fs_mut().errno = if win32_errors { 5 } else { errno };
+                        Ok(-1)
+                    }
+                }
             }
             Err(error) => {
                 self.real_fs_mut().errno = if win32_errors {
@@ -1938,13 +2028,32 @@ impl<'program> super::Evaluator<'program> {
             return Ok(-1);
         };
         let looked_up = if no_follow {
-            std::fs::symlink_metadata(path)
+            std::fs::symlink_metadata(&path)
         } else {
-            std::fs::metadata(path)
+            std::fs::metadata(&path)
         };
         match looked_up {
             Ok(metadata) => {
-                self.write_real_fs_stat(buffer, kind, &metadata)?;
+                let selected = self
+                    .real_fs
+                    .as_ref()
+                    .expect("real metadata calls have a real provider")
+                    // No-follow authorization already returned the
+                    // parent-resolved authored leaf coordinate; followed
+                    // authorization returned the canonical target.
+                    .canonical_metadata_for_path(&path);
+                match selected {
+                    Ok(Some(canonical))
+                        if host_metadata_matches_canonical_kind(&metadata, canonical) =>
+                    {
+                        self.write_canonical_fs_stat(buffer, kind, canonical)?;
+                    }
+                    Ok(Some(_)) | Err(_) => {
+                        self.real_fs_mut().errno = EACCES;
+                        return Ok(-1);
+                    }
+                    Ok(None) => self.write_real_fs_stat(buffer, kind, &metadata)?,
+                }
                 Ok(0)
             }
             Err(error) => {
@@ -2205,6 +2314,49 @@ impl<'program> super::Evaluator<'program> {
             .map(|duration| duration.as_secs() as i64)
             .unwrap_or(0);
         self.write_fs_stat(output, kind, u32::from(mode), size, mtime_secs)
+    }
+
+    fn write_canonical_fs_stat(
+        &mut self,
+        output: &PreparedByteOutput,
+        kind: FilesystemMetadataObservationKind,
+        metadata: CanonicalFilesystemMetadataRowKind,
+    ) -> EvalResult<()> {
+        let (mode, size, modification_time) = canonical_metadata_values(metadata);
+        self.write_fs_stat(output, kind, mode, size, modification_time)
+    }
+}
+
+enum SelectedFilesystemMetadata {
+    Canonical(CanonicalFilesystemMetadataRowKind),
+    Physical(std::fs::Metadata),
+}
+
+fn canonical_metadata_values(metadata: CanonicalFilesystemMetadataRowKind) -> (u32, i64, i64) {
+    let (mode, size) = match metadata {
+        CanonicalFilesystemMetadataRowKind::Directory => (0o040555, 0),
+        CanonicalFilesystemMetadataRowKind::File {
+            executable,
+            logical_byte_length,
+        } => (
+            if executable { 0o100555 } else { 0o100444 },
+            logical_byte_length as i64,
+        ),
+        CanonicalFilesystemMetadataRowKind::Symlink {
+            target_spelling_logical_byte_length,
+        } => (0o120777, target_spelling_logical_byte_length as i64),
+    };
+    (mode, size, 1_000_000_000)
+}
+
+fn host_metadata_matches_canonical_kind(
+    metadata: &std::fs::Metadata,
+    canonical: CanonicalFilesystemMetadataRowKind,
+) -> bool {
+    match canonical {
+        CanonicalFilesystemMetadataRowKind::Directory => metadata.is_dir(),
+        CanonicalFilesystemMetadataRowKind::File { .. } => metadata.is_file(),
+        CanonicalFilesystemMetadataRowKind::Symlink { .. } => metadata.file_type().is_symlink(),
     }
 }
 
@@ -2508,7 +2660,9 @@ mod sponsor_provider_tests {
             .open(&path)
             .unwrap();
         let mut filesystem = RealFs::new(None, Some(sponsor.clone())).unwrap();
-        filesystem.insert(file, path, Some(descriptor), false);
+        filesystem
+            .insert(file, path, Some(descriptor), false)
+            .unwrap();
         assert_eq!(sponsor.snapshot().unwrap().open_descriptors, 1);
 
         drop(filesystem);
@@ -2546,7 +2700,9 @@ mod sponsor_provider_tests {
             .open(&path)
             .unwrap();
         let mut filesystem = RealFs::new(None, Some(sponsor.clone())).unwrap();
-        filesystem.insert(file, path, Some(descriptor), false);
+        filesystem
+            .insert(file, path, Some(descriptor), false)
+            .unwrap();
 
         assert!(matches!(
             sponsor_preparation(sponsor.prepare_write(&descriptor, 0, 1)),
@@ -2558,5 +2714,213 @@ mod sponsor_provider_tests {
         assert_eq!(snapshot.open_descriptors, 0);
         assert_eq!(snapshot.entries, 1);
         assert_eq!(snapshot.total_logical_bytes, 0);
+    }
+
+    fn canonical_metadata(
+        rows: impl IntoIterator<Item = crate::CanonicalFilesystemMetadataRow>,
+    ) -> crate::CanonicalFilesystemMetadataIndex {
+        crate::CanonicalFilesystemMetadataIndex::version_1([7; 32], rows).unwrap()
+    }
+
+    fn canonical_grant_root(
+        identity: u32,
+        path: PathBuf,
+        rows: impl IntoIterator<Item = crate::CanonicalFilesystemMetadataRow>,
+    ) -> crate::FilesystemGrantRoot {
+        test_grant_root(identity, path).with_canonical_metadata(canonical_metadata(rows))
+    }
+
+    #[test]
+    fn canonical_metadata_has_exact_root_directory_file_executable_and_symlink_values() {
+        use crate::CanonicalFilesystemMetadataRowKind::{Directory, File, Symlink};
+
+        assert_eq!(
+            canonical_metadata_values(Directory),
+            (0o040555, 0, 1_000_000_000)
+        );
+        assert_eq!(
+            canonical_metadata_values(File {
+                executable: false,
+                logical_byte_length: 17,
+            }),
+            (0o100444, 17, 1_000_000_000)
+        );
+        assert_eq!(
+            canonical_metadata_values(File {
+                executable: true,
+                logical_byte_length: 23,
+            }),
+            (0o100555, 23, 1_000_000_000)
+        );
+        assert_eq!(
+            canonical_metadata_values(Symlink {
+                target_spelling_logical_byte_length: 11,
+            }),
+            (0o120777, 11, 1_000_000_000)
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_stat_and_lstat_select_target_and_authored_leaf_rows() {
+        use crate::{CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind};
+        use std::os::unix::fs::symlink;
+
+        let directory = TestDirectory::new("canonical-stat-lstat");
+        let target = directory.0.join("target.bin");
+        let link = directory.0.join("alias");
+        std::fs::write(&target, b"data").unwrap();
+        symlink("target.bin", &link).unwrap();
+        let grants = crate::FsGrants {
+            read_roots: vec![canonical_grant_root(
+                1,
+                directory.0.clone(),
+                [
+                    CanonicalFilesystemMetadataRow::new(
+                        b"".to_vec(),
+                        CanonicalFilesystemMetadataRowKind::Directory,
+                    ),
+                    CanonicalFilesystemMetadataRow::new(
+                        b"target.bin".to_vec(),
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 4,
+                        },
+                    ),
+                    CanonicalFilesystemMetadataRow::new(
+                        b"alias".to_vec(),
+                        CanonicalFilesystemMetadataRowKind::Symlink {
+                            target_spelling_logical_byte_length: 10,
+                        },
+                    ),
+                ],
+            )],
+            write_roots: Vec::new(),
+        };
+        let filesystem = RealFs::new(Some(grants), None).unwrap();
+
+        let followed = resolve_for_check(&link).unwrap();
+        assert_eq!(followed, target.canonicalize().unwrap());
+        assert_eq!(
+            filesystem.canonical_metadata_for_path(&followed),
+            Ok(Some(CanonicalFilesystemMetadataRowKind::File {
+                executable: false,
+                logical_byte_length: 4,
+            }))
+        );
+
+        let authored_leaf = resolve_parent_for_check(&link).unwrap();
+        assert_eq!(
+            authored_leaf,
+            directory.0.canonicalize().unwrap().join("alias")
+        );
+        assert_eq!(
+            filesystem.canonical_metadata_for_path(&authored_leaf),
+            Ok(Some(CanonicalFilesystemMetadataRowKind::Symlink {
+                target_spelling_logical_byte_length: 10,
+            }))
+        );
+        assert_eq!(
+            filesystem.canonical_metadata_for_path(&directory.0.canonicalize().unwrap()),
+            Ok(Some(CanonicalFilesystemMetadataRowKind::Directory))
+        );
+    }
+
+    #[test]
+    fn canonical_fstat_retains_the_row_selected_when_descriptor_was_opened() {
+        use crate::{CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind};
+
+        let directory = TestDirectory::new("canonical-fstat");
+        let path = directory.0.join("input.bin");
+        std::fs::write(&path, b"old").unwrap();
+        let grants = crate::FsGrants {
+            read_roots: vec![canonical_grant_root(
+                1,
+                directory.0.clone(),
+                [
+                    CanonicalFilesystemMetadataRow::new(
+                        b"".to_vec(),
+                        CanonicalFilesystemMetadataRowKind::Directory,
+                    ),
+                    CanonicalFilesystemMetadataRow::new(
+                        b"input.bin".to_vec(),
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 3,
+                        },
+                    ),
+                ],
+            )],
+            write_roots: Vec::new(),
+        };
+        let mut filesystem = RealFs::new(Some(grants), None).unwrap();
+        let file = std::fs::File::open(&path).unwrap();
+        let canonical_path = path.canonicalize().unwrap();
+        let fd = filesystem
+            .insert(file, canonical_path, None, false)
+            .unwrap() as i32;
+
+        std::fs::remove_file(&path).unwrap();
+        std::fs::create_dir(&path).unwrap();
+        assert_eq!(
+            filesystem.files.get(&fd).unwrap().canonical_metadata,
+            Some(CanonicalFilesystemMetadataRowKind::File {
+                executable: false,
+                logical_byte_length: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn canonical_metadata_missing_row_refuses_without_physical_fallback() {
+        use crate::{CanonicalFilesystemMetadataRow, CanonicalFilesystemMetadataRowKind};
+
+        let directory = TestDirectory::new("canonical-missing");
+        let path = directory.0.join("unbound.bin");
+        std::fs::write(&path, b"host bytes").unwrap();
+        let grants = crate::FsGrants {
+            read_roots: vec![canonical_grant_root(
+                1,
+                directory.0.clone(),
+                [CanonicalFilesystemMetadataRow::new(
+                    b"".to_vec(),
+                    CanonicalFilesystemMetadataRowKind::Directory,
+                )],
+            )],
+            write_roots: Vec::new(),
+        };
+        let mut filesystem = RealFs::new(Some(grants), None).unwrap();
+        let canonical_path = path.canonicalize().unwrap();
+        assert_eq!(
+            filesystem.canonical_metadata_for_path(&canonical_path),
+            Err(EACCES)
+        );
+        let file = std::fs::File::open(&path).unwrap();
+        assert_eq!(
+            filesystem.insert(file, canonical_path, None, false),
+            Err(EACCES)
+        );
+    }
+
+    #[test]
+    fn ordinary_grant_root_keeps_physical_metadata_policy() {
+        let directory = TestDirectory::new("physical-metadata");
+        let path = directory.0.join("ordinary.bin");
+        std::fs::write(&path, b"host bytes").unwrap();
+        let grants = crate::FsGrants {
+            read_roots: vec![test_grant_root(1, directory.0.clone())],
+            write_roots: Vec::new(),
+        };
+        let mut filesystem = RealFs::new(Some(grants), None).unwrap();
+        let canonical_path = path.canonicalize().unwrap();
+        assert_eq!(
+            filesystem.canonical_metadata_for_path(&canonical_path),
+            Ok(None)
+        );
+        let file = std::fs::File::open(&path).unwrap();
+        let fd = filesystem
+            .insert(file, canonical_path, None, false)
+            .unwrap() as i32;
+        assert_eq!(filesystem.files.get(&fd).unwrap().canonical_metadata, None);
     }
 }

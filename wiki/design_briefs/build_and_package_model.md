@@ -1277,15 +1277,36 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v74/row v32, recovery v8, conflict fingerprint v11, and renderer V10 bind
+Review v75/row v33, recovery v13, conflict fingerprint v16, and renderer V15 bind
 the current source schema. External executable leaves retain the exact authored
 `via` keyword beside the normalized binding identity on the same conformance.
 Projection requires binding/span parity and carries that occurrence under
 `external_binding` for public and private trait or operator supply. Semantic
 row bytes remain unchanged; missing, source-free, or contradictory custody
-rejects. Remaining per-fact spans are incremental; absent
+rejects. Public const declarations additionally retain the exact parsed
+initializer-expression span through symbol resolution and typed lowering,
+before substitution erases the value tree. `PublicConst` rows carry it as
+`const_initializer` beside the declaration-name anchor. Relocation changes the
+explanatory coordinates but not the semantic row bytes. Transparent public
+propositions retain their complete formula extent at the parser boundary under
+`proposition_formula`; primitive and witness propositions receive no invented
+formula location. Every authored proof fact retains its full semantic-token
+extent under `proof_fact` through syntax, resolution, typed lowering, generic
+synthesis, and checked specialization. Public domain/data facts require that
+custody, as does every fact beneath an authored public contract clause;
+source-free compiler synthesis receives no invented coordinate. Absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.
+Public trait rows additionally retain every exact machine-requirement
+declaration under `trait_requirement`; public data rows retain fields, sum
+cases, and payload fields under `data_member`. These roles consume the existing
+typed declaration symbols. Direct declarations use their authored spans;
+generated declarations expose only their real derivation origin.
+Reviewed package callables, public operators, and public trait requirements
+likewise retain every value-parameter declaration under `callable_parameter`.
+The same compiler-owned walk covers value parameters nested in structural
+static-machine contracts. These coordinates bind what review displays without
+changing semantic row identity.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural
@@ -1602,6 +1623,26 @@ carrier declaration and the package-scoped conformance. Machine and trait
 bounds inherit their enclosing declaration's exposure. This does not decide
 whether every selected declaration family is independently publishable.
 
+Trait composition is likewise authored authority. Header parents and body
+`requires` clauses normalize to one semantic edge, while every source-backed
+edge retains the exact resolved trait as a type-reference selection under the
+enclosing trait's public/private exposure. The direct-dependency gate consumes
+that row; the separate `trait_parent` source coordinate explains where the edge
+was authored but grants no authority by itself.
+
+An attached declaration head such as `machine Data::operation` independently
+selects the exact carrier declaration. The compiler retains that coordinate as
+a type-reference row under the machine's interface exposure, including
+exported boundary supply even without `pub`. Qualification neither relabels
+the carrier nor admits an owner available only transitively.
+
+Quotient declarations retain every authored formation coordinate: carrier,
+right-hand relation path, repeated static-`where` relation subject, sealed
+`Equivalence` trait and arguments, and named proof conformance. Relation and
+trait rows inherit the data declaration's exposure. Only the selected proof
+conformance is private formation custody and absent from quotient API identity;
+it remains subject to ordinary visibility and direct-dependency admission.
+
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They
@@ -1873,8 +1914,21 @@ now retains the exact closed predicate instead of one undifferentiated
 intrinsic tag; projection cross-checks that identity against an unresolved,
 receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
-an ordinary package-qualified callable. Other compiler intrinsics remain
-fail-closed.
+an ordinary package-qualified callable.
+Review v75 and canonical row v33 likewise admit the compiler-owned collection-
+length projection in public contract expressions. Checked proof-static member
+resolution derives the receiver type from its retained declaration symbol,
+prefers an actual package field, and selects `CollectionLength` only for `len`
+on a fixed array or slice. Projection requires that exact public-interface
+selection occurrence and encodes the structural receiver without inventing a
+package owner. A package field named `len` remains nominal. Other compiler
+intrinsics remain fail-closed.
+Authored `!` and `~` likewise retain the exact operator token through checked
+selection custody, including when nested in a public contract expression.
+Review requires that public-interface occurrence to finalize as the closed
+builtin-operator meaning before projecting the existing structural unary
+operator. The canonical bytes remain v76/row v34; this closes a source-custody
+join rather than adding a semantic discriminant.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings
@@ -1961,7 +2015,10 @@ structural declaration value even when unused. Neither source initializer text
 nor runtime storage identity substitutes for that semantic subject. A public
 const whose type exposes private data, or whose value lacks supported canonical
 identity, rejects closed. Declared-type or value changes become source-backed
-`public_const` conflicts; private const-v0 declarations remain unprojected.
+`public_const` conflicts; private const-v0 declarations remain unprojected. The
+parsed initializer occurrence survives value substitution as source custody
+and is rendered under the closed `const_initializer` role; its spelling remains
+outside semantic row identity.
 Ordinary `pub operator` visibility is now retained independently of carrier or
 domain qualification. Exact authored source provenance supplies package
 ownership, while proof-static late operator selections finalize only when
@@ -2006,6 +2063,23 @@ traits with unretained lifetime arguments, inherited lifetime substitution,
 and proof-static trait parameters reject rather than producing a partial row.
 The conformance declaration is package-owned; its public subject and trait may
 come from a direct dependency.
+Exact requirement-local `satisfies` edges remain authored selections even
+though they do not mint a whole conformance. Trait edges retain the exact trait
+and result-dispatch-selected requirement; operator edges retain the exact
+signature-selected overload. The realizing machine's interface exposure
+governs both rows. Identity settles before checked, boundary, accepted, or
+external supply policy, so rejecting one association cannot erase or substitute
+the declaration the source selected.
+Domain `established by Trait::requirement` paths retain the same exact trait
+and requirement coordinates at signature-free normalization, after uniqueness
+and subject authorization are proved. Each source occurrence inherits the
+domain's exposure even when the normalized semantic route set deduplicates an
+equivalent alternative.
+Nominal callable machine-parameter contracts preserve the complete authored
+`Trait::requirement` path after signature-free resolution. Typed lowering emits
+the exact trait and requirement selections under the enclosing declaration's
+exposure, including recursively nested contracts; transitive-only and private
+public-interface selections reject before package review.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
@@ -2046,7 +2120,9 @@ lane binds that template to the source proposition application's concrete
 arguments. Matching checked evidence-term, interface, and projection facts are
 required. Direct parameter-rooted member paths retain their receiver ordinal
 and exact package-qualified case/field chain after a unique checked semantic-
-place join. Simple total, pure calls retain their optional receiver, exact
+place join and exactly one finalized public-interface member-token selection
+to the same field. Missing, duplicate, or mismatched custody rejects. Simple
+total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with

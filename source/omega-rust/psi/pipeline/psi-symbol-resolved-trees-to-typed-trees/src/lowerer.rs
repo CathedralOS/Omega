@@ -78,6 +78,7 @@ pub fn lower_symbol_resolved_trees(
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
                 declared_type,
+                initializer_source_span: declaration.initializer_source_span,
                 canonical_value_encoding: declaration.canonical_value_encoding.clone(),
             });
     }
@@ -125,7 +126,7 @@ pub fn lower_symbol_resolved_trees(
 
     for machine in &symbol_resolved_trees.machines {
         let machine = lowerer
-            .with_type_reference_exposure(declaration_exposure(machine.is_public), |lowerer| {
+            .with_type_reference_exposure(machine_interface_exposure(machine), |lowerer| {
                 lower_machine(lowerer, machine)
             })?;
         lowerer.typed_trees.push_machine(machine);
@@ -306,6 +307,17 @@ fn declaration_exposure(
     }
 }
 
+fn machine_interface_exposure(
+    machine: &psi_symbol_resolved_trees::machine::Machine,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    let is_exported_boundary = matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::Boundary
+            | psi_language_semantics::MachineSupplyMode::Accepted
+    );
+    declaration_exposure(machine.is_public || is_exported_boundary)
+}
+
 pub fn lower_symbol_resolved_trees_owned(
     symbol_resolved_trees: SymbolResolvedTrees,
 ) -> Result<TypedTrees, Diagnostic> {
@@ -338,6 +350,7 @@ impl Lowerer<'_> {
 
     pub(crate) fn finish(mut self) -> Result<TypedTrees, Diagnostic> {
         self.typed_trees.symbols = self.source_trees.symbols.clone();
+        crate::machine::settle_satisfied_declarations(&mut self.typed_trees)?;
         crate::progress::normalize_progress_premises(&mut self.typed_trees)?;
         let TypedTrees {
             roots,

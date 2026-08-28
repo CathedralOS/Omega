@@ -332,10 +332,10 @@ fn git_root_request_matches(
     resolved: &ResolvedGitSource,
     lineage: &SourceLineage,
 ) -> bool {
-    resolved.requested_locator == request.requested_locator()
-        && resolved.locator_identity == request.locator_identity()
-        && resolved.requested_rev == request.requested_revision()
-        && resolved.transport_profile == request.transport_profile()
+    resolved.requested_locator() == request.requested_locator()
+        && resolved.locator_identity() == request.locator_identity()
+        && resolved.requested_revision() == request.requested_revision()
+        && resolved.transport_profile() == request.transport_profile()
         && lineage == request.lineage()
 }
 
@@ -1010,19 +1010,26 @@ mod tests {
             resolved.source(),
             resolved.key().source_lineage()
         ));
-        let mut wrong_revision = resolved.source().clone();
-        wrong_revision.requested_rev = "different-revision".to_owned();
+        let wrong_revision = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            Some("different-revision".to_owned()),
+            "https://github.com/CathedralOS/network-root.git",
+        )
+        .expect("alternate revision request");
         assert!(!git_root_request_matches(
-            &request,
             &wrong_revision,
+            resolved.source(),
             resolved.key().source_lineage()
         ));
-        let mut wrong_locator = resolved.source().clone();
-        wrong_locator.requested_locator =
-            "https://github.com/CathedralOS/other-root.git".to_owned();
+        let wrong_locator = GitSourceRequest::for_local_test_repository_with_lineage(
+            &repository,
+            None,
+            "https://github.com/CathedralOS/other-root.git",
+        )
+        .expect("alternate locator request");
         assert!(!git_root_request_matches(
-            &request,
             &wrong_locator,
+            resolved.source(),
             resolved.key().source_lineage()
         ));
 
@@ -1274,6 +1281,7 @@ pub machine terminate(console: Console, return_code: i32)
             [
                 PackageTriageReason::CapabilityOrApiChanged,
                 PackageTriageReason::SourceChanged,
+                PackageTriageReason::BuildObservationChanged,
                 PackageTriageReason::RetainedDangerousAuthority(
                     PackageReviewDangerousAuthorityClass::Process,
                 ),

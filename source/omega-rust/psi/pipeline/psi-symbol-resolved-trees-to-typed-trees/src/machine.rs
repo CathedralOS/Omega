@@ -12,6 +12,16 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
+    if let Some(attached_data) = &machine.attached_data {
+        crate::type_reference::retain_type_reference_selection(
+            lowerer.source_trees,
+            &mut lowerer.typed_trees,
+            attached_data,
+            machine.attached_data_symbol,
+            lowerer.type_reference_exposure,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        )?;
+    }
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
@@ -84,6 +94,14 @@ pub(crate) fn lower_machine(
         .source_trees
         .machine_trait_conformances(machine.satisfies)
     {
+        crate::type_reference::retain_type_reference_selection(
+            lowerer.source_trees,
+            &mut lowerer.typed_trees,
+            &conformance.name,
+            conformance.symbol,
+            lowerer.type_reference_exposure,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        )?;
         let mut arguments = psi_arena::HandleSpan::empty();
         for argument in lowerer
             .source_trees
@@ -106,6 +124,12 @@ pub(crate) fn lower_machine(
                     .requirement
                     .as_ref()
                     .map(crate::name::lower_name),
+                requirement_symbol: psi_symbols::SymbolHandle::invalid(),
+                requirement_source_span: conformance
+                    .requirement
+                    .as_ref()
+                    .filter(|requirement| requirement.is_source_backed())
+                    .map(|requirement| requirement.source_span()),
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 external_binding: conformance.external_binding,
                 external_binding_source_span: conformance.external_binding_source_span,
@@ -209,7 +233,13 @@ pub(crate) fn lower_machine(
             machine,
             state,
         ));
-        let exposure = if machine.is_public && state_index == 0 {
+        let publishes_entry_signature = machine.is_public
+            || matches!(
+                machine.supply_mode,
+                psi_language_semantics::MachineSupplyMode::Boundary
+                    | psi_language_semantics::MachineSupplyMode::Accepted
+            );
+        let exposure = if publishes_entry_signature && state_index == 0 {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
         } else {
             psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
@@ -234,6 +264,74 @@ pub(crate) fn lower_machine(
     // at CALL sites, which is robust.
 
     Ok(typed_machine)
+}
+
+pub(crate) fn settle_satisfied_declarations(
+    program: &mut typed::TypedTrees,
+) -> Result<(), Diagnostic> {
+    let mut updates = Vec::new();
+    for machine in program.machines() {
+        let exposure = machine_interface_exposure(machine);
+        for (ordinal, conformance) in program
+            .machine_trait_conformances(machine)
+            .iter()
+            .enumerate()
+        {
+            let Some(declaration) =
+                typed::machine::resolve_satisfied_declaration(program, machine, conformance)
+            else {
+                continue;
+            };
+            updates.push((
+                machine.satisfies,
+                ordinal,
+                declaration.symbol(),
+                conformance.requirement_source_span,
+                exposure,
+            ));
+        }
+    }
+
+    for (span, ordinal, requirement_symbol, source_span, exposure) in updates {
+        let conformances = program.machine_trait_conformances.span_mut_or_empty(span);
+        let Some(conformance) = conformances.get_mut(ordinal) else {
+            return Err(Diagnostic::error(
+                "failed to settle an exact machine `satisfies` declaration",
+            ));
+        };
+        conformance.requirement_symbol = requirement_symbol;
+        if let Some(source_span) = source_span {
+            program
+                .record_resolved_authored_declaration_selection_once(
+                    source_span,
+                    exposure,
+                    psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+                    requirement_symbol,
+                )
+                .map_err(|error| {
+                    Diagnostic::error(format!(
+                        "failed to retain authored machine `satisfies` requirement selection: {error:?}"
+                    ))
+                    .with_source_span(source_span)
+                })?;
+        }
+    }
+    Ok(())
+}
+
+fn machine_interface_exposure(
+    machine: &typed::machine::Machine,
+) -> psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure {
+    let exported_boundary = matches!(
+        machine.supply_mode,
+        psi_language_semantics::MachineSupplyMode::Boundary
+            | psi_language_semantics::MachineSupplyMode::Accepted
+    );
+    if machine.is_public || exported_boundary {
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    } else {
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PrivateImplementation
+    }
 }
 
 fn lower_contract_kind(

@@ -6,7 +6,7 @@ use crate::parser::input::delimited::{
 use crate::parser::input::literals::{parse_integer_literal, validate_float_literal};
 use psi_arena::{Handle, HandleSpan};
 use psi_numerics::literals::IntegerLiteral;
-use psi_source::{SourceId, SourceSpan, SourceText};
+use psi_source::{SourceId, SourceSpan, SourceText, Span};
 use psi_syntax_trees::identifier::Identifier;
 use psi_tokens::{KeywordKind, PunctuationKind, Token, TokenKind, TokenText};
 
@@ -96,6 +96,29 @@ impl<'tokens, 'source> Input<'tokens, 'source> {
             .first()
             .map(|token| self.source_span(token))
             .expect("a current source span requires one semantic token")
+    }
+
+    /// Exact semantic-token extent consumed between this cursor and `rest`.
+    /// Leading/trailing trivia is excluded even though cursor advancement may
+    /// have skipped it.
+    pub(super) fn source_span_until(self, rest: Self) -> SourceSpan {
+        debug_assert_eq!(self.source_id, rest.source_id);
+        let consumed_count = self
+            .tokens
+            .len()
+            .checked_sub(rest.tokens.len())
+            .expect("the remaining parser cursor must descend from the starting cursor");
+        let consumed = &self.tokens[..consumed_count];
+        let first = consumed
+            .iter()
+            .find(|token| !token.is_non_semantic())
+            .expect("a consumed source span requires one semantic token");
+        let last = consumed
+            .iter()
+            .rev()
+            .find(|token| !token.is_non_semantic())
+            .expect("a consumed source span requires one semantic token");
+        SourceSpan::new(self.source_id, Span::new(first.span.start, last.span.end))
     }
 
     pub(super) fn error_here(&self, message: impl Into<String>) -> ParseError {
