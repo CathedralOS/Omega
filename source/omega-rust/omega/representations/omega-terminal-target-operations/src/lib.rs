@@ -11,10 +11,11 @@ use psi_core::{
     ScalarType, ServiceId, StructuralFieldId, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, StructuralArgument,
-    StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
-    StructuralPlaceDeclaration, StructuralResultClaimTransfer, StructuralResultDeclaration,
-    StructuralTypeDeclaration, TerminalAffineCleanupAction, TerminalPsiIdentity,
+    ClaimTransfer, CompletionReceipt, CrashCause, CrashPredicateTerm, ProviderCandidateConformance,
+    StructuralArgument, StructuralOperationResult, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultClaimTransfer,
+    StructuralResultDeclaration, StructuralTypeDeclaration, TerminalAffineCleanupAction,
+    TerminalPsiIdentity,
 };
 
 pub use omega_calling_conventions::MachineRegister;
@@ -305,6 +306,21 @@ pub enum TerminalTargetUnitOperation {
         callee: MachineId,
         arguments: Vec<TerminalTargetStructuralArgument>,
         claim_transfers: Vec<ClaimTransfer>,
+    },
+    /// One bodyless boundary occurrence projected through an opaque admitted
+    /// installation into an exact checked Unit provider call. The original
+    /// receipt evidence remains alongside its call-transfer interpretation so
+    /// later legalization can replay the join without treating it as a
+    /// source-authored `CallUnit`.
+    InstalledProviderCall {
+        psi_operation: OperationId,
+        boundary: BoundaryMachineId,
+        provider: ProviderCandidateConformance,
+        source_arguments: Vec<StructuralArgument>,
+        arguments: Vec<TerminalTargetStructuralArgument>,
+        claim_transfers: Vec<ClaimTransfer>,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
     },
     PortWrite {
         psi_operation: OperationId,

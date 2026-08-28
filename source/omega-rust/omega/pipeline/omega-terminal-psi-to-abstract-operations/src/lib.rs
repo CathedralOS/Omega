@@ -13,7 +13,8 @@ use omega_terminal_abstract_operations::{
 };
 use psi_core::{BlockId, MachineId, ObligationId, OperationId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
-    OperationKind, OperationResult, StructuralMultiplicity, StructuralResultDeclaration,
+    CompletionReceipt, OperationKind, OperationResult, ProviderCandidateConformance,
+    StructuralArgument, StructuralMultiplicity, StructuralResultDeclaration,
     TerminalAffineCleanupAction, TerminalMachine, Terminator,
 };
 use psi_terminal_codec::{CodecError, terminal_psi_identity};
@@ -488,14 +489,132 @@ pub struct SelectedProviderAdapter {
     pub machine_identity: String,
 }
 
+/// One exact structural Unit boundary occurrence bound to the checked provider
+/// row selected for its requirement. Private fields prevent target lowering
+/// from reconstructing this authority from a candidate machine ID alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedInstalledProviderUnitCall {
+    caller: MachineId,
+    psi_operation: OperationId,
+    boundary: psi_core::BoundaryMachineId,
+    provider: ProviderCandidateConformance,
+    structural_arguments: Vec<StructuralArgument>,
+    completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+    completion_receipts: Vec<CompletionReceipt>,
+}
+
+impl AdmittedInstalledProviderUnitCall {
+    pub const fn caller(&self) -> MachineId {
+        self.caller
+    }
+
+    pub const fn psi_operation(&self) -> OperationId {
+        self.psi_operation
+    }
+
+    pub const fn boundary(&self) -> psi_core::BoundaryMachineId {
+        self.boundary
+    }
+
+    pub const fn provider(&self) -> &ProviderCandidateConformance {
+        &self.provider
+    }
+
+    pub fn structural_arguments(&self) -> &[StructuralArgument] {
+        &self.structural_arguments
+    }
+
+    pub fn completion_claim_sources(&self) -> &[TerminalCompletionClaimSource] {
+        &self.completion_claim_sources
+    }
+
+    pub fn completion_receipts(&self) -> &[CompletionReceipt] {
+        &self.completion_receipts
+    }
+}
+
+/// Omega-owned installation custody. The Psi carrier remains sealed and is
+/// exposed only by reference for reference execution; physical consumers use
+/// the fully replayed provider rows and call occurrences retained alongside it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AdmittedTerminalProviderInstallation {
+    psi_installation: psi_terminal_interpreter::AdmittedProviderInstallation,
+    terminal_psi: psi_terminal::TerminalPsiIdentity,
+    installed_candidates: Vec<ProviderCandidateConformance>,
+    installed_unit_calls: Vec<AdmittedInstalledProviderUnitCall>,
+}
+
+impl AdmittedTerminalProviderInstallation {
+    pub const fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    pub const fn psi_installation(
+        &self,
+    ) -> &psi_terminal_interpreter::AdmittedProviderInstallation {
+        &self.psi_installation
+    }
+
+    pub fn installed_candidates(&self) -> &[ProviderCandidateConformance] {
+        &self.installed_candidates
+    }
+
+    pub fn installed_unit_calls(&self) -> &[AdmittedInstalledProviderUnitCall] {
+        &self.installed_unit_calls
+    }
+}
+
+impl omega_terminal_installation_evidence::TerminalProviderInstallationEvidence
+    for AdmittedTerminalProviderInstallation
+{
+    fn terminal_psi(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi
+    }
+
+    fn installed_provider_unit_calls(
+        &self,
+    ) -> Vec<omega_terminal_installation_evidence::TerminalInstalledProviderUnitCallEvidence> {
+        self.installed_unit_calls
+            .iter()
+            .map(|call| {
+                omega_terminal_installation_evidence::TerminalInstalledProviderUnitCallEvidence {
+                    caller: call.caller,
+                    psi_operation: call.psi_operation,
+                    boundary: call.boundary,
+                    provider: call.provider.clone(),
+                    structural_arguments: call.structural_arguments.clone(),
+                    completion_claim_sources: call
+                        .completion_claim_sources
+                        .iter()
+                        .map(|source| {
+                            omega_terminal_installation_evidence::TerminalInstalledProviderCompletionClaimSource {
+                                claim: source.claim,
+                                entry: source.entry.clone(),
+                                content: source.content.clone(),
+                            }
+                        })
+                        .collect(),
+                    completion_receipts: call.completion_receipts.clone(),
+                }
+            })
+            .collect()
+    }
+}
+
 pub fn admit_provider_installation(
     plan: &TerminalAbstractOperationPlan,
     semantic_bytes: &[u8],
     proof_bytes: &[u8],
     profile: &psi_proof_admission::AdmissionProfile,
     selected: &[SelectedProviderAdapter],
-) -> Result<psi_terminal_interpreter::AdmittedProviderInstallation, ProviderInstallationError> {
+) -> Result<AdmittedTerminalProviderInstallation, ProviderInstallationError> {
+    let replayed = lower_artifact_sections_for_optimization(semantic_bytes, proof_bytes, profile)
+        .map_err(ProviderInstallationError::ArtifactReplay)?;
+    if replayed.plan() != plan {
+        return Err(ProviderInstallationError::PlanReplayMismatch);
+    }
     let mut selections = Vec::new();
+    let mut installed_candidates = Vec::new();
     let mut boundaries = plan
         .provider_candidates
         .iter()
@@ -551,7 +670,13 @@ pub fn admit_provider_installation(
             provider_identity: candidate.provider_identity.clone(),
             candidate: candidate.candidate,
         });
+        installed_candidates.push((**candidate).clone());
     }
+    let installed_unit_calls = replay_installed_provider_unit_calls(
+        plan,
+        replayed.context().terminal_module(),
+        &installed_candidates,
+    )?;
     let installation = psi_terminal_interpreter::admit_provider_installation_from_artifact(
         semantic_bytes,
         proof_bytes,
@@ -562,11 +687,187 @@ pub fn admit_provider_installation(
     if installation.terminal_psi() != plan.terminal_psi {
         return Err(ProviderInstallationError::TerminalIdentityMismatch);
     }
-    Ok(installation)
+    Ok(AdmittedTerminalProviderInstallation {
+        terminal_psi: installation.terminal_psi(),
+        psi_installation: installation,
+        installed_candidates,
+        installed_unit_calls,
+    })
+}
+
+fn replay_installed_provider_unit_calls(
+    plan: &TerminalAbstractOperationPlan,
+    module: &psi_terminal::TerminalModule,
+    installed: &[ProviderCandidateConformance],
+) -> Result<Vec<AdmittedInstalledProviderUnitCall>, ProviderInstallationError> {
+    let mut calls = Vec::new();
+    for caller in &plan.functions {
+        for operation in &caller.operations {
+            let TerminalAbstractOperation::BoundaryCall {
+                psi_operation,
+                result,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+            } = operation
+            else {
+                continue;
+            };
+            let Some(provider) = installed.iter().find(|row| row.boundary == *boundary) else {
+                continue;
+            };
+            let malformed = || ProviderInstallationError::InstalledUnitCallReplayMismatch {
+                caller: caller.machine,
+                operation: *psi_operation,
+                boundary: *boundary,
+            };
+            let boundary_declaration = plan
+                .boundary_machines
+                .iter()
+                .find(|row| row.id == *boundary)
+                .ok_or_else(malformed)?;
+            let candidate = plan
+                .functions
+                .iter()
+                .find(|function| function.machine == provider.candidate)
+                .ok_or_else(malformed)?;
+            let terminal_candidate = module
+                .machines
+                .iter()
+                .find(|machine| machine.id == provider.candidate)
+                .ok_or_else(malformed)?;
+            if result.is_some()
+                || !arguments.is_empty()
+                || boundary_declaration.identity != provider.requirement_identity
+                || !boundary_declaration.scalar_parameters.is_empty()
+                || boundary_declaration.result.is_some()
+                || !candidate.parameters.is_empty()
+                || !matches!(&candidate.result, TerminalAbstractFunctionResult::Unit)
+                || structural_arguments.len() != provider.signature.parameters.len()
+                || boundary_declaration.structural_parameters.len() != structural_arguments.len()
+                || candidate.structural_parameters.len() != structural_arguments.len()
+            {
+                return Err(malformed());
+            }
+            for (index, (((argument, signature), boundary_parameter), candidate_parameter)) in
+                structural_arguments
+                    .iter()
+                    .zip(&provider.signature.parameters)
+                    .zip(&boundary_declaration.structural_parameters)
+                    .zip(&candidate.structural_parameters)
+                    .enumerate()
+            {
+                let Some(caller_parameter) = caller
+                    .structural_parameters
+                    .iter()
+                    .find(|parameter| parameter.place == argument.place)
+                else {
+                    return Err(malformed());
+                };
+                if !argument.path.is_empty()
+                    || signature.position as usize != index
+                    || argument.access != signature.access
+                    || boundary_parameter.position != signature.position
+                    || boundary_parameter.is_self != signature.is_self
+                    || boundary_parameter.structural_type != signature.structural_type
+                    || boundary_parameter.multiplicity != signature.multiplicity
+                    || boundary_parameter.access != signature.access
+                    || boundary_parameter.qualifications != signature.qualifications
+                    || candidate_parameter.position != signature.position
+                    || candidate_parameter.is_self != signature.is_self
+                    || candidate_parameter.structural_type != signature.structural_type
+                    || candidate_parameter.multiplicity != signature.multiplicity
+                    || candidate_parameter.access != signature.access
+                    || candidate_parameter.qualifications != signature.qualifications
+                    || caller_parameter.structural_type != signature.structural_type
+                    || caller_parameter.multiplicity != signature.multiplicity
+                    || caller_parameter.access != signature.access
+                    || caller_parameter.qualifications != signature.qualifications
+                {
+                    return Err(malformed());
+                }
+            }
+
+            let mut expected_claims = Vec::new();
+            for claim in &terminal_candidate.entry_claims {
+                if !claim.path.is_empty() {
+                    return Err(malformed());
+                }
+                let argument_index = terminal_candidate
+                    .structural_parameters
+                    .iter()
+                    .position(|parameter| parameter.place == claim.input)
+                    .ok_or_else(malformed)? as u32;
+                expected_claims.push((argument_index, claim.claim));
+            }
+            if completion_receipts.len() != expected_claims.len() {
+                return Err(malformed());
+            }
+            for (receipt, (argument_index, candidate_claim)) in
+                completion_receipts.iter().zip(&expected_claims)
+            {
+                let argument = structural_arguments
+                    .get(*argument_index as usize)
+                    .ok_or_else(malformed)?;
+                let source = completion_claim_sources
+                    .iter()
+                    .find(|source| source.claim == receipt.claim)
+                    .ok_or_else(malformed)?;
+                let entry = source.entry.as_ref().ok_or_else(malformed)?;
+                if receipt.argument_index != *argument_index
+                    || entry.input != argument.place
+                    || !entry.path.is_empty()
+                {
+                    return Err(malformed());
+                }
+                if let Some(candidate_content) = terminal_candidate
+                    .content_entry_claims
+                    .iter()
+                    .find(|content| content.claim == *candidate_claim)
+                {
+                    let caller_content = source.content.as_ref().ok_or_else(malformed)?;
+                    if caller_content.input.root != argument.place
+                        || caller_content.input.segments != candidate_content.input.segments
+                        || caller_content.projections != candidate_content.projections
+                    {
+                        return Err(malformed());
+                    }
+                } else if source.content.is_some() {
+                    return Err(malformed());
+                }
+            }
+            if terminal_candidate
+                .content_entry_claims
+                .iter()
+                .any(|content| {
+                    !terminal_candidate
+                        .entry_claims
+                        .iter()
+                        .any(|entry| entry.claim == content.claim)
+                })
+            {
+                return Err(malformed());
+            }
+            calls.push(AdmittedInstalledProviderUnitCall {
+                caller: caller.machine,
+                psi_operation: *psi_operation,
+                boundary: *boundary,
+                provider: provider.clone(),
+                structural_arguments: structural_arguments.clone(),
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: completion_receipts.clone(),
+            });
+        }
+    }
+    Ok(calls)
 }
 
 #[derive(Debug)]
 pub enum ProviderInstallationError {
+    ArtifactReplay(ArtifactLoweringError),
+    PlanReplayMismatch,
     InvalidLoweredCatalog,
     MissingSelectedProvider {
         boundary: psi_core::BoundaryMachineId,
@@ -579,6 +880,11 @@ pub enum ProviderInstallationError {
     },
     PsiAdmission(psi_terminal_interpreter::ProviderInstallationError),
     TerminalIdentityMismatch,
+    InstalledUnitCallReplayMismatch {
+        caller: MachineId,
+        operation: OperationId,
+        boundary: psi_core::BoundaryMachineId,
+    },
 }
 
 /// Consume the complete verified module after the artifact entry has decoded

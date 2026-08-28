@@ -27,7 +27,7 @@ impl VocabularyMarker {
     }
 
     pub const fn get(self) -> u16 {
-        35
+        36
     }
 }
 
@@ -563,6 +563,7 @@ pub struct ProviderSignatureParameter {
     pub is_self: bool,
     pub structural_type: StructuralTypeId,
     pub multiplicity: StructuralMultiplicity,
+    pub access: StructuralAccess,
     pub qualifications: Vec<StructuralDomainId>,
 }
 

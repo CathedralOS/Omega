@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
+omega-terminal-installation-evidence = { path = "../../representations/omega-terminal-installation-evidence" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

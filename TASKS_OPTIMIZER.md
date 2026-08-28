@@ -416,14 +416,23 @@ These facts constrain the work below.
   retain an exact linear, owned, domain-qualified structural provider signature,
   positional/domain refinement, and the checked claim-consuming provider body;
   they no longer impose the stale zero-structural-argument catalog restriction.
-  Selection and execution are intentionally unchanged: the generic call remains
-  `BoundaryCall`, and the interpreter/native lowering still has no admitted
-  structural installed-provider call. Pairing either fixture with the other's
-  custody must reject. A positive three-way settlement/object/wrapper regression
-  remains an engineering prerequisite: that checked claim-consuming
-  continuation must reach the object lane through an admitted concrete
-  provider/native realization without erasing its claims. This does not require
-  a new owner question.
+  Provider selection now produces an opaque Omega-owned installation carrier
+  only after independently replaying the canonical artifact, complete candidate
+  row, exact whole-root structural signature, access, qualification, and caller/
+  callee claim correspondence. Reference execution transfers and settles both
+  checked ProgramStorage claims through the installed provider. The abstract
+  operation deliberately remains `BoundaryCall`; installation-aware target
+  lowering projects a distinct `InstalledProviderCall` that retains the full
+  provider row, original source arguments, completion sources and receipts, and
+  their exact `ClaimTransfer` interpretation. External settlement overlap and
+  partial installation fail closed. The provider-signature wire now includes
+  structural access, so Terminal vocabulary 36 and its frozen fixtures bind
+  ownership rather than allowing an owned/borrowed catalog substitution.
+  Pairing either synthetic fixture with the other's custody must still reject.
+  A positive three-way settlement/object/wrapper regression remains an
+  engineering prerequisite: legalization and concrete provider/native
+  realization must carry this installed call and its claim completions into the
+  object lane without erasing them. This does not require a new owner question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2613,6 +2622,14 @@ dependency.
   first and the canonical child text second. Child symbol offsets are shifted
   with checked arithmetic, the wrapper call resolves to the shifted private
   semantic entry, and the final object contains no relocation records.
+
+  The checked installed-provider half of that join now has opaque admission,
+  exact two-root linear claim execution, and installation-aware target
+  projection. `InstalledProviderCall` is intentionally distinct from an
+  authored `CallUnit` and retains the canonical boundary occurrence, complete
+  provider conformance row, source/target structural arguments, claim transfers,
+  and completion evidence. Remaining here is the downstream legalization,
+  selection, claim-completion realization, and final object-custody join.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify

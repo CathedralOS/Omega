@@ -163,7 +163,10 @@ fn quotient_correspondence_round_trips_and_enters_module_identity() {
     validate_module_representation(&module).expect("representation replay");
     let bytes = encode_module(&module).expect("quotient correspondence encodes");
     assert_eq!(&bytes[8..10], 33_u16.to_le_bytes());
-    assert_eq!(&bytes[10..12], 35_u16.to_le_bytes());
+    assert_eq!(
+        &bytes[10..12],
+        psi_terminal::VocabularyMarker::CURRENT.get().to_le_bytes()
+    );
     assert_eq!(decode_module(&bytes), Ok(module.clone()));
     assert_ne!(
         semantic_fingerprint(&module).unwrap(),

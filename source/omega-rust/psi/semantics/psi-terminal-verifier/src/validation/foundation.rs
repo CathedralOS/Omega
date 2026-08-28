@@ -1091,6 +1091,7 @@ fn provider_signature_parameter(
         is_self: parameter.is_self,
         structural_type: parameter.structural_type,
         multiplicity: parameter.multiplicity,
+        access: parameter.access,
         qualifications: parameter.qualifications.clone(),
     }
 }
