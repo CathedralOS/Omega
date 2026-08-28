@@ -186,7 +186,9 @@ canonical Terminal Psi semantic + proof sections
     -> entry-specific semantic classification
        -> validated ordinary-callable entry classification, or
        -> retained ProgramEntry signature/calling plans
-          -> validated Unit semantic ProgramStorage wrapper (next)
+          -> checked-source signature / Terminal `MachineId` settlement
+          -> validated declaration-only ProgramStorage semantic contract
+          -> call-aware Unit semantic ProgramStorage wrapper (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
@@ -1615,7 +1617,7 @@ registers in ways that hide interference from the allocator.
 The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-legalized-operations` is a data-only,
 target-bound representation below raw target operations. A mandatory checked
-canonicalizer reconstructs one exact V4 projection from the target plan,
+canonicalizer reconstructs one exact V5 projection from the target plan,
 optimized abstract plan, and verified optimization unit. Its canonical identity
 binds Terminal-Psi, optimization-unit and fuel-schedule roots, exact native
 target, entry/function roster, attachments, one closed recipe, source
@@ -1642,8 +1644,9 @@ existing `omega-terminal-target-operations-to-selected-instructions` pipeline
 currently owns both checked legalization and selection mechanics, but the type
 boundary is mandatory and explicit.
 
-The closed V4 has seven exact three-block runtime conditional forms. The first
-has leaves that materialize unsigned 64-bit constants and return. The second
+The closed V5 has seven exact three-block runtime conditional forms plus one
+separate zero-VReg Unit-return form. The first conditional form has leaves that
+materialize unsigned 64-bit constants and return. The second
 carries a shared unsigned 64-bit entry parameter across both branch edges and
 returns it directly, exposing genuine virtual interference and different
 entry/return fixed sites without inventing a move. The third and fourth give
@@ -2370,13 +2373,36 @@ handles are excluded because they are replay coordinates rather than stable
 semantic identity. This is declaration-only custody: it cannot authorize
 runtime roots, bootstrap conversion, image construction, or publication.
 
+Receipt-coupled checked-to-Terminal production now preserves the selected
+source signature's opaque identity and checked symbol/name beside the canonical
+Terminal-Psi identity and unique Unit entry `MachineId`. Native orchestration
+independently replays the canonical artifact and rejoins the complete source
+signature, target, and paired calling plans before producing an owned
+settlement. Source, target, Terminal-Psi, and entry substitution all fail
+closed. This receipt is association evidence, not entry-bridge authority.
+
+The settled semantic declaration layer is also concrete in
+`omega-program-storage`. Its optimized data-only contract admits only the
+receiver-free UEFI x86-64 ProgramStorage slot; Image then InitialStorage with
+exact `Extent in Granted` source shape, role, and carry; Unit/no result; and the
+Microsoft x64 semantic call plan/fingerprint. It retains the separately
+validated physical plan only as `PlannedNotInvokedV1`. It deliberately contains
+no Terminal `MachineId`, wrapper bytes, runtime values, bootstrap, image,
+installation, or publication authority.
+
 The entry path separates a design-settled semantic wrapper from an unsettled
 physical bootstrap. The distinct receiver-free, straight-line Unit selected
-shape, complete zero-VReg-to-object artifact route, and retained target-owned
-`ProgramEntry` signature/calling plans now exist. The next implementation
-boundary preserves the source-signature-to-`MachineId` association through
-Terminal production, then constructs a distinct semantic `ProgramStorageEntry`
-wrapper object that supplies
+shape, complete zero-VReg-to-object artifact route, retained target-owned
+`ProgramEntry` signature/calling plans, checked-source-to-Terminal entry
+settlement, and declaration-only semantic ProgramStorage contract now exist.
+The current Unit legalizer is intentionally not that wrapper: because its
+closed record has no structural ABI or ownership vocabulary, producer and
+independent replay reject structural parameters, entry claims, declared places,
+and published-service custody. A structurally parameterized bare `ReturnUnit`
+therefore fails rather than silently erasing its ABI. The next implementation
+boundary joins the settlement, semantic contract, and applicable Unit object,
+then constructs a distinct call-aware semantic `ProgramStorageEntry` wrapper
+object that supplies
 the Image and InitialStorage `Extent in Granted` values to the private Terminal
 symbol. The scalar-result conditional fixture above is therefore correctly an
 ordinary callable and cannot serve as the positive Unit fixture. That semantic
