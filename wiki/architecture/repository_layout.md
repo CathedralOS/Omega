@@ -131,8 +131,7 @@ Omega/
 |       |   |-- [CRATE] omega-abstract-operations-to-target-operations/          # Normalize, legalize, and lower abstract operations into target-aware forms.
 |       |   |-- [CRATE] omega-terminal-target-operations-to-assigned-target-operations/ # Assign clean terminal-Psi register and spill homes.
 |       |   |-- [CRATE] omega-target-operations-to-assigned-target-operations/   # Assign registers, stack slots, and calling-convention homes to target-aware operations.
-|       |   |-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
-|       |   `-- [CRATE] omega-target-operations-to-machine-program/              # Assemble target operations into a machine-program artifact.
+|       |   `-- [CRATE] omega-assigned-target-operations-to-machine-instructions/ # Convert assigned target-aware operations into final symbolic machine instructions.
 |       |
 |       |-- backend/
 |       |   |-- [CRATE] omega-target/                       # Target triples, cpu/features, os/env/object format matrix.
@@ -362,9 +361,10 @@ move; the final implementation resolves std through the package graph.
   assign concrete parameter and spill homes before terminal machine emission.
 - `omega-assigned-target-operations-to-machine-instructions` owns symbolic
   machine instruction construction.
-- `omega-target-operations-to-machine-program` assembles target operations into
-  the machine-program artifact; `omega-machine-emission` produces encoded
-  machine bytes, and `backend/object/*` owns sections, symbols, and relocations.
+- `omega-machine-emission` produces encoded machine bytes from the canonical
+  assigned instruction stream, and `backend/object/*` owns sections, symbols,
+  and relocations. No aggregate target-to-machine-program bridge owns a second
+  composition path.
 - Register allocation and machine-level optimization are not yet separate crates
   (`omega-regalloc` / `omega-machine-optimization` do not exist); that work lives
   in the assigned-target-operations stage and the relevant backend crates.
