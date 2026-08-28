@@ -1448,10 +1448,25 @@ proves the authored divisor nonzero. Signed one-bit and address carriers decline
 because positive one is not representable in those domains. Independent replay
 reconstructs the operands, policy, representable-one domain, fact, constant,
 accounting, and output while removing only the active operation reference.
+The tenth rule,
+`live-proof-certified-integer-remainder-by-one-elimination.v1`, replaces live
+fixed-width signed/unsigned exact, wrapping, or saturating `x % 1` with typed
+zero at the same operation site. It requires the right operand's direct typed
+literal-one fact as well as the exact verifier-accepted operation obligation;
+a propagated-one analysis result cannot authorize the rewrite. The result
+`ValueId`, operation identity/location, provenance, fuel, and historical
+accepted catalog remain intact, while the active operation reference becomes a
+literal-zero fact supported by that original operation. The rule explicitly
+declines `left == right`, preserving the earlier self-remainder rule's ownership
+of `1 % 1`. Independent replay reconstructs the operator policy, direct literal
+definition and fact, accepted obligation, live/observation boundary, constant,
+accounting, provenance/fuel, and output. Verified projection and x86-64/AArch64
+lowering retain the resulting zero.
 Candidate schema remains v24, so extending the closed identity-kind tags does
 not rehash or change tie breaks for existing candidates. Optimization-unit
-identity remains v10; the named v9 pass, prephysical manifest identity v24, and
-optimized-plan projection validation v25 bind the expanded nine-rule schedule.
+identity remains v10; the named v10 pass, prephysical manifest identity v25,
+and optimized-plan projection validation v26 bind the expanded ten-rule
+schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
