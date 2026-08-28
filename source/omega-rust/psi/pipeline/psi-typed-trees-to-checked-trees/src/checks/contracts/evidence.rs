@@ -167,7 +167,21 @@ fn instantiated_parameter_proposition(
     else {
         return None;
     };
-    let target_parameters = call_target_parameters(program, call.target_state_symbol)?;
+    let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
+        program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == dispatch.declaring_trait)
+            .and_then(|definition| {
+                program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|requirement| requirement.symbol == dispatch.requirement)
+            })
+            .map(|requirement| program.state_signature_parameters(requirement))?
+    } else {
+        call_target_parameters(program, call.target_state_symbol)?
+    };
     let argument_labels = program
         .expression_table
         .expression_handles(application.arguments)

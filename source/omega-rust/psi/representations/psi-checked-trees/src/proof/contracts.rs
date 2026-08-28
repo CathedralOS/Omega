@@ -223,11 +223,24 @@ pub struct ProofOutputCallFact {
     pub runtime_call: Option<ProofOutputRuntimeCallFact>,
     pub target_machine_symbol: SymbolHandle,
     pub target_state_symbol: SymbolHandle,
+    /// Present when the executable target was selected through one exact
+    /// closed static conformance. Contract lanes remain requirement-owned;
+    /// the private realization is retained only for dispatch and replay.
+    pub static_requirement_dispatch: Option<StaticRequirementDispatchFact>,
     /// Exact erased inputs supplied to the callee's named `requires` lane.
     /// These remain separate from an ordinary runtime call because a pure
     /// proof producer may erase completely.
     pub evidence_arguments: Vec<ProofOutputEvidenceArgumentFact>,
     pub outputs: Vec<ProofOutputFact>,
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct StaticRequirementDispatchFact {
+    pub application_fingerprint: u64,
+    pub declaring_trait: SymbolHandle,
+    pub requirement: SymbolHandle,
+    pub realization_machine: SymbolHandle,
+    pub realization_state: SymbolHandle,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -293,9 +293,27 @@ fn instantiate_call_proposition_payload(
     ) else {
         return;
     };
-    let Some(target_parameters) = crate::call_target_parameters(program, call.target_state_symbol)
-    else {
-        return;
+    let target_parameters = if let Some(dispatch) = call_site.static_requirement_dispatch() {
+        let Some(requirement) = program
+            .traits()
+            .iter()
+            .find(|definition| definition.symbol == dispatch.declaring_trait)
+            .and_then(|definition| {
+                program
+                    .trait_machine_signatures(definition)
+                    .iter()
+                    .find(|requirement| requirement.symbol == dispatch.requirement)
+            })
+        else {
+            return;
+        };
+        program.state_signature_parameters(requirement)
+    } else {
+        let Some(parameters) = crate::call_target_parameters(program, call.target_state_symbol)
+        else {
+            return;
+        };
+        parameters
     };
     let binder_labels = application
         .binder_arguments

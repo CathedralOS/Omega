@@ -994,6 +994,7 @@ mod dependency_tests {
                 receiver: ExpressionHandle::invalid(),
                 target_symbol: SymbolHandle::from_arena_index(target),
                 target: Identifier::generated("proof"),
+                static_requirement_dispatch: None,
                 machine_arguments: Box::default(),
                 quotient_operation: None,
                 private_layout_operation: None,

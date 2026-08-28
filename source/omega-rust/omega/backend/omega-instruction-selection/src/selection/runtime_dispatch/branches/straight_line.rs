@@ -2146,6 +2146,7 @@ fn resolve_leaf_call_expression_handle(
                     receiver: receiver.unwrap_or_else(ExpressionHandle::invalid),
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    static_requirement_dispatch: call.static_requirement_dispatch,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,

@@ -26,6 +26,7 @@ pub(super) fn lower_call_statement(
         target_symbol: call.target_symbol,
         receiver: lower_statement_path_members(lowerer, call.receiver),
         target: crate::name::lower_name(&call.target),
+        static_requirement_dispatch: None,
         machine_arguments: call
             .machine_arguments
             .iter()
