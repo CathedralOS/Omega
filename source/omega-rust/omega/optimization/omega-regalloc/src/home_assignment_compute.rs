@@ -91,7 +91,7 @@ fn validate_roots(
     Ok(())
 }
 
-fn compute_function(
+pub(crate) fn compute_function(
     function_index: usize,
     legality: &crate::TerminalFunctionAllocationLegality,
     ranges: &crate::TerminalFunctionLiveRanges,
