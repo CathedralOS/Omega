@@ -720,10 +720,11 @@ is intentionally not complete source/toolchain-bound admission evidence.
 Authored toolchain nominals now retain a domain-separated commitment over the
 canonical toolchain-relative source path and exact bytes. Compiler-generated
 symbols inherit the package/toolchain provenance of a mandatory authored
-derivation origin, while truly source-free symbols remain unresolved and
-the 22 exact compiler-installed builtin types use closed compiler atoms selected
-by root slot and symbol kind rather than spelling. Same-named package types and
-source-free generated types remain unresolved. Compiler carry aliases use
+derivation origin, while unsupported source-free symbols remain unresolved.
+The 22 exact compiler-installed builtin types and 71 compiler-installed builtin
+functions use closed compiler atoms selected by root slot and symbol kind rather
+than spelling. Same-named package declarations and source-free generated
+symbols do not classify as those atoms. Compiler carry aliases use
 closed `CarryPermission` atoms in a distinct non-nominal lane; other compiler-
 semantic atoms remain unresolved until they gain closed carriers. Arithmetic
 domains and aggregate carry policy are already closed enums. Typed domain
@@ -976,12 +977,19 @@ receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable. Other compiler intrinsics remain
 fail-closed.
+Review v77 and canonical row v35 admit exact compiler-installed builtin-function
+calls in public contract facts. Projection requires the retained checked call
+selection to identify the same exact fixed root slot and symbol kind, then
+encodes the stable closed builtin ordinal. The call spelling is diagnostic only;
+late root, nested, package-authored, and generated same-spelled symbols do not
+classify. Static arguments and target-symbol custody disagreement reject.
 Authored unary `!` and `~` operators retain their exact operator-token spans,
 including when nested in a public proposition or contract. Checked lowering
 must finalize that exact occurrence as the closed builtin-operator meaning,
 and review rejoins it before projecting the structural unary discriminant.
-This does not change v76/canonical row v34 bytes; it prevents a canonical unary
-expression from bypassing its authored public-interface custody.
+That custody-only change did not alter the then-current v76/canonical row v34
+bytes; it prevents a canonical unary expression from bypassing its authored
+public-interface custody.
 Review v52 and canonical row v12 add blocking standalone public-proposition
 rows. The compiler retains `pub` through checked proposition vocabulary,
 rejects public-interface selection of a private proposition, and records every
@@ -1434,7 +1442,7 @@ Other nested clause/use-site coordinates remain unfinished engineering work; non
 independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v76/row v34,
+calls. Package review v77/row v35,
 canonical recovery v13, conflict fingerprint v16, and conflict renderer V15 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory

@@ -10,9 +10,9 @@ use psi_checked_trees::{
 };
 
 const MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW\0";
-pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 76;
+pub const PACKAGE_REVIEW_ENCODING_VERSION: u16 = 77;
 pub(super) const ROW_MAGIC: &[u8] = b"OMEGA-PACKAGE-REVIEW-ROW\0";
-pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 34;
+pub const PACKAGE_REVIEW_ROW_ENCODING_VERSION: u16 = 35;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PackageReviewEncodingLimits {
@@ -1625,6 +1625,14 @@ fn encode_contract_expression(
                 PackageReviewContractCallTarget::Nominal(identity) => {
                     encoder.byte(0);
                     encode_nominal(encoder, identity)?;
+                }
+                PackageReviewContractCallTarget::BuiltinFunction(function) => {
+                    encoder.byte(2);
+                    encoder.u16(u16::try_from(function.ordinal()).map_err(|_| {
+                        PackageReviewEncodingError::new(
+                            "compiler builtin-function ordinal exceeds the portable encoding range",
+                        )
+                    })?);
                 }
                 PackageReviewContractCallTarget::ByteSequencePredicate(predicate) => {
                     encoder.byte(1);

@@ -1915,6 +1915,12 @@ intrinsic tag; projection cross-checks that identity against an unresolved,
 receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
 an ordinary package-qualified callable.
+Review v77 and canonical row v35 admit compiler-installed builtin-function calls
+in public contract expressions. The projector rejoins the exact checked call
+selection to the same fixed root slot and symbol kind, and encodes the stable
+closed builtin ordinal rather than its spelling. Same-spelled late-root, nested,
+package-authored, and generated symbols remain non-builtin; static arguments or
+target-symbol custody disagreement reject.
 Review v75 and canonical row v33 likewise admit the compiler-owned collection-
 length projection in public contract expressions. Checked proof-static member
 resolution derives the receiver type from its retained declaration symbol,
@@ -1927,8 +1933,9 @@ Authored `!` and `~` likewise retain the exact operator token through checked
 selection custody, including when nested in a public contract expression.
 Review requires that public-interface occurrence to finalize as the closed
 builtin-operator meaning before projecting the existing structural unary
-operator. The canonical bytes remain v76/row v34; this closes a source-custody
-join rather than adding a semantic discriminant.
+operator. That custody-only change did not alter the then-current v76/row v34
+bytes; it closes a source-custody join rather than adding a semantic
+discriminant.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

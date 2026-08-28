@@ -2532,8 +2532,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 76);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 34);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 77);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 35);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -10843,6 +10843,127 @@ fn review_projects_exact_compiler_byte_sequence_predicate_identity() {
         4,
         "each exact compiler predicate must have distinct package-review identity"
     );
+}
+
+#[test]
+fn review_projects_exact_compiler_builtin_function_identity() {
+    let project = |expression: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!("pub proposition reviewed(left: f64, right: f64) = {expression};\n"),
+        );
+        package.write(
+            "build.omg",
+            "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+        );
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some("windows_x64"),
+            package_inputs(&package.0),
+        )
+        .expect("compiler builtin-function contract should check");
+        project_checked_package_review(&checked)
+            .expect("compiler builtin function should have exact review identity")
+    };
+
+    let mut encodings = Vec::new();
+    for (expression, expected) in [
+        (
+            "min(left, right) == left",
+            psi_symbols::BuiltinFunction::Min,
+        ),
+        (
+            "max(left, right) == right",
+            psi_symbols::BuiltinFunction::Max,
+        ),
+        ("sqrt(left) == right", psi_symbols::BuiltinFunction::Sqrt),
+    ] {
+        let review = project(expression);
+        let [proposition] = review.public_propositions() else {
+            panic!("one public proposition")
+        };
+        let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+            PackageReviewContractExpression::Binary { left, .. },
+        )) = proposition.body()
+        else {
+            panic!("one transparent binary proposition")
+        };
+        let PackageReviewContractExpression::Call {
+            target,
+            static_arguments,
+            ..
+        } = left.as_ref()
+        else {
+            panic!("builtin function call on the left side")
+        };
+        assert_eq!(target.builtin_function(), Some(expected));
+        assert!(target.nominal().is_none());
+        assert!(static_arguments.is_empty());
+        let row = review
+            .canonical_rows()
+            .expect("builtin-function canonical rows")
+            .into_iter()
+            .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition)
+            .expect("builtin-function public proposition row");
+        let recovered = decode_package_review_canonical_row(
+            &encode_package_review_canonical_row(&row)
+                .expect("builtin-function recovery envelope should encode"),
+        )
+        .expect("builtin-function recovery envelope should decode");
+        assert_eq!(recovered.canonical_bytes(), row.canonical_bytes());
+        encodings.push(review.canonical_review_bytes().unwrap());
+    }
+    encodings.sort();
+    encodings.dedup();
+    assert_eq!(
+        encodings.len(),
+        3,
+        "each exact compiler builtin function must have distinct package-review identity"
+    );
+}
+
+#[test]
+fn builtin_function_review_rejects_checked_target_symbol_tamper() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition reviewed(left: u64, right: u64) = min(left, right) == left;\n",
+    );
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let mut checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("builtin target-tamper fixture should check");
+    let call_expression = checked
+        .expression_table
+        .iter_expressions()
+        .find_map(|(expression, node)| {
+            matches!(node, psi_typed_trees::expression::ExpressionNode::Call(_))
+                .then_some(expression)
+        })
+        .expect("builtin call expression");
+    let psi_typed_trees::expression::ExpressionNode::Call(call) = checked
+        .typed
+        .expression_table
+        .expression_mut(call_expression)
+    else {
+        panic!("call expression")
+    };
+    call.target_symbol = psi_symbols::SymbolHandle::invalid();
+
+    let diagnostics = project_checked_package_review(&checked)
+        .expect_err("builtin target-symbol tamper must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("contract call target disagrees with its exact checked call-selection row")
+    }));
 }
 
 #[test]
