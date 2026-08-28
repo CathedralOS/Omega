@@ -971,6 +971,27 @@ impl PsiRewriteCandidate {
         )
     }
 
+    pub fn new_proof_certified_phi_translated_scalar_common_subexpression(
+        input: OptimizationUnitIdentity,
+        contract: OptimizationRuleContract,
+        affected_blocks: Vec<BlockId>,
+        provenance: Vec<ProvenanceRewrite>,
+        obligation_fact: AcceptedObligationFactIdentity,
+        predicted_cost_delta: i64,
+        patch: PhiTranslatedScalarGvnRewrite,
+    ) -> Result<Self, PsiRewriteCandidateError> {
+        Self::new(
+            input,
+            contract,
+            affected_blocks,
+            Vec::new(),
+            provenance,
+            PsiRewriteWitness::AcceptedObligation(obligation_fact),
+            predicted_cost_delta,
+            PsiRewritePatch::EliminatePhiTranslatedScalarCommonSubexpression(patch),
+        )
+    }
+
     pub fn new_unreachable_private_machines(
         input: OptimizationUnitIdentity,
         contract: OptimizationRuleContract,
@@ -1445,7 +1466,11 @@ impl PsiRewriteCandidate {
                                 .node()
                                 .is_some_and(|location| !affected_blocks.contains(&location.block))
                     })
-                    || !matches!(witness, PsiRewriteWitness::StructuralIdentity)
+                    || !matches!(
+                        witness,
+                        PsiRewriteWitness::StructuralIdentity
+                            | PsiRewriteWitness::AcceptedObligation(_)
+                    )
                 {
                     return Err(PsiRewriteCandidateError::PatchDecisionPointMismatch);
                 }

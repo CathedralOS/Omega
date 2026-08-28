@@ -477,6 +477,8 @@ fn project_parameter(
 
 #[cfg(test)]
 mod tests {
+    use std::collections::BTreeSet;
+
     use omega_optimization_core::{Optimization, OptimizationSelections, OptimizationWorkBudget};
     use omega_optimization_validation::{
         PhysicalOptimizationDataStatus, PrePhysicalOptimizationManifest,
@@ -859,6 +861,14 @@ mod tests {
     }
 
     fn phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
+        phi_translated_gvn_verified_fixture(false)
+    }
+
+    fn proof_certified_phi_translated_gvn_verified() -> VerifiedPsiOptimizationUnit {
+        phi_translated_gvn_verified_fixture(true)
+    }
+
+    fn phi_translated_gvn_verified_fixture(proof_certified: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_451).unwrap();
         let join = BlockId::new(1_452).unwrap();
         let left = BlockId::new(1_453).unwrap();
@@ -872,21 +882,34 @@ mod tests {
         let right_leader = ValueId::new(1_461).unwrap();
         let redundant = ValueId::new(1_462).unwrap();
         let result = ValueId::new(1_471).unwrap();
+        let zero = ValueId::new(1_475).unwrap();
+        let redundant_obligation = ObligationId::new(1_472).unwrap();
+        let left_obligation = ObligationId::new(1_473).unwrap();
+        let right_obligation = ObligationId::new(1_474).unwrap();
         let integer = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let result_integer = integer;
         let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
         let mut module = module_with_blocks(
             machine,
             entry,
-            TerminalMachineResult::Scalar(declaration(result, integer)),
+            TerminalMachineResult::Scalar(declaration(result, result_integer)),
             vec![
                 Block {
                     id: join,
                     parameters: vec![declaration(join_input, integer)],
                     operations: vec![Operation {
                         id: OperationId::new(1_463).unwrap(),
-                        result: OperationResult::Scalar(declaration(redundant, integer)),
-                        kind: OperationKind::IntegerBitwiseNot {
-                            operand: join_input,
+                        result: OperationResult::Scalar(declaration(redundant, result_integer)),
+                        kind: if proof_certified {
+                            OperationKind::ExactIntegerShiftLeft {
+                                value: join_input,
+                                count: zero,
+                                obligation: redundant_obligation,
+                            }
+                        } else {
+                            OperationKind::IntegerBitwiseNot {
+                                operand: join_input,
+                            }
                         },
                     }],
                     terminator: Terminator::Return {
@@ -900,9 +923,17 @@ mod tests {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(1_465).unwrap(),
-                        result: OperationResult::Scalar(declaration(left_leader, integer)),
-                        kind: OperationKind::IntegerBitwiseNot {
-                            operand: left_input,
+                        result: OperationResult::Scalar(declaration(left_leader, result_integer)),
+                        kind: if proof_certified {
+                            OperationKind::ExactIntegerShiftLeft {
+                                value: left_input,
+                                count: zero,
+                                obligation: left_obligation,
+                            }
+                        } else {
+                            OperationKind::IntegerBitwiseNot {
+                                operand: left_input,
+                            }
                         },
                     }],
                     terminator: Terminator::Jump {
@@ -915,7 +946,17 @@ mod tests {
                 Block {
                     id: entry,
                     parameters: Vec::new(),
-                    operations: Vec::new(),
+                    operations: if proof_certified {
+                        vec![Operation {
+                            id: OperationId::new(1_476).unwrap(),
+                            result: OperationResult::Scalar(declaration(zero, integer)),
+                            kind: OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(0),
+                            },
+                        }]
+                    } else {
+                        Vec::new()
+                    },
                     terminator: Terminator::Conditional {
                         condition,
                         when_true: SuccessorEdge {
@@ -937,9 +978,17 @@ mod tests {
                     parameters: Vec::new(),
                     operations: vec![Operation {
                         id: OperationId::new(1_469).unwrap(),
-                        result: OperationResult::Scalar(declaration(right_leader, integer)),
-                        kind: OperationKind::IntegerBitwiseNot {
-                            operand: right_input,
+                        result: OperationResult::Scalar(declaration(right_leader, result_integer)),
+                        kind: if proof_certified {
+                            OperationKind::ExactIntegerShiftLeft {
+                                value: right_input,
+                                count: zero,
+                                obligation: right_obligation,
+                            }
+                        } else {
+                            OperationKind::IntegerBitwiseNot {
+                                operand: right_input,
+                            }
                         },
                     }],
                     terminator: Terminator::Jump {
@@ -956,7 +1005,21 @@ mod tests {
             declaration(left_input, integer),
             declaration(right_input, integer),
         ]);
-        verified(module, ProofBundle::default())
+        let proof_bundle = if proof_certified {
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: [redundant_obligation, left_obligation, right_obligation]
+                    .into_iter()
+                    .map(|obligation| ObligationEvidence {
+                        obligation,
+                        route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                    })
+                    .collect(),
+            }
+        } else {
+            ProofBundle::default()
+        };
+        verified(module, proof_bundle)
     }
 
     fn unreachable_private_machine_verified() -> VerifiedPsiOptimizationUnit {
@@ -1823,6 +1886,68 @@ mod tests {
         assert_eq!(
             supplied,
             vec![ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap()]
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+    }
+
+    #[test]
+    fn global_value_numbering_projects_proof_certified_phi_custody() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let optimized = project_optimization_run(run(
+            proof_certified_phi_translated_gvn_verified(),
+            selections,
+        ))
+        .unwrap();
+        let join = BlockId::new(1_452).unwrap();
+        let redundant = ValueId::new(1_462).unwrap();
+        let redundant_fact = optimized
+            .unit()
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| fact.operation == OperationId::new(1_463).unwrap())
+            .unwrap()
+            .identity;
+        let function = &optimized.unit().functions[0];
+        let join_block = function
+            .blocks
+            .iter()
+            .find(|block| block.id == join)
+            .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(join_block.parameters[1].value, redundant);
+        assert_eq!(join_block.nodes.len(), 1);
+        assert_eq!(optimized.unit().accepted_obligation_facts.len(), 3);
+        assert_eq!(
+            function
+                .facts
+                .iter()
+                .filter(|fact| matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                ))
+                .count(),
+            2
+        );
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
+            &[
+                omega_optimization_core::OptimizationFactReference::AcceptedObligation(
+                    redundant_fact,
+                )
+            ]
+        );
+        let supplied = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .flat_map(|node| &node.successors)
+            .filter(|edge| edge.target == join)
+            .map(|edge| edge.bindings[1].argument)
+            .collect::<BTreeSet<_>>();
+        assert_eq!(
+            supplied,
+            BTreeSet::from([ValueId::new(1_460).unwrap(), ValueId::new(1_461).unwrap(),])
         );
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
     }
