@@ -1,0 +1,81 @@
+// The nested-value-call guard-ZII miscompile, pinned FIXED (promoted from
+// tests/omega/pending/calls/nested_value_call_guard_zii): an inlined callee
+// that TRANSITIONS on a nested sibling call's result must read the WRITTEN
+// result, not the slot's pre-store ZII tag. Root cause: a bare-call binding
+// (`let since = self.checked_subtract(..)`) whose local ALSO had storage
+// minted a call-result slot carrying the SAME name -- the guarded arms'
+// terminal writes re-resolve the slot by NAME and landed in whichever slot
+// matched first, so the guard read the other slot's ZII.
+//
+// Every leg here asserts a NON-ZII arm (the designed-false discrimination
+// lesson: the ZII-coinciding arms pass under both correct and buggy
+// emission):
+//   1. saturating_subtract forward pair -> exact Ok value (ZII would be ZERO)
+//   2. is_greater_than on a > b -> true   (Ordering ZII = Less -> false)
+//   3. is_less_than on a > b   -> false  (guard-ZII Less would say true)
+//   4. saturating_add unclamped -> exact sum (ZII DurationResult = Overflow
+//      -> would clamp to MAX)
+// Expected exit: 70.
+use omega::language::std::time;
+
+use omega::language::std::console;
+
+data Main {
+    console: Console;
+    a: Duration;
+    b: Duration;
+    elapsed: Duration;
+    greater: bool;
+    less: bool;
+    total: Duration;
+}
+
+machine Main::main(&mut self) {
+    self.a = Duration { seconds: 5, subsecond_nanoseconds: 400000000 };
+    self.b = Duration { seconds: 2, subsecond_nanoseconds: 100000000 };
+    self.elapsed = self.a.saturating_subtract(self.b);
+    transition self.elapsed.seconds == 3 {
+        true -> check_sub_nanos()
+        false -> fail_sub_seconds()
+    }
+    state check_sub_nanos(&mut self) {
+        transition self.elapsed.subsecond_nanoseconds == 300000000 {
+            true -> check_greater()
+            false -> fail_sub_nanos()
+        }
+    }
+    state check_greater(&mut self) {
+        self.greater = self.a.is_greater_than(self.b);
+        transition self.greater {
+            true -> check_less()
+            false -> fail_greater()
+        }
+    }
+    state check_less(&mut self) {
+        self.less = self.a.is_less_than(self.b);
+        transition self.less {
+            true -> fail_less()
+            false -> check_add()
+        }
+    }
+    state check_add(&mut self) {
+        self.total = self.a.saturating_add(self.b);
+        transition self.total.seconds == 7 {
+            true -> check_add_nanos()
+            false -> fail_add_seconds()
+        }
+    }
+    state check_add_nanos(&mut self) {
+        transition self.total.subsecond_nanoseconds == 500000000 {
+            true -> good()
+            false -> fail_add_nanos()
+        }
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state fail_sub_seconds(&mut self) { self.console.exit_process(1); }
+    state fail_sub_nanos(&mut self) { self.console.exit_process(2); }
+    state fail_greater(&mut self) { self.console.exit_process(3); }
+    state fail_less(&mut self) { self.console.exit_process(4); }
+    state fail_add_seconds(&mut self) { self.console.exit_process(5); }
+    state fail_add_nanos(&mut self) { self.console.exit_process(6); }
+}

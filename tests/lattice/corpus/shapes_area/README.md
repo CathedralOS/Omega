@@ -18,5 +18,5 @@ Area calculation:
 
 **Known workaround:** an internal `let` in a callee followed by a call with
 more args triggers a frame-slot collision (see
-`tests/canaries/pending/calls/value_call_internal_let_slot_clobbers_prior_result`).
+`tests/omega/pending/calls/value_call_internal_let_slot_clobbers_prior_result`).
 The circle computation is done in the caller to avoid it.

@@ -1,9 +1,9 @@
 #!/usr/bin/env sh
 # Loader for the platform-independent checker tape constructed below Beta.
-# Source tools/bootstrap/paths.sh first.
+# Source tools/lattice/paths.sh first.
 
 [ -n "${OMEGA_PATH_PROOF_KERNEL:-}" ] && [ -n "${OMEGA_PATH_ALPHA:-}" ] || {
-  echo "checker artifact: source tools/bootstrap/paths.sh first" >&2
+  echo "checker artifact: source tools/lattice/paths.sh first" >&2
   return 2 2>/dev/null || exit 2
 }
 

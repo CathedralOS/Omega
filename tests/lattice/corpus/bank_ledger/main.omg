@@ -8,7 +8,7 @@
 // the same machine call. Specifically `let slot = count; ... try1(slot, val)`
 // produces wrong slot values on repeated calls. Worked around by re-reading
 // self.ledger.count from the field in guards instead of binding it as a local.
-// See tests/canaries/pending/calls/let_local_passed_to_nested_state_arg_wrong.
+// See tests/omega/pending/calls/let_local_passed_to_nested_state_arg_wrong.
 //
 // Transactions (positive=deposit, negative=withdraw):
 //   txns[0] = +500   deposit 500

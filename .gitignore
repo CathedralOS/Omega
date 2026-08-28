@@ -4,7 +4,7 @@
 /build/
 /samples/*/build/
 /samples/*/build_win/
-/tests/canaries/*/*/build/
+/tests/omega/*/*/build/
 
 # Claude Code local worktrees and settings
 .claude/

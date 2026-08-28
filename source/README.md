@@ -17,7 +17,7 @@ omega-rust/     replaceable Rust development implementation and comparator
 `omega-rust` may build, compare, or accelerate the product compiler, but it
 does not own Psi/Omega meaning and is never trusted merely because it produced
 an artifact. Repository-wide lattice convenience orchestration lives under
-[`tools/bootstrap/`](../tools/bootstrap/); stable shared inputs live under
+[`tools/lattice/`](../tools/lattice/); stable shared inputs live under
 [`tests/lattice/`](../tests/lattice/).
 
 The package library lives at `source/library/`. Temporary compiler readers may

@@ -4,7 +4,7 @@ set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 OMEGA_REPO_ROOT=$GATE_DIR
-while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
   OMEGA_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
   [ "$OMEGA_PARENT" != "$OMEGA_REPO_ROOT" ] || {
     echo "Delta source closure V1: repository root not found" >&2
@@ -13,7 +13,7 @@ while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
   OMEGA_REPO_ROOT=$OMEGA_PARENT
 done
 export OMEGA_REPO_ROOT
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh"
 
 VERIFY=$OMEGA_PATH_DELTA/source_closure_snapshot_v1.py
 SNAPSHOT=$OMEGA_PATH_DELTA/source-closures/canonical-compiler-v1.json

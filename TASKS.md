@@ -122,15 +122,18 @@ Remaining:
   Psi, and all later Psi/Omega phases remain open. Extend this as live
   grammar/semantic slices, not checkpoint dialects, private bridge IRs, or
   file-shape allowlists.
-  Before substantially extending the parser state machine, introduce one
-  bounded `ParseInput` owner for token access/cursor custody, then split root
-  and data parsing into responsibility-local machines under
-  `source/omega/psi/parse/`. Do not obtain smaller files by duplicating token
-  access, exposing parser scratch as a public interface, or generating state
-  permutations. Profile that boundary as part of the split: the current focused
-  parser gate spends roughly nine minutes compiling the product parser on the
-  hosted implementation, while its 45 black-box executions are otherwise
-  bounded. Keep generated viewers and other unconsumed debug output disabled.
+  The first parser state machine is now split into owner/facade, scalar token
+  access, root sequencing, and data-declaration modules under
+  `source/omega/psi/parse/`. One flat parser owner retains the only token and
+  syntax tables; the hosted AArch64 backend cannot yet address the resulting
+  1.76 MiB nested aggregate or lower a second arena ownership transfer, so the
+  physical tables deliberately remain flat while behavior is modular. The 45
+  black-box parser cases pass, but the focused gate took 9m49s with one CPU
+  saturated. Treat that compile as a performance defect: profile state-machine
+  lowering/code generation, add large-offset AArch64 materialization, and avoid
+  regenerating unchanged module bodies before growing this parser further.
+  Do not recover speed by duplicating token access, generating state
+  permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 

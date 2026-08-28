@@ -18,7 +18,7 @@ between Delta and `omega₀`.
 ## Contents
 
 - [`compiler/`](compiler/) contains the canonical Delta-written compiler source.
-- [`samples/`](samples/) contains the executable Delta language corpus.
+- [`tests/`](tests/) contains the executable Delta language corpus.
 - [`meaning/`](meaning/) contains the lower-rung Delta-to-Gamma elaboration and
   its byte transport helpers.
 - [`build/`](build/) contains provisional artifacts. They are inputs to

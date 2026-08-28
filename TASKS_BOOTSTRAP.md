@@ -14,12 +14,12 @@ robust compiler. That restriction is a property of this source closure, not a
 new language, dialect, compiler, or repository owner.
 
 ```text
-Alpha kernels
-    → Beta compiler
-    → Gamma compiler
-    → Delta-produced compiler
-    → compile C → omega₀
-    → compile the same C with omega₀ → omega
+audited Alpha seed
+    → run Alpha assembler + Alpha-written Beta cold start → bc
+    → run bc over the Beta-written Gamma evaluator/type checker
+    → evaluate the Delta compiler through canonical Gamma meaning → delta
+    → run delta over C → omega₀
+    → run omega₀ over the same C → omega
 ```
 
 `omega₀` and `omega` implement the same language from the same source. The first
@@ -37,6 +37,10 @@ evidence construction, source discovery, or another semantic stage.
 The retired `source/on-ramp/omega-bootstrap` implementation, its private checked
 IR generations, and its mirrored refinement snapshots are not bootstrap inputs.
 Git history is their archive.
+
+The artifact chain, rather than any directory called “bootstrap,” is the
+bootstrap. The durable source owners are therefore the language directories;
+`tools/lattice/` is optional command ordering only.
 
 ## Standing invariants
 
@@ -66,7 +70,7 @@ Git history is their archive.
 | --- | --- | --- |
 | Alpha | audited seed, VM, assembler, below-Beta checker artifact, implementations, and gates | preserve the explicit checker reconstruction and disclosed machine/host admissions |
 | Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
-| Gamma | interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution |
+| Gamma | Beta-written canonical interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution; do not invent a Gamma compiler artifact where canonical evaluation is the actual edge |
 | Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
 | Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | finish the product compiler and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
@@ -84,11 +88,16 @@ Git history is their archive.
   whose accepted artifact is constructed and audited below the Beta compiler it
   validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
   evidence, not acceptance authority.
-- [x] Collapse the Beta validator's generated checker/permutation explosion into
+- [ ] Collapse the Beta validator's generated checker/permutation explosion into
   one canonical obligation format and small responsibility-specific modules.
-  Delete cached HTML viewers, duplicated generated programs, receipt matrices,
-  and debug-only publication paths when no human or authoritative command
-  consumes them.
+  The present `source/beta/compiler/validation/` tree still has 249 files,
+  including 190 top-level `bc-*.alpha` fragments and roughly 72,000 lines; it
+  is not a completed modularization. First inventory which exact files are
+  consumed by the bounded admission command, then replace families of
+  shape/control/data/publication permutations with one data-driven obligation
+  decoder and responsibility-local checks. Delete cached viewers, duplicated
+  generated programs, receipt matrices, and debug-only publication paths when
+  no human or authoritative command consumes them.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
@@ -118,6 +127,10 @@ and are not blocked on this ruling.
   Gamma route for every required build host.
 - [ ] Bind source identity, target identity, emitted artifact identity, and the
   exact reconstruction custody needed by the eventual refinement edge.
+- [ ] Once no exact publication attempt is live, move Delta compiler admission
+  documentation, receipts, drivers, and tests from the flat `source/delta/`
+  root into `source/delta/compiler/validation/`. Keep the semantic elaboration
+  under `source/delta/meaning/`; do not create a generic assurance owner.
 - [ ] **BLOCKED — OWNER Q16:** bind the independently ratified Delta
   semantics/resources and complete direct lower-rooted source-to-artifact
   refinement.
@@ -126,12 +139,16 @@ and are not blocked on this ruling.
 - [ ] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
   a verifier for already observed data, not a hidden producer.
 - [ ] Ensure the publication path is reproducible by running the constituent
-  compiler commands directly without `tools/bootstrap/verify-lattice.sh`.
+  compiler commands directly without `tools/lattice/verify-lattice.sh`.
+- [ ] Retire or isolate the parked imperative Gamma compatibility compiler once
+  its remaining differential coverage is accounted for. It is not the Gamma
+  rung used to produce Delta and must not appear in the canonical artifact
+  chain merely because old files remain under `source/gamma/`.
 
 ### 2. Make the Delta-produced compiler accept the surface used by `C`
 
 - [ ] Derive the required input surface from the live resolved closure `C`, not
-  from frozen vertical canaries or historical bridge formats.
+  from frozen vertical test cases or historical bridge formats.
 - [ ] Implement that ordinary-Omega source frontend, checked semantics,
   conservative lowering, target realization, and artifact emission in the
   Delta compiler stage.
@@ -190,6 +207,9 @@ of compiler modules that do not exercise target selection.
   rerun manually.
 - [x] No bootstrap claim may depend on the runner implementation, working
   directory, or availability of a particular shell.
+- [x] Name the optional runner by the compiler lattice (`tools/lattice/`) and
+  the product-language cases by their owner (`tests/omega/`); do not recreate
+  generic `bootstrap/` or `canaries/` repository buckets.
 
 ## External contract dependencies
 

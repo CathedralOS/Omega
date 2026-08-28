@@ -9,7 +9,7 @@
 //
 // Workaround note: a known native miscompile triggers when a value-position
 // call with an internal `let` is followed by a call with MORE args
-// (tests/canaries/pending/calls/value_call_internal_let_slot_clobbers_prior_result).
+// (tests/omega/pending/calls/value_call_internal_let_slot_clobbers_prior_result).
 // To avoid it, intermediate multiplications are done in the caller before
 // passing the product to the callee.
 //

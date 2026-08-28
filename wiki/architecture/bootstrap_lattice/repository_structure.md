@@ -1,4 +1,4 @@
-# Bootstrap repository structure
+# Compiler lattice repository structure
 
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
@@ -13,14 +13,18 @@ source/
   beta/                  Beta language, reference meaning, and gates
     compiler/            compiler source, artifact, cold start, and validation
   gamma/                 Gamma language, interpreter, and type checker
-  delta/                 Delta language, compiler, meaning, and artifacts
+  delta/                 Delta language, compiler, meaning, tests, and artifacts
+    compiler/            canonical compiler source and adjacent validation
+    meaning/             canonical lower-rung elaboration
+    tests/               Delta language cases
   omega/                 complete Omega-written product compiler
     psi/                 target-neutral phases through terminal Psi
   library/               core, allocation, and standard-library source
   omega-rust/             temporary Rust product implementation/comparator
 
-tests/lattice/            shared bootstrap inputs
-tools/bootstrap/          replaceable convenience orchestration
+tests/lattice/            shared cross-rung inputs
+tests/omega/              Omega language acceptance/rejection cases
+tools/lattice/            replaceable convenience orchestration
 ```
 
 ## Ownership rules
@@ -41,7 +45,8 @@ tools/bootstrap/          replaceable convenience orchestration
   `source/beta/compiler/validation/` reconstructs the Beta compiler's
   source-to-artifact edge; there is no generic cross-rung dumping ground.
 - `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
-- `tools/bootstrap/` may invoke the chain. A script must not parse, resolve,
+- `tests/omega/` owns product-language cases; it is not a bootstrap artifact.
+- `tools/lattice/` may invoke the chain. A script must not parse, resolve,
   lower, discover source, manufacture evidence, or otherwise become a hidden
   compiler stage.
 
@@ -76,8 +81,9 @@ a rebuild of one compiler, not an untracked generation change.
 | Beta compiler and its admission | `source/beta/compiler/` |
 | language libraries | `source/library/` |
 | shared lattice inputs | `tests/lattice/` |
-| non-authoritative runners | `tools/bootstrap/` |
+| Omega language cases | `tests/omega/` |
+| non-authoritative runners | `tools/lattice/` |
 
 Cross-owner paths are resolved through
-[`tools/bootstrap/paths.sh`](../../../tools/bootstrap/paths.sh) and checked by
-[`tools/bootstrap/check-path-hygiene.sh`](../../../tools/bootstrap/check-path-hygiene.sh).
+[`tools/lattice/paths.sh`](../../../tools/lattice/paths.sh) and checked by
+[`tools/lattice/check-path-hygiene.sh`](../../../tools/lattice/check-path-hygiene.sh).
