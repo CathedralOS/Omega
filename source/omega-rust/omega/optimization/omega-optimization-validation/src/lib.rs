@@ -70,6 +70,7 @@ pub enum OptimizationUnitValidationError {
     PrunedProviderMachine(MachineId),
     DuplicateBoundaryMachine(BoundaryMachineId),
     DuplicateStructuralType(StructuralTypeId),
+    RecursiveStructuralType(StructuralTypeId),
     DuplicateStructuralDomain(StructuralDomainId),
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
@@ -9754,6 +9755,7 @@ fn index_structural_catalogs(
             });
         }
     }
+    validate_structural_type_graph(&types)?;
     let mut domains = BTreeMap::new();
     let mut names = BTreeSet::new();
     let mut semantic_domains = BTreeSet::new();
@@ -9774,6 +9776,68 @@ fn index_structural_catalogs(
         }
     }
     Ok((types, domains))
+}
+
+fn validate_structural_type_graph(
+    types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    fn visit(
+        id: StructuralTypeId,
+        types: &BTreeMap<StructuralTypeId, &psi_terminal::StructuralTypeDeclaration>,
+        active: &mut BTreeSet<StructuralTypeId>,
+        complete: &mut BTreeSet<StructuralTypeId>,
+    ) -> Result<(), OptimizationUnitValidationError> {
+        if complete.contains(&id) {
+            return Ok(());
+        }
+        if !active.insert(id) {
+            return Err(OptimizationUnitValidationError::RecursiveStructuralType(id));
+        }
+        let declaration = types[&id];
+        match &declaration.shape {
+            psi_terminal::StructuralTypeShape::ByteSequence(_) => {}
+            psi_terminal::StructuralTypeShape::Record { fields } => {
+                for field in fields {
+                    if let psi_terminal::StructuralFieldType::Structural(target) = field.field_type
+                    {
+                        visit(target, types, active, complete)?;
+                    }
+                }
+            }
+            psi_terminal::StructuralTypeShape::FixedArray { element, .. } => {
+                visit(*element, types, active, complete)?;
+            }
+            psi_terminal::StructuralTypeShape::Sum { cases } => {
+                for field in cases.iter().flat_map(|case| &case.fields) {
+                    if let psi_terminal::StructuralFieldType::Structural(target) = field.field_type
+                    {
+                        visit(target, types, active, complete)?;
+                    }
+                }
+            }
+            psi_terminal::StructuralTypeShape::Mixed { fields, cases } => {
+                for field in fields
+                    .iter()
+                    .chain(cases.iter().flat_map(|case| &case.fields))
+                {
+                    if let psi_terminal::StructuralFieldType::Structural(target) = field.field_type
+                    {
+                        visit(target, types, active, complete)?;
+                    }
+                }
+            }
+        }
+        active.remove(&id);
+        complete.insert(id);
+        Ok(())
+    }
+
+    let mut active = BTreeSet::new();
+    let mut complete = BTreeSet::new();
+    for id in types.keys().copied() {
+        visit(id, types, &mut active, &mut complete)?;
+    }
+    Ok(())
 }
 
 fn validate_function_structural_catalog(
@@ -12811,6 +12875,52 @@ mod tests {
         }
     }
 
+    fn structural_field(
+        raw: u64,
+        target: StructuralTypeId,
+    ) -> psi_terminal::StructuralFieldDeclaration {
+        structural_leaf_field(
+            raw,
+            psi_terminal::BindingRelevance::Relevant,
+            psi_terminal::StructuralFieldType::Structural(target),
+        )
+    }
+
+    fn structural_leaf_field(
+        raw: u64,
+        relevance: psi_terminal::BindingRelevance,
+        field_type: psi_terminal::StructuralFieldType,
+    ) -> psi_terminal::StructuralFieldDeclaration {
+        psi_terminal::StructuralFieldDeclaration {
+            id: id(raw, psi_core::StructuralFieldId::new),
+            identity: format!("validation::field-{raw}"),
+            relevance,
+            field_type,
+        }
+    }
+
+    fn structural_case(
+        raw: u64,
+        fields: Vec<psi_terminal::StructuralFieldDeclaration>,
+    ) -> psi_terminal::StructuralCaseDeclaration {
+        psi_terminal::StructuralCaseDeclaration {
+            id: id(raw, psi_core::StructuralCaseId::new),
+            identity: format!("validation::case-{raw}"),
+            fields,
+        }
+    }
+
+    fn structural_type(
+        raw: u64,
+        shape: psi_terminal::StructuralTypeShape,
+    ) -> psi_terminal::StructuralTypeDeclaration {
+        psi_terminal::StructuralTypeDeclaration {
+            id: id(raw, StructuralTypeId::new),
+            identity: format!("validation::type-{raw}"),
+            shape,
+        }
+    }
+
     fn structural_result_call_unit() -> PsiOptimizationUnit {
         let caller = id(350, MachineId::new);
         let callee = id(351, MachineId::new);
@@ -13134,6 +13244,196 @@ mod tests {
         validate_psi_optimization_unit(&unit()).unwrap();
         validate_psi_optimization_unit(&scalar_call_unit()).unwrap();
         validate_psi_optimization_unit(&scalar_boundary_call_unit()).unwrap();
+    }
+
+    #[test]
+    fn structural_type_graph_accepts_dag_shared_descendants_and_disconnected_components() {
+        let leaf = id(401, StructuralTypeId::new);
+        let left = id(402, StructuralTypeId::new);
+        let right = id(403, StructuralTypeId::new);
+        let root = id(404, StructuralTypeId::new);
+        let disconnected_leaf = id(405, StructuralTypeId::new);
+        let disconnected_sum = id(406, StructuralTypeId::new);
+        let mut candidate = unit();
+        candidate.structural_types = vec![
+            structural_type(
+                404,
+                psi_terminal::StructuralTypeShape::Mixed {
+                    fields: vec![structural_field(2, left)],
+                    cases: vec![structural_case(1, vec![structural_field(3, right)])],
+                },
+            ),
+            structural_type(
+                406,
+                psi_terminal::StructuralTypeShape::Sum {
+                    cases: vec![structural_case(
+                        2,
+                        vec![structural_field(4, disconnected_leaf)],
+                    )],
+                },
+            ),
+            structural_type(
+                402,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![
+                        structural_field(1, leaf),
+                        structural_leaf_field(
+                            5,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::Scalar(ScalarType::Boolean),
+                        ),
+                        structural_leaf_field(
+                            6,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::IeeeFloat(
+                                psi_core::IeeeFloatFormat::Binary32,
+                            ),
+                        ),
+                        structural_leaf_field(
+                            7,
+                            psi_terminal::BindingRelevance::Relevant,
+                            psi_terminal::StructuralFieldType::ByteSequence(
+                                psi_terminal::ByteSequenceCarrier::BorrowedView,
+                            ),
+                        ),
+                        structural_leaf_field(
+                            8,
+                            psi_terminal::BindingRelevance::Erased,
+                            psi_terminal::StructuralFieldType::Erased {
+                                type_identity: "validation::proof-only-leaf".into(),
+                            },
+                        ),
+                    ],
+                },
+            ),
+            structural_type(
+                405,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            structural_type(
+                403,
+                psi_terminal::StructuralTypeShape::FixedArray {
+                    element: leaf,
+                    length: 2,
+                },
+            ),
+            structural_type(
+                401,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+        ];
+        refresh_identity(&mut candidate);
+
+        validate_psi_optimization_unit(&candidate).expect(
+            "an acyclic catalog may share descendants and contain disconnected declarations",
+        );
+        assert_eq!(
+            candidate.structural_types[0].id, root,
+            "the mixed root precedes every structural target it references"
+        );
+        assert_eq!(
+            candidate.structural_types[1].id, disconnected_sum,
+            "the disconnected sum precedes its structural target"
+        );
+    }
+
+    #[test]
+    fn structural_type_graph_rejects_cycles_through_every_structural_edge_shape() {
+        let recursive = id(410, StructuralTypeId::new);
+        let shapes = vec![
+            psi_terminal::StructuralTypeShape::Record {
+                fields: vec![structural_field(10, recursive)],
+            },
+            psi_terminal::StructuralTypeShape::FixedArray {
+                element: recursive,
+                length: 1,
+            },
+            psi_terminal::StructuralTypeShape::Sum {
+                cases: vec![structural_case(10, vec![structural_field(11, recursive)])],
+            },
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: vec![structural_field(12, recursive)],
+                cases: vec![structural_case(11, Vec::new())],
+            },
+            psi_terminal::StructuralTypeShape::Mixed {
+                fields: Vec::new(),
+                cases: vec![structural_case(12, vec![structural_field(13, recursive)])],
+            },
+        ];
+
+        for shape in shapes {
+            let mut candidate = unit();
+            candidate.structural_types = vec![structural_type(410, shape)];
+            refresh_identity(&mut candidate);
+            assert_eq!(
+                validate_psi_optimization_unit(&candidate),
+                Err(OptimizationUnitValidationError::RecursiveStructuralType(
+                    recursive
+                ))
+            );
+        }
+    }
+
+    #[test]
+    fn structural_type_graph_rejects_an_unused_disconnected_cycle() {
+        let first = id(420, StructuralTypeId::new);
+        let second = id(421, StructuralTypeId::new);
+        let mut candidate = unit();
+        candidate.structural_types = vec![
+            structural_type(
+                419,
+                psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BorrowedView,
+                ),
+            ),
+            structural_type(
+                420,
+                psi_terminal::StructuralTypeShape::Record {
+                    fields: vec![structural_field(20, second)],
+                },
+            ),
+            structural_type(
+                421,
+                psi_terminal::StructuralTypeShape::FixedArray {
+                    element: first,
+                    length: 1,
+                },
+            ),
+        ];
+        refresh_identity(&mut candidate);
+
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::RecursiveStructuralType(
+                first
+            ))
+        );
+    }
+
+    #[test]
+    fn structural_type_graph_reports_unknown_targets_before_recursion() {
+        let recursive = id(430, StructuralTypeId::new);
+        let unknown = id(431, StructuralTypeId::new);
+        let mut candidate = unit();
+        candidate.structural_types = vec![structural_type(
+            430,
+            psi_terminal::StructuralTypeShape::Record {
+                fields: vec![
+                    structural_field(30, recursive),
+                    structural_field(31, unknown),
+                ],
+            },
+        )];
+        refresh_identity(&mut candidate);
+
+        assert_eq!(
+            validate_psi_optimization_unit(&candidate),
+            Err(OptimizationUnitValidationError::StructuralCatalogMismatch { machine: None })
+        );
     }
 
     #[test]

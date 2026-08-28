@@ -530,14 +530,18 @@ These facts constrain the work below.
   collapsing their distinct declarations; content-only internal transfers and
   boundary completions now have focused acceptance and corruption tests, and a
   source-derived content-bearing boundary canary passes verified optimizer
-  admission. The verified builder additionally attaches
+  admission. The retained structural-type catalog is also checked as a whole
+  graph after unknown-target validation: Record, FixedArray, Sum, and both
+  Mixed edge lanes must be acyclic even when a declaration is unused or lies
+  in a disconnected component. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, full structural type/domain/content-projection graph
-  validation, path-sensitive availability of operation-result and local roots,
-  exact payloadless-callee classification, and the crash/requirement/effect
-  vocabulary survive the Terminal-Psi lowering boundary.
+  proof/range evidence, the remaining structural declaration semantics and
+  domain/content-projection graph validation, path-sensitive availability of
+  operation-result and local roots, exact payloadless-callee classification,
+  and the crash/requirement/effect vocabulary survive the Terminal-Psi lowering
+  boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1187,9 +1191,11 @@ dependency.
   overlap, multiplicity, qualifications, results, internal claim transfers,
   and boundary requirement/completion correspondence, including content-only
   claims in the unified live-claim namespace while retaining separate ordinary
-  and content declarations. Full structural
-  type/domain/content-projection graph validation, path-sensitive availability
-  of operation-result and local roots, exact payloadless-callee classification,
+  and content declarations. It rejects recursive structural-type catalogs over
+  every structural edge shape, including unused and disconnected cycles, after
+  unknown-target validation. Remaining structural declaration semantics and
+  domain/content-projection graph validation, path-sensitive availability of
+  operation-result and local roots, exact payloadless-callee classification,
   and the remaining crash/requirement/effect vocabulary remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
