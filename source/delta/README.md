@@ -25,6 +25,10 @@ between Delta and `omega₀`.
   reconstruction, never authorities.
 - [`source-closures/`](source-closures/) contains the exact canonical compiler
   source and tool manifests.
+- [`lower_rooted_assembly_publication_v1_driver.py`](lower_rooted_assembly_publication_v1_driver.py)
+  prepares a fresh exact evidence attempt, reports token/epoch-bound stage
+  status, and finalizes the existing V1 receipt without hiding a compiler run
+  inside the verifier.
 - [`FEATURE_LEDGER.md`](FEATURE_LEDGER.md) tracks Delta-language facilities
   justified by the compiler stage and the ordinary-Omega surface used by `C`.
 
