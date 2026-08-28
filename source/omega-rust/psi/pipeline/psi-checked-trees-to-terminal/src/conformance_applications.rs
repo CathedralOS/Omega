@@ -75,6 +75,12 @@ pub(super) fn lower_closed_conformance_applications(
                         declaring_trait_identity: checked
                             .symbols
                             .display_path(selected_row.declaring_trait, "::"),
+                        public_requirement_identity:
+                            super::evidence_lowering::checked_evidence_requirement_identity(
+                                checked,
+                                selected_row.declaring_trait,
+                                selected_row.requirement,
+                            )?,
                         requirement_identity: checked
                             .symbols
                             .display_path(selected_row.requirement, "::"),

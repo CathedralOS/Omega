@@ -161,6 +161,7 @@ pub(super) fn validate_evidence_contract_lanes(
                 ordinal: invocation.ordinal,
             });
         }
+        validate_static_requirement_dispatch(module, machines, invocation)?;
         match (invocation.runtime_result, invocation.runtime_call) {
             (None, None) => {}
             (Some(psi_terminal::ProofOutputRuntimeResult::Unit), Some(runtime_call)) => {
@@ -279,6 +280,7 @@ pub(super) fn validate_evidence_contract_lanes(
         let mut callee_terms = BTreeSet::new();
         let mut output_terms = BTreeSet::new();
         for (expected_position, binding) in invocation.outputs.iter().enumerate() {
+            let static_requirement_output = invocation.static_requirement_dispatch.is_some();
             let callee_output = binding
                 .callee_output
                 .map(|term| {
@@ -313,6 +315,14 @@ pub(super) fn validate_evidence_contract_lanes(
                     .filter(|argument| argument.input_position == position)
                     .map(|argument| argument.source)
             });
+            let valid_source_shape = if static_requirement_output {
+                binding.forwarded_input_position.is_none() && binding.callee_output.is_none()
+            } else {
+                (binding.forwarded_input_position.is_some()
+                    && binding.callee_output.is_none()
+                    && forwarded_source.is_some())
+                    || (binding.forwarded_input_position.is_none() && callee_output.is_some())
+            };
             if binding.output_position
                 != u32::try_from(expected_position).map_err(|_| {
                     ModuleError::InvalidProofOutputCall {
@@ -323,9 +333,7 @@ pub(super) fn validate_evidence_contract_lanes(
                 || binding.output_field.is_empty()
                 || binding.output_field == "value"
                 || !fields.insert(binding.output_field.as_str())
-                || (binding.forwarded_input_position.is_some()
-                    && (binding.callee_output.is_some() || forwarded_source.is_none()))
-                || (binding.forwarded_input_position.is_none() && callee_output.is_none())
+                || !valid_source_shape
                 || binding.callee_output.is_some_and(|callee_output| {
                     !callee_terms.insert(callee_output) || output_terms.contains(&callee_output)
                 })
@@ -345,7 +353,11 @@ pub(super) fn validate_evidence_contract_lanes(
                 let Some(output) = terms.get(&output_id) else {
                     return Err(ModuleError::UnknownEvidenceContractTerm(output_id));
                 };
-                let valid_identity = if let Some(forwarded_source) = forwarded_source {
+                let valid_identity = if static_requirement_output {
+                    output_terms.insert(output_id)
+                        && !used_terms.contains(&output_id)
+                        && !callee_terms.contains(&output_id)
+                } else if let Some(forwarded_source) = forwarded_source {
                     output_id == forwarded_source
                 } else {
                     binding.callee_output != Some(output_id)
@@ -460,6 +472,87 @@ pub(super) fn validate_evidence_contract_lanes(
         .copied()
     {
         return Err(ModuleError::OrphanEvidenceTerm(term));
+    }
+    Ok(())
+}
+
+fn validate_static_requirement_dispatch(
+    module: &TerminalModule,
+    machines: &BTreeMap<MachineId, &TerminalMachine>,
+    invocation: &psi_terminal::ProofOutputCall,
+) -> Result<(), ModuleError> {
+    let Some(dispatch) = &invocation.static_requirement_dispatch else {
+        return Ok(());
+    };
+    let invalid = || ModuleError::InvalidProofOutputCall {
+        caller: invocation.caller,
+        ordinal: invocation.ordinal,
+    };
+    if dispatch.conformance_application_fingerprint == 0
+        || dispatch.public_requirement_identity.is_empty()
+        || dispatch.public_requirement_identity != invocation.target_machine_identity
+        || dispatch.declaring_trait_identity.is_empty()
+        || dispatch.requirement_identity.is_empty()
+        || dispatch.realization_identity.is_empty()
+        || invocation.evidence_arguments.len() != 1
+        || invocation.outputs.len() != 1
+        || !machines.contains_key(&dispatch.realization)
+        || !matches!(
+            (invocation.runtime_result, invocation.runtime_call),
+            (
+                Some(psi_terminal::ProofOutputRuntimeResult::Unit),
+                Some(psi_terminal::ProofOutputRuntimeCall { callee, .. })
+            ) if callee == dispatch.realization
+        )
+    {
+        return Err(invalid());
+    }
+    let mut applications = module
+        .closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == invocation.caller
+                && application.fingerprint == dispatch.conformance_application_fingerprint
+        });
+    let Some(application) = applications.next() else {
+        return Err(invalid());
+    };
+    if applications.next().is_some() {
+        return Err(invalid());
+    }
+    if !application.telescope.is_empty()
+        || !application.trait_arguments.is_empty()
+        || application.trait_identity != dispatch.declaring_trait_identity
+    {
+        return Err(invalid());
+    }
+    let mut rows = application.rows.iter().filter(|row| {
+        row.declaring_trait_identity == dispatch.declaring_trait_identity
+            && row.public_requirement_identity == dispatch.public_requirement_identity
+            && row.public_requirement_identity == invocation.target_machine_identity
+            && row.requirement_identity == dispatch.requirement_identity
+            && row.realization_identity == dispatch.realization_identity
+    });
+    if rows.next().is_none() || rows.next().is_some() {
+        return Err(invalid());
+    }
+    let proposition_is_bounded = |id| {
+        module
+            .proposition_applications
+            .iter()
+            .find(|application| application.id == id)
+            .is_some_and(|application| {
+                application.binder_arguments.is_empty() && application.arguments.is_empty()
+            })
+    };
+    let argument = &invocation.evidence_arguments[0];
+    let output = &invocation.outputs[0];
+    if !proposition_is_bounded(argument.callee_proposition)
+        || !proposition_is_bounded(argument.instantiated_proposition)
+        || !proposition_is_bounded(output.callee_proposition)
+        || !proposition_is_bounded(output.instantiated_proposition)
+    {
+        return Err(invalid());
     }
     Ok(())
 }

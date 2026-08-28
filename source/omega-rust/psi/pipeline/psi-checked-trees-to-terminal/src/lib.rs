@@ -75,14 +75,14 @@ use psi_terminal::{
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralCaseDeclaration, StructuralContentProjection,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker, program_local_root_introduction_identity,
+    ProviderUnitSignature, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, program_local_root_introduction_identity,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -845,6 +845,17 @@ pub fn lower_machine(
     let mut lowered = lower_selected_machine(checked, selection)?;
     let source_machines = if let Some(target_machine) = guarded_payloadless_callee {
         vec![selection.machine, target_machine]
+    } else if checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .any(|(_, invocation)| {
+            invocation.caller_machine_symbol == selection.machine
+                && invocation.static_requirement_dispatch.is_some()
+        })
+    {
+        checked_unit_call_closure_including(checked, selection.machine, &[])?
     } else if let Some(plan) = checked
         .facts
         .flow
@@ -852,6 +863,17 @@ pub fn lower_machine(
         .trait_operator_for_machine(selection.machine)
     {
         vec![plan.machine, plan.realization_machine]
+    } else if selection.signature == CheckedTerminalSignatureEligibility::Attached
+        && lowered.semantic_module.machines.len() > 1
+        && checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                specialization.instance == selection.machine
+                    && !specialization.conformance_applications.is_empty()
+            })
+    {
+        checked_unit_call_closure_including(checked, selection.machine, &[])?
     } else if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
         checked_scalar_call_closure(checked, selection.machine)?
     } else {
@@ -931,6 +953,18 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .any(|(_, invocation)| {
+            invocation.caller_machine_symbol == selection.machine
+                && invocation.static_requirement_dispatch.is_some()
+        })
+    {
+        return lower_attached_unit_closure(checked, selection.machine);
+    }
     if let Some(plan) = checked
         .facts
         .flow

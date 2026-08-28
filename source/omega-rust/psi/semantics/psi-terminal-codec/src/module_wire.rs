@@ -13,8 +13,8 @@ use psi_terminal::{
     FloatProjectionInputId, InstallationReachDependency, ProofOnlyValueType, ProofOutput,
     ProofOutputCall, ProofOutputEvidenceArgument, ProofOutputRuntimeCall, ProofOutputRuntimeResult,
     ProofPropositionId, ProofValueDeclaration, ProofValueId, ServiceDeclaration,
-    StructuralContentProjection, StructuralDomainDeclaration, TerminalModule,
-    TerminalRootServiceReach, VocabularyMarker,
+    StaticRequirementDispatch, StructuralContentProjection, StructuralDomainDeclaration,
+    TerminalModule, TerminalRootServiceReach, VocabularyMarker,
 };
 
 use super::content_wire::{decode_content_algebra, encode_content_algebra};
@@ -174,6 +174,27 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             "proof-output target machine identity",
             &invocation.target_machine_identity,
         )?;
+        writer.boolean(invocation.static_requirement_dispatch.is_some());
+        if let Some(dispatch) = &invocation.static_requirement_dispatch {
+            writer.u64(dispatch.conformance_application_fingerprint);
+            writer.string(
+                "static public requirement identity",
+                &dispatch.public_requirement_identity,
+            )?;
+            writer.string(
+                "static requirement declaring trait identity",
+                &dispatch.declaring_trait_identity,
+            )?;
+            writer.string(
+                "static requirement identity",
+                &dispatch.requirement_identity,
+            )?;
+            writer.string(
+                "static requirement realization identity",
+                &dispatch.realization_identity,
+            )?;
+            writer.id(dispatch.realization);
+        }
         writer.boolean(invocation.runtime_result.is_some());
         if let Some(runtime_result) = invocation.runtime_result {
             writer.boolean(matches!(
@@ -257,6 +278,10 @@ pub(super) fn encode_raw(module: &TerminalModule) -> Result<Vec<u8>, CodecError>
             writer.string(
                 "closed conformance row declaring trait identity",
                 &row.declaring_trait_identity,
+            )?;
+            writer.string(
+                "closed conformance row public requirement identity",
+                &row.public_requirement_identity,
             )?;
             writer.string(
                 "closed conformance row requirement identity",
@@ -402,6 +427,22 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
             caller: reader.id("MachineId")?,
             ordinal: reader.u32()?,
             target_machine_identity: reader.string("proof-output target machine identity")?,
+            static_requirement_dispatch: reader
+                .boolean()?
+                .then(|| {
+                    Ok(StaticRequirementDispatch {
+                        conformance_application_fingerprint: reader.u64()?,
+                        public_requirement_identity: reader
+                            .string("static public requirement identity")?,
+                        declaring_trait_identity: reader
+                            .string("static requirement declaring trait identity")?,
+                        requirement_identity: reader.string("static requirement identity")?,
+                        realization_identity: reader
+                            .string("static requirement realization identity")?,
+                        realization: reader.id("MachineId")?,
+                    })
+                })
+                .transpose()?,
             runtime_result: reader
                 .boolean()?
                 .then(|| {
@@ -483,6 +524,8 @@ pub(super) fn decode_module_body(reader: &mut Reader<'_>) -> Result<TerminalModu
                 Ok(ClosedConformanceRow {
                     declaring_trait_identity: reader
                         .string("closed conformance row declaring trait identity")?,
+                    public_requirement_identity: reader
+                        .string("closed conformance row public requirement identity")?,
                     requirement_identity: reader
                         .string("closed conformance row requirement identity")?,
                     realization_identity: reader

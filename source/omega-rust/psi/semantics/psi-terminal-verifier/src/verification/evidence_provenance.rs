@@ -57,6 +57,13 @@ pub(super) fn validate_evidence_producer_provenance(
         }
     }
     for invocation in &module.proof_output_calls {
+        if invocation.static_requirement_dispatch.is_some() {
+            // A statically selected requirement call establishes a fresh,
+            // opaque requirement-level term through the validated closed
+            // application. The satisfier's private producer provenance must
+            // not escape through this public proof lane.
+            continue;
+        }
         for output in &invocation.outputs {
             if let Some(callee_output) = output.callee_output {
                 unmatched_ensures.entry(callee_output).or_insert(1);

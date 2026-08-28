@@ -2741,8 +2741,8 @@ Remaining:
   whole-root Unit-call rebasing, and semantic codec, verifier, fixed-fuel, and
   interpreter replay reject redirected or reordered structure. Nested or
   projected mixed values, recursive cycles, address and erased payload equality,
-  and runtime sum layout remain fenced. Semantic codec format 32 / vocabulary
-  34, proof-bundle v19, and installation-record v40 retain the structural
+  and runtime sum layout remain fenced. Semantic codec format 33 / vocabulary
+  35, proof-bundle v19, and installation-record v40 retain the structural
   shapes, case-payload paths, and proposition. Continue with those fenced
   nested/projected mixed, recursive, and erased aggregate cases. Concrete
   machine/state contracts plus domain/data predicates and trait requirement signatures,
@@ -8609,8 +8609,8 @@ Remaining N6/N8 work:
   live on this exact bounded call shape. One optional binding names the
   exact guarded callee case, dense row position, obligation, public selector,
   atomic proposition, callee term/interface, distinct caller-local output term,
-  and source-handle-free result-root validity intersection. Codec format 32 /
-  vocabulary 34 retain those coordinates canonically. Validation rejects an
+  and source-handle-free result-root validity intersection. Codec format 33 /
+  vocabulary 35 retain those coordinates canonically. Validation rejects an
   unnamed or nonmatching row, identity/interface/dependency drift, missing
   producer provenance, duplicate output, and any unconditional contract-lane or
   evidence-projection reuse of the guarded output. Omission remains fact-only,
@@ -8666,10 +8666,31 @@ Remaining N6/N8 work:
   and evidence-interface identity. Concrete output strengthening may append
   rows only after that pinned prefix. Inherited checked facts now reuse the
   exact satisfier evidence terms, including their lane positions, rather than
-  dropping term custody. Generic trait/requirement/satisfier or proposition
-  telescopes, defaults, requirement calls, dispatch, Terminal publication, and
-  package exposure remain fail closed. Next extend defaults, static calls, and
-  runtime trait dispatch. A satisfying machine must assign every inherited
+  dropping term custody. The first static-call rung is also live. An attached
+  generic caller may select one exact concrete named conformance through an explicit
+  proof-static binder and call its direct concrete, non-generic, one-state Unit
+  requirement when that public requirement owns exactly one subjectless named
+  `requires` lane and one subjectless unconditional named `ensures` lane.
+  Monomorphization retains the call-local closed application and exact
+  requirement-to-realization row instead of replacing public proof identity
+  with the executable satisfier. Checked call composition imports only the
+  requirement contract, while the runtime call still targets the private
+  realization. The captured output is a fresh opaque requirement-level term:
+  satisfier-local input aliases, concrete strengthening selectors, forwarding
+  identity, and producer provenance do not escape. Terminal codec format 33 /
+  vocabulary 35 retain the normalized public requirement plus an independently
+  replayed owner-scoped closed-conformance/runtime realization link. The
+  verifier rejects row, application, identity, runtime-callee, or freshness
+  drift, and differential coverage keeps ABI, storage, operation shape, and
+  fixed fuel unchanged. Existing package review already publishes the exact
+  requirement lanes: incoming alias renames are compatible and outgoing
+  selector renames are breaking, while private call-site dispatch remains
+  implementation content. Generic trait/requirement/satisfier or proposition
+  telescopes, inherited requirement rows, defaults, direct named-conformance
+  calls, scalar results, subject-bearing lanes, additional unnamed or wider
+  public contract rows, free callers, and dynamic dispatch remain fail closed.
+  Next extend defaults, broader static
+  calls, and runtime trait dispatch. A satisfying machine must assign every inherited
   output on each applicable ordinary exit and may not omit, rename, weaken, or
   replace it. Direct concrete calls may retain authored strengthening; calls
   through the requirement expose only the pinned requirement surface.
