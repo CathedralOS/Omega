@@ -1491,6 +1491,19 @@ exact_increment_cell:
         store r1, r2
         ret
 
+; Accumulate one checked prefix-array cell. Current byte offset in r11,
+; preceding byte offset in r12, array base in r13; clobber only r1/r2/r3.
+exact_prefix_accumulate_array:
+        mov r1, r13
+        add r1, r12
+        load r2, r1
+        mov r1, r13
+        add r1, r11
+        load r3, r1
+        add r3, r2
+        store r1, r3
+        ret
+
 exact_require_cell:
         load r2, r20
         jeq r2, r21, exact_shape_ok

@@ -107,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-82,829 bytes for the current exact subjects, SHA-256
-`c49749ce1565f60970c92097fc5eca0a4a590fe5549d8d214d6e141c133effab`.
+82,804 bytes for the current exact subjects, SHA-256
+`d44905ff9d1fd63ffc1649e756f39402af00c649edfe185a6f4fdcf0129bb404`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -175,6 +175,12 @@ their owner checks source-block ordering, exact terminal counts, restored
 positive lookup, and one mutation tooth per family. Local kinds and slots,
 memory joins, transition meaning, event keys and occurrences, artifact PCs, and
 decoded opcode/effect policy remain separate semantic obligations.
+
+Expression and effect census construction share one exact prefix-array
+accumulator with an explicit `r11`/`r12` offset and `r13` base contract. Their
+eight callers retain distinct arrays, source-table owners, terminal checks, and
+four mutation teeth per census family; only the byte-identical accumulation
+mechanism is common.
 
 The frame summary, ranged-store bounds, and stack-register custody owners also
 share the exact cell-increment primitive already provided by the canonical

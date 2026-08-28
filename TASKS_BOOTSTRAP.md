@@ -75,12 +75,12 @@ Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
 - `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
-- exact maximal-observation ROOT: 82,829 bytes,
-  `c49749ce1565f60970c92097fc5eca0a4a590fe5549d8d214d6e141c133effab`.
+- exact maximal-observation ROOT: 82,804 bytes,
+  `d44905ff9d1fd63ffc1649e756f39402af00c649edfe185a6f4fdcf0129bb404`.
 
 - [ ] Reduce the remaining admission implementation without merging distinct
   proof responsibilities. The bounded gate currently has 191 Alpha modules,
-  60,492 lines, and a 1,010,194-byte Checker A source. Shape, control, data,
+  60,481 lines, and a 1,009,908-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems. Owner-local cursor pooling has removed ten duplicate helper bodies
@@ -88,7 +88,10 @@ Canonical subjects:
   families without merging either family's semantic obligations. The frame,
   ranged-store, and stack-custody owners now reuse the already imported exact
   cell-increment primitive for 19 calls, removing three more duplicate helper
-  bodies and 235 source bytes without changing the ROOT identity.
+  bodies and 235 source bytes without changing the ROOT identity. Expression
+  and effect census construction now also share one register-contract prefix
+  accumulator for eight calls, removing two duplicate bodies and 286 source
+  bytes while retaining separate arrays, terminal checks, and mutation teeth.
 - [x] Make repeated structural queries O(1) only where the source tables admit
   a proved canonical index. The procedure-span inventory is complete: all 53
   endpoint binders are constant-time and the remaining 44 block identities

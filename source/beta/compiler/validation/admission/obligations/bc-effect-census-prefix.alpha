@@ -108,28 +108,16 @@ build_effect_census_prefix_accumulate_one:
         imm r1, 8
         sub r12, r1
         imm r13, 17055744
-        call effect_census_prefix_accumulate_array
+        call exact_prefix_accumulate_array
         imm r13, 17059840
-        call effect_census_prefix_accumulate_array
+        call exact_prefix_accumulate_array
         imm r13, 17063936
-        call effect_census_prefix_accumulate_array
+        call exact_prefix_accumulate_array
         imm r13, 17068032
-        call effect_census_prefix_accumulate_array
+        call exact_prefix_accumulate_array
         imm r1, 1
         add r10, r1
         jmp build_effect_census_prefix_accumulate
-
-; Current byte offset in r11, preceding byte offset in r12, array base in r13.
-effect_census_prefix_accumulate_array:
-        mov r1, r13
-        add r1, r12
-        load r2, r1
-        mov r1, r13
-        add r1, r11
-        load r3, r1
-        add r3, r2
-        store r1, r3
-        ret
 
 check_effect_census_prefix_terminals:
         imm r10, 2872                 ; boundary 359 * 8
