@@ -142,6 +142,24 @@ Remaining:
   control. Close that general resource-bounded cyclic-control slice first with
   retained rank/invariant evidence through codec, verifier, reconstruction,
   interpreter, fuel, Omega lowering, native execution, and artifact custody.
+  The first vertical acceptance case is a structural Unit machine with one
+  unsigned scalar countdown parameter, a `remaining > 0` guard, and a backedge
+  carrying `remaining - 1`. Extend the checked control plan with only the
+  scalar expression forms that case requires; retain a canonical ranked-SCC
+  component naming the header, rank parameter, bounds, and covered cyclic
+  edges; and reconstruct invariant establishment/preservation, strict descent,
+  and subtraction safety from the actual operation and successor-argument
+  graph. Cyclic ownership-frontier replay must converge rather than depend on a
+  topological order, and fixed fuel must derive the all-input ceiling from the
+  verified rank bound and exact exit/cycle costs. Preserve the same identity
+  through Terminal encoding, abstract/target operations, selection, allocation,
+  both supported ISA encoders, backward-edge relocation, object/image checks,
+  installation, and native fuel custody. Interpreter execution at an exact
+  initial value must agree with native execution and the derived schedule. A
+  mutation that forwards the original rank instead of the subtraction result
+  must reject as a non-decreasing ranked edge; removing rank evidence must
+  retain the existing unranked-cycle rejection. Do not broaden this first slice
+  to the product `Main` receiver, mixed operations, or boundary calls.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
