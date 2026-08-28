@@ -68,6 +68,9 @@ pub struct PackageSourceAudit {
     pub requested_rev: Option<String>,
     pub resolved_commit: Option<String>,
     pub resolved_tree: Option<String>,
+    pub network_transfer_ceiling: Option<u64>,
+    pub network_uploaded_bytes: Option<u64>,
+    pub network_downloaded_bytes: Option<u64>,
     pub content_identity: String,
     pub file_count: usize,
     pub byte_count: u64,
@@ -107,6 +110,21 @@ impl PackageSourceAudit {
         if let Some(tree) = &self.resolved_tree {
             report.push_str("resolved tree: ");
             report.push_str(tree);
+            report.push('\n');
+        }
+        if let Some(ceiling) = self.network_transfer_ceiling {
+            report.push_str("broker transfer ceiling: ");
+            report.push_str(&ceiling.to_string());
+            report.push('\n');
+        }
+        if let Some(uploaded) = self.network_uploaded_bytes {
+            report.push_str("broker uploaded bytes: ");
+            report.push_str(&uploaded.to_string());
+            report.push('\n');
+        }
+        if let Some(downloaded) = self.network_downloaded_bytes {
+            report.push_str("broker downloaded bytes: ");
+            report.push_str(&downloaded.to_string());
             report.push('\n');
         }
         report.push_str("content identity: ");
@@ -164,6 +182,9 @@ pub fn audit_package_source(
                 requested_rev: None,
                 resolved_commit: None,
                 resolved_tree: None,
+                network_transfer_ceiling: None,
+                network_uploaded_bytes: None,
+                network_downloaded_bytes: None,
                 content_identity: resolved.content_identity,
                 file_count: resolved.file_count,
                 byte_count: resolved.byte_count,
@@ -171,6 +192,7 @@ pub fn audit_package_source(
         }
         PackageSourceRequest::Git(request) => {
             let resolved = resolve_git_source(&request, cache_dir, limits)?;
+            let network_transfer = resolved.network_transfer_observation();
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
@@ -178,6 +200,9 @@ pub fn audit_package_source(
                 requested_rev: Some(resolved.requested_revision().to_owned()),
                 resolved_commit: Some(resolved.commit().to_owned()),
                 resolved_tree: Some(resolved.tree().to_owned()),
+                network_transfer_ceiling: Some(network_transfer.ceiling()),
+                network_uploaded_bytes: Some(network_transfer.uploaded()),
+                network_downloaded_bytes: Some(network_transfer.downloaded()),
                 content_identity: resolved.local().content_identity.clone(),
                 file_count: resolved.local().file_count,
                 byte_count: resolved.local().byte_count,
@@ -341,6 +366,7 @@ mod tests {
         assert_eq!(direct.file_count, 1);
         assert_eq!(direct.content_identity.len(), 64);
         assert!(direct.to_text().contains("package source audit"));
+        assert!(direct.network_transfer_ceiling.is_none());
         assert_eq!(wrapped.content_identity, direct.content_identity);
 
         let _ = std::fs::remove_dir_all(&root);
@@ -377,6 +403,10 @@ mod tests {
         assert_eq!(audit.file_count, 1);
         assert_eq!(audit.resolved_commit.as_ref().expect("commit").len(), 40);
         assert_eq!(audit.resolved_tree.as_ref().expect("tree").len(), 40);
+        assert!(audit.network_transfer_ceiling.is_some());
+        assert_eq!(audit.network_uploaded_bytes, Some(0));
+        assert_eq!(audit.network_downloaded_bytes, Some(0));
+        assert!(audit.to_text().contains("broker transfer ceiling: "));
 
         let _ = std::fs::remove_dir_all(&repository);
         let _ = std::fs::remove_dir_all(&cache);

@@ -302,7 +302,9 @@ The obsolete JSON source-cache policy record and its CLI persistence command
 are deleted rather than retained beside the sealed in-memory resolver
 observation. `omega audit source` remains a non-admitting live diagnostic; no
 caller-readable intermediate record can be promoted into future receipt or
-lock authority.
+lock authority. Git reports expose the compiler-selected broker-transfer
+ceiling and observed upload/download counts; local reports omit those
+inapplicable rows.
 Mutable local-package snapshots omit only `.git` metadata and the reserved
 root-level `build/` compiler output; package-authored ignore files do not control
 source identity, nested `build` directories remain source, and immutable Git
