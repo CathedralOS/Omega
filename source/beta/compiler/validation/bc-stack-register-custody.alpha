@@ -383,7 +383,7 @@ stack_require_existing_owner:
 stack_existing_owner_ok:
         ret
 
-; Used only by the focused gate's underreported-owner diagnostic projection.
+; Retained as part of the canonical stack-owner relation.
 stack_owner_skip_mark:
         ret
 

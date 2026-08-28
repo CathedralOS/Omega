@@ -28,9 +28,10 @@ governed by Alpha's written semantics. The steady-state compiler is
 fixed point. The persisted artifact is reconstructed by the Alpha-written
 cold-start compiler and contains no external producer in its lineage. Its
 adjacent validation tree reconstructs extensive maximal-observation obligations
-against `bc.beta` for the supported `B_bc1` profile. Its current Beta checker is
-itself compiled by `bc`, so the non-circular acceptance root remains open. The
-fixed point proves only deterministic dependency closure.
+against `bc.beta` for the supported `B_bc1` profile. The authoritative Beta
+checker tape is constructed by the Alpha-written cold compiler below `bc`;
+the full simulation/coinduction claim is not yet encoded in that checker's
+calculus. The fixed point proves only deterministic dependency closure.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -68,7 +69,8 @@ lower-rooted refinement coverage.
 ## Implementation frontiers
 
 - Guard the explicit data stack against overflow.
-- Keep the closed `bc.beta`/persisted-artifact ROOT refinement and its mutation
-  teeth green when the compiler or `B_bc1` profile changes.
+- Keep the canonical `bc.beta`/persisted-artifact ROOT reconstruction green when
+  the compiler or `B_bc1` profile changes, and encode its full relation in the
+  rooted checker before declaring source/artifact admission closed.
 - Extend resource budgets only when a higher-rung implementation demonstrates a
   concrete need; do not import higher-rung language machinery speculatively.
