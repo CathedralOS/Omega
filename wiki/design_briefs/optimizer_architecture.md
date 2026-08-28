@@ -188,7 +188,9 @@ canonical Terminal Psi semantic + proof sections
        -> retained ProgramEntry signature/calling plans
           -> checked-source signature / Terminal `MachineId` settlement
           -> validated declaration-only ProgramStorage semantic contract
-          -> call-aware Unit semantic ProgramStorage wrapper (next)
+          -> address-free semantic ProgramStorage wrapper plan
+          -> call-aware Unit object/private-symbol join (next)
+          -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
@@ -2390,21 +2392,33 @@ validated physical plan only as `PlannedNotInvokedV1`. It deliberately contains
 no Terminal `MachineId`, wrapper bytes, runtime values, bootstrap, image,
 installation, or publication authority.
 
+The next semantic layer is also concrete and deliberately address-free. The
+pure wrapper plan derives only from that contract and independently replays the
+exact Microsoft-x64 action sequence: preserve the indirect `RCX`/`RDX` roots,
+reserve a balanced 72-byte outgoing frame, copy the four Extent words into its
+ABI copy area, bind the copied Image and InitialStorage addresses back to
+`RCX`/`RDX`, call one unresolved compiler-private continuation, release the
+frame, and return Unit. It retains a symbolic function-relative `rel32`
+requirement and `PlannedNotInvokedV1`, but no `MachineId`, symbol, bytes,
+runtime values, bootstrap, process-entry, image, installation, or publication
+authority.
+
 The entry path separates a design-settled semantic wrapper from an unsettled
 physical bootstrap. The distinct receiver-free, straight-line Unit selected
 shape, complete zero-VReg-to-object artifact route, retained target-owned
 `ProgramEntry` signature/calling plans, checked-source-to-Terminal entry
-settlement, and declaration-only semantic ProgramStorage contract now exist.
-The current Unit legalizer is intentionally not that wrapper: because its
-closed record has no structural ABI or ownership vocabulary, producer and
-independent replay reject structural parameters, entry claims, declared places,
-and published-service custody. A structurally parameterized bare `ReturnUnit`
-therefore fails rather than silently erasing its ABI. The next implementation
-boundary joins the settlement, semantic contract, and applicable Unit object,
-then constructs a distinct call-aware semantic `ProgramStorageEntry` wrapper
-object that supplies
-the Image and InitialStorage `Extent in Granted` values to the private Terminal
-symbol. The scalar-result conditional fixture above is therefore correctly an
+settlement, declaration-only semantic ProgramStorage contract, and address-free
+wrapper plan now exist. The current Unit legalizer is intentionally not that
+wrapper: because its closed record has no structural ABI or ownership
+vocabulary, producer and independent replay reject structural parameters,
+entry claims, declared places, and published-service custody. A structurally
+parameterized bare `ReturnUnit` therefore fails rather than silently erasing
+its ABI, while static attachment identity remains admissible and retained
+without inventing receiver custody. The next implementation boundary adds the
+claim-preserving call-aware Unit form, then joins its applicable object and
+private symbol with the settlement, semantic contract, and wrapper plan to
+construct the semantic `ProgramStorageEntry` wrapper object. The scalar-result
+conditional fixture above is therefore correctly an
 ordinary callable and cannot serve as the positive Unit fixture. That semantic
 wrapper is not yet an authoritative firmware/process entry: the UEFI surface is
 explicitly planned and non-invoked, and no target/runtime contract maps
