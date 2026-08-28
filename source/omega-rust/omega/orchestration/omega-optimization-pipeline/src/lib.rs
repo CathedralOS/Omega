@@ -153,10 +153,13 @@ pub use liveness::{
 pub use machine_effects::{
     OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffectCustodyReceipt,
     StagedOptimizedMachineEffectSourceCustodyReceipt, StagedOptimizedMachineEffects,
-    stage_optimized_machine_effects, stage_optimized_machine_effects_after_fixed_view_copies,
+    stage_optimized_machine_effects,
+    stage_optimized_machine_effects_after_active_resident_rematerialization,
+    stage_optimized_machine_effects_after_fixed_view_copies,
     stage_optimized_machine_effects_after_literal_folds,
     stage_optimized_machine_effects_after_selected_lowering,
     validate_optimized_machine_effect_custody,
+    validate_optimized_machine_effect_custody_after_active_resident_rematerialization,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
     validate_optimized_machine_effect_custody_after_selected_lowering,
@@ -170,9 +173,11 @@ pub use post_allocation_machine_effects::{
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
     stage_optimized_post_allocation_machine_plan,
+    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_literal_folds,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
     validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
     validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
@@ -5554,6 +5559,170 @@ mod tests {
                 staged.rematerialization().receipt().transformed_selected()
             );
         }
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_machine_custody_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let source = stage_optimized_active_resident_rematerialization(
+                staged_active_resident_two_view_legality(target),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            let source_selected = source
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage();
+            let transformed_selected = source.rematerialization().receipt().transformed_selected();
+
+            let effects =
+                stage_optimized_machine_effects_after_active_resident_rematerialization(&source)
+                    .unwrap();
+            assert_eq!(effects.effects().receipt().selected(), transformed_selected);
+            assert_eq!(
+                effects.effects().plan().optimization_unit,
+                source.custody().source().optimization_unit()
+            );
+            assert_eq!(
+                effects.effects().plan().fuel_schedule,
+                source.custody().source().fuel_schedule()
+            );
+            assert_eq!(effects.effects().plan().target, target);
+            assert_eq!(
+                effects.effects().receipt().register_environment(),
+                source_selected.register_environment().identity()
+            );
+            assert_eq!(
+                effects.custody().source(),
+                &StagedOptimizedMachineEffectSourceCustodyReceipt::ActiveResidentRematerialization(
+                    source.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_machine_effect_custody_after_active_resident_rematerialization(
+                    &source,
+                    effects.effects(),
+                )
+                .unwrap(),
+                effects.custody()
+            );
+
+            let post =
+                stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                    &source,
+                )
+                .unwrap();
+            assert_eq!(post.machine().receipt().selected(), transformed_selected);
+            assert_eq!(
+                post.machine().receipt().effects(),
+                post.effects().effects().receipt().identity()
+            );
+            assert_eq!(
+                post.machine().receipt().homes(),
+                source.homes().receipt().identity()
+            );
+            assert_eq!(
+                post.machine().receipt().post_allocation_manifest(),
+                source.post_allocation_manifest().record().identity
+            );
+            assert_eq!(
+                post.machine().receipt().register_environment(),
+                source_selected.register_environment().identity()
+            );
+            assert_eq!(
+                post.custody().source(),
+                &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::ActiveResidentRematerialization(
+                    source.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+                    &source,
+                    &post,
+                )
+                .unwrap(),
+                post.custody()
+            );
+
+            assert_eq!(
+                omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                    source_selected.selected(),
+                    post.effects().effects(),
+                    source.ranges(),
+                    source.legality(),
+                    source.homes(),
+                    source.post_allocation_manifest(),
+                    source_selected.register_environment().identity(),
+                    source_selected.register_environment().physical(),
+                    source_selected.register_environment().constraints(),
+                    post.machine().plan().clone(),
+                ),
+                Err(omega_machine_optimizer::TerminalPostAllocationMachineError::SelectedRootMismatch)
+            );
+        }
+
+        let mut corrupted = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_x64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        crate::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
+            &mut corrupted,
+        );
+        assert!(matches!(
+            stage_optimized_machine_effects_after_active_resident_rematerialization(&corrupted),
+            Err(
+                OptimizedMachineEffectPipelineError::ActiveResidentRematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+        assert!(matches!(
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &corrupted,
+            ),
+            Err(
+                OptimizedPostAllocationMachinePipelineError::ActiveResidentRematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+
+        let x86 = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_x64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let arm = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_arm64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let x86_post =
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &x86,
+            )
+            .unwrap();
+        assert!(
+            validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+                &arm,
+                &x86_post,
+            )
+            .is_err()
+        );
     }
 
     #[test]

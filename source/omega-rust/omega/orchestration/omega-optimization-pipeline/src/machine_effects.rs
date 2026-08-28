@@ -13,14 +13,16 @@ use omega_terminal_isa_x86_64::{
 };
 
 use crate::{
-    OptimizedFixedViewCopyCustodyError, OptimizedLiteralFoldCustodyError,
-    OptimizedSelectionCustodyError, StagedOptimizedFixedViewCopies,
+    OptimizedActiveResidentRematerializationError, OptimizedFixedViewCopyCustodyError,
+    OptimizedLiteralFoldCustodyError, OptimizedSelectionCustodyError,
+    StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt, StagedOptimizedLiteralFoldCustodyReceipt,
     StagedOptimizedLiteralFolds, StagedOptimizedSelectedInstructions,
     StagedOptimizedSelectionCustodyReceipt, StagedSelectedLoweringOptimizationCustodyReceipt,
-    StagedSelectedLoweringOptimizationRun, validate_optimized_fixed_view_copy_custody,
-    validate_optimized_literal_fold_custody, validate_optimized_selection_custody,
-    validate_selected_lowering_optimization_custody,
+    StagedSelectedLoweringOptimizationRun, validate_optimized_active_resident_rematerialization,
+    validate_optimized_fixed_view_copy_custody, validate_optimized_literal_fold_custody,
+    validate_optimized_selection_custody, validate_selected_lowering_optimization_custody,
 };
 
 /// Borrowed, non-authoritative pre-allocation machine-effect sidecar with the
@@ -77,6 +79,7 @@ pub enum StagedOptimizedMachineEffectSourceCustodyReceipt {
     FixedViewCopies(StagedOptimizedFixedViewCopyCustodyReceipt),
     LiteralFolds(StagedOptimizedLiteralFoldCustodyReceipt),
     SelectedLowering(StagedSelectedLoweringOptimizationCustodyReceipt),
+    ActiveResidentRematerialization(StagedOptimizedActiveResidentRematerializationCustodyReceipt),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -85,6 +88,7 @@ pub enum OptimizedMachineEffectPipelineError {
     FixedViewCopies(OptimizedFixedViewCopyCustodyError),
     LiteralFolds(OptimizedLiteralFoldCustodyError),
     SelectedLowering(OptimizedLiteralFoldCustodyError),
+    ActiveResidentRematerialization(OptimizedActiveResidentRematerializationError),
     X86_64Catalog(X86_64TerminalMachineEffectCatalogValidationError),
     Aarch64Catalog(Aarch64TerminalMachineEffectCatalogValidationError),
     Analysis(TerminalMachineEffectError),
@@ -188,6 +192,30 @@ pub fn stage_optimized_machine_effects_after_selected_lowering(
     Ok(StagedOptimizedMachineEffects { effects, custody })
 }
 
+pub fn stage_optimized_machine_effects_after_active_resident_rematerialization(
+    source: &StagedOptimizedActiveResidentRematerialization,
+) -> Result<StagedOptimizedMachineEffects, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_optimized_active_resident_rematerialization(source)
+        .map_err(OptimizedMachineEffectPipelineError::ActiveResidentRematerialization)?;
+    let selected_stage = source
+        .source()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let effects = analyze(
+        source.rematerialization(),
+        selected_stage,
+        selected_stage.register_environment(),
+    )?;
+    let custody = custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::ActiveResidentRematerialization(
+            source_receipt,
+        ),
+        &effects,
+    );
+    Ok(StagedOptimizedMachineEffects { effects, custody })
+}
+
 pub fn validate_optimized_machine_effect_custody(
     source: &StagedOptimizedSelectedInstructions,
     effects: &ValidatedTerminalPreAllocationMachineEffects,
@@ -277,6 +305,31 @@ pub fn validate_optimized_machine_effect_custody_after_selected_lowering(
     };
     Ok(custody_receipt(
         StagedOptimizedMachineEffectSourceCustodyReceipt::SelectedLowering(source_receipt),
+        &replayed,
+    ))
+}
+
+pub fn validate_optimized_machine_effect_custody_after_active_resident_rematerialization(
+    source: &StagedOptimizedActiveResidentRematerialization,
+    effects: &ValidatedTerminalPreAllocationMachineEffects,
+) -> Result<StagedOptimizedMachineEffectCustodyReceipt, OptimizedMachineEffectPipelineError> {
+    let source_receipt = validate_optimized_active_resident_rematerialization(source)
+        .map_err(OptimizedMachineEffectPipelineError::ActiveResidentRematerialization)?;
+    let selected_stage = source
+        .source()
+        .live_range_stage()
+        .liveness_stage()
+        .selected_stage();
+    let replayed = revalidate(
+        source.rematerialization(),
+        selected_stage,
+        selected_stage.register_environment(),
+        effects,
+    )?;
+    Ok(custody_receipt(
+        StagedOptimizedMachineEffectSourceCustodyReceipt::ActiveResidentRematerialization(
+            source_receipt,
+        ),
         &replayed,
     ))
 }
