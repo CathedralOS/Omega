@@ -990,7 +990,9 @@ evidence alias is omitted. It is accepted only when checked evidence-term,
 interface, and projection facts all match the structural typed declaration.
 Direct parameter-rooted member paths in ordinary contracts retain the receiver
 ordinal and exact package-qualified case/field chain after joining one checked
-semantic-place row. Computed members, proposition-argument members without that
+semantic-place row and exactly one finalized public-interface member-token
+selection to the same field. Missing, duplicate, or mismatched custody rejects.
+Computed members, proposition-argument members without that
 join, unsupported advanced call forms, and aggregate expressions still reject
 rather than falling back to text or a hash. Contract casts retain their structural operand,
 alpha-normalized target type, arithmetic policy, package-qualified semantic
