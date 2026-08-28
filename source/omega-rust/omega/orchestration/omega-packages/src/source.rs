@@ -1906,7 +1906,12 @@ fn resolve_git_snapshot(
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
     make_snapshot_read_only(&pending.root)?;
-    std::fs::rename(&pending.root, &publication).map_err(|error| io_error(&publication, error))?;
+    publish_cache_directory(
+        CacheCustodyKind::Git,
+        &snapshots,
+        &pending.root,
+        &publication,
+    )?;
     pending.published = true;
 
     // The returned identity is always calculated from the atomically published tree, never from
@@ -2943,7 +2948,7 @@ fn create_git_cache_entry(
         execution_transport,
         limits,
     )?;
-    std::fs::rename(&pending.root, entry_root).map_err(|error| io_error(entry_root, error))?;
+    publish_cache_directory(CacheCustodyKind::Git, cache_dir, &pending.root, entry_root)?;
     pending.published = true;
     Ok(())
 }
@@ -3373,6 +3378,107 @@ fn cache_custody_has_capacity(observed: usize, pending: usize) -> bool {
     observed
         .checked_add(pending)
         .is_some_and(|retained| retained < CACHE_CUSTODY_ENTRY_LIMIT)
+}
+
+fn publish_cache_directory(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    staged: &Path,
+    publication: &Path,
+) -> Result<(), SourceResolveError> {
+    verify_cache_custody_root(parent, kind)?;
+    let directory = open_absolute_directory_nofollow(parent)
+        .map_err(|error| cache_custody_invalid(kind, parent, error.to_string()))?;
+    let staged_name = direct_cache_child_name(kind, parent, staged)?;
+    let publication_name = direct_cache_child_name(kind, parent, publication)?;
+    publish_cache_directory_from_open_parent(
+        kind,
+        parent,
+        &directory,
+        staged_name,
+        publication_name,
+    )
+}
+
+fn direct_cache_child_name<'a>(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    child: &'a Path,
+) -> Result<&'a OsStr, SourceResolveError> {
+    let relative = child.strip_prefix(parent).map_err(|_| {
+        cache_custody_invalid(
+            kind,
+            child,
+            "cache publication is outside its retained parent",
+        )
+    })?;
+    let mut components = relative.components();
+    let name = match (components.next(), components.next()) {
+        (Some(std::path::Component::Normal(name)), None) => name,
+        _ => {
+            return Err(cache_custody_invalid(
+                kind,
+                child,
+                "cache publication is not a direct child of its retained parent",
+            ));
+        }
+    };
+    Ok(name)
+}
+
+fn publish_cache_directory_from_open_parent(
+    kind: CacheCustodyKind,
+    parent: &Path,
+    directory: &CapabilityDirectory,
+    staged_name: &OsStr,
+    publication_name: &OsStr,
+) -> Result<(), SourceResolveError> {
+    let staged_path = parent.join(staged_name);
+    let publication_path = parent.join(publication_name);
+    let staged_metadata = directory
+        .symlink_metadata(staged_name)
+        .map_err(|error| io_error(&staged_path, error))?;
+    if staged_metadata.file_type().is_symlink() || !staged_metadata.is_dir() {
+        return Err(cache_custody_invalid(
+            kind,
+            &staged_path,
+            "cache publication stage is not a concrete directory",
+        ));
+    }
+    match directory.symlink_metadata(publication_name) {
+        Ok(_) => {
+            return Err(cache_custody_invalid(
+                kind,
+                &publication_path,
+                "cache publication destination already exists",
+            ));
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(io_error(&publication_path, error)),
+    }
+
+    directory
+        .rename(staged_name, directory, publication_name)
+        .map_err(|error| io_error(&publication_path, error))?;
+    let published_metadata = directory
+        .symlink_metadata(publication_name)
+        .map_err(|error| io_error(&publication_path, error))?;
+    if !published_metadata.is_dir()
+        || !same_capability_file_identity(&staged_metadata, &published_metadata)
+    {
+        return Err(cache_custody_invalid(
+            kind,
+            &publication_path,
+            "published cache directory does not identify the staged directory",
+        ));
+    }
+    directory
+        .try_clone()
+        .map_err(|error| io_error(parent, error))?
+        .into_std_file()
+        .sync_all()
+        .map_err(|error| io_error(parent, error))?;
+    Ok(())
 }
 
 fn open_cache_custody_directory(
@@ -4131,7 +4237,12 @@ fn materialize_local_snapshot(
         .sync_all()
         .map_err(|error| io_error(&metadata_path, error))?;
     make_snapshot_read_only(&pending.root)?;
-    std::fs::rename(&pending.root, publication).map_err(|error| io_error(publication, error))?;
+    publish_cache_directory(
+        CacheCustodyKind::LocalSnapshot,
+        snapshots,
+        &pending.root,
+        publication,
+    )?;
     pending.published = true;
     verify_local_snapshot(publication, identity, limits)
 }
@@ -8420,6 +8531,90 @@ mod tests {
         ));
 
         let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_publication_renames_a_direct_child_through_its_parent_capability() {
+        let cache = temp_root("capability-publication");
+        std::fs::create_dir_all(&cache).expect("create publication parent");
+        let canonical_cache = cache
+            .canonicalize()
+            .expect("canonicalize publication parent");
+        let staged = canonical_cache.join("staged");
+        let publication = canonical_cache.join("published");
+        std::fs::create_dir_all(&staged).expect("create publication stage");
+        std::fs::write(staged.join("payload"), b"retained").expect("write staged payload");
+
+        publish_cache_directory(
+            CacheCustodyKind::Git,
+            &canonical_cache,
+            &staged,
+            &publication,
+        )
+        .expect("publish through retained cache parent");
+
+        assert!(!staged.exists());
+        assert_eq!(
+            std::fs::read(publication.join("payload")).expect("read published payload"),
+            b"retained"
+        );
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn cache_publication_rejects_a_preexisting_destination() {
+        let cache = temp_root("capability-publication-existing");
+        std::fs::create_dir_all(&cache).expect("create publication parent");
+        let canonical_cache = cache
+            .canonicalize()
+            .expect("canonicalize publication parent");
+        let staged = canonical_cache.join("staged");
+        let publication = canonical_cache.join("published");
+        std::fs::create_dir_all(&staged).expect("create publication stage");
+        std::fs::create_dir(&publication).expect("create existing publication");
+
+        let error = publish_cache_directory(
+            CacheCustodyKind::LocalSnapshot,
+            &canonical_cache,
+            &staged,
+            &publication,
+        )
+        .expect_err("publication must not replace an existing cache child");
+
+        assert!(matches!(
+            error,
+            SourceResolveError::LocalSnapshotInvalid { .. }
+        ));
+        assert!(staged.is_dir());
+        assert!(publication.is_dir());
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn open_cache_parent_publication_is_not_redirected_by_path_replacement() {
+        let root = temp_root("capability-publication-parent-replacement");
+        let cache = root.join("cache");
+        let retained = root.join("retained");
+        std::fs::create_dir_all(cache.join("staged")).expect("create publication stage");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache parent");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache parent");
+
+        std::fs::rename(&cache, &retained).expect("replace opened cache parent path");
+        std::fs::create_dir(&cache).expect("create replacement cache parent");
+        publish_cache_directory_from_open_parent(
+            CacheCustodyKind::Git,
+            &canonical_cache,
+            &directory,
+            OsStr::new("staged"),
+            OsStr::new("published"),
+        )
+        .expect("publish through retained parent handle");
+
+        assert!(retained.join("published").is_dir());
+        assert!(!cache.join("published").exists());
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[cfg(unix)]

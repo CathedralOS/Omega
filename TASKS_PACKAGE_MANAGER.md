@@ -449,6 +449,18 @@ complete.
   staging, publication, and invalidation still contain pathname operations;
   path-based macOS ACL observation and a hostile same-user mutator remain open.
 
+  Milestone 2026-08-27: Git cache-entry, Git snapshot, and local snapshot
+  publication now open the canonical publication parent component-by-component
+  no-follow and rename only validated direct-child names through that retained
+  directory capability. Publication rejects a preexisting destination, confirms
+  that the published directory retains the staged directory's file identity,
+  and synchronizes the retained parent handle. A canary replaces the opened
+  parent pathname and proves publication remains in the retained directory
+  rather than being redirected into the replacement. Ambient staging creation
+  and cleanup, lock opening/path confirmation, metadata reads, invalidation,
+  and path-based macOS ACL observation remain open; this does not claim defense
+  against an active same-user process racing the destination-existence check.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
