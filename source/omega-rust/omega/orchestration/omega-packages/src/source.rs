@@ -1078,7 +1078,7 @@ fn replace_canonical_git_control_file(
     config_path: &Path,
     canonical_config: &[u8],
 ) -> Result<(), SourceResolveError> {
-    let directory = CapabilityDirectory::open_ambient_dir(repository, ambient_authority())
+    let directory = open_absolute_directory_nofollow(repository)
         .map_err(|error| io_error(repository, error))?;
     let root =
         RecordFileRoot::from_directory(directory, repository.to_path_buf()).map_err(|error| {
