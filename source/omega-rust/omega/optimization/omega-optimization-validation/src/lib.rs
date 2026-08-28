@@ -20,7 +20,8 @@ use omega_optimization_unit::{
     NonAdjacentBlockMergeRewrite, ObservationKnowledge, OptimizationEdge, OptimizationFact,
     OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
-    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
+    OwnershipFrontierWitness, OwnershipFrontierWitnessRow, PhiTranslatedScalarGvnRewrite,
+    PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
     ProofCertifiedScalarIdentityRewrite, ProofQuestion, ProofQuestionAdmissionKind,
     ProofQuestionClass, ProofQuestionOwner, ProvenanceDisposition, ProvenanceRewrite,
     PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
@@ -4251,12 +4252,14 @@ pub fn validate_adjacent_block_merge_candidate(
     if candidate.substitutions() != substitutions {
         return Err(OptimizationUnitValidationError::CandidateSubstitutionMismatch);
     }
-    if !reconstruct_adjacent_merge_ownership_is_identity(
+    let ownership_witness = reconstruct_adjacent_merge_ownership_witness(
         input,
         function,
         patch.incoming_edge,
         patch.target,
-    ) {
+    )
+    .ok_or(OptimizationUnitValidationError::CandidateObservationMismatch)?;
+    if candidate.ownership_frontier_witness() != Some(&ownership_witness) {
         return Err(OptimizationUnitValidationError::CandidateObservationMismatch);
     }
     let (expected_blocks, accepted_provenance) =
@@ -4352,7 +4355,7 @@ pub fn validate_adjacent_block_merge_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.adjacent-single-predecessor-block-merge.v4",
+            b"omega.validator.adjacent-single-predecessor-block-merge.v5",
         ),
         provenance: accepted_provenance,
     })
@@ -7345,6 +7348,15 @@ fn reconstruct_adjacent_merge_ownership_is_identity(
     incoming: EdgeId,
     target: BlockId,
 ) -> bool {
+    reconstruct_adjacent_merge_ownership_witness(unit, function, incoming, target).is_some()
+}
+
+fn reconstruct_adjacent_merge_ownership_witness(
+    unit: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    incoming: EdgeId,
+    target: BlockId,
+) -> Option<OwnershipFrontierWitness> {
     let sites = [
         OwnershipFrontierSite::EdgeEntry(incoming),
         OwnershipFrontierSite::EdgeExit(incoming),
@@ -7356,14 +7368,30 @@ fn reconstruct_adjacent_merge_ownership_is_identity(
             .find(|fact| fact.machine == function.machine && fact.site == site)
     });
     if facts.iter().all(Option::is_none) {
-        return function.structural_parameters.is_empty()
+        return (function.structural_parameters.is_empty()
             && function.entry_claim_declarations.is_empty()
-            && function.declared_places.is_empty();
+            && function.declared_places.is_empty())
+        .then_some(OwnershipFrontierWitness { rows: Vec::new() });
     }
-    facts.iter().all(Option::is_some)
-        && facts
+    if !facts.iter().all(Option::is_some)
+        || !facts
             .windows(2)
             .all(|pair| pair[0].unwrap().snapshot == pair[1].unwrap().snapshot)
+    {
+        return None;
+    }
+    let mut rows = facts
+        .into_iter()
+        .map(|fact| {
+            let fact = fact.expect("complete ownership frontier fact set");
+            OwnershipFrontierWitnessRow {
+                site: fact.site,
+                fact: fact.identity,
+            }
+        })
+        .collect::<Vec<_>>();
+    rows.sort_unstable_by_key(|row| row.site);
+    Some(OwnershipFrontierWitness { rows })
 }
 
 fn reconstruct_adjacent_merge_accounting(

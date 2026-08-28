@@ -1133,7 +1133,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
         b"omega.psi-pass.copy-propagation.v1",
     );
     let cfg_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-        b"omega.psi-pass.control-flow-cleanup.v11",
+        b"omega.psi-pass.control-flow-cleanup.v12",
     );
     let dead_scalar_pass = omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
         b"omega.psi-pass.dead-pure-scalar-elimination.v2",

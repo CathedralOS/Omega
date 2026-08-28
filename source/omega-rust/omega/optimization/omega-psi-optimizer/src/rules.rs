@@ -13,13 +13,13 @@ use omega_optimization_unit::{
     ConstantConditionalRewrite, DeadScalarNodeRewrite, DominatingScalarCommonSubexpressionRewrite,
     IntegerConstantRewrite, IntegerEvaluationWitness, LinearEmptyBlockRewrite,
     LocalScalarCommonSubexpressionRewrite, NodeLocation, NonAdjacentBlockMergeRewrite,
-    OptimizationFact, OwnershipFrontierSite, PathQualifiedEmptyBlockRewrite,
-    PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
-    PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
-    PsiRewriteCandidate, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
-    ScalarSubstitution, SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
-    ValueRangeSupport,
+    OptimizationFact, OwnershipFrontierSite, OwnershipFrontierWitness, OwnershipFrontierWitnessRow,
+    PathQualifiedEmptyBlockRewrite, PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming,
+    ProofCertifiedScalarIdentityKind, ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition,
+    ProvenanceRewrite, PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance,
+    PsiRealizationSite, PsiRewriteCandidate, RedundantBlockParameterRewrite,
+    RedundantBlockParameterWitness, ScalarSubstitution, SharedTerminalJumpFusionRewrite,
+    UnreachablePrivateMachinesRewrite, ValueRangeSupport,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
@@ -33,7 +33,7 @@ use crate::{
 };
 
 const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v2";
-const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v11";
+const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v12";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
 const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v11";
@@ -5609,10 +5609,10 @@ impl AdjacentBlockMergeRule {
     pub fn contract() -> OptimizationRuleContract {
         OptimizationRuleContract::new(
             OptimizationRuleIdentity::from_canonical_bytes(
-                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v4",
+                b"omega.psi-rule.adjacent-single-predecessor-block-merge.v5",
             ),
             OptimizationPassIdentity::from_canonical_bytes(CONTROL_FLOW_CLEANUP_PASS_NAME),
-            4,
+            5,
             AnalysisSet::new([
                 AnalysisKind::ControlFlowGraph,
                 AnalysisKind::Dominators,
@@ -5720,16 +5720,18 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                         .filter(|edge| edge.target == target.id)
                         .count()
                         != 1
-                    || !adjacent_merge_ownership_is_identity(
-                        unit,
-                        function,
-                        frontiers,
-                        *incoming_edge,
-                        target.id,
-                    )
                 {
                     continue;
                 }
+                let Some(ownership_witness) = adjacent_merge_ownership_witness(
+                    unit,
+                    function,
+                    frontiers,
+                    *incoming_edge,
+                    target.id,
+                ) else {
+                    continue;
+                };
                 let Some(mut substitutions) = target
                     .parameters
                     .iter()
@@ -5777,6 +5779,7 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                         affected_blocks,
                         substitutions,
                         provenance,
+                        ownership_witness,
                         -2,
                         AdjacentBlockMergeRewrite {
                             predecessor: predecessor_location,
@@ -6444,6 +6447,16 @@ fn adjacent_merge_ownership_is_identity(
     incoming: psi_core::EdgeId,
     target: BlockId,
 ) -> bool {
+    adjacent_merge_ownership_witness(unit, function, frontiers, incoming, target).is_some()
+}
+
+fn adjacent_merge_ownership_witness(
+    unit: &PsiOptimizationUnit,
+    function: &omega_optimization_unit::PsiOptimizationFunction,
+    frontiers: &crate::OwnershipFrontierAnalysis,
+    incoming: psi_core::EdgeId,
+    target: BlockId,
+) -> Option<OwnershipFrontierWitness> {
     let sites = [
         OwnershipFrontierSite::EdgeEntry(incoming),
         OwnershipFrontierSite::EdgeExit(incoming),
@@ -6451,15 +6464,31 @@ fn adjacent_merge_ownership_is_identity(
     ];
     let facts = sites.map(|site| frontiers.fact(function.machine, site));
     if facts.iter().all(Option::is_none) {
-        return function.structural_parameters.is_empty()
+        return (function.structural_parameters.is_empty()
             && function.entry_claim_declarations.is_empty()
-            && function.declared_places.is_empty();
+            && function.declared_places.is_empty())
+        .then_some(OwnershipFrontierWitness { rows: Vec::new() });
     }
-    facts.iter().all(|fact| {
+    if !facts.iter().all(|fact| {
         fact.is_some_and(|fact| fact.revision == unit.identity && fact.machine == function.machine)
-    }) && facts
+    }) || !facts
         .windows(2)
         .all(|pair| pair[0].unwrap().snapshot == pair[1].unwrap().snapshot)
+    {
+        return None;
+    }
+    let mut rows = facts
+        .into_iter()
+        .map(|fact| {
+            let fact = fact.expect("complete ownership frontier fact set");
+            OwnershipFrontierWitnessRow {
+                site: fact.site,
+                fact: fact.identity,
+            }
+        })
+        .collect::<Vec<_>>();
+    rows.sort_unstable_by_key(|row| row.site);
+    Some(OwnershipFrontierWitness { rows })
 }
 
 fn adjacent_merge_accounting(
@@ -8990,7 +9019,8 @@ fn assemble_built_in_registry(
 pub(crate) mod tests {
     use omega_optimization_core::{OptimizationFactReference, OptimizationValidatorIdentity};
     use omega_optimization_unit::{
-        AcceptedObligationFact, OptimizationFact, OptimizationNode, PsiProvenance, PsiRewritePatch,
+        AcceptedObligationFact, OptimizationFact, OptimizationNode, OwnershipFrontierFact,
+        OwnershipFrontierSnapshot, PsiProvenance, PsiRewriteCandidateError, PsiRewritePatch,
         attach_accepted_obligation_facts, recompute_psi_optimization_unit_identity,
         reconstruct_psi_optimization_unit_seed,
     };
@@ -13045,6 +13075,7 @@ pub(crate) mod tests {
             candidate.affected_blocks().to_vec(),
             candidate.substitutions().to_vec(),
             corrupted_provenance,
+            candidate.ownership_frontier_witness().unwrap().clone(),
             candidate.predicted_cost_delta(),
             patch,
         )
@@ -13071,6 +13102,7 @@ pub(crate) mod tests {
             .unwrap()
             .try_into()
             .expect("the adjacent return target is the sole eligible merge");
+        assert!(candidate.consumed_facts().is_empty());
         let accepted = validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
         let output = accepted.unit();
         assert_eq!(output.functions[0].blocks.len(), 2);
@@ -13096,6 +13128,118 @@ pub(crate) mod tests {
                         node: 0,
                     }))
         }));
+    }
+
+    #[test]
+    fn adjacent_block_merge_carries_exact_ownership_frontier_custody() {
+        let mut unit = linear_empty_block_unit();
+        let machine = id(901, MachineId::new);
+        let incoming = id(912, EdgeId::new);
+        let target = id(904, BlockId::new);
+        let snapshot = OwnershipFrontierSnapshot {
+            claims: Vec::new(),
+            owned_places: Vec::new(),
+            partial_custody: Vec::new(),
+        };
+        unit.ownership_frontier_facts = [
+            OwnershipFrontierSite::EdgeEntry(id(911, EdgeId::new)),
+            OwnershipFrontierSite::EdgeExit(id(911, EdgeId::new)),
+            OwnershipFrontierSite::EdgeEntry(incoming),
+            OwnershipFrontierSite::EdgeExit(incoming),
+            OwnershipFrontierSite::BlockEntry(target),
+        ]
+        .into_iter()
+        .map(|site| OwnershipFrontierFact::new(unit.terminal_psi, machine, site, snapshot.clone()))
+        .collect();
+        unit.ownership_frontier_facts
+            .sort_by_key(|fact| (fact.machine, fact.site));
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        validate_psi_optimization_unit(&unit).unwrap();
+
+        let contract = AdjacentBlockMergeRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = AdjacentBlockMergeRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .into_iter()
+            .find(|candidate| {
+                matches!(
+                    candidate.patch(),
+                    PsiRewritePatch::MergeAdjacentBlock(patch)
+                        if patch.incoming_edge == incoming && patch.target == target
+                )
+            })
+            .expect("ownership-certified adjacent merge is proposed");
+        assert_eq!(candidate.consumed_facts().len(), 3);
+        assert!(
+            candidate
+                .consumed_facts()
+                .iter()
+                .all(|fact| matches!(fact, OptimizationFactReference::OwnershipFrontier(_)))
+        );
+        validate_adjacent_block_merge_candidate(&unit, &candidate).unwrap();
+
+        let PsiRewritePatch::MergeAdjacentBlock(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let missing_custody = PsiRewriteCandidate::new_adjacent_block_merge(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.substitutions().to_vec(),
+            candidate.provenance().to_vec(),
+            OwnershipFrontierWitness { rows: Vec::new() },
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_adjacent_block_merge_candidate(&unit, &missing_custody),
+            Err(OptimizationUnitValidationError::CandidateObservationMismatch)
+        );
+
+        let mut forged_witness = candidate.ownership_frontier_witness().unwrap().clone();
+        forged_witness.rows[0].fact =
+            omega_optimization_core::OwnershipFrontierFactIdentity::from_canonical_bytes(
+                b"forged-adjacent-merge-ownership-fact",
+            );
+        let forged_custody = PsiRewriteCandidate::new_adjacent_block_merge(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.substitutions().to_vec(),
+            candidate.provenance().to_vec(),
+            forged_witness,
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_adjacent_block_merge_candidate(&unit, &forged_custody),
+            Err(OptimizationUnitValidationError::CandidateObservationMismatch)
+        );
+
+        let mut reordered_witness = candidate.ownership_frontier_witness().unwrap().clone();
+        reordered_witness.rows.reverse();
+        assert_eq!(
+            PsiRewriteCandidate::new_adjacent_block_merge(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.substitutions().to_vec(),
+                candidate.provenance().to_vec(),
+                reordered_witness,
+                candidate.predicted_cost_delta(),
+                patch,
+            ),
+            Err(PsiRewriteCandidateError::NonCanonicalOwnershipFrontierWitness)
+        );
     }
 
     #[test]
@@ -13182,6 +13326,7 @@ pub(crate) mod tests {
             candidate.affected_blocks().to_vec(),
             candidate.substitutions().to_vec(),
             corrupted_provenance,
+            candidate.ownership_frontier_witness().unwrap().clone(),
             candidate.predicted_cost_delta(),
             patch,
         )
