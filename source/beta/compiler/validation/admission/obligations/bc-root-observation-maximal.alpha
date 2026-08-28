@@ -216,40 +216,34 @@ root_observation_require_exclusion_one:
         imm r1, 629000
         add r20, r1
         mov r21, r10
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 0
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 0
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r11
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r12
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r13
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r14
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r15
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         mov r21, r16
-        call root_observation_exclusion_require_next
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         imm r1, 1
         add r10, r1
         jmp root_observation_require_exclusion_row
-
-root_observation_exclusion_require_next:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
-        ret
 
 ; Independent expected selector; do not alias producer registers by loading
 ; the row itself or reuse its dispatch labels.

@@ -135,69 +135,57 @@ parse_proc_require_remaining_cells:
 parse_proc_build_composition:
         imm r20, 609240
         imm r21, 1414415696             ; PENT
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1347178320             ; PLOP
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 2                      ; early6 / close-success
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1346584912             ; PCAP
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 2                      ; early7 / room
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1398294096             ; PFXS
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1146045008             ; PBOD
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 0                      ; exact PBOD entry D
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1296388676             ; DREM strengthening
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 49                     ; finite PBOD epilogue suffix
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 7                      ; complete root outcome rows
-        call parse_proc_store_composition_cell
+        call parse_proc_store_next
         imm r21, 1                      ; spine complete
-        call parse_proc_store_composition_cell
-        ret
-
-parse_proc_store_composition_cell:
-        store r20, r21
-        imm r1, 8
-        add r20, r1
+        call parse_proc_store_next
         ret
 
 parse_proc_require_composition:
         imm r20, 609240
         imm r21, 1414415696
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1347178320
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 2
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1346584912
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 2
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1398294096
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1146045008
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 0
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1296388676
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 49
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 7
-        call parse_proc_require_composition_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_composition_next
-        ret
-
-parse_proc_require_composition_next:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
+        call parse_proc_require_next
         ret
 
 ; Seven rows: Ret0; Ret252 origins2,4,5,6,7; and Div.
@@ -346,45 +334,45 @@ parse_proc_require_outcome_row:
         imm r1, 611000
         add r20, r1
         mov r21, r10
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r11
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r12
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r13
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r14
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r15
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r16
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r17
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r18
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r19
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 0
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 0
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         mov r21, r19
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r21, 1
-        call parse_proc_require_outcome_next
+        call parse_proc_require_next
         imm r1, 1
         add r10, r1
         jmp parse_proc_require_outcome_loop
@@ -445,10 +433,4 @@ parse_proc_expected_div:
         imm r18, 0
         imm r19, 0
 parse_proc_expected_selected:
-        ret
-
-parse_proc_require_outcome_next:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
         ret

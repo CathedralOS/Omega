@@ -143,9 +143,9 @@ root_resource_join_build_cleanup:
 root_resource_join_require_cleanup:
         imm r20, 627000
         imm r21, 1
-        call root_resource_join_require_next
+        call root_observation_require_next
         imm r21, 354
-        call root_resource_join_require_next
+        call root_observation_require_next
         imm r20, 354
         imm r21, 69
         imm r22, 1
@@ -179,16 +179,10 @@ root_resource_join_require_cleanup_flags:
         ret
 root_resource_join_require_cleanup_flag:
         imm r21, 1
-        call root_resource_join_require_next
+        call root_observation_require_next
         imm r1, 1
         add r10, r1
         jmp root_resource_join_require_cleanup_flags
-
-root_resource_join_require_next:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
-        ret
 
 root_resource_join_build_rows:
         imm r10, 1
@@ -339,33 +333,33 @@ root_resource_join_require_row:
         imm r1, 628000
         add r20, r1
         mov r21, r10
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r11
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r12
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r13
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r14
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r15
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r16
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r17
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r18
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r19
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r22
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r23
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r24
-        call root_resource_join_require_next
+        call root_observation_require_next
         mov r21, r25
-        call root_resource_join_require_next
+        call root_observation_require_next
         imm r26, 0
 root_resource_join_require_row_flags:
         imm r1, 6
@@ -375,7 +369,7 @@ root_resource_join_require_row_flags:
         jmp root_resource_join_require_loop
 root_resource_join_require_row_flag:
         imm r21, 1
-        call root_resource_join_require_next
+        call root_observation_require_next
         imm r1, 1
         add r26, r1
         jmp root_resource_join_require_row_flags
