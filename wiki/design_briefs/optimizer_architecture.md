@@ -192,7 +192,8 @@ canonical Terminal Psi semantic + proof sections
           -> claim-preserving call-aware Unit legalization
           -> atomic Unit-call selection + pre-allocation effects/liveness
           -> zero-VReg ranges/legality/empty homes + post-allocation effects
-          -> typed internal-call fixup encoding and whole-section resolution (next)
+          -> typed internal-call fixup encoding
+          -> function-relative custody and whole-section resolution (next)
           -> object/private-symbol join
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
@@ -2446,11 +2447,14 @@ The target-owned x86 encoder produces and independently decodes the canonical
 pointer rebinding, balanced frame, flags, scratch register, fault, and call
 effects. Its zero `E8` displacement is explicitly owned by a typed unresolved
 internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
-executable-byte authority. The next implementation boundary retains that
-template and fixup through layout-independent encoding, resolves the signed
-rel32 only at whole-text placement where both MachineId offsets are known, and
-then joins the resulting object/private continuation symbol with the
-settlement, semantic contract, and wrapper plan.
+executable-byte authority. Layout-independent selected-form encoding v5 now
+retains a parallel structural-function roster with that exact template,
+decoded footprint, typed fixup, separately encoded `C3` return, and exact
+ordinary/structural counts under independent replay. The next implementation
+boundary carries the unresolved fixup through resolved and function-relative
+layout, resolves the signed rel32 only at whole-text placement where both
+MachineId offsets are known, and then joins the resulting object/private
+continuation symbol with the settlement, semantic contract, and wrapper plan.
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source
