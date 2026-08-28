@@ -727,10 +727,12 @@ fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => vec![OptimizationEdge {
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -747,6 +749,7 @@ fn scalar_operation_successors(operation: &O) -> Vec<OptimizationEdge> {
                 psi_edge: successor.psi_edge,
                 target: successor.target,
                 bindings: successor.bindings.clone(),
+                trivial_affine_discards: successor.trivial_affine_discards.clone(),
                 provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Edge(successor.psi_edge),

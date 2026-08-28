@@ -338,6 +338,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
             psi_edge: jump_edge,
             target,
             bindings,
+            trivial_affine_discards,
         },
         TerminalAbstractOperation::Return {
             psi_edge,
@@ -352,6 +353,7 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     };
     assert_eq!(*jump_edge, edge_id(1));
     assert_eq!(*target, block_id(2));
+    assert_eq!(trivial_affine_discards, &[place]);
     assert_eq!(bindings.len(), 1);
     assert_eq!(bindings[0].parameter, value_id(3));
     assert_eq!(bindings[0].argument, value_id(1));
@@ -359,6 +361,18 @@ fn omega_consumes_verified_jump_affine_cleanup_without_emitting_an_operation() {
     assert_eq!(*result, value_id(2));
     assert_eq!(*value, value_id(3));
     assert_eq!(*scalar_type, ScalarType::Boolean);
+
+    let optimizer_input =
+        lower_artifact_sections_for_optimization(&semantics, &proof, &AdmissionProfile::default())
+            .expect("verified jump cleanup retains optimizer context");
+    let verified = build_verified_psi_optimization_unit(
+        optimizer_input,
+        psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("verified jump cleanup enters optimizer admission");
+    let edge = &verified.unit().functions[0].blocks[0].nodes[0].successors[0];
+    assert_eq!(edge.psi_edge, edge_id(1));
+    assert_eq!(edge.trivial_affine_discards, [place]);
 }
 
 #[test]

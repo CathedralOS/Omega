@@ -1803,8 +1803,15 @@ fn lower_function(
                 provenance.operations.push(*psi_operation);
             }
             TerminalAbstractOperation::Jump {
-                psi_edge, bindings, ..
+                psi_edge,
+                bindings,
+                trivial_affine_discards,
+                ..
             } => {
+                // This ownership-only edge work is deliberately erased after
+                // Terminal verification (and optimizer admission when
+                // selected); it has no target instruction.
+                let _ = trivial_affine_discards;
                 let transferred = bindings
                     .iter()
                     .map(|binding| {

@@ -287,11 +287,13 @@ fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
                             psi_edge: EdgeId::new(1).unwrap(),
                             target: BlockId::new(2).unwrap(),
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: TerminalAbstractSuccessor {
                             psi_edge: EdgeId::new(2).unwrap(),
                             target: BlockId::new(3).unwrap(),
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                     TerminalAbstractOperation::Conditional {
@@ -300,11 +302,13 @@ fn bounded_boolean_cleanup_plan() -> TerminalAbstractOperationPlan {
                             psi_edge: EdgeId::new(3).unwrap(),
                             target: BlockId::new(4).unwrap(),
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         when_false: TerminalAbstractSuccessor {
                             psi_edge: EdgeId::new(4).unwrap(),
                             target: BlockId::new(5).unwrap(),
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     },
                     TerminalAbstractOperation::BooleanConstant {
@@ -1990,6 +1994,7 @@ fn constant_conditional_plan(select_true: bool) -> TerminalAbstractOperationPlan
                             argument,
                             scalar_type,
                         }],
+                        trivial_affine_discards: Vec::new(),
                     },
                     when_false: TerminalAbstractSuccessor {
                         psi_edge: false_edge,
@@ -1999,6 +2004,7 @@ fn constant_conditional_plan(select_true: bool) -> TerminalAbstractOperationPlan
                             argument,
                             scalar_type,
                         }],
+                        trivial_affine_discards: Vec::new(),
                     },
                 },
                 TerminalAbstractOperation::WrappingIntegerAdd {

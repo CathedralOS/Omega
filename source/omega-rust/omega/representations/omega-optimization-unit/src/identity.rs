@@ -31,7 +31,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v14\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v15\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -338,6 +338,7 @@ fn encode_edge(bytes: &mut CanonicalBytes, edge: &OptimizationEdge) {
     bytes.id(edge.psi_edge);
     bytes.id(edge.target);
     bytes.slice(&edge.bindings, encode_binding);
+    encode_ids(bytes, &edge.trivial_affine_discards);
     bytes.slice(&edge.provenance, |bytes, provenance| {
         encode_provenance(bytes, *provenance)
     });
@@ -1026,11 +1027,13 @@ fn encode_operation(bytes: &mut CanonicalBytes, operation: &TerminalAbstractOper
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => {
             bytes.u8(42);
             bytes.id(*psi_edge);
             bytes.id(*target);
             bytes.slice(bindings, encode_binding);
+            encode_ids(bytes, trivial_affine_discards);
         }
         O::Conditional {
             condition,
@@ -1213,6 +1216,7 @@ fn encode_successor(bytes: &mut CanonicalBytes, successor: &TerminalAbstractSucc
     bytes.id(successor.psi_edge);
     bytes.id(successor.target);
     bytes.slice(&successor.bindings, encode_binding);
+    encode_ids(bytes, &successor.trivial_affine_discards);
 }
 
 fn encode_optional<T>(

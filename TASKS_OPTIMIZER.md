@@ -580,7 +580,7 @@ These facts constrain the work below.
   outside `declared_places`; source-derived one-local, two-local, and
   local-plus-tail returns pass verified optimizer admission. The verified
   unit now also retains Terminal's complete service catalog under content
-  identity v14. Independent validation replays unique IDs and identities,
+  identity v15. Independent validation replays unique IDs and identities,
   strict known-parent ordering, acyclicity, full transitive parent closure,
   canonical parent-closed function and boundary ceilings, all four internal
   call lanes and boundary-call reach, concrete `PortWrite` membership, and
@@ -938,7 +938,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v14 and ledger v4 already encode the output and
+  optimization-unit identity v15 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1315,9 +1315,19 @@ dependency.
   `BooleanStructuralField` source/field/cleanup legality, and
   `ReturnStructural` source-kind and signature equality now receive exact
   independent replay; focused corruptions and the real nominal-Boolean source
-  canary cover that rung. Remaining full ownership/custody replay—including
-  hidden local-operation provenance—and the crash/requirement and remaining
-  effect vocabulary remain open. The
+  canary cover that rung. The bounded retained-ownership rung is complete:
+  Jump and Conditional successor rows preserve exact ordered trivial-affine
+  discards, identity v15 binds both operation and projected-edge copies, and
+  independent replay checks Terminal's eligible ordered-subsequence rule plus
+  the exact immutable edge-entry/edge-exit ownership delta. Compressed
+  structural-return nodes now retain their hidden local establishments in
+  exact provenance/fuel order and replay each operation's exact affine
+  establishment frontier. Constant-condition folding copies selected cleanup;
+  empty-block threading, block merge, and shared-terminal fusion decline
+  nonempty removed-edge cleanup until composition has an admitted proof.
+  Target lowering explicitly acknowledges the verified ownership-only erasure.
+  Full current-CFG ownership/claim/cleanup replay and the crash/requirement and
+  remaining effect vocabulary remain open. The
   exact payloadless-callee classifier is complete: optimizer-only lowering
   retains the case producer and complete call/contract/evidence-lane surface,
   independent replay matches Terminal's bounded predicate, and ordinary and
@@ -1327,7 +1337,7 @@ dependency.
   boundary ceilings, internal/boundary call reach, `PortWrite` membership, and
   provider refinement; verified-input custody plus the real Console source
   canary cover projection. The current root-reach rung is complete as well:
-  unit identity v14 binds the canonical concrete row and ordered installation
+  unit identity v15 binds the canonical concrete row and ordered installation
   dependencies, while an independent entry-rooted traversal follows all four
   internal-call lanes, separates matching boundary requirements from concrete
   boundary ceilings, expands `PortWrite` parents, and rejects unused or
@@ -1508,7 +1518,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v14, ledger v4,
+  replay. Candidate v20, optimization-unit identity v15, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1600,7 +1610,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v14, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v15, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
