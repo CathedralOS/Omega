@@ -647,8 +647,15 @@ now retains the exact closed predicate instead of one undifferentiated
 intrinsic tag; projection cross-checks that identity against an unresolved,
 receiver-free call before encoding it. Changing the predicate changes
 canonical evidence, while a package declaration with the same spelling remains
-an ordinary package-qualified callable. Other compiler intrinsics remain
-fail-closed.
+an ordinary package-qualified callable.
+Review v75 and canonical row v33 likewise admit the compiler-owned collection-
+length projection in public contract expressions. Checked proof-static member
+resolution derives the receiver type from its retained declaration symbol,
+prefers an actual package field, and selects `CollectionLength` only for `len`
+on a fixed array or slice. Projection requires that exact public-interface
+selection occurrence and encodes the structural receiver without inventing a
+package owner. A package field named `len` remains nominal. Other compiler
+intrinsics remain fail-closed.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

@@ -2520,8 +2520,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 74);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 32);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 75);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 33);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -4860,6 +4860,124 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .canonical_review_bytes()
             .expect("changed member-path encoding"),
         "changing only the receiver coordinates must change package review identity",
+    );
+}
+
+#[test]
+fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition non_empty(items: &[u8]) = items.len > 0;\n",
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public collection-length proposition should check");
+    let length_selection = checked
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.target()
+                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    )
+        })
+        .expect("checked contract must retain its exact collection-length selection");
+    assert_eq!(
+        length_selection.exposure(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("collection-length intrinsic should have exact review identity");
+    let proposition = review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "non_empty")
+        .expect("public proposition row");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("binary transparent proposition body")
+    };
+    assert_eq!(
+        left.as_ref(),
+        &PackageReviewContractExpression::CollectionLength {
+            collection: Box::new(PackageReviewContractExpression::Parameter(0)),
+        }
+    );
+    review
+        .canonical_review_bytes()
+        .expect("collection-length review must be canonically encodable");
+}
+
+#[test]
+fn package_field_named_len_remains_a_nominal_member_in_review() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Buffer { len: u64; }
+pub machine consume(buffer: Buffer)
+requires buffer.len > 0
+{ }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("same-spelled package field contract should check");
+    let review = project_checked_package_review(&checked)
+        .expect("same-spelled package field should retain nominal review identity");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "consume")
+        .expect("public callable row");
+    let [contract] = callable.contracts() else {
+        panic!("one public callable contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("binary public callable contract")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = left.as_ref()
+    else {
+        panic!("package field must remain a nominal member")
+    };
+    assert_eq!(
+        receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert_eq!(member.path(), "Buffer::len");
+    assert_eq!(
+        member.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
     );
 }
 

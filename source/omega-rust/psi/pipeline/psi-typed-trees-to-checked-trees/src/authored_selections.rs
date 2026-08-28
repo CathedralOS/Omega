@@ -911,13 +911,7 @@ fn authored_operand_type(
         ExpressionNode::Atomic(atomic) => authored_operand_type(program, atomic.value),
         ExpressionNode::Borrow(borrow) => authored_operand_type(program, borrow.target),
         ExpressionNode::Cast(cast) => Some(cast.target_type),
-        ExpressionNode::Name(path) => program
-            .state_parameters
-            .iter()
-            .find_map(|(_, parameter)| {
-                (path.symbol.is_valid() && parameter.symbol == path.symbol)
-                    .then_some(parameter.type_reference)
-            })
+        ExpressionNode::Name(path) => type_reference_for_symbol(program, path.symbol)
             .or_else(|| operator_contract_parameter_type(program, expression, path)),
         _ => None,
     }
@@ -1079,8 +1073,25 @@ fn checked_member_target(
         };
         declaration_target(projection.field)
     })
+    .or_else(|| authored_member_target(program, member))
     .or_else(|| contextual_domain_member_target(program, expression, member))
     .or_else(|| contextual_statement_member_target(program, expression, member))
+}
+
+fn authored_member_target(
+    program: &TypedTrees,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Option<CheckedResolutionTarget> {
+    let receiver_type = authored_operand_type(program, member.receiver)?;
+    member_symbol_from_type_reference(program, receiver_type, member.member.as_str())
+        .and_then(declaration_target)
+        .or_else(|| {
+            (member.member.as_str() == "len"
+                && type_reference_is_collection(program, receiver_type))
+            .then_some(CheckedResolutionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            ))
+        })
 }
 
 fn contextual_statement_member_target(
