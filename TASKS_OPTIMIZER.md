@@ -1114,7 +1114,8 @@ dependency.
   result remains live, runtime policy events, and physical check recognition
   remain open.
 
-- **OPT-INITIAL-PIPELINE.** Define the canonical target-neutral schedule for
+- **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
+  Define the canonical target-neutral schedule for
   each subset of the initial named optimizations and its bounded repetition
   rules.
 
@@ -1129,8 +1130,11 @@ dependency.
   with proof-enabled deletion before dead-scalar cleanup so newly dead
   obligation-free operands can disappear in the same pipeline sweep. It has
   distinct ordered pass manifests, aggregate replay evidence, per-pass budgets,
-  and deterministic artifact tests. Thirty-two shuffled built-in registration
-  orders produce identical full SCCP runs, and a direct second
+  and deterministic artifact tests. Thirty-two shuffled pre-assembly
+  contribution orders produce identical ordered registry identities, contracts,
+  final units, commits, work usage, decisions, manifests, and ledgers for every
+  current multi-rule family: SCCP, CFG cleanup, GVN, and dead-scalar
+  elimination. A direct second
   SCCP/CFG/copy/GVN/proof/dead-scalar sweep changes neither final unit nor the
   composed transformation ledger. Remaining to close: add canonical schedules
   and the same fixed-point evidence for each newly implemented initial family.
