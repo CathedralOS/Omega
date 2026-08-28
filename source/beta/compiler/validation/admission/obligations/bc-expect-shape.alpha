@@ -14,6 +14,10 @@ expect_require_shape:
         call exact_require_proc_frame_identity
 
 expect_shape_graph:
+        imm r20, 129
+        imm r21, 131
+        imm r22, 24
+        call exact_require_proc_blocks
         imm r20, 97
         imm r21, 130
         imm r22, 1

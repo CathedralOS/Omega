@@ -1,9 +1,10 @@
 ; Exact p68 entry shape through the entry of its parameter-loop block. This
 ; binds every selected row and exhausts every effect family in that prefix.
+; The canonical procedure inventory and the PC-producing decoded entry/cutpoint
+; join below own the entry block, so no separate block census is needed here.
 
 parse_proc_shape_init:
         call parse_proc_require_proc
-        call parse_proc_require_entry_block
         call parse_proc_require_entry_calls
         call parse_proc_require_entry_locals
         call parse_proc_require_entry_memory
@@ -23,13 +24,6 @@ parse_proc_require_proc:
         imm r23, 48
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-parse_proc_require_entry_block:
-        imm r20, 338
-        imm r21, 68                    ; parse_proc procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        ret
 
 ; Source block/arity/target procedure in r21..r23.
 parse_proc_require_entry_call:

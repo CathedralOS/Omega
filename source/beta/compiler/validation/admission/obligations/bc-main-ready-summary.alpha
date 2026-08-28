@@ -29,15 +29,8 @@ main_ready_summary_init:
         jmp main_loop_entry_summary_init
 
 main_ready_require_shape:
-        ; ready and loop are adjacent blocks of main, procedure 69.
-        imm r20, 351
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 352
-        imm r21, 69
-        imm r22, 1
-        call exact_block_identity_pc
+        ; Canonical inventory owns main's partition. The PC-producing decoded
+        ; scan below binds adjacent ready351 and loop352 directly.
         imm r20, 3145728
         imm r21, 351
         imm r22, 69

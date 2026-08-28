@@ -1,9 +1,10 @@
 ; Exact procedure/control shape for emit_cmp(code), procedure60.
 ;
-; This module owns procedure metadata, all eighteen blocks, and the complete
-; twenty-four-transition decision/materialization graph.  The adjacent data
-; module owns effects, locals, primitives, pushes, table censuses, epilogues,
-; and the decoded footprint.
+; The canonical procedure inventory owns procedure 60's total block span and
+; partition. This module owns procedure metadata and the complete twenty-four-
+; transition decision/materialization graph. The adjacent data module owns
+; effects, locals, primitives, pushes, table censuses, epilogues, and the
+; decoded footprint.
 
 emit_cmp_require_shape:
         call emit_cmp_require_control_shape
@@ -16,84 +17,11 @@ emit_cmp_require_control_shape:
         imm r22, 3                    ; code,set,done
         imm r23, 32
         call exact_require_proc_frame_identity
-
-emit_cmp_require_blocks:
-        imm r20, 285
-        imm r21, 60
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 286
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 287
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 288
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 289
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 290
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 291
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 292
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 293
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 294
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 295
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 296
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 297
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 298
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 299
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 300
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 301
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 302
-        imm r21, 60
-        imm r22, 1
-        call exact_block_identity_pc
         imm r20, 285
         imm r21, 302
         imm r22, 60
         call exact_require_proc_blocks
+
         call emit_cmp_require_transitions
         ret
 

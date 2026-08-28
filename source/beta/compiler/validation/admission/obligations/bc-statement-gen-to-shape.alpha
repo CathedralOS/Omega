@@ -3,6 +3,10 @@
 
 statement_gen_to_require_shape:
         call statement_gen_to_require_proc
+        imm r20, 318
+        imm r21, 321
+        imm r22, 66
+        call exact_require_proc_blocks
         call statement_gen_to_require_transitions
         call statement_gen_to_require_events
         call statement_gen_to_require_data

@@ -13,6 +13,10 @@ parse_char_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
+        imm r20, 256
+        imm r21, 266
+        imm r22, 56
+        call exact_require_proc_blocks
         call parse_char_require_transitions
         call parse_char_require_events
         call parse_char_require_locals

@@ -8,6 +8,10 @@ cmp_op_require_shape:
         imm r23, 24
         call exact_require_proc_frame_identity
 
+        imm r20, 273
+        imm r21, 284
+        imm r22, 59
+        call exact_require_proc_blocks
         call cmp_op_require_transitions
         call cmp_op_require_events
         call cmp_op_require_locals_memory

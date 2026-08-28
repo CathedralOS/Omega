@@ -32,6 +32,8 @@
 ;
 ; Byte categories: 1=whitespace, 2=ordinary nonspace/nonsemicolon (including
 ; numeric zero), 3=';', 4=LF, 5=zero, 6=comment continuation.
+; The canonical procedure inventory owns both total block spans and partitions;
+; this module retains the complete transition/effect and relational proofs.
 
 skip_ws_summary_init:
         call skip_step_require_shape
@@ -48,43 +50,6 @@ skip_step_require_shape:
         imm r22, 1
         imm r23, 16
         call exact_require_proc_frame_identity
-
-        imm r20, 35
-        imm r21, 11
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 36
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 37
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 38
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 39
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 40
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 41
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 42
-        imm r21, 11
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 43
-        imm r21, 12                   ; read_ident procedure entry / end
-        imm r22, 0
-        call exact_block_identity_pc
         imm r20, 35
         imm r21, 42
         imm r22, 11
@@ -305,18 +270,6 @@ skip_require_shape:
         imm r22, 0
         imm r23, 8
         call exact_require_proc_frame_identity
-        imm r20, 33
-        imm r21, 10
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 34
-        imm r21, 10
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 35
-        imm r21, 11                   ; skip_ws_step procedure entry / end
-        imm r22, 0
-        call exact_block_identity_pc
         imm r20, 33
         imm r21, 34
         imm r22, 10

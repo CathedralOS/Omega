@@ -1,10 +1,11 @@
 ; Exact source/artifact shape for emit_dec(n).
 ;
-; Procedure 40 owns four blocks, the n>=10 split, one recursive call, one
-; direct digit write, explicit/synthetic returns, one parameter slot, exact
-; arithmetic/comparison primitives and pushes, and exhaustive table/decoded
-; censuses. The adjacent meaning module owns bounded quotient/remainder and
-; canonical decimal-output induction.
+; The canonical procedure inventory owns procedure 40's total block span and
+; partition. This module owns the n>=10 split, one recursive call, one direct
+; digit write, explicit/synthetic returns, one parameter slot, exact arithmetic/
+; comparison primitives and pushes, and exhaustive table/decoded censuses. The
+; adjacent meaning module owns bounded quotient/remainder and canonical
+; decimal-output induction.
 
 emit_dec_require_shape:
         imm r20, 40
@@ -12,28 +13,11 @@ emit_dec_require_shape:
         imm r22, 1                    ; n parameter slot
         imm r23, 16
         call exact_require_proc_frame_identity
-
-emit_dec_shape_blocks:
-        imm r20, 204
-        imm r21, 40                  ; emit_dec procedure identity
-        imm r22, 0                   ; procedure entry
-        call exact_block_identity_pc
-        imm r20, 205
-        imm r21, 40
-        imm r22, 1                   ; state big
-        call exact_block_identity_pc
-        imm r20, 206
-        imm r21, 40
-        imm r22, 1                   ; state rec
-        call exact_block_identity_pc
-        imm r20, 207
-        imm r21, 40
-        imm r22, 1                   ; state digit
-        call exact_block_identity_pc
         imm r20, 204
         imm r21, 207
         imm r22, 40
         call exact_require_proc_blocks
+
         call emit_dec_require_transitions
         call emit_dec_require_events
         call emit_dec_require_locals

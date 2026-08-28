@@ -107,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-80,986 bytes for the current exact subjects, SHA-256
-`9b4f09be049ed2130e3c6eaa922ad3e80e1b84fd228c0ef51b90033a8bdf15de`.
+80,869 bytes for the current exact subjects, SHA-256
+`5c9b3574ce6ef13209329bc039d74013e31d7a940840027499332110e5c4257a`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -154,7 +154,7 @@ has one entry followed only by state blocks, and all 359 rows are consumed.
 It publishes only process-local first/exclusive block rows and entry/exclusive
 artifact PCs. Existing procedure-entry and block-range queries rejoin that
 structural product; frame, effect, memory, stack, and meaning remain separate.
-The first twenty-eight single-procedure consumers have dropped census-only
+Forty-seven consumers have dropped census-only
 literal block listings and redundant private span scans while retaining every
 PC-producing identity and semantic graph theorem. Exhaustive effect and fixed
 emitter scans read their canonical validated live counts rather than freezing

@@ -1,9 +1,10 @@
 ; Exact control/effect shape for parse_proc's parameter and capacity slice.
 ;
-; This module owns blocks 339..344 semantically while rejoining all procedure-68
-; block PCs to bind their ownership. It closes transitions 274..281, ten calls,
-; three pre-output returns/epilogues, the 48-byte frame, exhaustive effect rows,
-; and the decoded region from block339 through the entry of block345.
+; This module owns blocks 339..344 semantically. The canonical procedure
+; inventory owns procedure 68's total block span and partition. This module
+; closes transitions 274..281, ten calls, three pre-output returns/epilogues,
+; the 48-byte frame, exhaustive effect rows, and the decoded region from
+; block339 through the entry of block345.
 ; Local/memory/expression payloads are kept in bc-parse-params-data-shape.alpha.
 
 parse_params_require_control_shape:
@@ -12,56 +13,11 @@ parse_params_require_control_shape:
         imm r22, 5
         imm r23, 48
         call exact_require_proc_frame_identity
-
-parse_params_shape_blocks:
-        imm r20, 338
-        imm r21, 68                    ; parse_proc procedure identity
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 339
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 340
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 341
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 342
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 343
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 344
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 345
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 346
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 347
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 348
-        imm r21, 68
-        imm r22, 1
-        call exact_block_identity_pc
         imm r20, 338
         imm r21, 348
         imm r22, 68
         call exact_require_proc_blocks
+
         call parse_params_require_transitions
         call parse_params_require_events
         call parse_params_require_control_census

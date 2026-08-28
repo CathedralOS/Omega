@@ -9,6 +9,14 @@ operator_classifier_require_shape:
         imm r20, 54
         call operator_classifier_require_proc_frame
 
+        imm r20, 234
+        imm r21, 238
+        imm r22, 53
+        call exact_require_proc_blocks
+        imm r20, 239
+        imm r21, 242
+        imm r22, 54
+        call exact_require_proc_blocks
         call operator_classifier_require_transitions
         call operator_classifier_require_events
         call operator_classifier_require_locals

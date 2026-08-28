@@ -3,6 +3,10 @@
 
 statement_emit_state_label_require_shape:
         call statement_emit_state_label_require_proc
+        imm r20, 316
+        imm r21, 316
+        imm r22, 64
+        call exact_require_proc_blocks
         call statement_emit_state_label_require_events
         call statement_emit_state_label_require_data
         call statement_emit_state_label_require_censuses

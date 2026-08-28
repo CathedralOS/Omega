@@ -14,6 +14,10 @@ parse_number_require_shape:
         call exact_require_proc_frame_identity
 
 parse_number_shape_graph:
+        imm r20, 167
+        imm r21, 169
+        imm r22, 33
+        call exact_require_proc_blocks
         call parse_number_require_transitions
         call parse_number_require_events
         call parse_number_require_locals

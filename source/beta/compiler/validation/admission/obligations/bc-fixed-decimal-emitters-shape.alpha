@@ -1,7 +1,8 @@
 ; Exact source/artifact shape for emit_proc_prologue and emit_param_store.
 ;
 ; These two bounded output leaves contain only fixed-string helper calls and
-; bounded emit_dec children.  This module binds their complete procedure,
+; bounded emit_dec children. The canonical procedure inventory owns their total
+; block spans and partitions. This module binds their procedure metadata,
 ; control, effect, local, primitive, push, epilogue, and decoded inventories.
 ; The adjacent meaning module owns value bounds and ordered output.
 
@@ -17,32 +18,15 @@ fixed_decimal_shape_param_proc:
         imm r22, 1
         imm r23, 16
         call exact_require_proc_frame_identity
-
-fixed_decimal_shape_blocks:
-        imm r20, 209
-        imm r21, 42
-        imm r22, 0                   ; emit_proc_prologue entry
-        call exact_block_identity_pc
-        imm r20, 210
-        imm r21, 42
-        imm r22, 1                   ; state chk
-        call exact_block_identity_pc
-        imm r20, 211
-        imm r21, 42
-        imm r22, 1                   ; state slots
-        call exact_block_identity_pc
         imm r20, 209
         imm r21, 211
         imm r22, 42
         call exact_require_proc_blocks
         imm r20, 212
-        imm r21, 43
-        imm r22, 0                   ; emit_param_store entry/body
-        call exact_block_identity_pc
-        imm r20, 212
         imm r21, 212
         imm r22, 43
         call exact_require_proc_blocks
+
         call fixed_decimal_shape_transitions
         call fixed_decimal_shape_events
         call fixed_decimal_shape_locals
