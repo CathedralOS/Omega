@@ -669,14 +669,21 @@ complete.
   Successful Git resolution retains one observation per configured command
   rather than collapsing different roots or executable sets into a phase
   summary. Adversarial review found that Apple's imported `system.sb` grants
-  special-file writes and local socket access and is not transitively identity-
-  bound. The filesystem, network, and executable-path guarantee rows therefore
+  special-file writes and local socket access. The filesystem, network, and executable-path guarantee rows therefore
   remain unavailable despite narrower canaries; only exact inherited rlimit
   rows are currently enforced on macOS. This observation is configuration
   provenance, not proof of execution or the future source receipt. Exact
   executable content, environment/protocol sealing, command outcome,
   endpoint/credential trust, object authentication, snapshot publication, and
   final verdict still require a package-layer canonical join.
+
+  Follow-up 2026-08-28: the macOS backend now opens, custody-checks, and hashes
+  exact root-owned `system.sb` and `dyld-support.sb` bytes; requires exactly the
+  one known import edge and no transitive imports; revalidates metadata, ACL,
+  topology, and content around command construction; and includes both profile
+  identities in canonical backend observation. Changed topology rejects. This
+  closes imported-policy identity drift, not semantic safety: the known broad
+  and special grants keep strict filesystem/network/exec rows unavailable.
 
   Follow-up 2026-08-28: successful Git resolution now requires the retained
   policy-observation count to equal the bounded launch count and requires each

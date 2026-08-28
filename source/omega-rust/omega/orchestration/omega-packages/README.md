@@ -244,9 +244,10 @@ Seatbelt write/network/exec canaries, inherited Unix rlimits, and opaque bounded
 policy observations issued from the same inputs as each native command.
 Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
-and mutable root. Apple's imported system profile is not transitively bound, so
-filesystem/network/exec rows remain unavailable rather than overstated; strict
-checking rejects them. Before returning a successful resolution, the package
+and mutable root. The exact root-owned `system.sb`/`dyld-support.sb` bytes and
+closed import edge now enter backend identity and are revalidated. Their known
+special grants still leave filesystem/network/exec rows unavailable rather
+than overstated; strict checking rejects them. Before returning a successful resolution, the package
 layer requires one observation per bounded launch and exact equality between
 every observed allowlist path and the verified content identities for Git, the
 selected transport, and fixed platform helpers; all helper identities remain

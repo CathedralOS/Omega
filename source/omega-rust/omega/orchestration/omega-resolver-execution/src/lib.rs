@@ -25,6 +25,8 @@ const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
 
 #[cfg(target_os = "macos")]
 const EXECUTABLE_BYTE_LIMIT: u64 = 256 * 1024 * 1024;
+#[cfg(target_os = "macos")]
+const POLICY_PROFILE_BYTE_LIMIT: u64 = 1024 * 1024;
 #[cfg(unix)]
 const CHILD_CPU_SECONDS: u64 = 120;
 #[cfg(any(target_os = "linux", target_os = "android"))]
@@ -36,6 +38,10 @@ const CHILD_OPEN_FILE_LIMIT: u64 = 256;
 
 #[cfg(target_os = "macos")]
 const MACOS_SANDBOX_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
+#[cfg(target_os = "macos")]
+const MACOS_SYSTEM_PROFILE: &str = "/System/Library/Sandbox/Profiles/system.sb";
+#[cfg(target_os = "macos")]
+const MACOS_DYLD_PROFILE: &str = "/System/Library/Sandbox/Profiles/dyld-support.sb";
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -353,6 +359,10 @@ pub enum ResolverExecutionBackendIdentity {
     MacosSeatbelt {
         executable: PathBuf,
         content_sha256: String,
+        system_profile: PathBuf,
+        system_profile_sha256: String,
+        dyld_profile: PathBuf,
+        dyld_profile_sha256: String,
     },
     UnixResourceLimits,
     PortableProcessContainer,
@@ -364,6 +374,10 @@ pub struct ResolverExecutionBackend {
     identity: ResolverExecutionBackendIdentity,
     #[cfg(target_os = "macos")]
     sandbox_metadata: ExecutableMetadataIdentity,
+    #[cfg(target_os = "macos")]
+    system_profile_metadata: ExecutableMetadataIdentity,
+    #[cfg(target_os = "macos")]
+    dyld_profile_metadata: ExecutableMetadataIdentity,
 }
 
 impl ResolverExecutionBackend {
@@ -374,17 +388,38 @@ impl ResolverExecutionBackend {
             verify_owned_native_executable(&path)?;
             let sandbox_metadata = executable_metadata_identity(&path)?;
             let content_sha256 = hash_executable(&path)?;
-            if executable_metadata_identity(&path)? != sandbox_metadata {
+            let system_profile = PathBuf::from(MACOS_SYSTEM_PROFILE);
+            let dyld_profile = PathBuf::from(MACOS_DYLD_PROFILE);
+            verify_owned_native_policy_file(&system_profile)?;
+            verify_owned_native_policy_file(&dyld_profile)?;
+            let system_profile_metadata = executable_metadata_identity(&system_profile)?;
+            let dyld_profile_metadata = executable_metadata_identity(&dyld_profile)?;
+            let system_profile_bytes =
+                read_native_file(&system_profile, POLICY_PROFILE_BYTE_LIMIT)?;
+            let dyld_profile_bytes = read_native_file(&dyld_profile, POLICY_PROFILE_BYTE_LIMIT)?;
+            validate_seatbelt_import_topology(&system_profile_bytes, &dyld_profile_bytes)?;
+            let system_profile_sha256 = format_sha256(&Sha256::digest(&system_profile_bytes));
+            let dyld_profile_sha256 = format_sha256(&Sha256::digest(&dyld_profile_bytes));
+            if executable_metadata_identity(&path)? != sandbox_metadata
+                || executable_metadata_identity(&system_profile)? != system_profile_metadata
+                || executable_metadata_identity(&dyld_profile)? != dyld_profile_metadata
+            {
                 return Err(io::Error::other(
-                    "macOS resolver sandbox executable changed while opening",
+                    "macOS resolver sandbox boundary changed while opening",
                 ));
             }
             Ok(Self {
                 identity: ResolverExecutionBackendIdentity::MacosSeatbelt {
                     executable: path,
                     content_sha256,
+                    system_profile,
+                    system_profile_sha256,
+                    dyld_profile,
+                    dyld_profile_sha256,
                 },
                 sandbox_metadata,
+                system_profile_metadata,
+                dyld_profile_metadata,
             })
         }
         #[cfg(all(unix, not(target_os = "macos")))]
@@ -437,6 +472,10 @@ impl ResolverExecutionBackend {
             let ResolverExecutionBackendIdentity::MacosSeatbelt {
                 executable,
                 content_sha256,
+                system_profile,
+                system_profile_sha256,
+                dyld_profile,
+                dyld_profile_sha256,
             } = &self.identity
             else {
                 return Err(io::Error::other(
@@ -444,8 +483,17 @@ impl ResolverExecutionBackend {
                 ));
             };
             verify_owned_native_executable(executable)?;
+            verify_owned_native_policy_file(system_profile)?;
+            verify_owned_native_policy_file(dyld_profile)?;
+            let system_profile_bytes = read_native_file(system_profile, POLICY_PROFILE_BYTE_LIMIT)?;
+            let dyld_profile_bytes = read_native_file(dyld_profile, POLICY_PROFILE_BYTE_LIMIT)?;
+            validate_seatbelt_import_topology(&system_profile_bytes, &dyld_profile_bytes)?;
             if executable_metadata_identity(executable)? != self.sandbox_metadata
                 || hash_executable(executable)? != *content_sha256
+                || executable_metadata_identity(system_profile)? != self.system_profile_metadata
+                || executable_metadata_identity(dyld_profile)? != self.dyld_profile_metadata
+                || format_sha256(&Sha256::digest(&system_profile_bytes)) != *system_profile_sha256
+                || format_sha256(&Sha256::digest(&dyld_profile_bytes)) != *dyld_profile_sha256
             {
                 return Err(io::Error::other(
                     "macOS resolver sandbox executable changed",
@@ -662,10 +710,18 @@ fn encode_backend_identity(bytes: &mut Vec<u8>, identity: &ResolverExecutionBack
         ResolverExecutionBackendIdentity::MacosSeatbelt {
             executable,
             content_sha256,
+            system_profile,
+            system_profile_sha256,
+            dyld_profile,
+            dyld_profile_sha256,
         } => {
             bytes.push(1);
             encode_path(bytes, executable);
             encode_bytes(bytes, content_sha256.as_bytes());
+            encode_path(bytes, system_profile);
+            encode_bytes(bytes, system_profile_sha256.as_bytes());
+            encode_path(bytes, dyld_profile);
+            encode_bytes(bytes, dyld_profile_sha256.as_bytes());
         }
         ResolverExecutionBackendIdentity::UnixResourceLimits => bytes.push(2),
         ResolverExecutionBackendIdentity::PortableProcessContainer => bytes.push(3),
@@ -882,6 +938,123 @@ fn verify_owned_native_executable(path: &Path) -> io::Result<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_owned_native_policy_file(path: &Path) -> io::Result<()> {
+    use std::os::unix::fs::MetadataExt;
+
+    let metadata = std::fs::symlink_metadata(path)?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.uid() != 0
+        || metadata.mode() & 0o022 != 0
+        || metadata.mode() & 0o6000 != 0
+    {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "native resolver policy profile lacks root-owned immutable custody",
+        ));
+    }
+    let profile = File::open(path)?;
+    if omega_platform_custody::open_file_extended_acl_has_allow_entry(&profile)? {
+        return Err(io::Error::new(
+            io::ErrorKind::PermissionDenied,
+            "native resolver policy profile has an extended ACL allow entry",
+        ));
+    }
+    for ancestor in path
+        .parent()
+        .ok_or_else(|| io::Error::other("native resolver policy profile has no parent"))?
+        .ancestors()
+    {
+        let metadata = std::fs::symlink_metadata(ancestor)?;
+        if metadata.file_type().is_symlink()
+            || !metadata.is_dir()
+            || metadata.uid() != 0
+            || metadata.mode() & 0o022 != 0 && metadata.mode() & 0o1000 == 0
+            || omega_platform_custody::extended_acl_has_allow_entry(
+                ancestor,
+                omega_platform_custody::SymbolicLinkBehavior::Follow,
+            )?
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::PermissionDenied,
+                "native resolver policy profile ancestry lacks root-owned custody",
+            ));
+        }
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn read_native_file(path: &Path, byte_limit: u64) -> io::Result<Vec<u8>> {
+    let metadata = std::fs::metadata(path)?;
+    if metadata.len() > byte_limit {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "native resolver policy file exceeds its byte ceiling",
+        ));
+    }
+    let capacity = usize::try_from(metadata.len())
+        .map_err(|_| io::Error::other("native resolver policy file length is not addressable"))?;
+    let mut bytes = Vec::with_capacity(capacity);
+    File::open(path)?
+        .take(byte_limit + 1)
+        .read_to_end(&mut bytes)?;
+    if bytes.len() as u64 != metadata.len() || bytes.len() as u64 > byte_limit {
+        return Err(io::Error::other(
+            "native resolver policy file changed while reading",
+        ));
+    }
+    Ok(bytes)
+}
+
+#[cfg(target_os = "macos")]
+fn validate_seatbelt_import_topology(system: &[u8], dyld: &[u8]) -> io::Result<()> {
+    let system_imports = seatbelt_imports(system)?;
+    let dyld_imports = seatbelt_imports(dyld)?;
+    if system_imports != ["dyld-support.sb"] || !dyld_imports.is_empty() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "native resolver Seatbelt import topology is not the audited closed graph",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_imports(bytes: &[u8]) -> io::Result<Vec<&str>> {
+    let text = std::str::from_utf8(bytes).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidData,
+            "native resolver Seatbelt profile is not UTF-8",
+        )
+    })?;
+    let mut imports = Vec::new();
+    for line in text.lines() {
+        let line = line.trim();
+        if !line.contains("(import") {
+            continue;
+        }
+        let imported = line
+            .strip_prefix("(import \"")
+            .and_then(|line| line.strip_suffix("\")"))
+            .filter(|imported| {
+                !imported.is_empty()
+                    && imported
+                        .bytes()
+                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+            })
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "native resolver Seatbelt profile has a noncanonical import",
+                )
+            })?;
+        imports.push(imported);
+    }
+    Ok(imports)
 }
 
 #[cfg(target_os = "macos")]
@@ -1184,6 +1357,45 @@ mod tests {
         assert_eq!(
             disposition(&fetch, ResolverExecutionGuarantee::AddressSpaceConfined),
             ResolverExecutionGuaranteeDisposition::Unavailable
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_import_topology_is_closed_and_profile_content_is_bound() {
+        use super::{ResolverExecutionBackendIdentity, validate_seatbelt_import_topology};
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let ResolverExecutionBackendIdentity::MacosSeatbelt {
+            system_profile_sha256,
+            dyld_profile_sha256,
+            ..
+        } = backend.identity()
+        else {
+            panic!("macOS must select Seatbelt");
+        };
+        assert_eq!(system_profile_sha256.len(), 64);
+        assert_eq!(dyld_profile_sha256.len(), 64);
+        assert!(
+            validate_seatbelt_import_topology(
+                b"(version 3)\n(import \"dyld-support.sb\")\n",
+                b"(version 3)\n"
+            )
+            .is_ok()
+        );
+        assert!(
+            validate_seatbelt_import_topology(
+                b"(version 3)\n(import \"dyld-support.sb\")\n(import \"extra.sb\")\n",
+                b"(version 3)\n"
+            )
+            .is_err()
+        );
+        assert!(
+            validate_seatbelt_import_topology(
+                b"(version 3)\n(import \"dyld-support.sb\")\n",
+                b"(import \"nested.sb\")\n"
+            )
+            .is_err()
         );
     }
 
