@@ -8,7 +8,7 @@
 //! validators and later passes do not have to rediscover CFG, SSA, semantic
 //! fuel, effects, or provenance from a mutable instruction stream.
 
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, OptimizationUnitIdentity, OwnershipFrontierFactIdentity,
@@ -19,11 +19,12 @@ use omega_terminal_abstract_operations::{
 };
 use psi_core::{
     BlockId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId, ValueId,
+    OperationId, PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
-    BoundaryMachineDeclaration, EntryClaim, ProviderCandidateConformance, StructuralMultiplicity,
-    StructuralParameterDeclaration, StructuralPathSegment, StructuralTypeDeclaration,
+    BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, ProviderCandidateConformance,
+    StructuralDomainDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralPlaceDeclaration, StructuralTypeDeclaration,
     TerminalAffineCleanupAction, TerminalPsiIdentity,
 };
 
@@ -32,7 +33,7 @@ mod ledger;
 mod observation;
 mod rewrite;
 
-pub use identity::recompute_psi_optimization_unit_identity;
+pub use identity::{recompute_psi_optimization_unit_identity, structural_domain_catalog_identity};
 
 pub use ledger::{
     InvalidPsiTransformationLedger, PsiTransformationLedger, PsiTransformationLedgerDecodeError,
@@ -185,6 +186,9 @@ pub struct PsiOptimizationFunction {
     pub entry: BlockId,
     pub parameters: Vec<ValueDefinition>,
     pub structural_parameters: Vec<StructuralParameterDeclaration>,
+    /// Complete verifier-owned structural-place roster, including each root's
+    /// exact role, producer, and concrete structural type.
+    pub structural_places: Vec<StructuralPlaceDeclaration>,
     /// Exact normal result signature retained independently of executable
     /// return nodes, including Unit and structural-result distinctions.
     pub result: TerminalAbstractFunctionResult,
@@ -192,6 +196,9 @@ pub struct PsiOptimizationFunction {
     /// Full ordered caller/root claim signature. `entry_claims` below is the
     /// independently checked membership index used by ownership validation.
     pub entry_claim_declarations: Vec<EntryClaim>,
+    /// Complete verifier-owned content-claim signature. Content projection
+    /// authority cannot be reconstructed from ordinary claims alone.
+    pub content_entry_claims: Vec<ContentEntryClaim>,
     pub entry_claims: BTreeSet<ClaimId>,
     /// Exact verifier-normalized service ceiling in canonical Terminal-Psi
     /// order. It is semantic custody, not an optimizer-selected reach set.
@@ -463,6 +470,9 @@ pub struct PsiOptimizationUnit {
     /// Target-neutral module declarations needed by layout, ABI, and checked
     /// provider installation after the full Terminal module is discarded.
     pub structural_types: Vec<StructuralTypeDeclaration>,
+    /// Exact verifier-owned qualification-domain catalog. Bare lowering seeds
+    /// leave this empty; optimizer admission attaches it before rewrites run.
+    pub structural_domains: Arc<[StructuralDomainDeclaration]>,
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
@@ -638,6 +648,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         fuel_schedule,
         entry: plan.entry,
         structural_types: plan.structural_types.clone(),
+        structural_domains: Arc::new([]),
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),
@@ -692,11 +703,32 @@ fn build_function(
         .collect::<Result<Vec<_>, _>>()?;
 
     let mut facts = Vec::new();
+    let mut structural_places = function
+        .structural_parameters
+        .iter()
+        .map(|parameter| StructuralPlaceDeclaration {
+            id: parameter.place,
+            kind: StructuralPlaceKind::Parameter {
+                position: parameter.position,
+                is_self: parameter.is_self,
+            },
+        })
+        .chain(
+            function
+                .result
+                .structural()
+                .map(|result| StructuralPlaceDeclaration {
+                    id: result.place,
+                    kind: StructuralPlaceKind::Result,
+                }),
+        )
+        .collect::<Vec<_>>();
     let mut declared_places = function
         .structural_parameters
         .iter()
         .map(|parameter| parameter.place)
         .chain(function.entry_claims.iter().map(|claim| claim.input))
+        .chain(function.result.structural().map(|result| result.place))
         .collect::<BTreeSet<_>>();
     let mut effect_token = 0u64;
     let mut blocks = Vec::with_capacity(function.block_entries.len());
@@ -761,6 +793,24 @@ fn build_function(
                 })
                 .collect();
             collect_places(operation, &mut declared_places);
+            match operation {
+                TerminalAbstractOperation::EstablishByteSequenceLiteral { place, .. }
+                | TerminalAbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
+                    structural_places.push(*place);
+                }
+                TerminalAbstractOperation::CallStructural {
+                    psi_operation,
+                    result,
+                    ..
+                } => structural_places.push(StructuralPlaceDeclaration {
+                    id: result.place,
+                    kind: StructuralPlaceKind::OperationResult {
+                        producer: *psi_operation,
+                        structural_type: result.structural_type,
+                    },
+                }),
+                _ => {}
+            }
             collect_fact(operation, &mut facts);
             let ownership = operation_ownership(operation);
             let successors = operation_edges(operation);
@@ -792,9 +842,11 @@ fn build_function(
         entry: function.entry,
         parameters,
         structural_parameters: function.structural_parameters.clone(),
+        structural_places,
         result: function.result.clone(),
         declared_places,
         entry_claim_declarations: function.entry_claims.clone(),
+        content_entry_claims: Vec::new(),
         entry_claims: function
             .entry_claims
             .iter()
@@ -1275,7 +1327,8 @@ mod tests {
         TerminalAbstractResult, TerminalValueBinding,
     };
     use psi_core::{
-        BoundaryMachineId, IntegerSign, IntegerType, IntegerValue, ServiceId, StructuralTypeId,
+        BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, IntegerSign, IntegerType,
+        IntegerValue, ServiceId, StructuralDomainId, StructuralTypeId,
     };
     use psi_terminal::{
         BoundaryMachineDeclaration, ByteSequenceCarrier, ProviderCandidateConformance,
@@ -1426,6 +1479,15 @@ mod tests {
         });
         mutations.push(("module structural type", unit));
         let mut unit = baseline.clone();
+        unit.structural_domains = Arc::from(vec![psi_terminal::StructuralDomainDeclaration {
+            id: id(112, StructuralDomainId::new),
+            semantic_domain: id(113, DomainSemanticId::new),
+            identity: "identity-test-structural-domain".into(),
+            carrier: structural_type,
+            content_projection: None,
+        }]);
+        mutations.push(("module structural domain", unit));
+        let mut unit = baseline.clone();
         unit.boundary_machines.push(BoundaryMachineDeclaration {
             id: boundary,
             identity: "identity-test-boundary".into(),
@@ -1508,6 +1570,28 @@ mod tests {
             },
         );
         mutations.push(("structural parameter", unit));
+        let mut unit = baseline.clone();
+        let structural_place = id(114, PlaceId::new);
+        unit.functions[0]
+            .structural_places
+            .push(psi_terminal::StructuralPlaceDeclaration {
+                id: structural_place,
+                kind: StructuralPlaceKind::Result,
+            });
+        mutations.push(("structural place declaration", unit));
+        let mut unit = baseline.clone();
+        unit.functions[0]
+            .content_entry_claims
+            .push(psi_terminal::ContentEntryClaim {
+                claim: id(115, ClaimId::new),
+                input: psi_core::ContentStructuralPlace {
+                    version: ContentPlaceVersion::Entry,
+                    root: structural_place,
+                    segments: Vec::new(),
+                },
+                projections: Vec::new(),
+            });
+        mutations.push(("content entry claim", unit));
         let mut unit = baseline.clone();
         unit.functions[0].result = TerminalAbstractFunctionResult::Unit;
         mutations.push(("function result signature", unit));

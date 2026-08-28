@@ -121,11 +121,27 @@ pub fn build_verified_psi_optimization_unit(
     input: VerifiedTerminalOptimizationInput,
     fuel_schedule: psi_core::FuelScheduleIdentity,
 ) -> Result<VerifiedPsiOptimizationUnit, VerifiedPsiOptimizationUnitBuildError> {
-    let seed = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+    let mut seed = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
         input.plan(),
         fuel_schedule,
     )?;
     let context = input.context();
+    seed.structural_domains = context.terminal_module().structural_domains.clone().into();
+    for function in &mut seed.functions {
+        let source = context
+            .terminal_module()
+            .machines
+            .iter()
+            .find(|machine| machine.id == function.machine)
+            .ok_or(
+                VerifiedPsiOptimizationUnitBuildError::MissingStructuralCatalogMachine(
+                    function.machine,
+                ),
+            )?;
+        function.structural_places = source.structural_places.clone();
+        function.content_entry_claims = source.content_entry_claims.clone();
+    }
+    seed.identity = omega_optimization_unit::recompute_psi_optimization_unit_identity(&seed);
     let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
     let mut facts = Vec::new();
     for function in &seed.functions {
@@ -319,6 +335,7 @@ pub enum VerifiedPsiOptimizationUnitBuildError {
     PropositionCodec(CodecError),
     FactIndex(omega_optimization_unit::AcceptedObligationFactIndexError),
     OwnershipFrontierFactIndex(omega_optimization_unit::OwnershipFrontierFactIndexError),
+    MissingStructuralCatalogMachine(MachineId),
     MissingStructuralFrontierMachine(MachineId),
     MissingStructuralFrontier {
         machine: MachineId,

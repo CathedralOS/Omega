@@ -722,16 +722,17 @@ Each function contains:
 - optional target-independent cost features that do not affect validity.
 
 The reconstructible unit owns the exact verified module declarations needed
-after the full Terminal module is discarded: structural types, boundary
-machines, and the complete checked provider-candidate catalog. A function's
-immutable signature is likewise exact, including nominal attachment, ordered
-scalar and structural parameters, Unit/scalar/structural result shape, full
-ordered entry-claim declarations, and the normalized published service
-ceiling. These are not optimizer summaries. Unit content identity encodes every
-field, transformed-revision validation compares them with the immutable
-verified input, and abstract-plan projection reads them from the unit before an
-independent round-trip check. Passes may inspect this custody but cannot rewrite
-it.
+after the full Terminal module is discarded: structural types and domains,
+boundary machines, and the complete checked provider-candidate catalog. A
+function's immutable signature and structural custody are likewise exact,
+including nominal attachment, ordered scalar and structural parameters,
+Unit/scalar/structural result shape, the complete structural-place catalog,
+ordinary and content entry claims, and the normalized published service
+ceiling. These are not optimizer summaries. Unit content identity v11 encodes
+every field, transformed-revision validation compares them with an independent
+projection of the immutable verified input, and abstract-plan projection reads
+them from the unit before an independent round-trip check. Passes may inspect
+this custody but cannot rewrite it.
 
 The unit also owns the exact verifier-projected ownership frontier catalog.
 This is immutable source authority, not a mutable reconstruction of the current
@@ -757,11 +758,14 @@ cast and carrier legality, control and return types, and exact scalar signatures
 for internal and boundary calls against complete duplicate-free catalogs. Thus
 a malformed pass cannot make an ill-typed operation acceptable merely by
 refreshing its definitions, uses, fact index, and content identity. Structural
-call argument count and exact `Owned`/borrow access are now independently
-matched to internal and boundary declarations. Structural types, paths,
-multiplicities, qualifications, results, claim transfers, and boundary-
-completion custody remain a distinct unfinished validator layer rather than an
-implicit exception. It
+calls are independently replayed against the retained catalogs for arity, root
+and path grammar, resolved type, source and destination access, exclusive
+overlap, multiplicity, qualifications, structural result custody,
+ordinary/content claim transfer, and complete boundary requirement/completion
+correspondence. Full structural type/domain/content-projection graph
+validation, path-sensitive availability of operation-result and local roots,
+exact payloadless-callee classification, and the wider crash/requirement/effect
+vocabulary remain explicit unfinished validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
@@ -1129,7 +1133,7 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v20, optimization-unit content identity v10, `ControlFlowCleanup` v11,
+v20, optimization-unit content identity v11, `ControlFlowCleanup` v11,
 prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
@@ -1274,7 +1278,7 @@ still reject duplicated or co-executable occurrences. A verified wrapping-add
 artifact first removes the unused total arithmetic node, then revisits the
 earlier rule and removes both newly dead literals; artifact replay leaves the
 return with all original source/fuel sites. Candidate v19, optimization-unit
-content identity v10, the named v2 pass, prephysical manifest v13, and
+content identity v11, the named v2 pass, prephysical manifest v13, and
 optimized-plan projection validation v14 bind this meaning; ledger v4 already
 represents the many-to-one moves.
 
@@ -1371,7 +1375,7 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v24,
-optimization-unit content identity v10, the named v7 pass, prephysical
+optimization-unit content identity v11, the named v7 pass, prephysical
 manifest v23, and optimized-plan projection validation v24 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
@@ -1498,11 +1502,12 @@ keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
 operator policy, operands, facts, observation/liveness boundary, provenance,
 fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
 retain the typed-zero realization.
-Candidate schema remains v24, so extending the closed identity-kind tags does
-not rehash or change tie breaks for existing candidates. Optimization-unit
-identity remains v10; the named v11 pass, prephysical manifest identity v26,
-and optimized-plan projection validation v27 bind the expanded eleven-rule
-schedule.
+Candidate schema remains v24. Optimization-unit identity v11 intentionally
+rekeys revision-bound candidate identities because the retained structural
+catalog is now part of the input revision; deterministic tie breaks between
+otherwise equivalent candidates can therefore change at this schema migration.
+The named v11 pass, prephysical manifest identity v26, and optimized-plan
+projection validation v27 bind the expanded eleven-rule schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
