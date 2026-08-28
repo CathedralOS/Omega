@@ -11,7 +11,6 @@ path = "src/lib.rs"
 [dependencies]
 omega-effects = { path = "../../representations/omega-effects" }
 omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
-omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
@@ -27,7 +26,6 @@ omega-terminal-native-artifact = { path = "../omega-terminal-native-artifact" }
 omega-terminal-selected-instructions = { path = "../../representations/omega-terminal-selected-instructions" }
 omega-terminal-psi-to-abstract-operations = { path = "../../pipeline/omega-terminal-psi-to-abstract-operations" }
 omega-terminal-target-operations = { path = "../../representations/omega-terminal-target-operations" }
-omega-terminal-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-terminal-target-operations-to-assigned-target-operations" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }

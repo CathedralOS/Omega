@@ -1,6 +1,7 @@
 use omega_lowering_optimizer::{
     ValidatedOptimizedAbstractPlan, ValidatedOptimizedTargetOperations,
     lower_optimized_to_target_operations_with_provider_executions,
+    lower_optimized_to_target_operations_with_provider_executions_and_installation,
 };
 use omega_optimization_core::{
     OptimizationIdentityBundleIdentity, OptimizedAbstractPlanProjectionIdentity,
@@ -10,6 +11,7 @@ use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, LoweringError,
 };
+use omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation;
 use omega_terminal_assigned_target_operations::TerminalAssignedOperationPlan;
 use omega_terminal_target_operations_to_assigned_target_operations::{
     AssignmentError, assign_registers,
@@ -178,6 +180,26 @@ pub fn stage_optimized_assignment_with_provider_executions(
         settlements,
     )
     .map_err(OptimizedAssignmentPipelineError::TargetLowering)?;
+    stage_optimized_assignment(optimized_target)
+}
+
+/// Lower and assign one optimized plan with one exact checked-provider
+/// installation. This is the installation-bearing form of the same canonical
+/// assignment stage, not a second native route.
+pub fn stage_optimized_assignment_with_provider_executions_and_installation(
+    optimized: ValidatedOptimizedAbstractPlan,
+    target: NativeTarget,
+    settlements: &[AdmittedTerminalBoundarySettlement<'_>],
+    installation: AdmittedTerminalProviderInstallation,
+) -> Result<StagedOptimizedAssignedOperations, OptimizedAssignmentPipelineError> {
+    let optimized_target =
+        lower_optimized_to_target_operations_with_provider_executions_and_installation(
+            optimized,
+            target,
+            settlements,
+            installation,
+        )
+        .map_err(OptimizedAssignmentPipelineError::TargetLowering)?;
     stage_optimized_assignment(optimized_target)
 }
 

@@ -525,29 +525,21 @@ pub fn realize_terminal_native_artifact(
         optimization_request,
     )
     .map_err(|error| realization_error("canonical optimization", error))?;
-    let target_operations = match provider_installation {
+    let assigned = match provider_installation {
         Some(installation) => {
-            omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions_and_installation(
+            omega_optimization_pipeline::stage_optimized_assignment_with_provider_executions_and_installation(
                 optimized,
                 request.target,
                 &admitted,
                 installation,
             )
         }
-        None => omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions(
-            optimized,
-            request.target,
-            &admitted,
+        None => omega_optimization_pipeline::stage_optimized_assignment_with_provider_executions(
+            optimized, request.target, &admitted,
         ),
     }
-    .map_err(|error| realization_error("target operation lowering", error))?;
-    let target_operations = target_operations.target_operations();
-    let assigned =
-        omega_terminal_target_operations_to_assigned_target_operations::assign_registers(
-            target_operations,
-        )
-        .map_err(|error| realization_error("register assignment", error))?;
-    let machine_code = omega_terminal_machine_emission::emit_machine_code(&assigned)
+    .map_err(|error| realization_error("optimized physical assignment", error))?;
+    let machine_code = omega_terminal_machine_emission::emit_machine_code(assigned.assigned())
         .map_err(|error| realization_error("machine-code emission", error))?;
     let object = omega_terminal_image_emission::build_terminal_object_artifact(&machine_code)
         .map_err(|error| realization_error("terminal object construction", error))?;

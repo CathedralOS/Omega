@@ -1108,11 +1108,21 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         .join("source/omega-rust/omega/orchestration/omega-terminal-native-realization/src/lib.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
+    let production_realization = realization
+        .split("#[cfg(test)]")
+        .next()
+        .expect("native realization has a production source prefix");
     assert!(
-        realization.contains("pub fn realize_terminal_native_artifact(")
-            && realization
+        production_realization.contains("pub fn realize_terminal_native_artifact(")
+            && production_realization
                 .contains("terminal_artifact: psi_terminal_codec::CanonicalTerminalArtifact"),
         "Omega native realization must receive the complete Psi-owned artifact by value"
+    );
+    assert!(
+        production_realization.contains("optimize_verified_terminal_input(")
+            && production_realization
+                .contains("stage_optimized_assignment_with_provider_executions"),
+        "Omega native realization must traverse the canonical optimizer and its owned physical-assignment stage"
     );
     for forbidden in [
         "CheckedCompilation",
@@ -1120,9 +1130,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "lower_machine(",
         "encode_module(",
         "encode_proof_bundle(",
+        "assign_registers(",
+        "lower_optimized_to_target_operations_with_provider_executions(",
     ] {
         assert!(
-            !realization.contains(forbidden),
+            !production_realization.contains(forbidden),
             "Omega native realization reopened pre-Terminal state through `{forbidden}`"
         );
     }
