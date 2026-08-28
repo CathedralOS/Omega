@@ -1135,8 +1135,13 @@ version = "0.1.0"
 dependencies = [
  "omega-core",
  "omega-function-identity",
+ "omega-optimization-core",
  "omega-target",
+ "omega-terminal-selected-instructions",
  "psi-arena",
+ "psi-core",
+ "psi-terminal",
+ "sha2",
 ]
 
 [[package]]
@@ -1169,6 +1174,7 @@ version = "0.1.0"
 dependencies = [
  "omega-lowering-optimizer",
  "omega-machine-optimizer",
+ "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-optimization-validation",
