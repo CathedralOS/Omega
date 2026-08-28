@@ -115,11 +115,16 @@ authentication, snapshot identity, and final publication verdict.
 
 The macOS profile imports Apple's mutable `system.sb`, which itself imports
 `dyld-support.sb` and currently grants special-file writes plus local syslog
-socket access. The ordinary write, remote-network, and descendant-exec canaries
-remain useful enforcement tests, but the observation conservatively marks all
-filesystem, network, and executable-path strict guarantees unavailable because
-the imported policy closure is not identity-bound and semantically audited.
-Only the exact compiler-owned rlimit rows are presently `Enforced` on macOS.
+socket access. The backend now opens both exact root-owned regular files,
+checks mode/ancestry/ACL custody, hashes their bounded bytes, requires exactly
+the one audited import edge with no further imports, and revalidates all facts
+around command construction. A changed import topology rejects and both
+content identities enter canonical backend observation. The ordinary write,
+remote-network, and descendant-exec canaries remain useful enforcement tests,
+but filesystem, network, and executable-path strict guarantees remain
+unavailable because exact profile identity is not semantic proof that those
+grants are strict. Only the exact compiler-owned rlimit rows are presently
+`Enforced` on macOS.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by
@@ -402,9 +407,9 @@ adds outbound network only during discovery and fetch, quarantine mutation
 during initialization and fetch, and exact process-exec paths for the verified
 Git/helper chain. Canaries prove the corresponding ordinary-path behavior on
 the tested host. The imported `system.sb` policy also permits broad reads,
-special-file writes, and local syslog socket access; its transitive content is
-not yet bound. Therefore strict observations do not claim complete filesystem,
-network, or executable confinement. Network phases also permit all outbound
+special-file writes, and local syslog socket access. Its exact closed two-file
+content graph is custody- and identity-bound, but this does not turn those
+semantics into strict confinement. Network phases also permit all outbound
 destinations rather than brokering the requested endpoint.
 `/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
 not a durable macOS backend promise. Failure to establish or revalidate the
