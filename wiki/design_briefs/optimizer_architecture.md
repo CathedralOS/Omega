@@ -2361,10 +2361,18 @@ The AArch64 ISA owner independently derives and decodes the MOVN/MOVK sequence,
 reconstructs the exact destination and 64-bit value, and rejects noncanonical,
 corrupt, or non-shrinking bytes. Layout-independent selected-form encoding v6
 joins this proof to the selected and post-allocation-machine roots and emits
-the shorter validated scalar row without granting layout, emission, or
-publication authority. The build hook is the exact named selection; empty
-builds retain the baseline. Multiple post-allocation selections fail closed
-until their ordering and combined custody are designed.
+the shorter validated scalar row. Resolved-layout v6 retains typed MOVN custody
+and independently replays the transformed pre-layout artifact, all offsets,
+branch bytes, decoded effects, and the complete layout identity. An owning
+carrier keeps homes, selected machine, materialization, baseline and selected
+encodings, and baseline and selected layouts together and requires the layout
+to shrink by exactly four bytes for every materialization word removed. Direct
+and selected-lowering compiler-facing routes dispatch the exact singleton MOVN
+selection to this carrier; CBNZ remains a distinct route, and combinations fail
+closed rather than acquiring an implicit ordering policy. Whole-function exit,
+realization manifests, emission, object construction, installation, and
+publication remain unavailable. The build hook is the exact named selection;
+empty builds retain the baseline.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
@@ -2721,7 +2729,7 @@ internal-Machine fixup at opcode offset 80/field 81/next-IP 85; it is not
 executable-byte authority. Layout-independent selected-form encoding v6 now
 retains a parallel structural-function roster with that exact template,
 decoded footprint, typed fixup, separately encoded `C3` return, and exact
-ordinary/structural counts under independent replay. Resolved-layout v5 retains
+ordinary/structural counts under independent replay. Resolved-layout v6 retains
 the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
 `[0, 1)` without resolving the fixup. Whole-function-exit v5 validates a
 distinct balanced Microsoft-x64 structural-call policy, and a separate owning

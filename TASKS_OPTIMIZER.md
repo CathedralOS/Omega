@@ -255,8 +255,12 @@ These facts constrain the work below.
   v1 machine-artifact codec, separately implemented machine replay, and
   target-owned independent MOVN/MOVK decoder reject stale roots, recipes,
   destinations, bytes, and non-shrinking substitutions. Layout-independent
-  selected-form encoding v6 can consume that custody and emit the shorter
-  validated bytes. The explicit stage currently stops before layout, emission,
+  selected-form encoding v6 and resolved-layout v6 consume that custody and
+  emit and place the shorter validated bytes. Direct and selected-lowering
+  physical-pipeline routes retain homes, the selected machine, symbolic MOVN
+  materialization, baseline and transformed encoding/layout roots, and an
+  exact replayed byte reduction in an owning carrier. The explicit stage
+  currently stops before whole-function exit, realization manifests, emission,
   object, callable, installation, and publication authority. Combining it with
   another post-allocation rule fails closed until an ordered composition is
   specified.
@@ -275,7 +279,7 @@ These facts constrain the work below.
   and their codec to v6, postallocation manifest and codec to v6,
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
-  selected-form encoding v6, resolved-layout v5,
+  selected-form encoding v6, resolved-layout v6,
   whole-function exit v6, function-relative manifest v7, fragment manifest
   v5, text manifest v5, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
@@ -369,7 +373,7 @@ These facts constrain the work below.
   parallel structural-function roster with the exact template, decoded
   footprint, typed fixup, separate canonical `C3` return row, and independently
   replayed ordinary/structural counts. It grants no layout or relocation
-  authority. Resolved-layout v5 now retains exact caller spans `[0, 89)` and
+  authority. Resolved-layout v6 now retains exact caller spans `[0, 89)` and
   `[89, 90)`, the leaf `[0, 1)` return, and the still-unresolved typed fixup.
   Whole-function-exit v6 validates both the distinct balanced Microsoft-x64
   caller policy and a separately named frameless structural Unit leaf policy.
@@ -2920,7 +2924,7 @@ alternate semantic handoff.
   allocation legality, empty homes, an explicit allocation-manifest statistic,
   and post-allocation machine replay. The target-owned encoder produces an
   independently decoded canonical 89-byte template with one typed unresolved
-  internal-Machine rel32 fixup; selected-form encoding v5, resolved-layout v5,
+  internal-Machine rel32 fixup; selected-form encoding v5, resolved-layout v6,
   whole-function-exit v6, and function-relative manifest v7 now retain it, its
   full footprint, exact 90/1-byte function spans, separate returns, balanced
   caller policy, and structural statistics without misclassifying the zero
@@ -3062,14 +3066,19 @@ alternate semantic handoff.
   for a strict word-count reduction. An independently coded machine validator
   derives the recipe again, while the ISA owner separately decodes exact bytes
   and reconstructs the destination and 64-bit value. Selected-form encoding v6
-  consumes that custody and proves the byte/footprint/size result; it grants no
-  layout or later authority. The root build vocabulary remains an exact named
-  opt-in and the zero-seeded baseline is unchanged. Other post-allocation
-  selections or combinations fail closed.
+  consumes that custody and proves the byte/footprint/size result. Resolved-
+  layout v6 retains the typed MOVN custody, independently replays the selected
+  bytes and every offset, and proves the exact four-byte-per-elided-word
+  reduction. Direct and selected-lowering compiler-facing routes return an
+  owning carrier that keeps baseline and transformed encodings/layouts beside
+  homes, machine, and materialization custody. The root build vocabulary
+  remains an exact named opt-in and the zero-seeded baseline is unchanged.
+  Other post-allocation selections or combinations fail closed.
 
-  Remaining here includes carrying MOVN custody through layout and later
-  boundaries, general redundant move/spill/reload rules, and additional
-  independently validated target combines.
+  Remaining here includes carrying MOVN custody through whole-function exit,
+  realization manifests, emission and later boundaries, general redundant
+  move/spill/reload rules, and additional independently validated target
+  combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.
