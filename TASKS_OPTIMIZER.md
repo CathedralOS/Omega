@@ -2064,7 +2064,21 @@ dependency.
   mutation reject. It grants no resolved layout, frame, emission, or
   publication authority and requires no new wire schema.
 
-  A sibling immutable v1 function-relative layout artifact now resolves that
+  A second owning carrier now advances only that route through required branch
+  layout. It first replays the complete rematerialization pre-layout carrier,
+  derives the transformed selected plan, source-specific machine plan, and
+  physical model from retained custody, then invokes and independently replays
+  the generic `EntryThenZeroFallthroughThenNonzeroV1` layout. Its receipt binds
+  the upstream receipt, selected/machine/pre-layout/physical/layout identities,
+  target, named policy, and exact function/block/instruction/byte/resolved-
+  branch counts. Both targets retain the fresh rematerialization row and resolve
+  exactly one branch; pre-layout byte, resolved-layout byte, and receipt
+  corruption fail at their respective layers. Generic resolved-layout identity
+  remains v2 and no durable schema changes. The carrier still grants no branch
+  relaxation, exit contract, function-relative manifest, frame, emission,
+  section, object, image, installation, or publication authority.
+
+  A sibling immutable v2 function-relative layout artifact now resolves that
   deferral under the exact named required-stage policy
   `EntryThenZeroFallthroughThenNonzeroV1`. It independently reorders the
   admitted three-block diamond as entry, zero successor, nonzero successor;
