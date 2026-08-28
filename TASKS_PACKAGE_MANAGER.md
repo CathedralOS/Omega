@@ -440,8 +440,11 @@ complete.
   to preserve file identity before descent. Existing entry-count, logical-byte,
   Unix owner/mode, and macOS ACL checks remain in force. Canaries replace a
   classified child directory with a symlink for both cache classes and replace
-  an already-opened root; symlink substitution rejects and the walk remains
-  bound to the opened root. This closes the custody walk's concrete
+  a classified child with a different concrete directory, replace an
+  already-opened root, and exercise a 1,024-directory sibling fanout;
+  substitution rejects and the walk remains bound to the opened root without
+  retaining one descriptor per queued sibling. A fixed 260-level cache depth
+  ceiling bounds no-follow reacquisition work. This closes the custody walk's concrete
   classify-then-`read_dir` redirection gap. Lock acquisition, metadata reads,
   staging, publication, and invalidation still contain pathname operations;
   path-based macOS ACL observation and a hostile same-user mutator remain open.
