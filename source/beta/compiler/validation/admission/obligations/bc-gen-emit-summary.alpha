@@ -486,7 +486,8 @@ gen_emit_compose_output:
         imm r22, 20395
         imm r23, 1
         imm r24, 0
-        imm r25, 29152
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
         imm r26, 20404
         call summary_require_call_site
         imm r20, 536824

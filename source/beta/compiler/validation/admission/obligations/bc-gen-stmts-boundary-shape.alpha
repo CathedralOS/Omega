@@ -22,7 +22,8 @@ gen_stmts_boundary_require_shape:
 
 gen_stmts_boundary_blocks:
         imm r20, 308
-        imm r21, 44066
+        imm r21, 62                    ; gen_stmts procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 309
         imm r21, 44130
@@ -532,7 +533,8 @@ gen_stmts_boundary_censuses:
         imm r28, 394
         imm r29, 399
         call summary_require_expr_census
-        imm r20, 44066
+        imm r20, 62                    ; gen_stmts procedure identity
+        call exact_proc_entry_r20
         imm r21, 45275
         imm r22, 6                   ; skip/cbyte/adv/cbyte/gen_item/skip
         imm r23, 5                   ; four source plus synthetic ret

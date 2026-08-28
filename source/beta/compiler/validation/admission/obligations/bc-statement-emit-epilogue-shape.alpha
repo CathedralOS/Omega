@@ -100,7 +100,8 @@ statement_emit_epilogue_require_censuses:
 
 statement_emit_epilogue_require_decoded:
         imm r20, 31970
-        imm r21, 32248
+        imm r21, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r21
         imm r22, 5
         imm r23, 1
         imm r24, 1

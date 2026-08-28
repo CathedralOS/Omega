@@ -534,6 +534,16 @@ exact_proc_entry_r21:
         call exact_proc_entry_pc
         mov r21, r0
         ret
+exact_proc_entry_r22:
+        mov r0, r22
+        call exact_proc_entry_pc
+        mov r22, r0
+        ret
+exact_proc_entry_r23:
+        mov r0, r23
+        call exact_proc_entry_pc
+        mov r23, r0
+        ret
 exact_proc_entry_r24:
         mov r0, r24
         call exact_proc_entry_pc

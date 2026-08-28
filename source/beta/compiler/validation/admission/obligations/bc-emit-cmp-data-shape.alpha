@@ -459,7 +459,8 @@ emit_cmp_require_epilogues:
 
 emit_cmp_require_decoded:
         imm r20, 40739
-        imm r21, 43134
+        imm r21, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r21
         imm r22, 25                   ; 19 fixed emits + 2 new_label + 4 lref
         imm r23, 2                    ; explicit and synthetic returns
         imm r24, 16                   ; exact owned-stack/local stores

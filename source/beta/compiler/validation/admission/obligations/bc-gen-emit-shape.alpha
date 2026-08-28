@@ -176,7 +176,8 @@ gen_emit_require_events:
         imm r20, 216
         imm r21, 20395                ; emit_dec(len)
         imm r22, 1
-        imm r23, 29152
+        imm r23, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r23
         imm r24, 20404
         call gen_emit_require_call
         imm r20, 217

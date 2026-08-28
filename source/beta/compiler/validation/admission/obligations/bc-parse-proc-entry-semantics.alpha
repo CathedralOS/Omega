@@ -25,7 +25,8 @@ parse_proc_entry_require_imports:
 ; Relation cells at608000 name, in order, the exact state/trace obligations.
 parse_proc_entry_build_relation:
         imm r20, 608000
-        imm r21, 48993
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
         call parse_proc_entry_store_cell ; exact entry PC48993
         imm r21, 1
         call parse_proc_entry_store_cell ; arbitrary prior ordered stdout
@@ -82,7 +83,8 @@ parse_proc_entry_store_cell:
 
 parse_proc_entry_require_relation:
         imm r20, 608000
-        imm r21, 48993
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
         call parse_proc_entry_require_next
         imm r21, 1
         call parse_proc_entry_require_next

@@ -55,7 +55,8 @@ parse_body_require_call:
 parse_body_require_events:
         imm r20, 600
         imm r21, 50945
-        imm r22, 44066                 ; gen_stmts
+        imm r22, 62                    ; gen_stmts procedure identity
+        call exact_proc_entry_r22
         imm r23, 50954
         call parse_body_require_call
         imm r20, 601

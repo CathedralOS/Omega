@@ -23,7 +23,8 @@ parse_params_require_control_shape:
 
 parse_params_shape_blocks:
         imm r20, 338
-        imm r21, 48993
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 339
         imm r21, 49368

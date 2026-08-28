@@ -277,7 +277,8 @@ count_lets_require_control_census:
         imm r29, 308                 ; checked exclusive count event row
         call exact_require_effect_census
         imm r20, 27433
-        imm r21, 29152
+        imm r21, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r21
         imm r22, 10
         imm r23, 2
         call skip_scan_call_region
