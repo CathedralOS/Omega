@@ -294,6 +294,7 @@ impl SymbolResolvedTrees {
             data::MachineParameterContract::Nominal {
                 trait_definition,
                 requirement,
+                ..
             } => {
                 let trait_definition = self
                     .traits
