@@ -179,6 +179,20 @@ These facts constrain the work below.
   currently rejects composition with other physical phases until their order
   and custody contract are admitted.
 
+  The second exact `AllocationRecovery` selection is the default-off
+  `ActiveResidentImmediateU64MultiUseRematerializationV1`. It admits only the
+  production exact-add-chain slice, derives the target-owned two-view pressure
+  set (`rax`/`rcx` or `x0`/`x1`), and runs the closed farthest-end victim,
+  immediate-u64 eligibility, and multi-use active-resident rematerialization
+  policies under one shared budget. Exactly one sweep and at least one action
+  are required. The route then rebuilds liveness, ranges, legality, and homes
+  and retains its machine, encoding, resolved-layout, and function-relative
+  custody. The selection codec/identity is v7. The function-relative v5
+  manifest records the exact allocation-recovery phase projection. The two
+  allocation-recovery selections cannot be combined, and neither composes with
+  another unfinished physical phase. Ordinary and dependency builds remain
+  empty and do not enter this route; compiler publication remains unavailable.
+
   The first post-allocation combine is also present as the exact build-visible,
   default-off
   `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` transformation. A new closed
@@ -685,8 +699,10 @@ These facts constrain the work below.
   zero-change result transformed the CFG. The v5 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
-  Decoding remains non-authoritative. The function-relative v4 realization
-  manifest joins the exact full suite and both phase subsets, optional
+  Decoding remains non-authoritative. The function-relative v5 realization
+  manifest joins the exact full suite and the selected-lowering, allocation-
+  recovery, post-allocation-machine, and function-relative-layout phase
+  subsets, optional
   selected-lowering completion, pre-physical/post-allocation manifests, final
   selected CFG, pre-/post-allocation machine roots, pre-layout encoding,
   baseline and final layouts, optional layout-transformation receipt, target,
@@ -859,8 +875,9 @@ dependency.
   Current closure boundary: pre-physical, post-allocation, and selected-
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
-  code-size statistics; its v4 form binds the v3 validated frameless-leaf exit
-  contract. A separate strict v1 function-fragment manifest now joins either
+  code-size statistics; its v5 form binds the allocation-recovery projection
+  and the v3 validated frameless-leaf exit contract. A separate strict v1
+  function-fragment manifest now joins either
   the completed x86 rel8 or AArch64 CBNZ realization to relocation-free bytes
   and a strict v1 text-section manifest binds deterministic placement and a
   closed no-relocation proof. A strict v1 object-container manifest then binds
@@ -1898,6 +1915,17 @@ dependency.
   pressure point closes. This policy grants no memory spill, frame, loop,
   emission, or general rematerialization authority.
 
+  The exact root-build family
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` now chooses that
+  multi-use schedule and no companions. The compiler route derives only the
+  target-owned caller-saved two-view availability, requires one sweep with at
+  least one action, rebuilds every invalidated allocation fact, and retains the
+  result through function-relative realization. A no-candidate source shape,
+  missing required view, second allocation-recovery family, or another
+  unfinished physical phase rejects rather than falling back. This closes the
+  explicit opt-in hook, not general spilling, framing, emission, or
+  publication.
+
   `SelectedIncomingU12ExactAddImmediateV1` and
   `SelectedIncomingU12ExactSubtractImmediateV1` each close one physical-form
   alternative only: an incoming unsigned-u12 literal, uniquely materialized
@@ -2080,21 +2108,25 @@ dependency.
 
   An explicit-staging-only function-relative carrier now owns that resolved
   route together with a validated `BaselineNearLayoutV1` frameless exit and an
-  independently rebuilt v4 realization manifest. It does not reinterpret the
-  rematerializer as a build selection: the original source-visible selection
-  identity remains unchanged, selected-lowering completion is absent, and the
-  allocation-recovery, post-allocation-machine, and function-relative-layout
-  projections must all be empty because none ran as named build phases. The v5
+  independently rebuilt v5 realization manifest. When staged directly without
+  a compiler build selection, the original source-visible selection identity
+  remains unchanged and every unexecuted phase projection is empty. Through the
+  compiler physical pipeline, the exact
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` root-build selection
+  instead occupies the allocation-recovery projection; selected-lowering
+  completion and the post-allocation-machine and function-relative-layout
+  projections remain absent. The v5
   post-allocation manifest instead supplies the sole typed
   `PressureRematerialization` row and transformed selected root. The carrier
   replays the complete resolved-layout custody before deriving any exit or
   manifest field, binds the caller-saved physical path (`rax`/`rcx` or
   `x0`/`x1`), and rejects detached roots, later-phase selections, exit/manifest/
   receipt corruption, and cross-source substitution. Whole-function exit v3
-  and realization manifest v4 require no bump. This is not wired into the
-  compiler physical pipeline until rematerialization receives its own explicit
-  build selection, and it still grants no frame, emission, section, object,
-  image, installation, or publication authority.
+  remains unchanged; realization manifest v5 makes the allocation-recovery
+  execution claim independently replayable. The route is wired only for the
+  exact singleton named selection and fails closed on physical-phase
+  composition. It still grants no frame, emission, section, object, image,
+  installation, or publication authority.
 
   A sibling immutable v2 function-relative layout artifact now resolves that
   deferral under the exact named required-stage policy
@@ -2115,10 +2147,12 @@ dependency.
   publication authority.
 
   Function-relative realization now has distinct custody routes for ordinary
-  homes and selected-lowering completion. Both own the validated required
-  layout together with strict homes, post-allocation machine, and pre-layout
-  encoding. The immutable v4 manifest binds the complete named suite, exact
-  selected-lowering and function-relative-layout projections, optional
+  homes, selected-lowering completion, and active-resident rematerialization.
+  Each owns the validated required layout together with strict homes,
+  post-allocation machine, and pre-layout encoding. The immutable v5 manifest
+  binds the complete named suite, exact
+  selected-lowering, allocation-recovery, post-allocation-machine, and
+  function-relative-layout projections, optional
   selected-lowering completion, pre-physical and post-allocation manifests,
   final selected CFG, pre-/post-allocation machine roots, baseline and final
   layout roots, optional layout transformation receipt, target, and named
@@ -2154,8 +2188,8 @@ dependency.
   Physical orchestration now routes that exact phase independently of selected
   lowering. A branch-only suite uses frameless legality and ordinary homes and
   truthfully records no selected-lowering completion; a combined suite retains
-  both completions. The strict v4 realization manifest binds the full suite,
-  both exact phase projections, optional selected-lowering completion,
+  both completions. The strict v5 realization manifest binds the full suite,
+  all exact phase projections, optional selected-lowering completion,
   required near-layout root, final layout root, optional rel8 receipt, final-
   byte statistics, and final-layout exit contract. Whole-function exit custody
   is v2 and distinguishes the required near layout from a final layout admitted
@@ -2296,7 +2330,7 @@ dependency.
   complete an owning function-relative realization: they retain homes,
   selected machine, symbolic fusion, baseline and fused encoding/layout roots,
   and CBNZ-aware whole-function exit custody. Function-relative manifest/codec
-  v4 and whole-function exit identity v3 independently replay the zero-byte
+  v5 and whole-function exit identity v3 independently replay the zero-byte
   compare row, four-byte shrink, canonical CBNZ bytes/effects, and exact post-
   allocation selection. The root build vocabulary remains explicit and
   default-off, and the compiler still rejects selected native output because
