@@ -11,26 +11,17 @@ use omega_calling_conventions::{
     validate_entry_stack_realization,
 };
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
-    OwnedTerminalComponentDeploymentError, RequestedCompileProduct,
-    SuppliedTerminalComponentDeploymentError, TerminalComponentCandidate,
-    TerminalComponentCandidateParts, TerminalComponentCompileError,
-    TerminalComponentCompileRequest, TerminalComponentDeploymentInputOwner,
-    TerminalComponentDeploymentInputRejection, TerminalComponentDeploymentInputs,
-    TerminalComponentDeploymentOutputError, TerminalComponentDeploymentOutputStage,
-    TerminalComponentDeploymentSupply, TerminalComponentProviderSettlement,
-    TerminalComponentStagingInputs, TerminalNativeArtifact, TerminalNativeArtifactParts,
-    acquire_and_deploy_terminal_component_output, compile_terminal_component_output,
-    compile_to_checked, deploy_and_write_terminal_component_output,
-    stage_acquire_and_deploy_terminal_component_output,
-    stage_terminal_component as stage_terminal_artifact, write_finalized_terminal_component_output,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileRequest,
+    RequestedCompileProduct, compile_to_checked,
 };
 use omega_component_deployment::{
     ComponentProgressAttestationBinding, DynamicNativeFuelRootDeployment,
     begin_terminal_component_deployment, begin_terminal_component_deployment_with_claimed_registry,
     publish_terminal_component_flat_output,
 };
-use omega_component_publication::{RunnableComponentEraLedger, bind_installed_runnable_component};
+use omega_component_publication::{
+    InstalledRunnableComponent, RunnableComponentEraLedger, bind_installed_runnable_component,
+};
 use omega_effects::{
     ComponentEraCandidate, ComponentEraEntryLedger, ComponentEraLedgerId,
     ComponentEraPublicationReceipt, ExecutableTcbManifest, ExecutableTcbProfile, ExecutionScope,
@@ -84,6 +75,9 @@ use omega_terminal_abstract_operations_to_target_operations::lower_to_target_ope
 use omega_terminal_assigned_target_operations::{
     TerminalAssignedBooleanControl, TerminalAssignedIntegerControl, TerminalAssignedOperation,
 };
+use omega_terminal_component_candidate::{
+    TerminalComponentCandidate, TerminalComponentCandidateParts,
+};
 use omega_terminal_image_emission::{
     TerminalObjectArtifact, bind_installed_terminal_artifact, build_terminal_installation_record,
     build_terminal_object_artifact, decode_terminal_installation_record,
@@ -99,6 +93,11 @@ use omega_terminal_installation_evidence::{
     TerminalObjectEvidence,
 };
 use omega_terminal_machine_emission::emit_machine_code;
+use omega_terminal_native_artifact::{TerminalNativeArtifact, TerminalNativeArtifactParts};
+use omega_terminal_native_realization::{
+    TerminalNativeProviderSettlement as TerminalComponentProviderSettlement,
+    realize_terminal_native_artifact,
+};
 use omega_terminal_psi_to_abstract_operations::{ArtifactLoweringError, lower_artifact_sections};
 use omega_terminal_target_operations::{
     TerminalLinuxExitGroupI32Realization, TerminalTargetBooleanControl,
@@ -148,89 +147,11 @@ use std::{
 #[cfg(unix)]
 static NEXT_SCRATCH_DIRECTORY: AtomicU64 = AtomicU64::new(1);
 
-#[derive(Debug)]
-struct SourceDeploymentInputOwner {
-    expected_target: NativeTarget,
-    supply: TerminalComponentDeploymentSupply,
-}
-
-#[derive(Debug)]
-struct SourceDeploymentInputAcquisitionError(&'static str);
-
-impl std::fmt::Display for SourceDeploymentInputAcquisitionError {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        self.0.fmt(formatter)
-    }
-}
-
-impl TerminalComponentDeploymentInputOwner for SourceDeploymentInputOwner {
-    type Error = SourceDeploymentInputAcquisitionError;
-
-    fn acquire(
-        self,
-        candidate: &omega_compiler::TerminalComponentCandidate,
-    ) -> Result<
-        TerminalComponentDeploymentSupply,
-        TerminalComponentDeploymentInputRejection<Self, Self::Error>,
-    > {
-        if candidate.target() != self.expected_target {
-            return Err(TerminalComponentDeploymentInputRejection::new(
-                self,
-                SourceDeploymentInputAcquisitionError(
-                    "deployment-input owner rejected a different staged target",
-                ),
-            ));
-        }
-        Ok(self.supply)
-    }
-}
-
-#[derive(Debug)]
-struct InstallingSourceDeploymentInputOwner {
-    profile_decision: ProfileDecisionId,
-}
-
-impl TerminalComponentDeploymentInputOwner for InstallingSourceDeploymentInputOwner {
-    type Error = SourceDeploymentInputAcquisitionError;
-
-    fn acquire(
-        self,
-        candidate: &omega_compiler::TerminalComponentCandidate,
-    ) -> Result<
-        TerminalComponentDeploymentSupply,
-        TerminalComponentDeploymentInputRejection<Self, Self::Error>,
-    > {
-        if candidate.target() != NativeTarget::linux_x64() {
-            return Err(TerminalComponentDeploymentInputRejection::new(
-                self,
-                SourceDeploymentInputAcquisitionError(
-                    "source installation owner supports only the Linux x64 canary target",
-                ),
-            ));
-        }
-        let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
-            .expect("terminal entry offset fits installation geometry");
-        let (installed, _) = install_terminal_object(
-            candidate.object(),
-            candidate.object().text_bytes().to_vec(),
-            entry_offset,
-        );
-        Ok(TerminalComponentDeploymentSupply::new(
-            installed,
-            Vec::new(),
-            Vec::new(),
-            self.profile_decision,
-        ))
-    }
-}
-
 fn terminal_source_canary(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-native-differential-test lives under source/omega-rust/omega/orchestration",
-        )
+        .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
         .join("tests/canaries/pass/terminal_psi")
         .join(name)
         .join("main.omg")
@@ -244,9 +165,7 @@ fn progress_source_canary() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-native-differential-test lives under source/omega-rust/omega/orchestration",
-        )
+        .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
         .join("tests/canaries/pass/progress/provider_receiver_progress_installation/main.omg")
 }
 
@@ -290,17 +209,52 @@ fn stage_terminal_component(
                 "terminal component artifact production failed: {error}"
             ))]
         })?;
-    stage_terminal_artifact(
+    let native_artifact = realize_terminal_native_artifact(
         artifact,
-        entry_machine,
         target,
         subsystem,
         profile,
         checked.optimization_selections(),
         checked.selected_provider_plans(),
-        checked.component_progress(),
         settlements,
+    )?;
+    let stack_demand = omega_terminal_image_emission::derive_terminal_stack_demand(
+        native_artifact.object(),
+        native_artifact.object().entry(),
     )
+    .map_err(|error| {
+        vec![psi_diagnostics::Diagnostic::error(format!(
+            "Terminal component stack-demand derivation failed: {error}"
+        ))]
+    })?;
+    TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
+        native_artifact,
+        entry_machine: entry_machine.to_owned(),
+        selected_provider_plans: checked.selected_provider_plans().clone(),
+        component_progress: checked
+            .component_progress()
+            .filter(|manifest| !manifest.pending().is_empty())
+            .cloned(),
+        stack_demand,
+    })
+    .map_err(|error| {
+        vec![psi_diagnostics::Diagnostic::error(format!(
+            "Terminal component policy replay failed: {error}"
+        ))]
+    })
+}
+
+fn write_finalized_terminal_component_output(
+    options: &CompileOptions,
+    runnable: InstalledRunnableComponent,
+) -> Result<
+    omega_component_deployment::PublishedTerminalComponentFlatOutput,
+    Box<omega_component_deployment::TerminalComponentFlatOutputPublicationError>,
+> {
+    let output_path = options
+        .build_dir()
+        .join(&runnable.terminal_artifact().image().output().file_name);
+    publish_terminal_component_flat_output(runnable, output_path)
 }
 
 fn unsupported_optimizer_source_canary() -> PathBuf {
@@ -947,366 +901,6 @@ fn selected_progress_free_source_stages_non_visible_terminal_candidate() {
     }
 }
 
-#[cfg(unix)]
-#[test]
-fn compiler_deployment_transaction_requires_real_installation_and_retains_failure_custody() {
-    let source = progress_free_selected_source_canary();
-    let checked = compile_to_checked(&source, Some("linux_x64"))
-        .expect("selected progress-free source entry should compile");
-    let candidate = stage_terminal_component(
-        &checked,
-        NativeTarget::linux_x64(),
-        3,
-        &AdmissionProfile::default(),
-        &[],
-    )
-    .expect("selected progress-free source should stage one terminal candidate");
-    let entry_offset = u64::try_from(candidate.object().entry_function().text_offset)
-        .expect("terminal entry offset fits installation geometry");
-    let mut wrong_text = candidate.object().text_bytes().to_vec();
-    wrong_text[0] ^= 0x01;
-    let (wrong_installed, _) =
-        install_terminal_object(candidate.object(), wrong_text, entry_offset);
-    let scratch = ScratchDirectory(fresh_scratch_directory(
-        "omega-compiler-terminal-deployment-transaction",
-    ));
-    let options = CompileOptions {
-        root_path: source,
-        build_dir: Some(scratch.0.clone()),
-        target_name: Some("linux_x64".into()),
-        write_output: true,
-    };
-    let profile_decision =
-        ProfileDecisionId::new(0x55f3).expect("compiler deployment profile decision");
-    let acquisition_error = acquire_and_deploy_terminal_component_output(
-        &options,
-        1,
-        candidate,
-        SourceDeploymentInputOwner {
-            expected_target: NativeTarget::windows_x64(),
-            supply: TerminalComponentDeploymentSupply::new(
-                wrong_installed,
-                Vec::new(),
-                Vec::new(),
-                profile_decision,
-            ),
-        },
-        None,
-        None,
-    )
-    .expect_err("compiler driver must retain rejected deployment-input acquisition");
-    let (candidate, mut owner) = match *acquisition_error {
-        OwnedTerminalComponentDeploymentError::Acquisition {
-            rejection,
-            candidate,
-            source_file_count,
-            build_evaluation_usage,
-            build_observation_summary,
-        } => {
-            assert_eq!(source_file_count, 1);
-            assert!(build_evaluation_usage.is_none());
-            assert!(build_observation_summary.is_none());
-            assert_eq!(
-                rejection.error().to_string(),
-                "deployment-input owner rejected a different staged target"
-            );
-            let (owner, _) = rejection.into_parts();
-            (candidate, owner)
-        }
-        other => panic!("expected acquisition-stage driver recovery, got {other:?}"),
-    };
-    owner.expected_target = NativeTarget::linux_x64();
-    let error =
-        acquire_and_deploy_terminal_component_output(&options, 1, candidate, owner, None, None)
-            .expect_err(
-                "compiler driver must reject substituted installed bytes after acquisition",
-            );
-    let error = match *error {
-        OwnedTerminalComponentDeploymentError::Deployment(error) => match *error {
-            SuppliedTerminalComponentDeploymentError::Deployment {
-                error,
-                source_file_count,
-                build_evaluation_usage,
-                build_observation_summary,
-            } => {
-                assert_eq!(source_file_count, 1);
-                assert!(build_evaluation_usage.is_none());
-                assert!(build_observation_summary.is_none());
-                error
-            }
-            other => panic!("expected typed deployment recovery, got {other:?}"),
-        },
-        other => panic!("expected deployment-stage driver recovery, got {other:?}"),
-    };
-    assert_eq!(error.stage(), TerminalComponentDeploymentOutputStage::Begin);
-    assert!(error.diagnostic().contains("exact unrelocated"));
-    let (candidate, _wrong_installed) = match *error {
-        TerminalComponentDeploymentOutputError::Begin {
-            error,
-            provider_occurrences,
-            progress_attestations,
-            profile_decision: returned_profile,
-        } => {
-            assert!(provider_occurrences.is_empty());
-            assert!(progress_attestations.is_empty());
-            assert_eq!(returned_profile, profile_decision);
-            error.into_parts()
-        }
-        other => panic!("expected begin-stage deployment recovery, got {other:?}"),
-    };
-
-    let (installed, _) = install_terminal_object(
-        candidate.object(),
-        candidate.object().text_bytes().to_vec(),
-        entry_offset,
-    );
-    let installed_identity = installed.identity();
-    let expected_path = options
-        .build_dir()
-        .join(&candidate.image().output().file_name);
-    let published = deploy_and_write_terminal_component_output(
-        &options,
-        TerminalComponentDeploymentInputs::new(
-            candidate,
-            installed,
-            Vec::new(),
-            Vec::new(),
-            profile_decision,
-        ),
-    )
-    .expect("recovered compiler deployment transaction should publish exactly");
-    assert_eq!(published.runnable().installed_code(), installed_identity);
-    assert_eq!(published.receipt().output_path(), expected_path);
-    assert!(published.runnable().progress().is_none());
-    published
-        .validate()
-        .expect("compiler deployment transaction receipt should replay");
-
-    std::fs::write(&expected_path, b"drifted before report retention")
-        .expect("drift terminal output before report retention");
-    let report_error = CompileReport::from_terminal_component_deployment(
-        options.root_path.clone(),
-        1,
-        published,
-        None,
-        None,
-    )
-    .expect_err("compiler report must reject drifted terminal output without losing custody");
-    assert!(report_error.diagnostic().contains("bytes differ"));
-    let (returned_root_path, returned_source_file_count, drifted, returned_usage, returned_summary) =
-        report_error.into_parts();
-    assert_eq!(returned_root_path, options.root_path);
-    assert_eq!(returned_source_file_count, 1);
-    assert!(returned_usage.is_none());
-    assert!(returned_summary.is_none());
-    let (runnable, receipt) = drifted.into_parts();
-    drop(receipt);
-    let repaired = write_finalized_terminal_component_output(&options, runnable)
-        .expect("recovered runnable should repair output before report retention");
-    let report = CompileReport::from_terminal_component_deployment(
-        options.root_path.clone(),
-        1,
-        repaired,
-        None,
-        None,
-    )
-    .expect("compiler report should retain the repaired terminal deployment");
-    assert!(report.executable_publication().is_none());
-    assert!(report.app_bundle_publication().is_none());
-    assert_eq!(
-        report.checked_native_executable_path(),
-        Some(expected_path.as_path())
-    );
-    assert!(report.terminal_component_deployment().is_some());
-    let retained = report
-        .into_terminal_component_deployment()
-        .expect("terminal report should transfer complete deployment custody");
-    assert_eq!(retained.runnable().installed_code(), installed_identity);
-    retained
-        .validate()
-        .expect("deployment recovered from compiler report should replay");
-}
-
-#[cfg(unix)]
-#[test]
-fn complete_terminal_driver_binds_checked_target_and_metadata_before_report_custody() {
-    let source = progress_free_selected_source_canary();
-    let targetless_checked = compile_to_checked(&source, None)
-        .expect("targetless progress-free source entry should check");
-    let checked = compile_to_checked(&source, Some("linux_x64"))
-        .expect("selected progress-free source entry should compile");
-    let staging_profile = AdmissionProfile::default();
-    let scratch = ScratchDirectory(fresh_scratch_directory(
-        "omega-compiler-complete-terminal-driver",
-    ));
-    let options = CompileOptions {
-        root_path: source,
-        build_dir: Some(scratch.0.clone()),
-        target_name: Some("linux_x64".into()),
-        write_output: true,
-    };
-    let binding_error = TerminalComponentStagingInputs::from_checked(
-        &targetless_checked,
-        &staging_profile,
-        Vec::new(),
-    )
-    .expect_err("targetless checked semantics cannot bind executable staging inputs");
-    assert!(
-        binding_error
-            .diagnostic()
-            .message
-            .contains("selected by the owning checked result")
-    );
-    let (subsystem, returned_profile, returned_settlements) = binding_error.into_parts();
-    assert!(std::ptr::eq(returned_profile, &staging_profile));
-    assert!(returned_settlements.is_empty());
-    let staging_inputs = TerminalComponentStagingInputs::from_checked(
-        &checked,
-        returned_profile,
-        returned_settlements,
-    )
-    .expect("selected checked result should bind its exact native target");
-    assert_eq!(staging_inputs.subsystem(), subsystem);
-    assert_eq!(staging_inputs.target(), NativeTarget::linux_x64());
-    let expected_build_evaluation_usage = checked.build_evaluation_usage();
-    let expected_build_observation_summary = checked.build_observation_summary().cloned();
-    let staged_report = stage_acquire_and_deploy_terminal_component_output(
-        &options,
-        1,
-        &checked,
-        staging_inputs,
-        InstallingSourceDeploymentInputOwner {
-            profile_decision: ProfileDecisionId::new(0x55f4)
-                .expect("complete driver profile decision"),
-        },
-    )
-    .expect("checked-bound complete driver should stage, install, deploy, and report");
-    assert!(staged_report.executable_publication().is_none());
-    assert!(staged_report.terminal_component_deployment().is_some());
-    assert_eq!(
-        staged_report.build_evaluation_usage,
-        expected_build_evaluation_usage
-    );
-    assert_eq!(
-        staged_report.build_observation_summary,
-        expected_build_observation_summary
-    );
-    staged_report
-        .terminal_component_deployment()
-        .expect("complete driver report retains deployment")
-        .validate()
-        .expect("complete driver deployment should replay");
-}
-
-#[cfg(unix)]
-#[test]
-fn typed_terminal_compile_handoff_retains_frontend_and_binding_custody() {
-    let staging_profile = AdmissionProfile::default();
-    let scratch = ScratchDirectory(fresh_scratch_directory(
-        "omega-typed-terminal-compile-recovery",
-    ));
-    let missing_source = scratch.0.join("missing.omg");
-    let frontend_error = compile_terminal_component_output(TerminalComponentCompileRequest::new(
-        CompileOptions {
-            root_path: missing_source.clone(),
-            build_dir: Some(scratch.0.join("frontend-build")),
-            target_name: Some("linux_x64".into()),
-            write_output: true,
-        },
-        &staging_profile,
-        Vec::new(),
-        InstallingSourceDeploymentInputOwner {
-            profile_decision: ProfileDecisionId::new(0x55f5)
-                .expect("frontend-recovery profile decision"),
-        },
-    ))
-    .expect_err("missing source must return the complete terminal request");
-    let TerminalComponentCompileError::Frontend {
-        diagnostics,
-        request,
-    } = *frontend_error
-    else {
-        panic!("expected frontend-stage terminal compile recovery");
-    };
-    assert!(!diagnostics.is_empty());
-    assert_eq!(request.options().root_path, missing_source);
-    assert!(request.package_inputs().is_none());
-    assert!(std::ptr::eq(request.profile(), &staging_profile));
-    assert!(request.settlements().is_empty());
-    assert_eq!(
-        request.deployment_owner().profile_decision,
-        ProfileDecisionId::new(0x55f5).expect("frontend-recovery profile decision")
-    );
-
-    let source = progress_free_selected_source_canary();
-    let binding_error = compile_terminal_component_output(TerminalComponentCompileRequest::new(
-        CompileOptions {
-            root_path: source.clone(),
-            build_dir: Some(scratch.0.join("binding-build")),
-            target_name: None,
-            write_output: true,
-        },
-        &staging_profile,
-        Vec::new(),
-        InstallingSourceDeploymentInputOwner {
-            profile_decision: ProfileDecisionId::new(0x55f6)
-                .expect("binding-recovery profile decision"),
-        },
-    ))
-    .expect_err("targetless checked result must return checked and request custody");
-    let TerminalComponentCompileError::StagingInputBinding {
-        diagnostic,
-        checked,
-        request,
-    } = *binding_error
-    else {
-        panic!("expected staging-input binding recovery");
-    };
-    assert!(diagnostic.message.contains("owning checked result"));
-    assert_eq!(checked.source_file_count(), 3);
-    assert_eq!(checked.subsystem(), 3);
-    assert!(checked.selected_native_target().is_none());
-    assert_eq!(request.options().root_path, source);
-    assert!(std::ptr::eq(request.profile(), &staging_profile));
-    assert!(request.settlements().is_empty());
-    assert_eq!(
-        request.deployment_owner().profile_decision,
-        ProfileDecisionId::new(0x55f6).expect("binding-recovery profile decision")
-    );
-}
-
-#[cfg(unix)]
-#[test]
-fn typed_terminal_compile_handoff_reaches_checked_owned_report_custody() {
-    let source = progress_free_selected_source_canary();
-    let staging_profile = AdmissionProfile::default();
-    let scratch = ScratchDirectory(fresh_scratch_directory(
-        "omega-typed-terminal-compile-success",
-    ));
-    let report = compile_terminal_component_output(TerminalComponentCompileRequest::new(
-        CompileOptions {
-            root_path: source,
-            build_dir: Some(scratch.0.clone()),
-            target_name: Some("linux_x64".into()),
-            write_output: true,
-        },
-        &staging_profile,
-        Vec::new(),
-        InstallingSourceDeploymentInputOwner {
-            profile_decision: ProfileDecisionId::new(0x55f7)
-                .expect("typed handoff profile decision"),
-        },
-    ))
-    .expect("typed terminal compile should reach deployment report custody");
-    assert_eq!(report.source_file_count, 3);
-    assert!(report.executable_publication().is_none());
-    report
-        .terminal_component_deployment()
-        .expect("typed handoff report retains terminal deployment")
-        .validate()
-        .expect("typed handoff deployment should replay");
-}
-
 #[test]
 fn selected_optimizer_source_enters_verified_physical_pipeline_and_fails_closed_at_selection() {
     let checked = compile_to_checked(&selected_optimizer_source_canary(), Some("linux_x64"))
@@ -1733,30 +1327,22 @@ fn selected_source_entry_retains_build_bound_progress_for_terminal_publication()
         let expected_path = options
             .build_dir()
             .join(&candidate.image().output().file_name);
-        let report = acquire_and_deploy_terminal_component_output(
-            &options,
-            1,
-            candidate,
-            SourceDeploymentInputOwner {
-                expected_target: NativeTarget::linux_x64(),
-                supply: TerminalComponentDeploymentSupply::new(
-                    installed,
-                    provider_bindings,
-                    progress_bindings,
-                    ProfileDecisionId::new(0x5434).expect("compiler transaction profile decision"),
-                ),
-            },
-            None,
-            None,
-        )
-        .expect("compiler driver should acquire and deploy accepted progress inputs");
-        assert_eq!(
-            report.checked_native_executable_path(),
-            Some(expected_path.as_path())
-        );
-        let published = report
-            .into_terminal_component_deployment()
-            .expect("compiler report should transfer supplied deployment custody");
+        let session = begin_terminal_component_deployment(candidate, installed)
+            .expect("accepted component and installation should begin deployment");
+        let provider_closed = session
+            .seal_provider_occurrences(provider_bindings)
+            .expect("selected provider occurrences should close exactly");
+        let progress_closed = provider_closed
+            .close_progress(progress_bindings)
+            .expect("component progress evidence should close exactly");
+        let runnable = progress_closed
+            .finalize(
+                ProfileDecisionId::new(0x5434).expect("component deployment profile decision"),
+            )
+            .expect("closed deployment should become runnable");
+        let published = write_finalized_terminal_component_output(&options, runnable)
+            .expect("accepted progress deployment should publish");
+        assert_eq!(published.receipt().output_path(), expected_path);
         assert_eq!(published.runnable().installed_code(), installed_identity);
         assert!(
             published

@@ -1,66 +1,13 @@
 use crate::pipeline::stages::source_files_to_syntax_trees_for_engine;
 use crate::pipeline::timing::CompileTimings;
+pub use omega_source_profile::{
+    SOURCE_CLOSURE_SNAPSHOT_SCHEMA, SourceClosureSnapshot, SourceClosureSnapshotEntry,
+    SourceInspectionRoot,
+};
 use psi_diagnostics::Diagnostic;
 use psi_source::SourceOrigin;
-use psi_syntax_trees::SyntaxTreesSnapshot;
-use serde::Serialize;
 use sha2::{Digest, Sha256};
 use std::path::Path;
-use std::path::PathBuf;
-
-pub const SOURCE_CLOSURE_SNAPSHOT_SCHEMA: &str = "omega.source-closure-snapshot.v3";
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct SourceClosureSnapshotEntry {
-    pub source_id: usize,
-    pub identity: String,
-    pub origin: &'static str,
-    pub byte_length: usize,
-    pub sha256: String,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
-pub struct SourceClosureSnapshot {
-    pub schema: &'static str,
-    pub entry_source: String,
-    pub selected_target: Option<String>,
-    pub native_provider_substitution: bool,
-    pub sources: Vec<SourceClosureSnapshotEntry>,
-    pub syntax: SyntaxTreesSnapshot,
-}
-
-/// Map one immutable package snapshot back to the live repository location
-/// whose logical identity the checkpoint records. Compilation reads only the
-/// immutable root; this mapping affects diagnostic/checkpoint names, never
-/// source authority or bytes.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SourceInspectionRoot {
-    physical_root: PathBuf,
-    logical_root: PathBuf,
-}
-
-impl SourceInspectionRoot {
-    pub fn new(physical_root: impl Into<PathBuf>, logical_root: impl Into<PathBuf>) -> Self {
-        Self {
-            physical_root: physical_root.into(),
-            logical_root: logical_root.into(),
-        }
-    }
-}
-
-impl SourceClosureSnapshot {
-    pub fn to_json_pretty(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string_pretty(self)
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(self)
-    }
-
-    pub fn feature_census(&self) -> crate::pipeline::SourceFeatureCensus {
-        crate::pipeline::census_source_closure(self)
-    }
-}
 
 pub fn inspect_source_closure(
     repository_root: &Path,
@@ -71,7 +18,7 @@ pub fn inspect_source_closure(
     let repository_root = repository_root.to_owned();
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         inspect_source_closure_inner(
             &repository_root,
             &root_path,
@@ -94,7 +41,7 @@ pub fn inspect_source_closure_with_packages(
     let repository_root = repository_root.to_owned();
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         inspect_source_closure_inner(
             &repository_root,
             &root_path,
@@ -195,9 +142,9 @@ fn logical_source_identity(
         .iter()
         .find_map(|mapping| {
             canonical
-                .strip_prefix(&mapping.physical_root)
+                .strip_prefix(mapping.physical_root())
                 .ok()
-                .map(|relative| mapping.logical_root.join(relative))
+                .map(|relative| mapping.logical_root().join(relative))
         })
         .unwrap_or(canonical);
     let relative = logical.strip_prefix(repository_root).map_err(|_| {
@@ -225,22 +172,19 @@ fn canonical_identity_roots(
     identity_roots
         .iter()
         .map(|mapping| {
-            let physical_root = mapping.physical_root.canonicalize().map_err(|error| {
+            let physical_root = mapping.physical_root().canonicalize().map_err(|error| {
                 vec![Diagnostic::error(format!(
                     "failed to canonicalize inspected physical root {}: {error}",
-                    mapping.physical_root.display()
+                    mapping.physical_root().display()
                 ))]
             })?;
-            let logical_root = mapping.logical_root.canonicalize().map_err(|error| {
+            let logical_root = mapping.logical_root().canonicalize().map_err(|error| {
                 vec![Diagnostic::error(format!(
                     "failed to canonicalize inspected logical root {}: {error}",
-                    mapping.logical_root.display()
+                    mapping.logical_root().display()
                 ))]
             })?;
-            Ok(SourceInspectionRoot {
-                physical_root,
-                logical_root,
-            })
+            Ok(SourceInspectionRoot::new(physical_root, logical_root))
         })
         .collect()
 }

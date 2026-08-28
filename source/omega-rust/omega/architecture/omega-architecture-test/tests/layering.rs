@@ -405,6 +405,410 @@ fn retired_omega_frontend_adapters_do_not_return() {
 }
 
 #[test]
+fn compiler_entry_is_rooted_thin_and_owns_no_domain_model() {
+    let root = workspace_root();
+    let compiler =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler.rs");
+    let source = std::fs::read_to_string(&compiler)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler.display()));
+
+    assert!(
+        !root
+            .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compiler.rs")
+            .exists(),
+        "the compiler entry must not return to the pipeline dumping ground"
+    );
+    let declarations = source
+        .lines()
+        .map(str::trim)
+        .filter(|line| {
+            ["struct ", "enum ", "trait ", "union "]
+                .iter()
+                .any(|keyword| {
+                    line.starts_with(keyword) || line.starts_with(&format!("pub {keyword}"))
+                })
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        declarations,
+        ["pub struct Compiler;"],
+        "compiler.rs declares only Compiler; requests, reports, harness controls, and semantic models belong to their own owners"
+    );
+    assert!(
+        source.lines().count() <= 100,
+        "compiler.rs must remain a reviewable coordinator, not another semantic owner"
+    );
+    for child in ["request.rs", "harness.rs", "execution.rs"] {
+        assert!(
+            compiler.with_file_name("compiler").join(child).is_file(),
+            "compiler support owner is missing: {child}"
+        );
+    }
+}
+
+#[test]
+fn compiler_crate_root_remains_a_small_api_map() {
+    let root = workspace_root();
+    let lib_path = root.join("source/omega-rust/omega/orchestration/omega-compiler/src/lib.rs");
+    let lib = std::fs::read_to_string(&lib_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", lib_path.display()));
+    assert!(
+        lib.lines().count() <= 30,
+        "omega-compiler's crate root must map the API, not inventory every domain"
+    );
+    assert!(lib.contains("pub use compiler::"));
+    assert!(lib.contains("pub use pipeline::checked_entry::"));
+    assert!(!lib.contains("public_api"));
+}
+
+#[test]
+fn compiler_crate_owns_no_product_binaries() {
+    let root = workspace_root();
+    let compiler_bins = root.join("source/omega-rust/omega/orchestration/omega-compiler/src/bin");
+    let rust_bins = std::fs::read_dir(&compiler_bins)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "rs")
+        })
+        .count();
+    assert_eq!(
+        rust_bins, 0,
+        "omega-compiler is a library owner; product and probe commands belong to the omega binary"
+    );
+
+    assert!(
+        root.join("source/omega-rust/omega/src/command/probe.rs")
+            .is_file(),
+        "the native/interpreter probe must remain reachable through `omega run`"
+    );
+}
+
+#[test]
+fn source_profile_analysis_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    let retired = root
+        .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/source_profile");
+    assert!(
+        !retired.join("census.rs").exists() && !retired.join("catalog.rs").exists(),
+        "source profile schema and census must not return to omega-compiler"
+    );
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-source-profile/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-source-profile must own the analysis"
+    );
+}
+
+#[test]
+fn trust_ledgers_are_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler/src");
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-trust-ledger/src/lib.rs");
+
+    assert!(
+        owner.is_file(),
+        "omega-trust-ledger must own trust receipts and reports"
+    );
+    assert!(
+        !compiler.join("pipeline/trust/lockfile.rs").exists()
+            && !compiler.join("pipeline/trust/report.rs").exists(),
+        "omega-compiler must not retain trust-ledger implementations"
+    );
+
+    assert!(
+        !compiler.join("public_api.rs").exists(),
+        "omega-compiler must not regain a subsystem compatibility facade"
+    );
+    let public_api =
+        std::fs::read_to_string(compiler.join("lib.rs")).expect("read omega-compiler public API");
+    assert!(
+        !public_api.contains("PreparedTrustLock")
+            && !public_api.contains("write_trust_report")
+            && !public_api.contains("AcceptedTemplateClassifications"),
+        "omega-compiler must not compatibility-reexport trust-ledger ownership"
+    );
+}
+
+#[test]
+fn package_review_is_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler.join("src/pipeline/package/review.rs").exists()
+            && !compiler.join("src/pipeline/package/review").exists(),
+        "package review projection and evidence schemas must not return to omega-compiler"
+    );
+
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-package-review/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-package-review must own package review"
+    );
+
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
+    for forbidden in [
+        "PackageReviewCanonicalRow",
+        "CheckedPackageReviewProjection",
+        "OrdinaryPackageObligationLedger",
+        "project_checked_package_review",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport package-review owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/package/compilation.rs")
+            .exists()
+            && !compiler
+                .join("src/pipeline/package/source_consumption.rs")
+                .exists(),
+        "package graph and source-consumption custody must not return to omega-compiler"
+    );
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-package-compilation/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-package-compilation must own package compilation inputs"
+    );
+
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
+    for forbidden in [
+        "PackageCompilationInputs",
+        "PackageDependencyClosure",
+        "PackageGeneratedSourceBundle",
+        "PackageSourceConsumptionCommitment",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport package-compilation owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn compiler_executable_review_identity_is_build_provenance_owned() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/compiler_executable_commitment.rs")
+            .exists(),
+        "review-only compiler executable identity must not return to omega-compiler"
+    );
+    assert!(
+        root.join("source/omega-rust/omega/orchestration/omega-build-provenance/src/lib.rs")
+            .is_file(),
+        "omega-build-provenance must own the compiler executable review identity"
+    );
+
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
+    assert!(!public_api.contains("CompilerExecutableCommitment"));
+}
+
+#[test]
+fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/build/staged_output.rs")
+            .exists(),
+        "retained build-output custody must not return to omega-compiler"
+    );
+
+    let owner = root.join("source/omega-rust/omega/orchestration/omega-build-output/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-build-output must own retained build output"
+    );
+
+    let public_api =
+        std::fs::read_to_string(compiler.join("src/lib.rs")).expect("read omega-compiler API");
+    for forbidden in [
+        "BuildStagedOutputMaterializationError",
+        "BuildStagedOutputTree",
+        "BuildStagedOutputTreeCommitment",
+        "PackageGeneratedSource,",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport build-output owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
+fn provider_planning_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    let retired = compiler.join("src/pipeline/provider");
+    for file in [
+        "approval.rs",
+        "calling_policy_plans.rs",
+        "component_progress.rs",
+        "plans.rs",
+        "task_plans.rs",
+    ] {
+        assert!(
+            !retired.join(file).exists(),
+            "provider-planning domain ownership must not return to omega-compiler: {file}"
+        );
+    }
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-provider-planning must own provider selection and realization"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/Cargo.toml"),
+    )
+    .expect("read provider-planning manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "provider planning must consume checked inputs without depending back on the compiler coordinator"
+    );
+}
+
+#[test]
+fn program_storage_source_contracts_are_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    assert!(
+        !root
+            .join(
+                "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage"
+            )
+            .exists(),
+        "program-storage domain ownership must not return to omega-compiler"
+    );
+    assert!(
+        root.join(
+            "source/omega-rust/omega/orchestration/omega-program-storage/src/source_signature.rs"
+        )
+        .is_file(),
+        "omega-program-storage must own the shared source-signature contract"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-program-storage/Cargo.toml"),
+    )
+    .expect("read program-storage manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "program storage must not depend back on the compiler coordinator"
+    );
+    assert!(
+        !manifest.contains("omega-provider-planning"),
+        "program storage must consume a provider projection without creating an orchestration cycle"
+    );
+}
+
+#[test]
+fn build_evaluation_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    let compiler_build =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/build");
+    assert!(
+        !compiler_build.exists(),
+        "build evaluation, observations, and replay records must not return to omega-compiler"
+    );
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-build-evaluation must own build execution"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-build-evaluation/Cargo.toml"),
+    )
+    .expect("read build-evaluation manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "build evaluation must supply checked results without depending back on its coordinator"
+    );
+}
+
+#[test]
+fn compilation_report_is_not_owned_by_the_compiler() {
+    let root = workspace_root();
+    assert!(
+        !root
+            .join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/report.rs")
+            .exists(),
+        "compiler coordination must not own its product report domain"
+    );
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-compilation-report must own compile results"
+    );
+    let manifest = std::fs::read_to_string(
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/Cargo.toml"),
+    )
+    .expect("read compilation-report manifest");
+    assert!(
+        !manifest.contains("omega-compiler"),
+        "compile reports must remain reusable without depending on the coordinator"
+    );
+}
+
+#[test]
+fn omega_product_entry_remains_a_tiny_dispatcher() {
+    let root = workspace_root();
+    let entry = root.join("source/omega-rust/omega/src/main.rs");
+    let source = std::fs::read_to_string(&entry)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", entry.display()));
+    assert!(
+        source.lines().count() <= 12,
+        "the omega product entry must only dispatch into subordinate command handling"
+    );
+    assert!(
+        source.contains("command::run()"),
+        "the omega product entry must expose one obvious downward navigation edge"
+    );
+}
+
+#[test]
+fn omega_product_publishes_compiler_artifacts() {
+    let root = workspace_root();
+    let command_path = root.join("source/omega-rust/omega/src/command.rs");
+    let command = std::fs::read_to_string(&command_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", command_path.display()));
+    assert!(
+        command.contains("RequestedCompileProduct::NativeArtifact"),
+        "the omega product must request an in-memory native artifact"
+    );
+    assert!(
+        !command.contains("write_output: !arguments.check_only"),
+        "the product must not route ordinary publication back through compiler policy"
+    );
+    assert!(
+        root.join("source/omega-rust/omega/src/command/output.rs")
+            .is_file(),
+        "the omega product must own its output publication policy"
+    );
+}
+
+#[test]
 fn provider_approval_stays_in_omega_after_psi_checking() {
     let root = workspace_root();
     let psi_checks =
@@ -416,9 +820,8 @@ fn provider_approval_stays_in_omega_after_psi_checking() {
         "Psi semantic checking must not perform Omega provider admission"
     );
 
-    let omega_approval = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/provider/approval.rs",
-    );
+    let omega_approval =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/approval.rs");
     let omega_source = std::fs::read_to_string(&omega_approval)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", omega_approval.display()));
     assert!(
@@ -699,9 +1102,8 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         "Psi must own the exact checked-to-canonical-Terminal-artifact handoff"
     );
 
-    let realization_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/terminal/native_artifact.rs",
-    );
+    let realization_path = root
+        .join("source/omega-rust/omega/orchestration/omega-terminal-native-realization/src/lib.rs");
     let realization = std::fs::read_to_string(&realization_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", realization_path.display()));
     assert!(
@@ -723,11 +1125,11 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
         );
     }
     let component_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/terminal/component_candidate.rs",
+        "source/omega-rust/omega/orchestration/omega-terminal-component-candidate/src/lib.rs",
     );
     let component = std::fs::read_to_string(&component_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", component_path.display()));
-    assert!(component.contains("realize_terminal_native_artifact("));
+    assert!(component.contains("native_artifact: TerminalNativeArtifact"));
     for forbidden in [
         "lower_artifact_sections(",
         "lower_to_target_operations",
@@ -744,34 +1146,50 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
 #[test]
 fn retained_native_product_enters_only_terminal_realization() {
     let root = workspace_root();
-    let compiler_path =
-        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compiler.rs");
-    let compiler = std::fs::read_to_string(&compiler_path)
-        .unwrap_or_else(|error| panic!("failed to read {}: {error}", compiler_path.display()));
-    let dispatch = compiler
-        .split_once("pub fn compile(self)")
-        .and_then(|(_, tail)| tail.split_once("fn compile_legacy"))
-        .map(|(dispatch, _)| dispatch)
-        .expect("compiler must retain a distinct product dispatcher");
-    assert!(
-        dispatch
-            .contains("RequestedCompileProduct::NativeArtifact => self.compile_native_artifact()"),
-        "NativeArtifact must leave dispatch through its canonical Terminal route"
+    let driver_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/driver.rs");
+    let driver = std::fs::read_to_string(&driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", driver_path.display()));
+    let legacy_driver_path = root.join(
+        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/harness.rs",
     );
-    let legacy = compiler
-        .split_once("fn compile_legacy")
-        .and_then(|(_, tail)| tail.split_once("fn compile_native_artifact"))
-        .map(|(legacy, _)| legacy)
-        .expect("compiler must keep the compatibility route structurally separate");
-    assert!(!legacy.contains("RequestedCompileProduct::NativeArtifact"));
-    assert!(!legacy.contains("retains_native_artifact"));
-    let native = compiler
-        .split_once("fn compile_native_artifact")
-        .and_then(|(_, tail)| tail.split_once("fn compile_terminal_artifact"))
+    let legacy_driver = std::fs::read_to_string(&legacy_driver_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_driver_path.display()));
+    let request_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/request.rs");
+    let request = std::fs::read_to_string(&request_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
+    assert!(
+        driver
+            .contains("RequestedCompileProduct::NativeArtifact => native_report(request, checked)"),
+        "NativeArtifact must stop the canonical driver at native realization"
+    );
+    assert_eq!(
+        driver.matches("compile_to_checked_for_terminal(").count(),
+        1,
+        "production products must share one checked-Psi frontend"
+    );
+    assert!(
+        !driver.contains("compatibility"),
+        "the production compiler must not select the StateGraph compatibility harness"
+    );
+    assert!(
+        !request.contains("InstalledOutput"),
+        "installed legacy output is not a production compile product"
+    );
+    assert!(!legacy_driver.contains("RequestedCompileProduct::NativeArtifact"));
+    assert!(!legacy_driver.contains("RequestedCompileProduct::TerminalArtifact"));
+    assert!(!legacy_driver.contains("produce_terminal_artifact("));
+    let native = driver
+        .split_once("fn native_report")
         .map(|(native, _)| native)
-        .expect("compiler must retain one dedicated Terminal-native product method");
+        .and_then(|_| {
+            driver
+                .split_once("fn native_report")
+                .map(|(_, native)| native)
+        })
+        .expect("compiler must retain one dedicated Terminal-native stop");
     for required in [
-        "compile_to_checked_for_terminal(",
         "produce_terminal_artifact(",
         "realize_terminal_native_artifact(",
         "from_retained_native_artifact(",
@@ -793,9 +1211,8 @@ fn retained_native_product_enters_only_terminal_realization() {
         );
     }
 
-    let report_path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compile_report.rs",
-    );
+    let report_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compilation-report/src/lib.rs");
     let report = std::fs::read_to_string(&report_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", report_path.display()));
     let production = report
@@ -806,11 +1223,38 @@ fn retained_native_product_enters_only_terminal_realization() {
 }
 
 #[test]
+fn shared_frontend_stages_stop_at_checked_psi() {
+    let root = workspace_root();
+    let stages_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs");
+    let stages = std::fs::read_to_string(&stages_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", stages_path.display()));
+    for forbidden in [
+        "checked_trees_to_state_graph",
+        "state_graph_to_control_flow",
+        "control_flow_to_backend_plan",
+        "backend_plan_to_native_image_payload",
+    ] {
+        assert!(
+            !stages.contains(forbidden),
+            "shared frontend stages crossed the checked-Psi seam through `{forbidden}`"
+        );
+    }
+
+    let legacy_path = root.join(
+        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/compatibility/stages.rs",
+    );
+    let legacy = std::fs::read_to_string(&legacy_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_path.display()));
+    assert!(legacy.contains("pub(super) fn checked_trees_to_state_graph"));
+    assert!(legacy.contains("deleted with `StateGraphHarness`"));
+}
+
+#[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
-    let path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/provider/plans.rs",
-    );
+    let path =
+        root.join("source/omega-rust/omega/orchestration/omega-provider-planning/src/plans.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 
@@ -833,9 +1277,8 @@ fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
 #[test]
 fn program_storage_entry_activation_cannot_detach_before_executor_dispatch() {
     let root = workspace_root();
-    let path = root.join(
-        "source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/program_storage/entry.rs",
-    );
+    let path =
+        root.join("source/omega-rust/omega/orchestration/omega-program-storage/src/entry.rs");
     let source = std::fs::read_to_string(&path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", path.display()));
 
@@ -1231,10 +1674,11 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         "optimizer orchestration must retain liveness custody above omega-regalloc"
     );
 
-    for root_name in graph
-        .keys()
-        .filter(|name| name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
-    {
+    for root_name in graph.iter().filter_map(|(name, krate)| {
+        ((name.starts_with("omega-terminal-") || name.contains("selected-instruction"))
+            && krate.layer != "orchestration")
+            .then_some(name)
+    }) {
         let mut pending = vec![root_name.clone()];
         let mut visited = BTreeSet::new();
         while let Some(name) = pending.pop() {

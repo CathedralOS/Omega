@@ -1,13 +1,18 @@
-use omega_compiler::{
-    CompileOptions, Optimization, OptimizationReportRequest, PackageCompilationInputs,
-    PackageDependencyBinding, PackageSourceBinding, compile_to_checked,
-    compile_to_checked_with_packages,
+use omega_compiler::{CompileOptions, compile_to_checked, compile_to_checked_with_packages};
+use omega_optimization_core::Optimization;
+use omega_optimization_pipeline::OptimizationReportRequest;
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 use psi_core::PackageKeyIdentity;
 use std::path::PathBuf;

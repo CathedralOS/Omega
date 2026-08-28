@@ -593,6 +593,46 @@ fn independent_proof_certified_scalar_identity(
             *scalar_type,
             independent_integer_zero(*scalar_type),
         ),
+        (
+            O::ExactIntegerShiftLeft {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                value,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *value,
+            *value,
+            *value_type,
+            *value_type,
+            independent_integer_zero(*value_type),
+        ),
+        (
+            O::ExactIntegerShiftRight {
+                psi_operation,
+                obligation,
+                result,
+                value_type,
+                value,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *value,
+            *value,
+            *value_type,
+            *value_type,
+            independent_integer_zero(*value_type),
+        ),
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {
@@ -644,11 +684,15 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     let zero_dividend_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1",
     );
+    let zero_value_shift_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-exact-integer-zero-value-shift-elimination.v1",
+    );
     if ![
         exact_identity_rule,
         divide_by_one_rule,
         multiply_by_zero_rule,
         zero_dividend_rule,
+        zero_value_shift_rule,
     ]
     .contains(&candidate.rule())
         || !candidate
@@ -720,6 +764,16 @@ pub fn validate_proof_certified_scalar_identity_candidate(
             ) =>
         {
             b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1".as_slice()
+        }
+        rule if rule == zero_value_shift_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerShiftLeftZeroValue
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerShiftRightZeroValue
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-exact-integer-zero-value-shift-elimination.v1"
+                .as_slice()
         }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };

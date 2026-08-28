@@ -1,0 +1,121 @@
+use psi::source::source;
+
+// Bounded source-shaped storage for the live product parser slices. Handles
+// are dense indices into owner-local tables; no symbol or package meaning is
+// assigned here.
+
+pub data IdentifierSpan [copy] {
+    source_span: SourceSpan;
+}
+
+pub data UseItem [copy] {
+    first_member: u64 in Trapping;
+    member_count: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data TypeReferenceKind [copy] {
+    case Named;
+}
+
+pub data TypeReference [copy] {
+    kind: TypeReferenceKind;
+    name: IdentifierSpan;
+    source_span: SourceSpan;
+}
+
+pub data DataField [copy] {
+    name: IdentifierSpan;
+    type_reference: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data DataItem [copy] {
+    name: IdentifierSpan;
+    first_field: u64 in Trapping;
+    field_count: u64 in Trapping;
+    is_public: bool;
+    source_span: SourceSpan;
+}
+
+pub data RootItemKind [copy] {
+    case Use;
+    case Data;
+}
+
+pub data RootItem [copy] {
+    kind: RootItemKind;
+    item_index: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data ParseDiagnosticCode [copy] {
+    case None;
+    case LexicalInputRejected;
+    case UnsupportedRootItem;
+    case ExpectedPathMember;
+    case ExpectedPathSeparatorOrSemicolon;
+    case RootCapacityExceeded;
+    case UseCapacityExceeded;
+    case PathMemberCapacityExceeded;
+    case TokenInputCapacityExceeded;
+    case ExpectedDataAfterPub;
+    case ExpectedDataName;
+    case ExpectedDataBody;
+    case ExpectedDataFieldColon;
+    case ExpectedDataFieldType;
+    case ExpectedDataFieldEnd;
+    case DataCapacityExceeded;
+    case DataFieldCapacityExceeded;
+    case TypeReferenceCapacityExceeded;
+}
+
+pub data ParseDiagnostic [copy] {
+    code: ParseDiagnosticCode;
+    source_span: SourceSpan;
+}
+
+pub data SyntaxTrees {
+    roots: [RootItem; 256] in Trapping;
+    root_count: u64 [0..=256];
+    uses: [UseItem; 256] in Trapping;
+    use_count: u64 [0..=256];
+    members: [IdentifierSpan; 1024] in Trapping;
+    member_count: u64 [0..=1024];
+    data_items: [DataItem; 256] in Trapping;
+    data_count: u64 [0..=256];
+    fields: [DataField; 1024] in Trapping;
+    field_count: u64 [0..=1024];
+    type_references: [TypeReference; 1024] in Trapping;
+    type_reference_count: u64 [0..=1024];
+    diagnostic: ParseDiagnostic;
+    accepted: bool;
+}
+
+pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
+    self.root_count = 0;
+    self.use_count = 0;
+    self.member_count = 0;
+    self.data_count = 0;
+    self.field_count = 0;
+    self.type_reference_count = 0;
+    self.accepted = true;
+    self.diagnostic.code = ParseDiagnosticCode::None;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = 0;
+    self.diagnostic.source_span.span.end = 0;
+}
+
+pub machine SyntaxTrees::reject(
+    &mut self,
+    code: ParseDiagnosticCode,
+    source: SourceId,
+    start: u64 in Trapping,
+    end: u64 in Trapping
+) {
+    self.accepted = false;
+    self.diagnostic.code = code;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = start;
+    self.diagnostic.source_span.span.end = end;
+}

@@ -7,9 +7,6 @@ use omega_calling_conventions::{
     StateFootprintEvidence, ValueShape, evaluate_ordinary_boundary_entry_plan,
     validate_entry_stack_realization,
 };
-use omega_compiler::{
-    SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
-};
 use omega_executable_installation::{
     AdmissionReceiptId, Artifact, ArtifactAdmissionEvidence, ArtifactContentId, ArtifactEntry,
     ArtifactId, CodePlacementAuthority, CodePlacementId, DestinationPreparationReceipt,
@@ -22,6 +19,9 @@ use omega_executable_installation::{
 };
 use omega_external_roots::*;
 use omega_instruction_selection::lower_post_handoff_writer_fragment;
+use omega_provider_planning::plans::{
+    SelectedExternalRootProviderPlan, bind_external_root_post_handoff_writer_invocation,
+};
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,

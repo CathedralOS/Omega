@@ -5,12 +5,11 @@
 use std::fs;
 use std::path::PathBuf;
 
-use omega_compiler::{
-    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding, compile_to_checked,
-    compile_to_checked_with_packages, compute_access_plan, compute_layout_plan,
-    compute_placement_plan,
-};
+use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
 use omega_layout::{DataShape, build_layout_plan};
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
+};
 use omega_target::NativeTarget;
 use psi_access_plans::{
     AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
@@ -21,6 +20,7 @@ use psi_access_plans::{
     StableCapability, StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
     adopt_owned_atomic, adopt_owned_stable, bind_schema_correspondence_to_placement, place,
 };
+use psi_build_time_evaluation::{compute_access_plan, compute_layout_plan, compute_placement_plan};
 use psi_core::PackageKeyIdentity;
 use psi_extents::{
     AddressSpaceId, ExtentContentCustodyReceiptId, ExtentContentInterpretationId,

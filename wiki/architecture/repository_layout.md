@@ -40,7 +40,8 @@ packages.
 > external-language producer under `source/omega-rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
-> machinery. `source/{psi,omega}/` owns Omega-written product source; the
+> machinery. `source/omega/` owns all Omega-written product source, with its
+> target-neutral half under `source/omega/psi/`; the
 > live Psi lexical slice has landed while later phases remain open.
 > Bootstrap gates resolve cross-owner locations through the
 > role manifest in `tools/bootstrap/paths.sh`; new cross-owner sibling-relative paths
@@ -190,8 +191,8 @@ Omega/
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
-|   |-- psi/                                               # Omega-written target-neutral product compiler source.
-|   |-- omega/                                             # Omega-written target realization and product entrypoint.
+|   |-- omega/                                             # Complete Omega-written product compiler source.
+|   |   |-- psi/                                          # Target-neutral phases through terminal Psi.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
@@ -223,7 +224,8 @@ steps are complete:
 ```text
 source/{alpha,beta,gamma,delta}/       canonical language rungs
 source/library/                        core, allocation, and standard libraries
-source/{psi,omega}/                    Omega-written product compiler halves
+source/omega/                          complete Omega-written product compiler
+source/omega/psi/                      target-neutral phases through terminal Psi
 source/alpha/checker/                  root derivation checking
 source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator

@@ -2,27 +2,36 @@ use omega_calling_conventions::{
     CallSignature, CallingPolicy, EntryControl, EntryStack, MachineState, MachineStateSet,
     Preemption, ValueShape,
 };
-use omega_compiler::{
-    CompileOptions, PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
+use omega_compiler::{CompileOptions, compile_to_checked};
+use omega_program_storage::{
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, ProgramStorageEntryBridgeError,
     ProgramStorageEntryInitialStorageAuthorityKind,
     ProgramStorageEntryRecordedWholeRootArgumentRecovery, ProgramStorageInstallationHandoffError,
-    ProgramStorageRootInput, SelectedExternalRootProviderPlan, SelectedProgramStorageEntryPlan,
+    ProgramStorageRootInput, ProgramStorageSelectedProviderPlan, SelectedProgramStorageEntryPlan,
     bind_emitted_program_storage_entry_native_bridge,
     bind_program_storage_entry_emitted_whole_root_arguments, bind_program_storage_entry_plan,
     bind_program_storage_entry_whole_root_arguments,
     bind_program_storage_entry_whole_root_logical_values,
     bind_program_storage_entry_whole_root_operands,
-    bind_recorded_program_storage_entry_whole_root_arguments, compile_to_checked,
-    evaluate_calling_policy_plan, install_program_storage_entry_provider_invocation,
+    bind_recorded_program_storage_entry_whole_root_arguments,
+    install_program_storage_entry_provider_invocation,
     plan_program_storage_entry_wrapper_caller_frame, program_storage_installation_record_json,
-    reserve_program_storage_entry_outgoing_stack_frame, selected_external_root_entry_fact_bindings,
-    selected_external_root_provider_plan, selected_external_root_provider_plan_id,
+    reserve_program_storage_entry_outgoing_stack_frame,
+};
+use omega_provider_planning::calling_policy_plans::evaluate_calling_policy_plan;
+use omega_provider_planning::plans::{
+    selected_external_root_entry_fact_bindings, selected_external_root_provider_plan,
+    selected_external_root_provider_plan_id,
 };
 
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 use omega_instruction_selection::derive_boundary_entry_storage;
@@ -999,15 +1008,21 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
         derive_boundary_entry_storage(boundary.plan(), &[(0, shape), (16, shape)], None, None)
             .expect("generated process-entry captures");
     let selected_schema = schema;
-    let selected_provider = SelectedExternalRootProviderPlan {
+    let selected_external_provider =
+        omega_provider_planning::plans::SelectedExternalRootProviderPlan {
+            identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
+                .expect("selected provider identity"),
+            schema: selected_schema.clone(),
+        };
+    let generic_error = selected_external_provider
+        .entry_claims(&requirement_identity)
+        .expect_err("predicate-bearing roots require their specialized installer");
+    assert!(generic_error.0.contains("predicate obligations"));
+    let selected_provider = ProgramStorageSelectedProviderPlan {
         identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
             .expect("selected provider identity"),
         schema: selected_schema.clone(),
     };
-    let generic_error = selected_provider
-        .entry_claims(&requirement_identity)
-        .expect_err("predicate-bearing roots require their specialized installer");
-    assert!(generic_error.0.contains("predicate obligations"));
     let hosted_error = SelectedProgramStorageEntryPlan::from_target_slot(
         omega_target::TargetProfile::MacosArm64.program_entry_slot(),
         selected_schema.clone(),
@@ -1390,7 +1405,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
     let (unselected_image, unselected_issuance) =
         root_input_for_provider_invocation(507, 0x5000, 0x400, 90, 903);
     let (unselected_storage, _) = root_input_for_provider_invocation(508, 0x9003, 0x20, 90, 903);
-    let unselected_provider = SelectedExternalRootProviderPlan {
+    let unselected_provider = ProgramStorageSelectedProviderPlan {
         identity: omega_external_roots::ProviderPlanId::from_normalized_identity(91)
             .expect("different selected provider identity"),
         schema: selected_provider.schema.clone(),
@@ -1425,7 +1440,7 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
             .boundary_contract_fingerprint()
             .wrapping_add(1),
     );
-    let drifted_provider = SelectedExternalRootProviderPlan {
+    let drifted_provider = ProgramStorageSelectedProviderPlan {
         identity: selected_provider.identity,
         schema: drifted_schema,
     };
@@ -1616,15 +1631,15 @@ fn program_storage_entry_publishes_both_core_owned_root_positions() {
                 );
                 assert_eq!(
                     transfer.roots()[0].role(),
-                    omega_compiler::ProgramStorageEntryRootRole::Image
+                    omega_program_storage::ProgramStorageEntryRootRole::Image
                 );
                 assert_eq!(
                     transfer.roots()[1].role(),
-                    omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+                    omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
                 );
                 assert!(matches!(
                     transfer.receiver(),
-                    omega_compiler::ProgramStorageEntryWrapperReceiverTransfer::BorrowedActivationLoan(_)
+                    omega_program_storage::ProgramStorageEntryWrapperReceiverTransfer::BorrowedActivationLoan(_)
                 ));
                 assert!(handoff.source_signature().is_none());
                 assert!(handoff.continuation_abi().is_none());
@@ -1989,7 +2004,7 @@ machine build(builder: &mut Build) {
     assert!(unwritten_bridge.emitted_wrapper_evidence().is_none());
     assert!(matches!(
         bridge.continuation_abi().expect("source ABI").receiver(),
-        omega_compiler::ProgramStorageEntryContinuationReceiverAbiPlan::Free
+        omega_program_storage::ProgramStorageEntryContinuationReceiverAbiPlan::Free
     ));
     let inbound = bridge
         .continuation_inbound()
@@ -2008,7 +2023,7 @@ machine build(builder: &mut Build) {
     let [image_inbound, storage_inbound] = inbound.arguments();
     assert_eq!(
         image_inbound.role(),
-        omega_compiler::ProgramStorageEntryRootRole::Image
+        omega_program_storage::ProgramStorageEntryRootRole::Image
     );
     assert_eq!(image_inbound.visible_parameter_index(), 0);
     assert_eq!(image_inbound.call_parameter_index(), 0);
@@ -2022,7 +2037,7 @@ machine build(builder: &mut Build) {
     assert_eq!(image_inbound.source_capture_write_range(), &(0..1));
     assert_eq!(
         storage_inbound.role(),
-        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
     );
     assert_eq!(storage_inbound.visible_parameter_index(), 1);
     assert_eq!(storage_inbound.call_parameter_index(), 1);
@@ -2059,8 +2074,8 @@ machine build(builder: &mut Build) {
     assert_eq!(template.steps().len(), 11);
     assert!(matches!(
         &template.steps()[2],
-        omega_compiler::ProgramStorageEntryWrapperBodyTemplateStep::CopyEntryIndirectU64ToOutgoingStack {
-            role: omega_compiler::ProgramStorageEntryRootRole::Image,
+        omega_program_storage::ProgramStorageEntryWrapperBodyTemplateStep::CopyEntryIndirectU64ToOutgoingStack {
+            role: omega_program_storage::ProgramStorageEntryRootRole::Image,
             source_register: omega_calling_conventions::MachineRegister::X86Rcx,
             source_byte_offset: 0,
             stack_byte_offset: 32,
@@ -2068,7 +2083,7 @@ machine build(builder: &mut Build) {
     ));
     assert_eq!(
         &template.steps()[8],
-        &omega_compiler::ProgramStorageEntryWrapperBodyTemplateStep::CallSourceContinuation {
+        &omega_program_storage::ProgramStorageEntryWrapperBodyTemplateStep::CallSourceContinuation {
             target: source_identity,
         }
     );
@@ -2105,7 +2120,7 @@ machine build(builder: &mut Build) {
     let [image_arrival, storage_arrival] = arrival.roots();
     assert_eq!(
         image_arrival.role(),
-        omega_compiler::ProgramStorageEntryRootRole::Image
+        omega_program_storage::ProgramStorageEntryRootRole::Image
     );
     assert_eq!(image_arrival.arrival_parameter_index(), 0);
     assert_eq!(
@@ -2120,7 +2135,7 @@ machine build(builder: &mut Build) {
     assert_eq!(image_arrival.copies()[0].final_bytes().len(), 15);
     assert_eq!(
         storage_arrival.role(),
-        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
     );
     assert_eq!(storage_arrival.arrival_parameter_index(), 1);
     assert_eq!(storage_arrival.copies()[0].source_byte_offset(), 0);
@@ -2220,13 +2235,13 @@ machine build(builder: &mut Build) {
     let [image, initial_storage] = carrier.arguments();
     assert_eq!(
         image.role(),
-        omega_compiler::ProgramStorageEntryRootRole::Image
+        omega_program_storage::ProgramStorageEntryRootRole::Image
     );
     assert_eq!(image.visible_parameter_index(), 0);
     assert_eq!(image.call_parameter_index(), 0);
     assert_eq!(
         initial_storage.role(),
-        omega_compiler::ProgramStorageEntryRootRole::InitialStorage
+        omega_program_storage::ProgramStorageEntryRootRole::InitialStorage
     );
     assert_eq!(initial_storage.visible_parameter_index(), 1);
     assert_eq!(initial_storage.call_parameter_index(), 1);
@@ -2241,10 +2256,10 @@ machine build(builder: &mut Build) {
     assert_eq!(
         (
             carrier
-                .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+                .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
                 .base(),
             carrier
-                .root_authority(omega_compiler::ProgramStorageEntryRootRole::InitialStorage)
+                .root_authority(omega_program_storage::ProgramStorageEntryRootRole::InitialStorage)
                 .length()
         ),
         (0x1000, 0x2000)
@@ -2330,7 +2345,7 @@ machine build(builder: &mut Build) {
         operands
             .logical_values()
             .arguments()
-            .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
             .base(),
         0x1000
     );
@@ -2340,7 +2355,7 @@ machine build(builder: &mut Build) {
     assert_eq!(caller_frame.outgoing_reservation_byte_count(), 72);
     assert_eq!(caller_frame.outgoing_release_byte_count(), 72);
     assert_eq!(caller_frame.pre_call_stack_alignment(), 16);
-    use omega_compiler::ProgramStorageEntryWrapperCallerFrameStep::{
+    use omega_program_storage::ProgramStorageEntryWrapperCallerFrameStep::{
         BindCallerCopyAddress, WriteExtentWord,
     };
     let [
@@ -2408,10 +2423,10 @@ machine build(builder: &mut Build) {
             *image_base_bytes,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::Image,
+            omega_program_storage::ProgramStorageEntryRootRole::Image,
             0,
             0,
-            omega_compiler::ProgramEntrySourceExtentFieldRole::Base,
+            omega_program_storage::ProgramEntrySourceExtentFieldRole::Base,
             0,
             32,
             0x1000_u64.to_le_bytes(),
@@ -2426,8 +2441,8 @@ machine build(builder: &mut Build) {
             *image_length_bytes,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::Image,
-            omega_compiler::ProgramEntrySourceExtentFieldRole::Length,
+            omega_program_storage::ProgramStorageEntryRootRole::Image,
+            omega_program_storage::ProgramEntrySourceExtentFieldRole::Length,
             8,
             40,
             0x800_u64.to_le_bytes(),
@@ -2442,8 +2457,8 @@ machine build(builder: &mut Build) {
             *storage_base_bytes,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
-            omega_compiler::ProgramEntrySourceExtentFieldRole::Base,
+            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
+            omega_program_storage::ProgramEntrySourceExtentFieldRole::Base,
             0,
             48,
             0x8000_u64.to_le_bytes(),
@@ -2458,8 +2473,8 @@ machine build(builder: &mut Build) {
             *storage_length_bytes,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
-            omega_compiler::ProgramEntrySourceExtentFieldRole::Length,
+            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
+            omega_program_storage::ProgramEntrySourceExtentFieldRole::Length,
             8,
             56,
             0x2000_u64.to_le_bytes(),
@@ -2474,7 +2489,7 @@ machine build(builder: &mut Build) {
             *image_copy_alignment,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::Image,
+            omega_program_storage::ProgramStorageEntryRootRole::Image,
             omega_calling_conventions::MachineRegister::X86Rcx,
             32,
             16,
@@ -2490,7 +2505,7 @@ machine build(builder: &mut Build) {
             *storage_copy_alignment,
         ),
         (
-            omega_compiler::ProgramStorageEntryRootRole::InitialStorage,
+            omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
             omega_calling_conventions::MachineRegister::X86Rdx,
             48,
             16,
@@ -2502,7 +2517,7 @@ machine build(builder: &mut Build) {
             .operands()
             .logical_values()
             .arguments()
-            .root_authority(omega_compiler::ProgramStorageEntryRootRole::InitialStorage)
+            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::InitialStorage)
             .length(),
         0x2000
     );
@@ -2531,7 +2546,7 @@ machine build(builder: &mut Build) {
             .operands()
             .logical_values()
             .arguments()
-            .root_authority(omega_compiler::ProgramStorageEntryRootRole::Image)
+            .root_authority(omega_program_storage::ProgramStorageEntryRootRole::Image)
             .base(),
         0x1000
     );
@@ -2584,8 +2599,8 @@ fn root_input_for_provider_invocation(
 }
 
 fn provider_for_program_storage_binding(
-    binding: &omega_compiler::ProgramStorageEntryPlanBinding,
-) -> SelectedExternalRootProviderPlan {
+    binding: &omega_program_storage::ProgramStorageEntryPlanBinding,
+) -> ProgramStorageSelectedProviderPlan {
     let entry_claims = (0..2)
         .map(
             |parameter_index| omega_effects::provider_plan::ServiceEntryClaim {
@@ -2598,7 +2613,7 @@ fn provider_for_program_storage_binding(
             },
         )
         .collect();
-    SelectedExternalRootProviderPlan {
+    ProgramStorageSelectedProviderPlan {
         identity: omega_external_roots::ProviderPlanId::from_normalized_identity(90)
             .expect("selected provider identity"),
         schema: omega_effects::provider_plan::ServiceSchema {
@@ -2631,9 +2646,9 @@ fn provider_for_program_storage_binding(
 }
 
 fn emitted_program_storage_bridge(
-    binding: omega_compiler::ProgramStorageEntryPlanBinding,
-    selected_provider: Option<SelectedExternalRootProviderPlan>,
-) -> omega_compiler::ProgramStorageEntryNativeBridgePlan {
+    binding: omega_program_storage::ProgramStorageEntryPlanBinding,
+    selected_provider: Option<ProgramStorageSelectedProviderPlan>,
+) -> omega_program_storage::ProgramStorageEntryNativeBridgePlan {
     let continuation_key = omega_control_flow::StateKey {
         machine: psi_symbols::SymbolHandle::from_arena_index(1),
         state: psi_symbols::SymbolHandle::from_arena_index(2),

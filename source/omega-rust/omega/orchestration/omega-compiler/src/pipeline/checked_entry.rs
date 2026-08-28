@@ -23,9 +23,9 @@ pub struct CheckedCompilation {
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
-        super::build_staged_output::PackageGeneratedSource,
+        omega_build_output::PackageGeneratedSource,
     )>,
-    own_generated_sources: Vec<super::build_staged_output::PackageGeneratedSource>,
+    own_generated_sources: Vec<omega_build_output::PackageGeneratedSource>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
@@ -34,6 +34,9 @@ pub struct CheckedCompilation {
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
+    root_grants: Vec<String>,
+    accepted_template_classifications: omega_trust_ledger::AcceptedTemplateClassifications,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
@@ -78,7 +81,8 @@ impl CheckedCompilation {
     /// Compiler-validated exact source owners used only while projecting
     /// package-review structural type identity. Source IDs are private join
     /// coordinates and never enter canonical review bytes.
-    pub(super) fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
+    #[doc(hidden)]
+    pub fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
     }
 
@@ -88,7 +92,7 @@ impl CheckedCompilation {
     /// orchestration calls this around its own whole-snapshot verification;
     /// hostile same-user races still require an OS isolation boundary.
     pub fn verify_current_source_consumption(&self) -> Result<(), Vec<Diagnostic>> {
-        super::package_source_consumption::verify_current_files(
+        omega_package_compilation::verify_current_files(
             &self.program,
             &self.generated_source_custody,
         )
@@ -177,7 +181,25 @@ impl CheckedCompilation {
         &self.selected_provider_plans
     }
 
-    pub(super) fn selected_provider_provenance(
+    #[doc(hidden)]
+    pub fn provider_plans(&self) -> &[omega_effects::provider_plan::ProviderPlan] {
+        &self.provider_plans
+    }
+
+    #[doc(hidden)]
+    pub fn root_grants(&self) -> &[String] {
+        &self.root_grants
+    }
+
+    #[doc(hidden)]
+    pub const fn accepted_template_classifications(
+        &self,
+    ) -> &omega_trust_ledger::AcceptedTemplateClassifications {
+        &self.accepted_template_classifications
+    }
+
+    #[doc(hidden)]
+    pub fn selected_provider_provenance(
         &self,
     ) -> &[super::provider_plans::SelectedProviderReviewProvenance] {
         &self.selected_provider_provenance
@@ -235,6 +257,9 @@ impl std::ops::Deref for CheckedCompilation {
     }
 }
 
+// Compatibility for corruption-oriented integration tests. Production
+// projection code must use the explicit scratch seam above. Remove this once
+// validator tests construct malformed `CheckedTrees` directly.
 impl std::ops::DerefMut for CheckedCompilation {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.program
@@ -255,7 +280,7 @@ pub fn compile_to_checked(
     // thread's smaller default stack can overflow.
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(&root_path, target_name.as_deref(), None, None, None)
     })
 }
@@ -270,7 +295,7 @@ pub fn compile_to_checked_with_packages(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -291,7 +316,7 @@ pub fn compile_to_checked_with_replay_record(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner_with_replay(
             &root_path,
             target_name.as_deref(),
@@ -313,7 +338,7 @@ pub fn compile_to_checked_with_packages_and_replay_record(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let root_path = root_path.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner_with_replay(
             &root_path,
             target_name.as_deref(),
@@ -337,7 +362,7 @@ pub fn compile_to_checked_with_packages_in_build_dir(
     let root_path = root_path.to_owned();
     let build_dir = build_dir.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -360,7 +385,7 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
     let root_path = root_path.to_owned();
     let build_dir = build_dir.to_owned();
     let target_name = target_name.map(str::to_owned);
-    super::compiler::run_on_compile_thread(move || {
+    crate::compiler::execution::run_on_compile_thread(move || {
         compile_to_checked_inner(
             &root_path,
             target_name.as_deref(),
@@ -373,7 +398,7 @@ pub fn compile_to_checked_with_packages_in_sponsored_build_dir(
 
 /// Run the ordinary checked frontend for the typed terminal-component handoff
 /// without consuming its caller-owned request or deployment authority.
-pub(super) fn compile_to_checked_for_terminal(
+pub(crate) fn compile_to_checked_for_terminal(
     options: &super::CompileOptions,
     package_inputs: Option<&PackageCompilationInputs>,
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
@@ -622,6 +647,13 @@ fn compile_to_checked_inner_with_replay(
     let subsystem = build_config.subsystem;
     let optimization_selections = build_config.optimizations.clone();
     let optimization_selection_identity = optimization_selections.identity();
+    // Compatibility demands are semantic checks, not report-mode behavior.
+    // Validate them on the canonical checked route even when no auxiliary
+    // artifact writer is requested by the outer compiler coordinator.
+    crate::pipeline::wire_report::validate_wire_protocol(
+        &typed,
+        &build_config.wire_compatibility_demands,
+    )?;
     // A semantic-only checked compilation has no selected target and therefore
     // no storage root. Authored bindings remain available in the evaluated
     // build configuration, but only an exact target selection may activate one
@@ -684,7 +716,7 @@ fn compile_to_checked_inner_with_replay(
             selected_provider_plans,
         )?;
     if package_inputs.is_some() {
-        crate::pipeline::trust_lockfile::reject_package_non_provider_grants(
+        omega_trust_ledger::reject_package_non_provider_grants(
             &typed,
             &build_config.grants,
             &provider_plans,
@@ -737,17 +769,17 @@ fn compile_to_checked_inner_with_replay(
                 }),
             None,
         )?;
-    crate::pipeline::operator_adapter_dispatch::settle_selected_operator_adapter_dispatch(
+    omega_selected_dispatch::settle_selected_operator_adapter_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
-    crate::pipeline::float_intrinsic_dispatch::settle_selected_float_intrinsic_dispatch(
+    omega_selected_dispatch::settle_selected_float_intrinsic_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
     // Preserve boundary-requirement proof/evidence at checking time, then
     // redirect only execution to the selected checked adapter.
-    crate::pipeline::adapter_dispatch::settle_selected_boundary_adapter_dispatch(
+    omega_selected_dispatch::settle_selected_boundary_adapter_dispatch(
         &mut checked.program,
         &selected_provider_plan_facts,
     )?;
@@ -762,18 +794,17 @@ fn compile_to_checked_inner_with_replay(
     let program = Arc::try_unwrap(checked.program).unwrap_or_else(|shared| (*shared).clone());
     let dependency_closure = package_inputs.map(PackageCompilationInputs::dependency_closure);
     let source_consumption_commitment = package_inputs
-        .map(|inputs| super::package_source_consumption::derive(&program, inputs))
+        .map(|inputs| {
+            omega_package_compilation::derive_source_consumption_commitment(&program, inputs)
+        })
         .transpose()?;
     let exact_toolchain_sources = package_inputs
         .is_some()
-        .then(|| super::package_source_consumption::toolchain_source_identities(&program))
+        .then(|| omega_package_compilation::toolchain_source_identities(&program))
         .transpose()?
         .unwrap_or_default();
     if source_consumption_commitment.is_some() {
-        super::package_source_consumption::verify_current_files(
-            &program,
-            &generated_source_custody,
-        )?;
+        omega_package_compilation::verify_current_files(&program, &generated_source_custody)?;
     }
     Ok(CheckedCompilation {
         program,
@@ -793,6 +824,9 @@ fn compile_to_checked_inner_with_replay(
         optimization_selection_identity,
         optimization_report,
         selected_provider_plans: selected_provider_plan_facts,
+        provider_plans,
+        root_grants: build_config.grants,
+        accepted_template_classifications: checked.accepted_template_classifications,
         selected_provider_provenance,
         component_progress,
         task_activations,

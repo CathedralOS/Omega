@@ -23,6 +23,7 @@ mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
 mod function_fragment_emission;
+mod function_fragment_object_container;
 mod function_fragment_text_section;
 mod function_relative_realization;
 mod literal_fold_homes;
@@ -69,6 +70,16 @@ pub use function_fragment_emission::{
     StagedOptimizedFunctionFragmentEmission, StagedOptimizedFunctionFragmentEmissionSource,
     ValidatedFunctionFragmentEmissionManifest, stage_optimized_function_fragment_emission,
     validate_optimized_function_fragment_emission,
+};
+pub use function_fragment_object_container::{
+    FunctionFragmentObjectContainerManifest, FunctionFragmentObjectContainerManifestDecodeError,
+    FunctionFragmentObjectContainerStage, FunctionFragmentObjectContainerStatistics,
+    FunctionFragmentObjectContainerUnavailableData, RelocationFreeTerminalObjectContainerError,
+    StagedOptimizedRelocationFreeTerminalObjectContainer,
+    StagedRelocationFreeTerminalObjectContainerCustodyReceipt,
+    ValidatedFunctionFragmentObjectContainerManifest,
+    stage_optimized_relocation_free_terminal_object_container,
+    validate_optimized_relocation_free_terminal_object_container,
 };
 pub use function_fragment_text_section::{
     FunctionFragmentTextSectionManifest, FunctionFragmentTextSectionManifestDecodeError,
@@ -7628,6 +7639,134 @@ mod tests {
     }
 
     #[test]
+    fn relocation_free_rel8_object_container_reconstructs_replays_and_rejects_corruption() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
+            physical
+        else {
+            panic!("rel8 must complete its direct function-relative realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let mut staged = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&staged).unwrap(),
+            staged.custody()
+        );
+        let object = staged.object();
+        assert_eq!(
+            object.text_section.bytes,
+            staged.source().text_section().bytes
+        );
+        assert_eq!(object.text_section.name, ".text");
+        assert_eq!(object.text_section.alignment, 1);
+        assert_eq!(object.relocation_record_count, 0);
+        assert_eq!(object.symbols.len(), object_local_symbol_count(object));
+        assert_eq!(object.symbols.len(), 1);
+        let entry = &object.symbols[0];
+        assert_eq!(entry.symbol, object.semantic_entry_symbol);
+        assert_eq!(entry.machine, object.semantic_entry);
+        assert_eq!(
+            entry.name,
+            format!("__omega_terminal_machine_{}", entry.machine.get())
+        );
+        assert_ne!(entry.name, "main");
+        assert_ne!(entry.name, "_main");
+        assert_eq!(entry.section_offset, 0);
+        assert_eq!(entry.byte_count, object.text_section.byte_count);
+        assert_eq!(
+            omega_object_file::decode_terminal_relocation_free_object(&staged.container().bytes),
+            Ok(object.clone())
+        );
+        let record = staged.manifest().record();
+        assert_eq!(
+            FunctionFragmentObjectContainerManifest::decode(&record.encode()),
+            Ok(record.clone())
+        );
+        assert_eq!(record.statistics.sections, 1);
+        assert_eq!(record.statistics.external_symbols, 0);
+        assert_eq!(record.statistics.relocation_records, 0);
+        assert_eq!(record.statistics.text_bytes, object.text_section.byte_count);
+
+        let original_object = staged.object().clone();
+        staged.object_mut().symbols[0].name.push_str("_corrupt");
+        let corrupted_object_identity = staged.object().recomputed_identity().unwrap();
+        staged.object_mut().identity = corrupted_object_identity;
+        assert!(matches!(
+            validate_optimized_relocation_free_terminal_object_container(&staged),
+            Err(RelocationFreeTerminalObjectContainerError::InvalidObject(_))
+                | Err(RelocationFreeTerminalObjectContainerError::ArtifactMismatch)
+        ));
+        *staged.object_mut() = original_object;
+
+        let original_container = staged.container().clone();
+        staged.container_mut().bytes[0] ^= 1;
+        let corrupted_container_identity =
+            omega_optimization_core::TerminalRelocationFreeObjectContainerIdentity::from_canonical_bytes(
+                &staged.container().bytes,
+            );
+        staged.container_mut().identity = corrupted_container_identity;
+        assert!(matches!(
+            validate_optimized_relocation_free_terminal_object_container(&staged),
+            Err(RelocationFreeTerminalObjectContainerError::InvalidContainer(_))
+                | Err(RelocationFreeTerminalObjectContainerError::ContainerMismatch)
+        ));
+        *staged.container_mut() = original_container;
+
+        let original_manifest = staged.manifest().record().clone();
+        staged
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .external_symbols = 1;
+        let corrupted_manifest_identity = staged.manifest().record().recomputed_identity();
+        staged.manifest_mut().record_mut().identity = corrupted_manifest_identity;
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&staged),
+            Err(RelocationFreeTerminalObjectContainerError::ManifestMismatch)
+        );
+        *staged.manifest_mut().record_mut() = original_manifest;
+        staged.corrupt_custody_for_test();
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&staged),
+            Err(RelocationFreeTerminalObjectContainerError::ReceiptMismatch)
+        );
+    }
+
+    fn object_local_symbol_count(
+        object: &omega_object_file::TerminalRelocationFreeObjectPlan,
+    ) -> usize {
+        object
+            .symbols
+            .iter()
+            .filter(|symbol| {
+                symbol.linkage
+                    == omega_object_file::TerminalRelocationFreeObjectSymbolLinkage::ObjectLocalV1
+            })
+            .count()
+    }
+
+    #[test]
     fn relocation_free_cbnz_text_section_preserves_zero_span_and_alignment() {
         let (semantic, proof) = conditional_exact_binary_artifact(false);
         let selections = OptimizationSelections::new([
@@ -7718,6 +7857,59 @@ mod tests {
         assert_eq!(
             validate_optimized_relocation_free_text_section(&placed),
             Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        );
+    }
+
+    #[test]
+    fn relocation_free_cbnz_object_container_retains_zero_span_source_and_private_entry() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct function-relative realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let staged = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+        assert_eq!(staged.object().text_section.alignment, 4);
+        assert_eq!(
+            staged.object().text_section.bytes,
+            staged.source().text_section().bytes
+        );
+        assert!(
+            staged.source().text_section().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| instruction.byte_count == 0)
+        );
+        assert_eq!(
+            staged.object().symbols[0].role,
+            omega_object_file::TerminalRelocationFreeObjectSymbolRole::SemanticEntryV1
+        );
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&staged).unwrap(),
+            staged.custody()
         );
     }
 
@@ -7830,6 +8022,11 @@ mod tests {
             validate_optimized_relocation_free_text_section(&x86).unwrap(),
             x86.custody()
         );
+        let x86 = stage_optimized_relocation_free_terminal_object_container(x86).unwrap();
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&x86).unwrap(),
+            x86.custody()
+        );
 
         let arm_selections = OptimizationSelections::new([
             Optimization::SelectedIncomingU12ExactAddImmediate,
@@ -7868,6 +8065,11 @@ mod tests {
         let arm = stage_optimized_relocation_free_text_section(arm).unwrap();
         assert_eq!(
             validate_optimized_relocation_free_text_section(&arm).unwrap(),
+            arm.custody()
+        );
+        let arm = stage_optimized_relocation_free_terminal_object_container(arm).unwrap();
+        assert_eq!(
+            validate_optimized_relocation_free_terminal_object_container(&arm).unwrap(),
             arm.custody()
         );
     }

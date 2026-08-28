@@ -1,4 +1,4 @@
-use omega_compiler::{
+use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewSourceLocationRole,
 };
 use omega_packages::{

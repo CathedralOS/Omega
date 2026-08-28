@@ -74,7 +74,11 @@ use std::process::{Command, Stdio};
 fn compile_program(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    } else {
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 const HOSTED_SAMPLE_TARGETS: &[&str] = &["windows_x64", "linux_x64", "linux_arm64", "macos_arm64"];
@@ -355,7 +359,9 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect("compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler")
+        .expect(
+            "compiler crate should live under source/omega-rust/omega/orchestration/omega-compiler",
+        )
         .to_path_buf()
 }
 

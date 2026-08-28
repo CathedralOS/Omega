@@ -7,19 +7,22 @@
 //! compile error, never unsafety -- which is also why the policy's scratch
 //! arithmetic may honestly declare Wrapping: plan validation owns soundness.
 
-use omega_compiler::{
-    AggregateFieldSchema, AggregateFieldValue, BuildTimeValue, ByteOrder, ConsumptionInstant,
-    EntryStubId, IntegerInterpretation, LayoutPlacementReport, MaterializationAction,
-    MaterializationContext, PackageCompilationInputs, PackageSourceBinding, RelocationTarget,
-    ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue, compile_to_checked,
-    compile_to_checked_with_packages, compute_layout_plan, decode_scalar_layout,
-    derive_symbolic_materialization, evaluate_and_materialize_typed_owned_layout_into,
-    materialize_aggregate_layout_into, materialize_scalar_layout_into,
+use omega_compiler::{compile_to_checked, compile_to_checked_with_packages};
+use omega_layout::{DataShape, build_layout_plan};
+use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
+use omega_target::NativeTarget;
+use psi_build_time_evaluation::{
+    BuildTimeValue, compute_layout_plan, evaluate_and_materialize_typed_owned_layout_into,
     materialize_typed_owned_layout_into, validate_const_materializable_typed_owned_layout,
 };
-use omega_layout::{DataShape, build_layout_plan};
-use omega_target::NativeTarget;
 use psi_core::PackageKeyIdentity;
+use psi_layout_plans::{
+    AggregateFieldSchema, AggregateFieldValue, ByteOrder, ConsumptionInstant, EntryStubId,
+    IntegerInterpretation, LayoutPlacementReport, MaterializationAction, MaterializationContext,
+    RelocationTarget, ScalarFieldSchema, ScalarFieldValue, SymbolicFieldValue,
+    decode_scalar_layout, derive_symbolic_materialization, materialize_aggregate_layout_into,
+    materialize_scalar_layout_into,
+};
 use std::fs;
 use std::path::{Path, PathBuf};
 

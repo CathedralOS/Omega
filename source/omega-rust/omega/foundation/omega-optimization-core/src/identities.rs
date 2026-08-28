@@ -114,6 +114,18 @@ canonical_identity!(
     b"omega.function-fragment-text-section-manifest-identity.v1\0"
 );
 canonical_identity!(
+    TerminalRelocationFreeObjectPlanIdentity,
+    b"omega.terminal-relocation-free-object-plan-identity.v1\0"
+);
+canonical_identity!(
+    TerminalRelocationFreeObjectContainerIdentity,
+    b"omega.terminal-relocation-free-object-container-identity.v1\0"
+);
+canonical_identity!(
+    FunctionFragmentObjectContainerManifestIdentity,
+    b"omega.function-fragment-object-container-manifest-identity.v1\0"
+);
+canonical_identity!(
     OptimizationDecisionIdentity,
     b"omega.optimization-decision-identity.v1\0"
 );
@@ -465,6 +477,9 @@ mod tests {
                 .bytes(),
             TerminalRelocationFreeTextSectionIdentity::from_canonical_bytes(b"same").bytes(),
             FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(b"same").bytes(),
+            TerminalRelocationFreeObjectPlanIdentity::from_canonical_bytes(b"same").bytes(),
+            TerminalRelocationFreeObjectContainerIdentity::from_canonical_bytes(b"same").bytes(),
+            FunctionFragmentObjectContainerManifestIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionSchemaIdentity::from_canonical_bytes(b"same").bytes(),
             OptimizationDecisionTargetIdentity::from_canonical_bytes(b"same").bytes(),
@@ -501,6 +516,9 @@ mod tests {
         round_trip!(FunctionFragmentEmissionManifestIdentity);
         round_trip!(TerminalRelocationFreeTextSectionIdentity);
         round_trip!(FunctionFragmentTextSectionManifestIdentity);
+        round_trip!(TerminalRelocationFreeObjectPlanIdentity);
+        round_trip!(TerminalRelocationFreeObjectContainerIdentity);
+        round_trip!(FunctionFragmentObjectContainerManifestIdentity);
         round_trip!(OptimizationDecisionIdentity);
         round_trip!(OptimizationDecisionSchemaIdentity);
         round_trip!(OptimizationDecisionTargetIdentity);

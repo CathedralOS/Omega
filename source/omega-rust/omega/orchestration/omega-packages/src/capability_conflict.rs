@@ -10,7 +10,7 @@ use crate::{
     CompilerIssuedPackageReviewSet, DependencyRequestPath, ImmutableSourceResolution, PackageKey,
     ResolvedPackageSourceClosure,
 };
-use omega_compiler::{
+use omega_package_review::{
     PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,
     PackageReviewSourceLocationOwner, PackageReviewSourceLocationRole,
     PackageReviewSyntheticSourceKind,
