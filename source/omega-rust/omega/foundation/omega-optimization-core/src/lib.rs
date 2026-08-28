@@ -37,8 +37,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 4;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v4\0";
+const SELECTION_ENCODING_VERSION: u32 = 5;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v5\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -47,6 +47,7 @@ const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v4\0";
 pub enum OptimizationExecutionPhase {
     Psi,
     SelectedLowering,
+    PostAllocationMachine,
     FunctionRelativeLayout,
 }
 
@@ -67,10 +68,11 @@ pub enum Optimization {
     SelectedIncomingU12ExactAddImmediate = 7,
     X86RelaxConditionalBranchesToRel8V1 = 8,
     SelectedIncomingU12ExactSubtractImmediate = 9,
+    Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 = 10,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 9] = [
+    pub const ALL: [Self; 10] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -80,6 +82,7 @@ impl Optimization {
         Self::SelectedIncomingU12ExactAddImmediate,
         Self::X86RelaxConditionalBranchesToRel8V1,
         Self::SelectedIncomingU12ExactSubtractImmediate,
+        Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -94,6 +97,9 @@ impl Optimization {
             Self::X86RelaxConditionalBranchesToRel8V1 => "X86RelaxConditionalBranchesToRel8V1",
             Self::SelectedIncomingU12ExactSubtractImmediate => {
                 "SelectedIncomingU12ExactSubtractImmediate"
+            }
+            Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
+                "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1"
             }
         }
     }
@@ -115,6 +121,9 @@ impl Optimization {
             Self::SelectedIncomingU12ExactSubtractImmediate => {
                 "selected_incoming_u12_exact_subtract_immediate"
             }
+            Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
+                "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1"
+            }
         }
     }
 
@@ -132,6 +141,9 @@ impl Optimization {
             }
             Self::X86RelaxConditionalBranchesToRel8V1 => {
                 OptimizationExecutionPhase::FunctionRelativeLayout
+            }
+            Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
+                OptimizationExecutionPhase::PostAllocationMachine
             }
         }
     }
@@ -335,6 +347,7 @@ mod tests {
     #[test]
     fn selections_are_sorted_and_round_trip_canonically() {
         let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::ProofCheckElision,
             Optimization::ControlFlowCleanup,
@@ -348,6 +361,7 @@ mod tests {
                 Optimization::CopyPropagation,
                 Optimization::ProofCheckElision,
                 Optimization::X86RelaxConditionalBranchesToRel8V1,
+                Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             ]
         );
         let encoded = selections.encode();
@@ -395,10 +409,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(3))
+            Err(SelectionDecodeError::UnsupportedVersion(4))
         );
     }
 
@@ -415,6 +429,7 @@ mod tests {
     #[test]
     fn phase_projection_is_canonical_without_replacing_the_full_identity() {
         let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
             Optimization::SelectedIncomingU12ExactSubtractImmediate,
@@ -423,6 +438,12 @@ mod tests {
         ])
         .unwrap();
         let full_identity = selections.identity();
+        assert_eq!(
+            selections
+                .for_phase(OptimizationExecutionPhase::PostAllocationMachine)
+                .as_slice(),
+            &[Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1]
+        );
         assert_eq!(
             selections
                 .for_phase(OptimizationExecutionPhase::Psi)

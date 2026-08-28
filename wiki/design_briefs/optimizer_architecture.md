@@ -520,6 +520,19 @@ post-copy custody carrier invoke the unchanged strict home assigner. Both paths
 stop before machine emission. General splitting around calls or pressure,
 address-stable values, spills, and frames remain future named capabilities.
 
+The allocator core also exposes the distinct
+`SharedEntryAfterCompareBeforeBranchV1` policy for that exact forwarded-u64
+diamond. Instead of cloning a copy into both leaves, it requires the entry's
+`CompareI64Zero` to be immediately followed by its conditional branch and uses
+the target catalog's flag-transparent `CopyI64` guarantee to insert one shared
+copy between them. Both return sites are retained as ordered destination rows
+and rewritten to one fresh VReg. Production and independent replay separately
+reconstruct the exact source, insertion point, two successors, fixed views,
+provenance, fuel, and flag footprint. The v3 copy identity binds the policy,
+insertion block/instruction, and every ordered destination. This is a legal
+strategy artifact, not an implicit profitability choice; orchestration remains
+on the leaf-local route until a named scheduling contract selects it.
+
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only
 carrier lowers it to target operations while retaining the first carrier and
@@ -1158,8 +1171,9 @@ The exact `GlobalValueNumbering` suite expands in canonical order to
 `same-block-obligation-free-total-scalar-cse.v1`,
 `same-block-proof-certified-total-scalar-cse.v1`,
 `dominator-obligation-free-total-scalar-gvn.v1`,
-`dominator-proof-certified-total-scalar-gvn.v1`, and
-`phi-translated-obligation-free-total-scalar-gvn.v1`. Each local rule scans a block
+`dominator-proof-certified-total-scalar-gvn.v1`,
+`phi-translated-obligation-free-total-scalar-gvn.v1`, and
+`phi-translated-proof-certified-total-scalar-gvn.v1`. Each local rule scans a block
 in node order and replaces a later equivalent result with the earliest admitted
 leader. The obligation-free vocabulary contains literals, Boolean operations,
 integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
@@ -1225,12 +1239,18 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v21,
-optimization-unit content identity v10, the named v4 pass, prephysical
+optimization-unit content identity v10, the named v5 pass, prephysical
 manifest v14, and optimized-plan projection validation v15 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
-Proof-certified phi translation, partial redundancy elimination, and
-cyclic-CFG GVN remain separate future rules; current admitted optimization
-units reject control cycles.
+The proof-certified phi rule uses the same closed proof-bearing scalar
+vocabulary as proof-certified local and dominator GVN. Every translated arm
+leader must have its own active verifier-accepted obligation fact; the
+candidate consumes only the redundant join operation's fact, preserves the
+accepted catalog as immutable history, and removes only that redundant active
+reference. Independent replay rejects a foreign redundant witness and any
+missing exact leader fact. Partial redundancy elimination and cyclic-CFG GVN
+remain separate future rules; current admitted optimization units reject
+control cycles.
 
 ### Proof-certified dead scalar work
 
@@ -1766,6 +1786,28 @@ lowering completion, always retaining the matching transformed or verified-
 no-change custody and validated post-allocation manifest. This still grants no
 emission authority.
 
+The first post-allocation transformation is the exact, default-off
+`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` rule in the closed
+`PostAllocationMachine` phase. It accepts only adjacent selected
+`CompareI64Zero` and `ConditionalBranchNonZero` variant-zero forms after homes
+are fixed. The compare must carry no logical fuel; its source must resolve to a
+canonical allocatable 64-bit X view; NZCV must flow from compare to branch and
+independent liveness must prove it dead at the branch output, block output, and
+both successors. The bounded v1 symbolic artifact retains the source machine,
+selected and liveness roots, exact target/model, ordered attempts and actions,
+source-qualified physical read, compare elision, fused-branch disposition,
+both successor identities, work usage, and revision history. A strict `OMGCNZ`
+v1 codec authenticates that complete content, while a separately implemented
+validator reconstructs it from the retained inputs.
+
+The symbolic rule owns no displacement, byte layout, or emission authority.
+The AArch64 ISA owner separately encodes and independently decodes the exact
+64-bit `CBNZ` imm19 form, reporting the qualified X-register read and PC
+use/definition without inventing an NZCV dependency. Current orchestration
+retains the symbolic completion alone or after selected lowering and rejects
+publication. A later realization milestone must thread that disposition into
+pre-layout/layout identities before any fused byte can be emitted.
+
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
 are resolved by exhaustive target-owned architectural-name tables rather than
@@ -1991,6 +2033,11 @@ the full build request and the subset completed at that stage. For example,
 pre-physical Psi receipt may retain them in the requested suite while recording
 that they completed no Psi pass. A later selected-lowering receipt must bind the
 same full request before the suite can be considered complete.
+`Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` similarly belongs only to
+post-allocation machine transformation: it is absent unless named by the root
+build, and its custody receipt binds both the complete suite and that exact
+phase projection. This is an individual transformation selection, not an
+optimization level or a debug/release profile.
 
 Rules:
 

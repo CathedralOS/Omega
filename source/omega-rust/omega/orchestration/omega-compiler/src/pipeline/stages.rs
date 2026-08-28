@@ -605,6 +605,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
     case X86RelaxConditionalBranchesToRel8V1;
     case SelectedIncomingU12ExactSubtractImmediate;
+    case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -617,6 +618,7 @@ pub data Optimizations {
     selected_incoming_u12_exact_add_immediate: u8 in Trapping;
     x86_relax_conditional_branches_to_rel8_v1: u8 in Trapping;
     selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
+    aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -648,6 +650,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
         Optimization::X86RelaxConditionalBranchesToRel8V1 -> x86_relax_conditional_branches_to_rel8_v1()
         Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
+        Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 -> aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -685,6 +688,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state selected_incoming_u12_exact_subtract_immediate(&mut self) {
         self.selected_incoming_u12_exact_subtract_immediate = self.selected_incoming_u12_exact_subtract_immediate + 1;
     }
+
+    state aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1(&mut self) {
+        self.aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1 = self.aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1 + 1;
+    }
 }
 pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;
@@ -709,6 +716,7 @@ pub data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
     case X86RelaxConditionalBranchesToRel8V1;
     case SelectedIncomingU12ExactSubtractImmediate;
+    case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -721,6 +729,7 @@ pub data Optimizations {
     selected_incoming_u12_exact_add_immediate: u8 in Trapping;
     x86_relax_conditional_branches_to_rel8_v1: u8 in Trapping;
     selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
+    aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1: u8 in Trapping;
 }
 pub data BuildSource {
 }
@@ -759,6 +768,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
         Optimization::X86RelaxConditionalBranchesToRel8V1 -> x86_relax_conditional_branches_to_rel8_v1()
         Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
+        Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 -> aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -795,6 +805,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state selected_incoming_u12_exact_subtract_immediate(&mut self) {
         self.selected_incoming_u12_exact_subtract_immediate = self.selected_incoming_u12_exact_subtract_immediate + 1;
+    }
+
+    state aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1(&mut self) {
+        self.aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1 = self.aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1 + 1;
     }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
@@ -1780,6 +1794,7 @@ mod tests {
                     "SelectedIncomingU12ExactAddImmediate",
                     "X86RelaxConditionalBranchesToRel8V1",
                     "SelectedIncomingU12ExactSubtractImmediate",
+                    "Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1",
                 ]
             );
             let optimizations = syntax_trees
@@ -1816,6 +1831,7 @@ mod tests {
                     "selected_incoming_u12_exact_add_immediate",
                     "x86_relax_conditional_branches_to_rel8_v1",
                     "selected_incoming_u12_exact_subtract_immediate",
+                    "aarch64_fuse_compare_i64_zero_branch_nonzero_to_cbnz_v1",
                 ]
             );
             let build = syntax_trees

@@ -26,8 +26,10 @@ pub use register_model::{
 };
 pub use selected_form_encoding::{
     Aarch64SelectedFormEncodingError, Aarch64SelectedFormFootprint,
-    ValidatedAarch64SelectedFormEncoding, encode_aarch64_terminal_selected_form,
-    encode_aarch64_terminal_selected_nonzero_branch_form,
+    ValidatedAarch64SelectedFormEncoding,
+    encode_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
+    encode_aarch64_terminal_selected_form, encode_aarch64_terminal_selected_nonzero_branch_form,
+    validate_aarch64_terminal_fused_compare_i64_zero_branch_nonzero_to_cbnz_form,
     validate_aarch64_terminal_selected_form_encoding,
     validate_aarch64_terminal_selected_nonzero_branch_form,
 };
