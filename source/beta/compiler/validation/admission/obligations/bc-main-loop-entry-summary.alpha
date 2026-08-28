@@ -40,11 +40,13 @@ main_loop_entry_summary_init:
 
 main_loop_require_shape:
         imm r20, 352
-        imm r21, 51262
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 353
-        imm r21, 51405
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 352
         imm r22, 69
@@ -66,22 +68,17 @@ main_loop_require_shape:
         imm r21, 352
         imm r22, 1
         imm r23, 353
-        imm r24, 51356
-        call exact_require_transition
+        call exact_transition_identity_pc
 
-        imm r20, 608
+        imm r20, 69                   ; main owning procedure identity
         imm r21, 352
-        imm r22, 51262
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 51271               ; checked loop cbyte continuation
-        call summary_require_call_site
-        imm r20, 609
+        imm r24, 4                    ; cbyte procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 69
         imm r21, 352
-        imm r22, 5
-        imm r23, 51404
-        call exact_require_event
+        call exact_require_event_epilogue
         imm r20, 69
         call call_bounds_frame_bytes
         imm r1, 16
@@ -95,35 +92,29 @@ main_loop_require_cbyte_frame:
         jmp reject
 main_loop_require_root_link:
         call stack_lift_require_prelude
-        imm r20, 20
-        imm r21, 51013
-        imm r22, 29
-        call exact_require_call
+        imm r20, 69                   ; canonical root call to main
+        call exact_require_program_prelude
 
         ; Source lowering order is stage-left, literal zero, != comparison,
         ; then a distinct literal zero on the false return path.
         imm r20, 233
         imm r21, 352
-        imm r23, 51271
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 809
         imm r21, 352
         imm r22, 3
         imm r23, 11                  ; !=
-        imm r24, 51297
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 810
         imm r21, 352
         imm r22, 1
         imm r23, 0
-        imm r24, 51287
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 811
         imm r21, 352
         imm r22, 1
         imm r23, 0
-        imm r24, 51375
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         ; Guard false goes to the return literal; guard true takes the exact
         ; following jump to main.body.
@@ -143,9 +134,9 @@ main_loop_require_root_link:
         imm r21, 51405               ; checked nonzero target
         call require_tape_word
 
-        imm r20, 51385
-        imm r21, 51404
-        call exact_require_epilogue
+        imm r20, 69
+        imm r21, 352
+        call exact_require_event_epilogue
         imm r20, 29
         imm r21, 0                   ; halt
         call require_tape_byte

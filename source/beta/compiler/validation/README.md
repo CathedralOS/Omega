@@ -128,6 +128,11 @@ The next compact localization tranche covers expression rules,
 declaration/expect shapes, small statement/summary edges, `main.ready`, and the
 root cleanup join. The latter now consumes the checked program-prelude owner
 instead of independently restating the root call and halt bytes.
+Parse-number/output-prefix/params-control, lookup/name-equality/operator,
+fixed-keyword, `gen_emit` summary, and the main-loop/slurp bridge now consume the
+same identities. In particular, source emit keys use verifier-owned literal
+bytes—not artifact runtime string pointers—and root callers share the canonical
+program-prelude owner.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

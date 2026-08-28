@@ -9,37 +9,46 @@ operator_classifier_require_shape:
         call operator_classifier_require_proc_frame
 
         imm r20, 234
-        imm r21, 34977
-        call exact_require_block_pc
+        imm r21, 53
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 235
-        imm r21, 35028
-        call exact_require_block_pc
+        imm r21, 53
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 236
-        imm r21, 35160
-        call exact_require_block_pc
+        imm r21, 53
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 237
-        imm r21, 35292
-        call exact_require_block_pc
+        imm r21, 53
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 238
-        imm r21, 35445
-        call exact_require_block_pc
+        imm r21, 53
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 234
         imm r21, 238
         imm r22, 53
         call exact_require_proc_blocks
 
         imm r20, 239
-        imm r21, 35495
-        call exact_require_block_pc
+        imm r21, 54
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 240
-        imm r21, 35546
-        call exact_require_block_pc
+        imm r21, 54
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 241
-        imm r21, 35678
-        call exact_require_block_pc
+        imm r21, 54
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 242
-        imm r21, 35831
-        call exact_require_block_pc
+        imm r21, 54
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 239
         imm r21, 242
         imm r22, 54
@@ -75,94 +84,64 @@ operator_classifier_require_transitions:
         imm r21, 235
         imm r22, 1
         imm r23, 238
-        imm r24, 35132                ; checked star-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked star-true guard
         imm r20, 179
         imm r21, 235
         imm r22, 0
         imm r23, 236
-        imm r24, 35151
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 180
         imm r21, 236
         imm r22, 1
         imm r23, 238
-        imm r24, 35264
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 181
         imm r21, 236
         imm r22, 0
         imm r23, 237
-        imm r24, 35283
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 182
         imm r21, 237
         imm r22, 1
         imm r23, 238
-        imm r24, 35396                ; checked percent-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked percent-true guard
 
         ; is_addsub: plus, minus, complement.
         imm r20, 183
         imm r21, 240
         imm r22, 1
         imm r23, 242
-        imm r24, 35650                ; checked plus-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked plus-true guard
         imm r20, 184
         imm r21, 240
         imm r22, 0
         imm r23, 241
-        imm r24, 35669
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 185
         imm r21, 241
         imm r22, 1
         imm r23, 242
-        imm r24, 35782                ; checked minus-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked minus-true guard
         ret
 
 operator_classifier_require_events:
-        imm r20, 379
+        imm r20, 53
         imm r21, 237
-        imm r22, 5
-        imm r23, 35444                ; is_muldiv false return
-        call exact_require_event
-        imm r20, 380
+        call exact_require_event_epilogue ; is_muldiv false return
+        imm r20, 53
         imm r21, 238
-        imm r22, 5
-        imm r23, 35474                ; is_muldiv true return
-        call exact_require_event
-        imm r20, 35425
-        imm r21, 35444
-        call exact_require_epilogue
-        imm r20, 35455
-        imm r21, 35474
-        call exact_require_epilogue
-        imm r20, 35475
-        imm r21, 35494
-        call exact_require_epilogue
+        call exact_require_event_epilogue ; is_muldiv true return
+        imm r20, 54                    ; is_addsub identifies synthetic return
+        call exact_require_preentry_epilogue
 
-        imm r20, 381
+        imm r20, 54
         imm r21, 241
-        imm r22, 5
-        imm r23, 35830                ; is_addsub false return
-        call exact_require_event
-        imm r20, 382
+        call exact_require_event_epilogue ; is_addsub false return
+        imm r20, 54
         imm r21, 242
-        imm r22, 5
-        imm r23, 35860                ; is_addsub true return
-        call exact_require_event
-        imm r20, 35811
-        imm r21, 35830
-        call exact_require_epilogue
-        imm r20, 35841
-        imm r21, 35860
-        call exact_require_epilogue
-        imm r20, 35861
-        imm r21, 35880
-        call exact_require_epilogue
+        call exact_require_event_epilogue ; is_addsub true return
+        imm r20, 55                    ; gen_factor identifies synthetic return
+        call exact_require_preentry_epilogue
         ret
 
 operator_classifier_require_locals:
@@ -170,32 +149,27 @@ operator_classifier_require_locals:
         imm r21, 235
         imm r22, 1
         imm r23, 0
-        imm r24, 35028                ; c for star
-        call transfer_require_local
+        call exact_local_identity_pc  ; c for star
         imm r20, 145
         imm r21, 236
         imm r22, 1
         imm r23, 0
-        imm r24, 35160                ; c for slash
-        call transfer_require_local
+        call exact_local_identity_pc  ; c for slash
         imm r20, 146
         imm r21, 237
         imm r22, 1
         imm r23, 0
-        imm r24, 35292                ; c for percent
-        call transfer_require_local
+        call exact_local_identity_pc  ; c for percent
         imm r20, 147
         imm r21, 240
         imm r22, 1
         imm r23, 0
-        imm r24, 35546                ; c for plus
-        call transfer_require_local
+        call exact_local_identity_pc  ; c for plus
         imm r20, 148
         imm r21, 241
         imm r22, 1
         imm r23, 0
-        imm r24, 35678                ; c for minus
-        call transfer_require_local
+        call exact_local_identity_pc  ; c for minus
         ret
 
 operator_classifier_require_primitives:
@@ -204,110 +178,91 @@ operator_classifier_require_primitives:
         imm r21, 235
         imm r22, 3
         imm r23, 10                   ; full-word ==
-        imm r24, 35073
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 573
         imm r21, 235
         imm r22, 1
         imm r23, 42                   ; '*'
-        imm r24, 35063
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 574
         imm r21, 236
         imm r22, 3
         imm r23, 10
-        imm r24, 35205
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 575
         imm r21, 236
         imm r22, 1
         imm r23, 47                   ; '/'
-        imm r24, 35195
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 576
         imm r21, 237
         imm r22, 3
         imm r23, 10
-        imm r24, 35337
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 577
         imm r21, 237
         imm r22, 1
         imm r23, 37                   ; '%'
-        imm r24, 35327
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 578
         imm r21, 237
         imm r22, 1
         imm r23, 0
-        imm r24, 35415
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 579
         imm r21, 238
         imm r22, 1
         imm r23, 1
-        imm r24, 35445
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 580
         imm r21, 240
         imm r22, 3
         imm r23, 10
-        imm r24, 35591
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 581
         imm r21, 240
         imm r22, 1
         imm r23, 43                   ; '+'
-        imm r24, 35581
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 582
         imm r21, 241
         imm r22, 3
         imm r23, 10
-        imm r24, 35723
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 583
         imm r21, 241
         imm r22, 1
         imm r23, 45                   ; '-'
-        imm r24, 35713
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 584
         imm r21, 241
         imm r22, 1
         imm r23, 0
-        imm r24, 35801
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 585
         imm r21, 242
         imm r22, 1
         imm r23, 1
-        imm r24, 35831
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 operator_classifier_require_pushes:
         imm r20, 167
         imm r21, 235
-        imm r23, 35047
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 168
         imm r21, 236
-        imm r23, 35179
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 169
         imm r21, 237
-        imm r23, 35311
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 170
         imm r21, 240
-        imm r23, 35565
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 171
         imm r21, 241
-        imm r23, 35697
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         ret
 
 operator_classifier_require_censuses:
@@ -333,8 +288,10 @@ operator_classifier_require_censuses:
         imm r28, 389
         imm r29, 389                 ; no store-address pushes
         call summary_require_expr_census
-        imm r20, 34977
-        imm r21, 35881
+        imm r20, 53
+        call exact_proc_entry_r20
+        imm r21, 55
+        call exact_proc_entry_r21
         imm r22, 0                   ; no calls
         imm r23, 6                   ; four explicit plus two synthetic returns
         imm r24, 9                   ; prologue/parameter/binary stores

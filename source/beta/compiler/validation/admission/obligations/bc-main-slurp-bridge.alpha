@@ -76,14 +76,17 @@ main_slurp_require_shape:
 
         ; Exact main entry/storage/ready blocks and source ownership.
         imm r20, 349
-        imm r21, 51013
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 350
-        imm r21, 51073
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 351
-        imm r21, 51226
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 349
         imm r22, 69
@@ -110,16 +113,15 @@ main_slurp_require_shape:
         call transfer_require_cell
 
         ; main's slurp call and failure return.
-        imm r20, 603
+        imm r20, 69                   ; main owning procedure identity
         imm r21, 349
-        imm r22, 1
-        imm r23, 51045
-        call exact_require_event
-        imm r20, 604
+        imm r22, 0
+        imm r23, 0
+        imm r24, 0                    ; slurp procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 69
         imm r21, 350
-        imm r22, 5
-        imm r23, 51225
-        call exact_require_event
+        call exact_require_event_epilogue
         imm r20, 7143424
         imm r21, 603
         imm r22, 0
@@ -134,38 +136,32 @@ main_slurp_require_shape:
         imm r21, 349
         imm r22, 2
         imm r23, 0
-        imm r24, 51054
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 241
         imm r21, 350
         imm r22, 1
         imm r23, 0
-        imm r24, 51073
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; Exact left staging, literal one, equality macro, and failure value.
         imm r20, 232
         imm r21, 350
-        imm r23, 51092
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 806
         imm r21, 350
         imm r22, 3
         imm r23, 10
-        imm r24, 51118
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 807
         imm r21, 350
         imm r22, 1
         imm r23, 1
-        imm r24, 51108
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 808
         imm r21, 350
         imm r22, 1
         imm r23, 253
-        imm r24, 51196
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         ; The guarded source edge is represented by jz-to-failure followed by
         ; the true jump to ready.  Rejoin both the source edge and exact bytes.
@@ -173,8 +169,7 @@ main_slurp_require_shape:
         imm r21, 350
         imm r22, 1
         imm r23, 351
-        imm r24, 51177
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 51177
         imm r21, 13                    ; jz
         call require_tape_byte
@@ -192,9 +187,9 @@ main_slurp_require_shape:
         call require_tape_word
 
         ; The selected failure epilogue ends at its exact source return.
-        imm r20, 51206
-        imm r21, 51225
-        call exact_require_epilogue
+        imm r20, 69
+        imm r21, 350
+        call exact_require_event_epilogue
         ret
 
 ; The exact root is two stack immediates, call main, then halt r0.  main's
@@ -202,14 +197,14 @@ main_slurp_require_shape:
 ; effect.  The helper bytes at [31,83) are not on this dynamic prefix.
 main_slurp_require_root_prefix:
         call stack_lift_require_prelude
-        imm r20, 20
-        imm r21, 51013
-        imm r22, 29
-        call exact_require_call
-        imm r20, 51045
-        imm r21, 83                    ; checked slurp entry
-        imm r22, 51054
-        call exact_require_call
+        imm r20, 69                   ; canonical root call to main
+        call exact_require_program_prelude
+        imm r20, 69
+        imm r21, 349
+        imm r22, 0
+        imm r23, 0
+        imm r24, 0                    ; slurp procedure identity
+        call summary_require_call_fallthrough_identity
 
         imm r10, 51013
         imm r11, 0

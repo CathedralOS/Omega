@@ -53,18 +53,18 @@ fixed_keyword_require_frame:
 fixed_keyword_require_blocks:
 	imm r1, 530384
 	load r20, r1                  ; entry block
-	imm r1, 530376
-	load r21, r1                  ; procedure pc
-	call exact_require_block_pc
+	imm r1, 530360
+	load r21, r1                  ; procedure identity
+	imm r22, 0
+	call exact_block_identity_pc
 	imm r1, 530384
 	load r20, r1
 	imm r2, 1
 	add r20, r2                   ; c0 block
-	imm r1, 530376
+	imm r1, 530360
 	load r21, r1
-	imm r2, 19
-	add r21, r2
-	call exact_require_block_pc
+	imm r22, 1
+	call exact_block_identity_pc
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -82,15 +82,10 @@ fixed_keyword_block_char:
 	imm r2, 2
 	add r20, r2
 	add r20, r30
-	imm r1, 530376
+	imm r1, 530360
 	load r21, r1
-	imm r2, 166
-	add r21, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r21, r2
-	call exact_require_block_pc
+	imm r22, 1
+	call exact_block_identity_pc
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_block_loop
 fixed_keyword_block_yes:
@@ -99,15 +94,10 @@ fixed_keyword_block_yes:
 	imm r2, 2
 	add r20, r2
 	add r20, r30
-	imm r1, 530376
+	imm r1, 530360
 	load r21, r1
-	imm r2, 166
-	add r21, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r21, r2
-	call exact_require_block_pc
+	imm r22, 1
+	call exact_block_identity_pc
 	imm r1, 530384
 	load r20, r1
 	imm r1, 530368
@@ -147,45 +137,19 @@ fixed_keyword_transition_case:
 	mov r23, r21
 	imm r2, 1
 	add r23, r2
-	imm r1, 0
-	jeq r30, r1, fixed_keyword_transition_length_pc
-	imm r1, 530376
-	load r24, r1
-	imm r2, 117
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2                  ; char guard for index r30-1
-	jmp fixed_keyword_transition_require
-fixed_keyword_transition_length_pc:
-	imm r1, 530376
-	load r24, r1
-	imm r2, 117                  ; checked length-guard pc
-	add r24, r2
 fixed_keyword_transition_require:
-	call exact_require_transition
+	call exact_transition_identity_pc
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_transition_loop
 
 fixed_keyword_require_events:
-	imm r1, 530400
-	load r20, r1
+	imm r1, 530360
+	load r20, r1                  ; current procedure identity
 	imm r1, 530384
 	load r21, r1
 	imm r2, 1
 	add r21, r2
-	imm r22, 5
-	imm r1, 530376
-	load r23, r1
-	imm r2, 165
-	add r23, r2
-	call exact_require_event
-	mov r21, r23
-	mov r20, r23
-	imm r2, 19
-	sub r20, r2
-	call exact_require_epilogue
+	call exact_require_event_epilogue
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -198,108 +162,43 @@ fixed_keyword_event_loop:
 	jeq r30, r2, fixed_keyword_event_yes
 	jmp reject
 fixed_keyword_event_char:
-	imm r1, 530400
-	load r20, r1
-	mov r2, r30
-	imm r3, 2
-	mul r2, r3
-	imm r3, 1
-	add r2, r3
-	add r20, r2
+	imm r1, 530360
+	load r20, r1                  ; current procedure identity
 	imm r1, 530384
 	load r21, r1
 	imm r2, 2
 	add r21, r2
 	add r21, r30
-	imm r1, 530376
-	load r22, r1
-	imm r2, 208
-	add r22, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r22, r2
-	imm r23, 1
-	imm r24, 0
-	imm r25, 5634                ; exact IDCH target
-	mov r26, r22
-	imm r2, 9
-	add r26, r2                  ; exact call continuation delta
-	call summary_require_call_site
+	imm r22, 1
+	imm r23, 0
+	imm r24, 13                   ; id_char procedure identity
+	call summary_require_call_fallthrough_identity
 	imm r1, 530448
 	load r30, r1                 ; call checker clobbers the loop index
-	imm r1, 530400
+	imm r1, 530360
 	load r20, r1
-	mov r2, r30
-	imm r3, 2
-	mul r2, r3
-	imm r3, 2
-	add r2, r3
-	add r20, r2
 	imm r1, 530384
 	load r21, r1
 	imm r2, 2
 	add r21, r2
 	add r21, r30
-	imm r1, 530376
-	load r23, r1
-	imm r2, 350
-	add r23, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r23, r2
-	imm r22, 5
-	call exact_require_event
-	mov r21, r23
-	mov r20, r23
-	imm r2, 19
-	sub r20, r2
-	call exact_require_epilogue
+	call exact_require_event_epilogue
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_event_loop
 fixed_keyword_event_yes:
-	imm r1, 530400
+	imm r1, 530360
 	load r20, r1
-	mov r2, r30
-	imm r3, 2
-	mul r2, r3
-	imm r3, 1
-	add r2, r3
-	add r20, r2
 	imm r1, 530384
 	load r21, r1
 	imm r2, 2
 	add r21, r2
 	add r21, r30
-	imm r22, 5
-	imm r1, 530376
-	load r23, r1
-	imm r2, 195
-	add r23, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r23, r2
-	call exact_require_event
-	mov r21, r23
-	mov r20, r23
-	imm r2, 19
-	sub r20, r2
-	call exact_require_epilogue
-	imm r1, 530376
-	load r21, r1
-	imm r2, 215
-	add r21, r2
-	imm r1, 530368
-	load r3, r1
-	imm r4, 185
-	mul r3, r4
-	add r21, r3                  ; final ret pc
-	mov r20, r21
-	imm r2, 19
-	sub r20, r2
-	call exact_require_epilogue
+	call exact_require_event_epilogue
+	imm r1, 530360
+	load r20, r1
+	imm r2, 1
+	add r20, r2                  ; next procedure identifies synthetic return
+	call exact_require_preentry_epilogue
 	ret
 
 fixed_keyword_require_memory:
@@ -519,16 +418,14 @@ fixed_keyword_require_censuses:
 	imm r29, 383                 ; exact empty store-push interval
 	call summary_require_expr_census
 
-	imm r1, 530376
-	load r20, r1
-	mov r21, r20
-	imm r1, 530368
-	load r2, r1
-	imm r3, 185
-	mul r2, r3
-	imm r3, 216
-	add r2, r3
-	add r21, r2
+	imm r1, 530360
+	load r20, r1                  ; current procedure identity / region start
+	call exact_proc_entry_r20
+	imm r1, 530360
+	load r21, r1
+	imm r2, 1
+	add r21, r2                  ; next procedure identity / region end
+	call exact_proc_entry_r21
 	imm r1, 530368
 	load r22, r1
 	mov r23, r22
