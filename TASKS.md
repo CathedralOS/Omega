@@ -8270,12 +8270,28 @@ reach or trust, and private proof improvements do not change public identity.
   checked planning, Terminal verification/codec/interpreter, target and machine
   lowering, and object/image/installation replay retain the exact element type,
   index, length-two native layout, element stride, byte offset, cleanup action,
-  and unchanged fuel. Other lengths, multiple moves, nested/dynamic/mixed
-  projections, scalar/float/byte/linear/nominal/qualified/content elements,
-  arrays with claims, sums, joins, and cycles remain fenced. General array
-  cleanup order remains the language-design question recorded in
-  `OWNER_QUESTIONS.md` Q5; this two-element single-residual rung does not choose
-  that order.
+  and unchanged fuel.
+
+  Its exact no-residual checked/Terminal successor is also closed. Two ordinary
+  one-parameter Unit calls may move literal indices `0` and `1` exactly once
+  each, in either authored order, and then use an ordinary Unit return with no
+  residual cleanup. Checked replay and Terminal shape/frontier verification
+  independently require the exact length-two record-element root, set
+  `{0, 1}`, ownership, lack of claims/content/qualifications, and empty return
+  cleanup; checked production also excludes contracts. Codec and interpreter
+  replay preserve authored call order, reject duplicate/missing/path/length
+  drift, and charge the exact five closure units. Carry this no-residual pair
+  through target, machine,
+  object/image, and installation custody: the current native call replay still
+  requires each claim-free projected argument to have a disjoint residual
+  cleanup, so it must gain one exact function-level two-call `{0, 1}` witness
+  rather than weakening either call in isolation.
+
+  Other lengths, nested/dynamic/mixed projections,
+  scalar/float/byte/linear/nominal/qualified/content elements, arrays with
+  claims, sums, joins, and cycles remain fenced. General array cleanup order
+  remains the language-design question recorded in `OWNER_QUESTIONS.md` Q5;
+  neither exact length-two rung chooses that order.
 - **CLEANUP-HOOK-SELECTION-AND-ERASED-OWNERSHIP.** Authored selection of the
   exact owner-attached `T::drop` hook is now closed for every retained source
   selection kind. The package-agnostic selection ledger rejects the exact hook

@@ -98,10 +98,12 @@ pub(super) fn validate_partial_affine_cleanup_shape(
                 .map_or(machine.entry, |block| block.id),
         ));
     };
-    let [partial_block] = partial_returns.as_slice() else {
-        return Err(invalid(block.id));
+    let partial_block = match partial_returns.as_slice() {
+        [partial_block] => Some(*partial_block),
+        [] => None,
+        _ => return Err(invalid(block.id)),
     };
-    if partial_block.id != block.id
+    if partial_block.is_some_and(|partial_block| partial_block.id != block.id)
         || field_calls
             .iter()
             .any(|(candidate, ..)| candidate.id != block.id)
@@ -137,7 +139,10 @@ pub(super) fn validate_partial_affine_cleanup_shape(
         let [argument] = arguments.as_slice() else {
             return Err(invalid(block.id));
         };
-        if argument.place != root.place || !moved_paths.insert(argument.path.clone()) {
+        if argument.place != root.place
+            || argument.access != StructuralAccess::Owned
+            || !moved_paths.insert(argument.path.clone())
+        {
             return Err(invalid(block.id));
         }
         let Some(moved_type) =
@@ -156,10 +161,55 @@ pub(super) fn validate_partial_affine_cleanup_shape(
             || !callee.parameters.is_empty()
             || callee_parameter.structural_type != moved_type
             || callee_parameter.multiplicity != StructuralMultiplicity::Affine
+            || callee_parameter.position != 0
+            || callee_parameter.is_self
+            || callee_parameter.access != StructuralAccess::Owned
             || !callee_parameter.qualifications.is_empty()
         {
             return Err(invalid(block.id));
         }
+    }
+    if partial_block.is_none() {
+        let Some(StructuralTypeShape::FixedArray { element, length: 2 }) = module
+            .structural_types
+            .iter()
+            .find(|declaration| declaration.id == root.structural_type)
+            .map(|declaration| &declaration.shape)
+        else {
+            return Err(invalid(block.id));
+        };
+        let element_is_record = module.structural_types.iter().any(|declaration| {
+            declaration.id == *element
+                && matches!(declaration.shape, StructuralTypeShape::Record { .. })
+        });
+        let expected_paths = BTreeSet::from([
+            vec![StructuralPathSegment::FixedIndex(0)],
+            vec![StructuralPathSegment::FixedIndex(1)],
+        ]);
+        let Terminator::ReturnUnit {
+            trivial_affine_discards,
+            ..
+        } = &block.terminator
+        else {
+            return Err(invalid(block.id));
+        };
+        if machine.blocks.len() != 1
+            || !block.parameters.is_empty()
+            || field_calls.len() != 2
+            || root.position != 0
+            || root.is_self
+            || root.access != StructuralAccess::Owned
+            || !element_is_record
+            || moved_paths != expected_paths
+            || !trivial_affine_discards.is_empty()
+            || !machine.published_service_ceiling.is_empty()
+            || !machine.contract.requires.is_empty()
+            || !machine.contract.ensures.is_empty()
+            || !machine.contract.crash_routes.is_empty()
+        {
+            return Err(invalid(block.id));
+        }
+        return Ok(());
     }
     let Some(expected_residuals) =
         partial_affine_residuals(module, root.structural_type, &moved_paths)
