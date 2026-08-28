@@ -717,9 +717,10 @@ other lengths and element shapes, claims/content, and cleanup added to the
 ordinary return; checked production separately excludes contracts. Interpreter
 replay charges five closure units: two caller operations, two callee returns,
 and the caller return. The empty
-residual set makes no cleanup-order choice. Target/native artifact replay for
-this exact two-call form remains fenced until it can prove the complete pair at
-function scope rather than demanding a sibling residual for each call.
+residual set makes no cleanup-order choice. Target and machine lowering plus
+object/image and installation replay rederive this exact two-call form at
+function scope, retain its canonical stride/offset and empty return cleanup,
+and never exempt a projected call unless the complete pair is present.
 
 The straight-line Unit return slice carries explicit no-code cleanup for owned
 affine structural parameters that have no claim rows. The checked plan derives

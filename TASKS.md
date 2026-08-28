@@ -8280,12 +8280,13 @@ reach or trust, and private proof improvements do not change public identity.
   `{0, 1}`, ownership, lack of claims/content/qualifications, and empty return
   cleanup; checked production also excludes contracts. Codec and interpreter
   replay preserve authored call order, reject duplicate/missing/path/length
-  drift, and charge the exact five closure units. Carry this no-residual pair
-  through target, machine,
-  object/image, and installation custody: the current native call replay still
-  requires each claim-free projected argument to have a disjoint residual
-  cleanup, so it must gain one exact function-level two-call `{0, 1}` witness
-  rather than weakening either call in isolation.
+  drift, and charge the exact five closure units. Target and machine lowering,
+  object/image validation, and installation replay now independently rederive
+  one exact function-level two-call `{0, 1}` witness. Both authored orders cross
+  all five targets with canonical element stride/offset custody, an empty
+  ordinary-return cleanup ledger, and exact operation/edge fuel ordinals;
+  missing, duplicate, reordered, wrong-layout, or cleanup-bearing artifacts
+  reject without weakening either projected call in isolation.
 
   Other lengths, nested/dynamic/mixed projections,
   scalar/float/byte/linear/nominal/qualified/content elements, arrays with

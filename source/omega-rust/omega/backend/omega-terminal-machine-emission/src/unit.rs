@@ -39,6 +39,98 @@ pub(super) struct UnitEmission {
     pub(super) affine_cleanup: Option<omega_terminal_machine_code::TerminalUnitAffineCleanupRecord>,
 }
 
+fn exact_fully_consumed_affine_pair_root(
+    body: &TerminalAssignedUnitBody,
+    return_ordinal: usize,
+) -> Option<psi_core::PlaceId> {
+    let [parameter] = body.parameters.as_slice() else {
+        return None;
+    };
+    if parameter.multiplicity != psi_terminal::StructuralMultiplicity::Affine
+        || parameter.access != psi_terminal::StructuralAccess::Owned
+        || return_ordinal != 2
+        || body
+            .structural_types
+            .windows(2)
+            .any(|pair| pair[0].id >= pair[1].id)
+        || body
+            .structural_types
+            .iter()
+            .any(|declaration| declaration.identity.is_empty())
+        || body
+            .structural_types
+            .iter()
+            .map(|declaration| declaration.identity.as_str())
+            .collect::<std::collections::BTreeSet<_>>()
+            .len()
+            != body.structural_types.len()
+    {
+        return None;
+    }
+    let declaration = body
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == parameter.structural_type)?;
+    let psi_terminal::StructuralTypeShape::FixedArray { element, length: 2 } = declaration.shape
+    else {
+        return None;
+    };
+    if !matches!(
+        body.structural_types
+            .iter()
+            .find(|declaration| declaration.id == element)
+            .map(|declaration| &declaration.shape),
+        Some(psi_terminal::StructuralTypeShape::Record { .. })
+    ) {
+        return None;
+    }
+    let [first, second, TerminalAssignedUnitOperation::Return { .. }] = body.operations.as_slice()
+    else {
+        return None;
+    };
+    let moved_index = |operation: &TerminalAssignedUnitOperation| {
+        let TerminalAssignedUnitOperation::Call {
+            result: None,
+            copies,
+            claim_transfers,
+            ..
+        } = operation
+        else {
+            return None;
+        };
+        let [copy] = copies.as_slice() else {
+            return None;
+        };
+        let [psi_terminal::StructuralPathSegment::FixedIndex(index @ (0 | 1))] =
+            copy.path.as_slice()
+        else {
+            return None;
+        };
+        let stride = copy.element_stride?;
+        let expected_stride = u32::from(copy.shape.byte_size)
+            .checked_next_multiple_of(u32::from(copy.shape.alignment))?;
+        (claim_transfers.is_empty()
+            && copy.place == parameter.place
+            && copy.access == psi_terminal::StructuralAccess::Owned
+            && copy.root_structural_type == parameter.structural_type
+            && copy.structural_type == element
+            && copy.fixed_array_length == Some(2)
+            && stride == expected_stride
+            && copy.source == parameter.placement
+            && copy.source.shape == parameter.shape
+            && copy.source.shape.alignment == copy.shape.alignment
+            && u32::from(copy.source.shape.byte_size) == stride.checked_mul(2)?
+            && copy.source_byte_offset == stride.checked_mul(u32::try_from(*index).ok()?)?)
+        .then_some((*index, copy.shape, stride))
+    };
+    let first = moved_index(first)?;
+    let second = moved_index(second)?;
+    (([first.0, second.0] == [0, 1] || [first.0, second.0] == [1, 0])
+        && first.1 == second.1
+        && first.2 == second.2)
+        .then_some(parameter.place)
+}
+
 #[derive(Debug, Clone)]
 pub(super) struct X86UnitParameterHome {
     place: psi_core::PlaceId,
@@ -419,6 +511,8 @@ pub(super) fn emit_unit_body(
                 psi_edge,
                 cleanup_actions,
             } => {
+                let fully_consumed_affine_pair =
+                    exact_fully_consumed_affine_pair_root(body, operation_ordinal);
                 let transferred_roots = body.operations[..operation_ordinal]
                     .iter()
                     .filter_map(|operation| match operation {
@@ -445,6 +539,7 @@ pub(super) fn emit_unit_body(
                                 parameter.multiplicity
                                     == psi_terminal::StructuralMultiplicity::Affine
                                     && !transferred_roots.contains(&parameter.place)
+                                    && Some(parameter.place) != fully_consumed_affine_pair
                             })
                             .map(|parameter| parameter.place),
                     )

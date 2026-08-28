@@ -72,6 +72,28 @@ const PARTIAL_AFFINE_PAIR_SOURCE: &str = r#"
     }
 "#;
 
+const FULLY_CONSUMED_AFFINE_PAIR_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 2]) {
+        Helper::take(values[1]);
+        Helper::take(values[0]);
+    }
+"#;
+
+const FORWARD_FULLY_CONSUMED_AFFINE_PAIR_SOURCE: &str = r#"
+    data Token { value: u64; }
+    data Helper {}
+    machine Helper::take(token: Token) {}
+    data Root {}
+    machine Root::enter(values: [Token; 2]) {
+        Helper::take(values[0]);
+        Helper::take(values[1]);
+    }
+"#;
+
 const MIXED_SCALAR_PARTIAL_AFFINE_SOURCE: &str = r#"
     domain [u8; 3]::Utf8
     requires
@@ -366,6 +388,27 @@ fn partial_affine_pair_plan() -> omega_terminal_abstract_operations::TerminalAbs
         encode_proof_bundle(&terminal.proof_bundle).expect("encode partial affine pair proof");
     lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
         .expect("verified partial affine pair artifact enters Omega")
+}
+
+fn fully_consumed_affine_pair_plan(
+    source: &str,
+) -> omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize fully consumed affine pair source");
+    let syntax = parse_syntax_trees(&tokens).expect("parse fully consumed affine pair source");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve fully consumed affine pair source");
+    let typed =
+        lower_symbol_resolved_trees(&resolved).expect("type fully consumed affine pair source");
+    let checked = lower_typed_trees(typed).expect("check fully consumed affine pair source");
+    let terminal =
+        lower_machine(&checked, "Root::enter").expect("lower fully consumed affine pair Psi");
+    let semantics =
+        encode_module(&terminal.semantic_module).expect("encode fully consumed affine pair Psi");
+    let proof = encode_proof_bundle(&terminal.proof_bundle)
+        .expect("encode fully consumed affine pair proof");
+    lower_artifact_sections(&semantics, &proof, &AdmissionProfile::default())
+        .expect("verified fully consumed affine pair artifact enters Omega")
 }
 
 fn mixed_scalar_partial_affine_plan()
@@ -1129,6 +1172,344 @@ fn partial_affine_pair_cleanup_retains_exact_native_and_installed_projection_on_
         let bytes = encode_terminal_installation_record(&installation).unwrap();
         assert_eq!(
             decode_terminal_installation_record(&bytes),
+            Ok(installation)
+        );
+    }
+}
+
+#[test]
+fn fully_consumed_affine_pair_retains_two_native_calls_and_empty_installed_cleanup() {
+    let plan = fully_consumed_affine_pair_plan(FULLY_CONSUMED_AFFINE_PAIR_SOURCE);
+    let caller_machine = plan.entry;
+    let caller = plan
+        .functions
+        .iter()
+        .find(|function| function.machine == caller_machine)
+        .expect("entry caller remains present");
+    let pair_type = caller.structural_parameters[0].structural_type;
+    let declaration = plan
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == pair_type)
+        .expect("array declaration remains present");
+    let StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 2,
+    } = declaration.shape
+    else {
+        panic!("caller root remains an exact two-element array")
+    };
+    assert!(matches!(
+        caller.operations.last(),
+        Some(omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+            cleanup_actions,
+            ..
+        }) if cleanup_actions.is_empty()
+    ));
+
+    let mut missing = plan.clone();
+    let missing_caller = missing
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    missing_caller.operations.remove(1);
+    assert!(lower_to_target_operations(&missing, NativeTarget::linux_x64()).is_err());
+
+    let mut duplicate = plan.clone();
+    let duplicate_caller = duplicate
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let first_path = match &duplicate_caller.operations[0] {
+        omega_terminal_abstract_operations::TerminalAbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } => structural_arguments[0].path.clone(),
+        _ => panic!("first operation remains a call"),
+    };
+    let omega_terminal_abstract_operations::TerminalAbstractOperation::CallUnit {
+        structural_arguments,
+        ..
+    } = &mut duplicate_caller.operations[1]
+    else {
+        panic!("second operation remains a call")
+    };
+    structural_arguments[0].path = first_path;
+    assert!(lower_to_target_operations(&duplicate, NativeTarget::linux_x64()).is_err());
+
+    let mut wrong_length = plan.clone();
+    let wrong_root = wrong_length
+        .structural_types
+        .iter_mut()
+        .find(|declaration| declaration.id == pair_type)
+        .unwrap();
+    wrong_root.shape = StructuralTypeShape::FixedArray {
+        element: element_type,
+        length: 3,
+    };
+    assert!(lower_to_target_operations(&wrong_length, NativeTarget::linux_x64()).is_err());
+
+    let mut added_cleanup = plan.clone();
+    let cleanup_caller = added_cleanup
+        .functions
+        .iter_mut()
+        .find(|function| function.machine == caller_machine)
+        .unwrap();
+    let Some(omega_terminal_abstract_operations::TerminalAbstractOperation::ReturnUnit {
+        cleanup_actions,
+        ..
+    }) = cleanup_caller.operations.last_mut()
+    else {
+        panic!("caller ends in Unit return")
+    };
+    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(
+        caller.structural_parameters[0].place,
+    ));
+    assert!(lower_to_target_operations(&added_cleanup, NativeTarget::linux_x64()).is_err());
+
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&plan, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == caller_machine)
+            .expect("caller machine code exists");
+        let [first, second] = emitted.internal_unit_calls.as_slice() else {
+            panic!("caller retains exactly two internal calls")
+        };
+        let cleanup = emitted
+            .unit_affine_cleanup
+            .as_ref()
+            .expect("ordinary return retains its edge record");
+        assert_eq!(
+            emitted
+                .fuel_attribution
+                .iter()
+                .map(|attribution| attribution.operation_ordinal)
+                .collect::<Vec<_>>(),
+            [0, 1, 2]
+        );
+        assert!(matches!(
+            emitted.fuel_attribution.as_slice(),
+            [
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Operation(first_site),
+                    ..
+                },
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Operation(second_site),
+                    ..
+                },
+                omega_terminal_machine_code::TerminalNativeFuelAttribution {
+                    site: omega_terminal_machine_code::TerminalNativeFuelSite::Edge(return_edge),
+                    ..
+                },
+            ] if first.owner.operation() == Some(*first_site)
+                && second.owner.operation() == Some(*second_site)
+                && cleanup.psi_edge == *return_edge
+        ));
+        assert_eq!(
+            [
+                first.arguments[0].path.clone(),
+                second.arguments[0].path.clone()
+            ],
+            [
+                vec![StructuralPathSegment::FixedIndex(1)],
+                vec![StructuralPathSegment::FixedIndex(0)],
+            ]
+        );
+        assert_eq!(
+            [
+                first.arguments[0].source_byte_offset,
+                second.arguments[0].source_byte_offset,
+            ],
+            [8, 0]
+        );
+        for call in [first, second] {
+            let [argument] = call.arguments.as_slice() else {
+                panic!("each call retains one projected argument")
+            };
+            assert_eq!(argument.root_structural_type, pair_type);
+            assert_eq!(argument.structural_type, element_type);
+            assert_eq!(argument.fixed_array_length, Some(2));
+            assert_eq!(argument.element_stride, Some(8));
+            assert!(call.claim_transfers.is_empty());
+        }
+        assert!(cleanup.actions.is_empty());
+
+        let mut missing_call = machine.clone();
+        missing_call
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls
+            .remove(1);
+        assert!(build_terminal_object_artifact(&missing_call).is_err());
+
+        let mut duplicate_path = machine.clone();
+        let duplicate_machine_caller = duplicate_path
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap();
+        duplicate_machine_caller.internal_unit_calls[1].arguments[0].path =
+            duplicate_machine_caller.internal_unit_calls[0].arguments[0]
+                .path
+                .clone();
+        assert!(build_terminal_object_artifact(&duplicate_path).is_err());
+
+        let mut wrong_path = machine.clone();
+        wrong_path
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls[1]
+            .arguments[0]
+            .path = vec![StructuralPathSegment::Field("value".into())];
+        assert!(build_terminal_object_artifact(&wrong_path).is_err());
+
+        let mut wrong_native_length = machine.clone();
+        wrong_native_length
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls[1]
+            .arguments[0]
+            .fixed_array_length = Some(3);
+        assert!(build_terminal_object_artifact(&wrong_native_length).is_err());
+
+        let mut wrong_order = machine.clone();
+        wrong_order
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .internal_unit_calls
+            .swap(0, 1);
+        assert!(build_terminal_object_artifact(&wrong_order).is_err());
+
+        let mut native_cleanup = machine.clone();
+        native_cleanup
+            .functions
+            .iter_mut()
+            .find(|function| function.machine == caller_machine)
+            .unwrap()
+            .unit_affine_cleanup
+            .as_mut()
+            .unwrap()
+            .actions
+            .push(TerminalAffineCleanupAction::DiscardRoot(
+                caller.structural_parameters[0].place,
+            ));
+        assert!(build_terminal_object_artifact(&native_cleanup).is_err());
+
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        let installed_calls = installation
+            .internal_unit_calls()
+            .iter()
+            .filter(|call| call.machine == caller_machine)
+            .collect::<Vec<_>>();
+        assert_eq!(installed_calls.len(), 2);
+        assert!(
+            installation
+                .functions()
+                .iter()
+                .find(|function| function.machine == caller_machine)
+                .unwrap()
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions
+                .is_empty()
+        );
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        let bytes = encode_terminal_installation_record(&installation).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(&bytes),
+            Ok(installation.clone())
+        );
+
+        let installed_second = &installed_calls[1].custody.arguments[0];
+        let mut projection = Vec::new();
+        projection.extend_from_slice(&installed_second.place.get().to_le_bytes());
+        projection.extend_from_slice(&1_u32.to_le_bytes());
+        projection.extend_from_slice(&1_u32.to_le_bytes());
+        projection.extend_from_slice(&[2, 0, 0, 0]);
+        projection.extend_from_slice(&0_u64.to_le_bytes());
+        projection.extend_from_slice(&installed_second.root_structural_type.get().to_le_bytes());
+        projection.extend_from_slice(&installed_second.structural_type.get().to_le_bytes());
+        projection.extend_from_slice(&[1, 0, 8, 0, 8, 0, 0, 0]);
+        projection.extend_from_slice(&installed_second.source_byte_offset.to_le_bytes());
+        let offset = bytes
+            .windows(projection.len())
+            .position(|window| window == projection)
+            .expect("installation retains the second exact array projection");
+        let mut duplicate_installed_path = bytes.clone();
+        duplicate_installed_path[offset + 20..offset + 28].copy_from_slice(&1_u64.to_le_bytes());
+        assert!(decode_terminal_installation_record(&duplicate_installed_path).is_err());
+    }
+
+    let forward = fully_consumed_affine_pair_plan(FORWARD_FULLY_CONSUMED_AFFINE_PAIR_SOURCE);
+    let forward_caller = forward.entry;
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let target_plan = lower_to_target_operations(&forward, target).unwrap();
+        let assigned = assign_registers(&target_plan).unwrap();
+        let machine = emit_machine_code(&assigned).unwrap();
+        let emitted = machine
+            .functions
+            .iter()
+            .find(|function| function.machine == forward_caller)
+            .unwrap();
+        assert_eq!(
+            emitted
+                .internal_unit_calls
+                .iter()
+                .map(|call| call.arguments[0].path.clone())
+                .collect::<Vec<_>>(),
+            [
+                vec![StructuralPathSegment::FixedIndex(0)],
+                vec![StructuralPathSegment::FixedIndex(1)],
+            ]
+        );
+        assert!(
+            emitted
+                .unit_affine_cleanup
+                .as_ref()
+                .unwrap()
+                .actions
+                .is_empty()
+        );
+        let object = build_terminal_object_artifact(&machine).unwrap();
+        let image = emit_terminal_executable_image(&object, 3).unwrap();
+        let installation =
+            build_terminal_installation_record(&image, ProfileDecisionId::new(1).unwrap()).unwrap();
+        validate_terminal_installation_record(&installation, &image).unwrap();
+        assert_eq!(
+            decode_terminal_installation_record(
+                &encode_terminal_installation_record(&installation).unwrap()
+            ),
             Ok(installation)
         );
     }

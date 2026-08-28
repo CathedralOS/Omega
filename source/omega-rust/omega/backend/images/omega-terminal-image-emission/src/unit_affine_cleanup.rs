@@ -24,6 +24,7 @@ pub(super) fn validate_unit_affine_cleanup(
     functions: &std::collections::BTreeMap<MachineId, &TerminalMachineCodeFunction>,
     cleanup: &TerminalUnitAffineCleanupRecord,
     allow_mixed_nominal_roots: bool,
+    fully_consumed_affine_pair: bool,
 ) -> Result<(), TerminalObjectError> {
     let invalid = || TerminalObjectError::InvalidUnitAffineCleanupEvidence(machine);
     let end = cleanup
@@ -48,6 +49,7 @@ pub(super) fn validate_unit_affine_cleanup(
         .filter(|home| {
             home.multiplicity == psi_terminal::StructuralMultiplicity::Affine
                 && !transferred_roots.contains(&home.place)
+                && !fully_consumed_affine_pair
         })
         .map(|home| home.place)
         .collect::<Vec<_>>();

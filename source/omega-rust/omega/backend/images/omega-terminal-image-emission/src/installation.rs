@@ -1273,6 +1273,18 @@ fn validate_record_shape(
         .map(|function| (function.machine, function.attachment))
         .collect::<std::collections::BTreeMap<_, _>>();
     for function in &record.functions {
+        let function_unit_calls = record
+            .internal_unit_calls
+            .iter()
+            .filter(|call| call.machine == function.machine)
+            .map(|call| call.custody.clone())
+            .collect::<Vec<_>>();
+        let fully_consumed_affine_pair =
+            crate::fully_consumed_affine_pair::exact_fully_consumed_affine_pair(
+                &function.unit_parameter_homes,
+                &function_unit_calls,
+                function.unit_affine_cleanup.as_ref(),
+            );
         if function.byte_count == 0
             || function.text_offset != expected_text_offset
             || previous_function.is_some_and(|previous| previous >= function.machine)
@@ -1358,6 +1370,7 @@ fn validate_record_shape(
                 .filter(|home| {
                     home.multiplicity == StructuralMultiplicity::Affine
                         && !transferred_roots.contains(&home.place)
+                        && !fully_consumed_affine_pair
                 })
                 .map(|home| home.place)
                 .collect::<Vec<_>>();
@@ -1976,6 +1989,18 @@ fn validate_record_shape(
             .as_ref()
             .or(function.unit_affine_cleanup.as_ref())
             .or(control_cleanup);
+        let function_unit_calls = record
+            .internal_unit_calls
+            .iter()
+            .filter(|call| call.machine == installed.machine)
+            .map(|call| call.custody.clone())
+            .collect::<Vec<_>>();
+        let fully_consumed_affine_pair =
+            crate::fully_consumed_affine_pair::exact_fully_consumed_affine_pair(
+                &function.unit_parameter_homes,
+                &function_unit_calls,
+                function.unit_affine_cleanup.as_ref(),
+            );
         let owner_valid = match custody.owner {
             TerminalCallSiteOwner::Operation(operation) => {
                 record.fuel_attribution.iter().any(|attribution| {
@@ -2115,9 +2140,10 @@ fn validate_record_shape(
                     return true;
                 };
                 argument.path.is_empty()
-                    || affine_cleanup.is_none_or(|cleanup| {
-                        !cleanup.actions.iter().any(|action| {
-                            matches!(action,
+                    || (!fully_consumed_affine_pair
+                        && affine_cleanup.is_none_or(|cleanup| {
+                            !cleanup.actions.iter().any(|action| {
+                                matches!(action,
                                 psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)
                                     if residual.place == argument.place
                                         && !residual.path.is_empty()
@@ -2125,8 +2151,8 @@ fn validate_record_shape(
                                         && !argument.path.starts_with(&residual.path)
                                         && residual.structural_type
                                             != argument.root_structural_type)
-                        })
-                    })
+                            })
+                        }))
             })
             || custody.claim_transfers.iter().any(|transfer| {
                 usize::try_from(transfer.argument_index)
