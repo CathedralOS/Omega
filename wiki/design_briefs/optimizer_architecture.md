@@ -1154,29 +1154,41 @@ represents the many-to-one moves.
 
 ### Local and dominator common-subexpression elimination
 
-The exact `GlobalValueNumbering` suite expands first to
-`same-block-obligation-free-total-scalar-cse.v1` and then to
-`dominator-obligation-free-total-scalar-gvn.v1`. The local rule scans each block in node
-order and replaces every later equivalent result with the earliest leader.
-The closed vocabulary is the complete obligation-free total scalar set:
-literals, Boolean operations, integer comparisons/bitwise/widening, wrapping
-shifts, and wrapping or saturating add/subtract/multiply. Exact and other
-proof-bearing operations, divide/remainder, calls, structural work,
-boundary/service work, and control operations are excluded.
+The exact `GlobalValueNumbering` suite expands in canonical order to
+`same-block-obligation-free-total-scalar-cse.v1`,
+`same-block-proof-certified-total-scalar-cse.v1`,
+`dominator-obligation-free-total-scalar-gvn.v1`, and
+`dominator-proof-certified-total-scalar-gvn.v1`. Each local rule scans a block
+in node order and replaces a later equivalent result with the earliest admitted
+leader. The obligation-free vocabulary contains literals, Boolean operations,
+integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
+saturating add/subtract/multiply. The proof-certified vocabulary contains exact
+integer casts, shifts, add/subtract/multiply/divide/remainder, and wrapping or
+saturating divide/remainder. Calls, structural work, boundary/service work, and
+control operations remain excluded.
 
 An expression key binds the exact operation family and policy, all literal
 payload, complete source/result/count integer domains, and operand identities.
 Only operations whose exact semantics are commutative canonicalize their two
-operands: Boolean and integer equality, bitwise and/or/xor, and wrapping or
-saturating add/multiply. Ordered comparisons, shifts, widening, and subtraction
-retain operand order. The local rule requires use-definition and effect
-summaries. The cross-block rule additionally requires the CFG and dominators,
-selects the earliest outer expression in a strictly dominating block, and
-proves the selected result dominates every rewritten use. It never substitutes
-canonical BlockId roster order for execution dominance. The validators
-independently reconstruct the key, reachable CFG/dominator sets, exact typed definitions,
-the redundant result's uses, absence of obligation references, and the one
-redundant-to-leader substitution.
+operands: Boolean and integer equality, bitwise and/or/xor, wrapping or
+saturating add/multiply, and proof-certified exact add/multiply. Ordered
+comparisons, casts, shifts, widening, subtraction, division, and remainder
+retain operand order. Each proof-bearing leader and redundant operation must
+independently match an active operation-obligation reference and verifier-owned
+accepted fact. The candidate names only the redundant fact as consumed
+transformation authority; the leader fact remains active and the whole accepted
+catalog remains immutable historical custody. Missing evidence makes an
+expression ineligible. A proposed candidate with a foreign redundant fact or a
+leader whose fact is absent fails independent replay.
+
+The local rules require use-definition and effect summaries. The cross-block
+rules additionally require the CFG and dominators, select the earliest admitted
+outer expression in a strictly dominating block, and prove the selected result
+dominates every rewritten use. They never substitute canonical BlockId roster
+order for execution dominance. The validators independently reconstruct the
+closed key vocabulary, proof facts, reachable CFG/dominator sets, exact typed
+definitions, the redundant result's uses, and the one redundant-to-leader
+substitution.
 
 The redundant node's provenance and fuel move forward to the next co-executed
 node, never backward to the leader. Rebuilding rewrites scalar operands,
@@ -1186,15 +1198,18 @@ by edge identity. Definitions, uses, dense effects, fact/place indexes, unit
 identity, and affected-region custody are reconstructed independently. A
 parameter-fed wrapping-add fixture admits swapped commutative operands, removes
 one add, rewrites its integer comparison consumer, and reaches a ledger fixed
-point. A separately verified Terminal artifact proves return-use substitution
-and optimized-plan projection when the dominating leader appears later in the
-serialized block roster. A diamond fixture rejects sibling-only equivalence and
-reaches a two-rewrite cascading fixed point at its join. Candidate v19,
-optimization-unit content identity v10, the named v2 pass, prephysical manifest
-v13, and optimized-plan projection validation v14 bind this meaning; ledger v4
-already represents the relocation and substitution. Phi translation, partial
-redundancy elimination, and cyclic-CFG GVN remain separate future rules;
-current admitted optimization units reject control cycles.
+point. Exact-add fixtures prove the same behavior locally and across a
+non-topological dominator boundary while retaining both accepted facts and
+manifesting only the redundant fact as consumed. A separately verified
+Terminal artifact proves return-use substitution and optimized-plan projection
+when the dominating leader appears later in the serialized block roster. A
+diamond fixture rejects sibling-only equivalence and reaches a two-rewrite
+cascading fixed point at its join. Candidate v19, optimization-unit content
+identity v10, the named v3 pass, prephysical manifest v13, and optimized-plan
+projection validation v14 bind this meaning; ledger v4 already represents the
+relocation and substitution. Phi translation, partial redundancy elimination,
+and cyclic-CFG GVN remain separate future rules; current admitted optimization
+units reject control cycles.
 
 ### Proof-certified dead scalar work
 

@@ -728,6 +728,86 @@ mod tests {
         verified(module, ProofBundle::default())
     }
 
+    fn proof_certified_local_cse_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_381).unwrap();
+        let block = BlockId::new(1_382).unwrap();
+        let left = ValueId::new(1_383).unwrap();
+        let right = ValueId::new(1_384).unwrap();
+        let leader = ValueId::new(1_385).unwrap();
+        let redundant = ValueId::new(1_386).unwrap();
+        let result = ValueId::new(1_387).unwrap();
+        let leader_operation = OperationId::new(1_388).unwrap();
+        let redundant_operation = OperationId::new(1_389).unwrap();
+        let leader_obligation = ObligationId::new(1_390).unwrap();
+        let redundant_obligation = ObligationId::new(1_391).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_393).unwrap(),
+                        result: OperationResult::Scalar(declaration(left)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(7),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_394).unwrap(),
+                        result: OperationResult::Scalar(declaration(right)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(8),
+                        },
+                    },
+                    Operation {
+                        id: leader_operation,
+                        result: OperationResult::Scalar(declaration(leader)),
+                        kind: OperationKind::ExactIntegerAdd {
+                            left,
+                            right,
+                            obligation: leader_obligation,
+                        },
+                    },
+                    Operation {
+                        id: redundant_operation,
+                        result: OperationResult::Scalar(declaration(redundant)),
+                        kind: OperationKind::ExactIntegerAdd {
+                            left: right,
+                            right: left,
+                            obligation: redundant_obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    edge: EdgeId::new(1_392).unwrap(),
+                    value: redundant,
+                    cleanup_actions: Vec::new(),
+                },
+            }],
+        );
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![
+                    ObligationEvidence {
+                        obligation: leader_obligation,
+                        route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                    },
+                    ObligationEvidence {
+                        obligation: redundant_obligation,
+                        route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                    },
+                ],
+            },
+        )
+    }
+
     fn dominator_gvn_verified() -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_361).unwrap();
         let child = BlockId::new(1_362).unwrap();
@@ -1429,9 +1509,9 @@ mod tests {
         let optimized =
             project_optimization_run(run(shared_terminal_jump_verified(), selections)).unwrap();
 
-        assert_eq!(optimized.commits().len(), 1);
-        assert_eq!(optimized.plan().functions[0].block_entries.len(), 4);
-        assert_eq!(optimized.unit().functions[0].blocks.len(), 4);
+        assert_eq!(optimized.commits().len(), 2);
+        assert_eq!(optimized.plan().functions[0].block_entries.len(), 3);
+        assert_eq!(optimized.unit().functions[0].blocks.len(), 3);
         let terminal_source =
             omega_optimization_unit::PsiProvenance::Edge(EdgeId::new(1_075).unwrap());
         let terminal_nodes = optimized.unit().functions[0]
@@ -1534,6 +1614,54 @@ mod tests {
                 .len(),
             2
         );
+    }
+
+    #[test]
+    fn global_value_numbering_projects_proof_certified_cse_with_exact_fact_custody() {
+        let selections = OptimizationSelections::new([Optimization::GlobalValueNumbering]).unwrap();
+        let optimized =
+            project_optimization_run(run(proof_certified_local_cse_verified(), selections))
+                .unwrap();
+        let leader = ValueId::new(1_385).unwrap();
+        let redundant_operation = OperationId::new(1_389).unwrap();
+        let redundant_fact = optimized
+            .unit()
+            .accepted_obligation_facts
+            .iter()
+            .find(|fact| fact.operation == redundant_operation)
+            .unwrap()
+            .identity;
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.plan().functions[0].operations.len(), 4);
+        assert!(
+            matches!(optimized.plan().functions[0].operations[2], TerminalAbstractOperation::ExactIntegerAdd { result, .. } if result == leader)
+        );
+        assert!(
+            matches!(optimized.plan().functions[0].operations[3], TerminalAbstractOperation::Return { value, .. } if value == leader)
+        );
+        assert_eq!(
+            optimized.unit().functions[0]
+                .facts
+                .iter()
+                .filter(|fact| matches!(
+                    fact,
+                    omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+                ))
+                .count(),
+            1
+        );
+        assert_eq!(optimized.unit().accepted_obligation_facts.len(), 2);
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0].consumed_facts(),
+            &[
+                omega_optimization_core::OptimizationFactReference::AcceptedObligation(
+                    redundant_fact
+                )
+            ]
+        );
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
     }
 
     #[test]
