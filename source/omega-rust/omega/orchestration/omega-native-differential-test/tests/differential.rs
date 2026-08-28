@@ -3031,7 +3031,7 @@ enum PendingInterpOutcome {
 /// covers compile accepts-vs-rejects; THIS covers the runtime legs, so a fix
 /// landing on either side (a const-fold repair, a design call implemented)
 /// fails loudly with a promote signal instead of waiting for a manual
-/// omega-run sweep. Entries mirror tests/canaries/pending/*/ headers -- update BOTH
+/// `omega run` sweep. Entries mirror tests/canaries/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:

@@ -17,6 +17,7 @@ omega-package-compilation = { path = "orchestration/omega-package-compilation" }
 omega-target = { path = "foundation/omega-target" }
 psi-checked-trees-to-terminal = { path = "../psi/pipeline/psi-checked-trees-to-terminal" }
 psi-core = { path = "../psi/foundation/psi-core" }
+psi-checked-interpreter = { path = "../psi/semantics/psi-checked-interpreter" }
 psi-proof-admission = { path = "../psi/semantics/psi-proof-admission" }
 psi-terminal = { path = "../psi/representations/psi-terminal" }
 psi-terminal-fixed-fuel = { path = "../psi/semantics/psi-terminal-fixed-fuel" }

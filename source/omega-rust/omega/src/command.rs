@@ -1,3 +1,5 @@
+mod probe;
+
 use std::fmt::Write;
 use std::path::PathBuf;
 
@@ -33,6 +35,9 @@ pub(crate) fn run() {
             .unwrap_or_else(|| PathBuf::from("samples"));
         refresh_samples(&samples_root);
     }
+    if first_argument.as_deref().is_some_and(|first| first == "run") {
+        probe::run(raw_arguments);
+    }
     if first_argument
         .as_deref()
         .is_some_and(|first| first == "inspect-terminal")
@@ -59,7 +64,7 @@ pub(crate) fn run() {
 
     let Some(arguments) = parse_arguments() else {
         eprintln!(
-            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
+            "usage: omega [--check] [--output-only] [--build-dir <dir>] [--target <name>] <root.omg>\n       omega run [--both] [--keep] [--target <name>] <root.omg>\n       omega inspect-terminal --machine <qualified> [--target <name>] <root.omg>\n       omega audit source --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>]\n       omega audit source-cache-policy --kind <local|git> <locator> [--rev <rev>] [--cache-dir <dir>] [--out <record.json>]\n       omega refresh-samples [samples-dir]"
         );
         std::process::exit(2);
     };

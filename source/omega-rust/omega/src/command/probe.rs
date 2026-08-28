@@ -4,9 +4,9 @@
 //! (scratchpad probe -> native exit vs interp exit) without needing a
 //! throwaway Rust test each time.
 //!
-//!   cargo run -q -p omega-compiler --bin omega-run -- path/to/main.omg
-//!   cargo run -q -p omega-compiler --bin omega-run -- --both path/to/main.omg
-//!   cargo run -q -p omega-compiler --bin omega-run -- --keep path/to/main.omg
+//!   omega run path/to/main.omg
+//!   omega run --both path/to/main.omg
+//!   omega run --keep path/to/main.omg
 //!
 //! Ordinary probes emit only the executable because their temporary build
 //! directory is deleted immediately. `--keep` retains the full compiler report
@@ -20,8 +20,10 @@ use omega_compiler::{
 };
 use std::process::Command;
 
-fn main() {
-    let mut args = std::env::args().skip(1).collect::<Vec<_>>();
+pub(super) fn run(arguments: impl Iterator<Item = std::ffi::OsString>) -> ! {
+    let mut args = arguments
+        .map(|argument| argument.to_string_lossy().into_owned())
+        .collect::<Vec<_>>();
     let both = args.iter().any(|a| a == "--both");
     let keep = args.iter().any(|a| a == "--keep");
     args.retain(|a| a != "--both" && a != "--keep");
@@ -30,19 +32,19 @@ fn main() {
     // M2/platform-session check loop.
     let target_name = args.iter().position(|a| a == "--target").map(|index| {
         let name = args.get(index + 1).cloned().unwrap_or_else(|| {
-            eprintln!("usage: omega-run --target <name> <main.omg>");
+            eprintln!("usage: omega run --target <name> <main.omg>");
             std::process::exit(2);
         });
         args.drain(index..=index + 1);
         name
     });
     let Some(main_path) = args.first() else {
-        eprintln!("usage: omega-run [--both] [--target <name>] <main.omg>");
+        eprintln!("usage: omega run [--both] [--keep] [--target <name>] <main.omg>");
         std::process::exit(2);
     };
     let main_path = std::path::PathBuf::from(main_path);
 
-    let build_dir = std::env::temp_dir().join(format!("omega-run-{}", std::process::id()));
+    let build_dir = std::env::temp_dir().join(format!("omega-probe-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
     let artifact_policy = probe_artifact_policy(keep);
@@ -73,7 +75,7 @@ fn main() {
         if !keep {
             let _ = std::fs::remove_dir_all(&build_dir);
         }
-        return;
+        std::process::exit(0);
     }
 
     let exe = report.checked_native_executable_path().unwrap_or_else(|| {

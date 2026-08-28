@@ -3903,11 +3903,11 @@ struct PendingCanary {
 // unprovable overflow, now rejected.
 // Repopulated 2026-07-10 (the list had drifted EMPTY while 13 pending
 // canaries sat on disk unwatched -- every drift recheck was a manual
-// omega-run sweep). Expectations mirror each canary's header; a flip here
+// `omega run` sweep). Expectations mirror each canary's header; a flip here
 // means a parked repro graduated (promote it) or regressed differently
 // (rediagnose it). The compile-only check cannot adjudicate the RUNTIME
 // divergences (those stay documented in the headers and the periodic
-// omega-run --both sweep), but it pins accepts-vs-rejects drift for free.
+// `omega run --both` sweep), but it pins accepts-vs-rejects drift for free.
 const ACTIVE_PENDING_CANARIES: &[PendingCanary] = &[
     // float_to_int_overflow_divergence RETIRED 2026-07-16 by the F4 Exact
     // cast obligation: a BARE out-of-range float->int cast is now a compile
