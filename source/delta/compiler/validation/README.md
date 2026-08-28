@@ -27,6 +27,11 @@ rung or a generic assurance layer.
   six retained files. `verify-installed-artifact-v1.sh` rechecks both that
   inventory and the full reconstruction route; `installation.json` is only a
   content inventory and grants no authority of its own.
+- `reconstruct-and-verify-installed-artifact-v1.py` rebuilds the disposable
+  lower-rooted tapes, short elaboration, packed Gamma, decoded assembly, and
+  ordinal observations from those six retained files plus the exact current
+  repository, then calls the installed-artifact verifier. It does not rerun the
+  long Gamma evaluator or recreate historical evidence that two processes ran.
 - The colocated `*-test.sh` entrypoints exercise each boundary directly.
 
 These tools may coordinate or reconstruct evidence, but they do not parse or

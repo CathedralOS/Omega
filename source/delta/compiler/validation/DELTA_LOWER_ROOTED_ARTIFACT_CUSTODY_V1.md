@@ -205,6 +205,30 @@ directory and publishes nothing. A successful directory contains exactly
 `realization-observation.json`; tool discovery and later custody receipt
 generation remain explicit caller responsibilities.
 
+After installation, the disposable evidence can be rebuilt and checked with:
+
+```text
+reconstruct-and-verify-installed-artifact-v1.py INSTALLATION CLANG LINKER \
+  SDK_SETTINGS LIBSYSTEM_STUB COMPILER_RUNTIME
+```
+
+The command takes only absolute paths. In a private temporary directory it
+rebuilds the three lower-rooted tapes, performs the short translator
+elaboration, packs the closed Gamma program, decodes the retained canonical raw
+execution once, and regenerates both ordinal observations using the elapsed
+diagnostics retained in the assembly receipt. Because publication required the
+two raw observations and decoded assemblies to agree byte for byte, the one
+retained raw execution and one decoded assembly supply both ordinal joins. The
+existing installed-artifact verifier remains the authority and replays native
+realization with the five supplied tool paths; all reconstructed evidence is
+removed afterward.
+
+This establishes current repository/toolchain reconstruction and receipt
+consistency. It does not recreate durable historical proof that two independent
+Gamma processes ran: process markers and attempt-local temporal custody are not
+part of the six-file installation. A stronger historical-execution claim would
+require retaining or separately binding that evidence.
+
 `ASSEMBLY_JOIN_ARGUMENTS` are the same explicit manifest, location sidecar,
 tool tapes, template, closed Gamma program, observations, raw outputs,
 assemblies, diagnostics, and role roots consumed by

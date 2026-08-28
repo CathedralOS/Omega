@@ -188,6 +188,13 @@ and validates the bounded Darwin ARM64 target dialect.
   binds stable assembly/toolchain snapshots, exact command order, empty process
   streams, and the existing observation verifier before exclusively publishing
   its four-file staging result; no hand-assembled clang invocation is required.
+  From the installed six-file result, one explicit command now reconstitutes
+  every disposable verification input from the exact current repository and
+  five caller-supplied tool paths, then runs the existing installed-artifact
+  verifier. It decodes the retained execution once and does not rerun Gamma.
+  This proves current reconstruction and receipt consistency; because process
+  markers are not installed, it does not recreate historical proof that two
+  independent evaluator processes ran.
 - [x] Realization replay, strict target validation, source closure custody, and
   reconstruction-bearing receipt machinery are implemented under
   `source/delta/compiler/validation/`.
