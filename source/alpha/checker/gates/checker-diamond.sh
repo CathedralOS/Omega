@@ -12,7 +12,7 @@
 # not itself prove either checker sound.
 #
 # A THIRD oracle joins below: implementations/gamma/checker_typed.gamma — the fully type-annotated checker
-# that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped
+# that typeck.beta accepts — mechanically type-erased by the checker-owned tool to the untyped
 # surface interp runs. It must agree with implementations/gamma/checker.gamma on ALL 83 cases (user-function
 # proofs are rewritten from the wrapper rule form to the typed flat form by
 # tools/frule_to_flat.py). This makes "the checker is statically type-safe" and "the checker is
@@ -56,7 +56,7 @@ DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
 # helper where the two representations actually diverge. No case is skipped.
 TPASS=0; TFAIL=0; HAVE_TYPED=0
 if command -v python3 >/dev/null 2>&1; then
-  if python3 "${OMEGA_PATH_GAMMA}"/erase_types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
+  if python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/erase-gamma-types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
     TDEFS=$(cat "$T/erased.gamma"); HAVE_TYPED=1
   fi
 fi
