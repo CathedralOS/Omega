@@ -1585,7 +1585,18 @@ Owners:
 - Close generic `ResidentContentTransfer<P, T>` applications at final
   composition from concrete and symbolic artifact demand, verify one selected
   provider covers the reconstructed application set, and bind exact issuance
-  occurrences at installation. Do not create a slot per monomorph.
+  occurrences at installation. Do not create a slot per monomorph. A first
+  non-authorizing foundation now retains exact package-qualified indexed
+  schemas, concrete and artifact-qualified symbolic application demands, exact
+  substitutions, and generic or exact-family coverage tied to one selected
+  provider plan. It canonically deduplicates the reconstructed concrete set,
+  rejects unresolved or unused substitutions, schema/arity/plan drift, and
+  incomplete exact coverage, and commits the selected closure, plan,
+  applications, and coverage to one content-derived identity without minting
+  per-application slots.
+  Verifier-derived concrete/symbolic demand and coverage rows, final-
+  composition wiring, and installation-bound exact issuance occurrences remain
+  engineering rungs.
 - Schema/device correspondence now has a distinct provider-issued,
   provenance-bearing authority carrier separate from storage compatibility.
   It binds one exact validated placement and resource-profile grant to a

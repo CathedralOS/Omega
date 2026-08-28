@@ -571,6 +571,18 @@ only when distinct applications genuinely require independent provider
 selection. Otherwise type indices refine one selected provider's obligation;
 they do not multiply deployment choices or require ambient conformance search.
 
+The implementation foundation now models that closure without granting
+authority. Exact package-qualified schema identity and arity, concrete and
+artifact-qualified symbolic demands, exact substitutions, and a generic or
+exact-family provider coverage assertion are retained inside one selected
+provider closure and close canonically against its exact plan. Reordering or
+duplicate demand cannot change the result, while unresolved or unused
+substitutions, schema/arity/plan drift, and missing exact-family members reject.
+The result retains the selected provider closure, plan, concrete applications,
+and complete coverage assertion, but it neither derives the demand or coverage
+total from verified artifacts nor binds an issuance occurrence. Those
+derivation, composition, and installation joins remain open.
+
 Provider selection also determines executable TCB provenance. Static selection
 of an opaque in-process realization contributes a known executable entry even
 though source reach is unchanged; selecting an isolated realization contributes

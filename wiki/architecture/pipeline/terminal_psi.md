@@ -2236,6 +2236,18 @@ installation then binds the exact concrete occurrences. A separately indexed
 slot family is introduced only when distinct applications genuinely require
 independent provider selection.
 
+The representation foundation now has a non-authorizing final-composition
+calculus for this rule. It retains an exact package-qualified indexed schema
+and arity plus a generic or exact-family coverage assertion inside one already
+selected provider closure, substitutes artifact-qualified symbolic parameters,
+canonically closes concrete demand, and checks exact-family containment. Its
+closed identity retains the selected provider closure, exact plan, application
+set, and complete coverage assertion; multiple applications still name one
+slot. Terminal emission of verifier-derived concrete and symbolic demand and
+coverage rows, their composition wiring, and installation issuance binding
+remain open. Until those joins land, this structural closure grants no provider
+admission, resident custody, transfer, or installation authority.
+
 ### Crash-control slice
 
 Terminal Psi represents `Trap` and `Abort` as closed crash causes attached to
