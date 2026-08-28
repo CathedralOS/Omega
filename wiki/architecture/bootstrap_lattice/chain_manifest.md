@@ -53,8 +53,8 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 79,124-byte ROOT Alpha tape; its exact digest is
-`feb10320cf6e9caa10aadb8a89af3e6dd8da0529aeadf5b85d6c5a8c3b93a5b1`.
+reconstruction emits one 77,889-byte ROOT Alpha tape; its exact digest is
+`c3d80a1f102bff26a8ed70e5a70f89b4f327afb41296d4d1815c59aa16849865`.
 This is strong executable evidence, but it is not yet a derivation in the
 rooted checker calculus. Complete source/artifact admission remains open.
 

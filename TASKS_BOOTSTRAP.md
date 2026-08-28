@@ -101,19 +101,23 @@ do not become additional lattice steps.
   `admission/witnesses/`, and optional generated refinement in `stress/`.
 - [ ] Collapse the remaining Beta validator obligation explosion into one
   canonical data format and small responsibility-specific modules. The current
-  188 fragments total 64,455 lines after replacing nine private instruction
+  188 fragments total 64,329 lines after replacing nine private instruction
   scans with shared exact effect-census logic and merging the duplicate
-  selected-row decoders into the canonical exact-table helper. Continue replacing
-  shape/control/data/publication permutations with data decoded by common
-  checks; do not recreate cached viewers or debug-only publication paths. In
-  particular, reconstruct one canonical exact instruction table that gives
-  stable procedure/block/event identities to artifact PCs, and own compiler
-  macro shapes such as push, pop, prologue, and epilogue once. Semantic modules
-  must consume those decoded identities and shape facts rather than embedding
-  copied byte offsets or instruction sequences. Acceptance includes changing
-  one shared compiler macro without mechanically editing unrelated semantic
-  fragments; the artifact-aware decoder and the one relevant shape owner should
-  expose the change to all consumers.
+  selected-row decoders into the canonical exact-table helper. Push, pop,
+  saved-frame prologue, optional frame allocation, parameter store, and
+  epilogue bytes now have one responsibility-neutral exact decoder consumed by
+  frame, effect, memory, expression, and stack-table checks; this reduced the
+  ROOT tape from 79,124 to 77,889 bytes without changing either admitted
+  subject. Continue replacing shape/control/data/publication permutations with
+  data decoded by common checks; do not recreate cached viewers or debug-only
+  publication paths. In particular, reconstruct one canonical exact
+  instruction table that gives stable procedure/block/event identities to
+  artifact PCs. Semantic modules must consume those decoded identities and
+  shape facts rather than embedding copied byte offsets or instruction
+  sequences. Acceptance includes changing one shared compiler macro without
+  mechanically editing unrelated semantic fragments; the artifact-aware
+  decoder and the one relevant shape owner should expose the change to all
+  consumers.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
@@ -148,7 +152,12 @@ and are not blocked on this ruling.
   substitute for those canonical observations. Add another host only when a
   separately declared publication profile requires it.
 - [ ] Bind source identity, target identity, emitted artifact identity, and the
-  exact reconstruction custody needed by the eventual refinement edge.
+  exact reconstruction custody needed by the eventual refinement edge. The
+  existing Darwin ARM64 artifact-custody verifier now requires the exact Mach-O
+  header policy, a closed load-command vocabulary, bounded dyld/symbol/link-edit
+  ranges, ordered nonoverlapping segments, terminal `__LINKEDIT`, and the exact
+  dynamic dependency closure. It still has no canonical-execution artifact to
+  bind and deliberately grants no source-refinement authority.
 - [x] Once no exact publication attempt is live, move Delta compiler admission
   documentation, receipts, drivers, and tests from the flat `source/delta/`
   root into `source/delta/compiler/validation/`. Keep the semantic elaboration
@@ -198,12 +207,13 @@ and are not blocked on this ruling.
   `bc.tape` from 52,141 to 40,503 bytes, shrank the Gamma interpreter tape from
   94,903 to 69,833 bytes, passed the Beta corpus and focused structural gates,
   and improved the representative million-call loop by 10.4--10.6%. It was not
-  adopted because the semantic admission bundle still duplicates old macro
-  shapes and byte PCs throughout its 188 fragments; its first failure was the
-  `emit_dec Word` canonical smoke. Land the canonical decoded-PC/shape refactor
-  above, then reapply and admit this compiler change without a mechanical
-  obligation rewrite before attempting another dispatch mechanism or
-  speculative Gamma rewrite.
+  adopted because the semantic admission bundle duplicated old macro shapes
+  and byte PCs throughout its 188 fragments; its first failure was the
+  `emit_dec Word` canonical smoke. Shared macro-shape decoding has now landed,
+  but semantic modules still pin absolute procedure/event PCs. Finish the
+  canonical decoded identity-to-PC refactor above, then reapply and admit this
+  compiler change without a mechanical obligation rewrite before attempting
+  another dispatch mechanism or speculative Gamma rewrite.
   Reduce the cost without changing Alpha or Gamma meaning, hiding a compiler
   stage, or weakening the
   exact evidence join. The 12-hour safety ceiling is not an acceptable normal
