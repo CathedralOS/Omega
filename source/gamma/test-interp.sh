@@ -55,6 +55,10 @@ ev '(def add (a b) (+ a b)) (add 10 20)' 30
 # still observe the current invocation's values rather than cached values.
 ev '(def choose (x) (let y (+ x 1) (match (Pair y x) ((Pair a b) (+ a b))))) (+ (choose 10) (choose 0))' 22
 ev '(def shadow (x) (let y x (let x (+ y 1) (+ x y)))) (+ (shadow 10) (shadow 1))' 24
+# A cached outer-frame variable read after a nested non-tail call must use the
+# restored caller frame on every invocation, not the child frame or a value
+# retained from the first invocation.
+ev '(def child (x) (+ x 10)) (def outer (x) (+ (child (+ x 1)) x)) (+ (outer 3) (outer 7))' 42
 ev '(def fac (n) (if (eq n 0) 1 (* n (fac (- n 1))))) (fac 5)' 120
 ev '(def fib (n) (if (lt n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)' 55
 ev '(def gcd (a b) (if (eq b 0) a (gcd b (% a b)))) (gcd 48 36)' 12
@@ -62,6 +66,10 @@ ev '(def sumto (n) (if (eq n 0) 0 (+ n (sumto (- n 1))))) (sumto 10)' 55
 # Proper tail calls are required by generated state machines; this depth used to
 # exhaust the Beta/Alpha return stack even though Gamma fuel remained available.
 ev '(def loop (n) (if (eq n 0) 42 (loop (- n 1)))) (loop 10000)' 42
+# Mutual tail transfers deliberately alternate frame arity. Cached variables in
+# both bodies must follow the current transfer's frame while the trampoline
+# continues to reuse its caller-owned frame base.
+ev '(def narrow (n acc) (if (eq n 0) acc (wide (- n 1) (+ acc 1) 99))) (def wide (n acc unused) (if (eq n 0) acc (narrow (- n 1) (+ acc 1)))) (narrow 200 0)' 200
 # stage 2 — algebraic data types + pattern matching
 ev '(def toint (n) (match n (Z 0) ((S m) (+ 1 (toint m))))) (toint (S (S (S Z))))' 3
 ev '(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (len t))))) (len (Cons 7 (Cons 8 (Cons 9 Nil))))' 3
