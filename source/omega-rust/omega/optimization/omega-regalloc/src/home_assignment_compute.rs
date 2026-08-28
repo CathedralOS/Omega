@@ -897,6 +897,74 @@ mod tests {
     }
 
     #[test]
+    fn early_def_in_transitive_tied_component_shares_home_and_avoids_unrelated_use() {
+        let physical = physical();
+        let mut legality = legality(&[(0, 0), (1, 4), (5, 5), (4, 4)]);
+        legality.virtual_registers[2].early_clobber_points =
+            vec![TerminalVirtualEarlyClobberPointLegality {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(2),
+                instruction: TerminalSelectedInstructionId(2),
+                operand: 2,
+                point: TerminalLiveRangePoint(4),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }];
+        let mut ranges = tied_component_ranges(&[(1, 3)]);
+        ranges.tied_pairs[1].def_operand = 2;
+        ranges.virtual_registers.push(TerminalVirtualLiveRange {
+            virtual_register: TerminalVirtualRegisterId(3),
+            class: RegisterClassId(0),
+            occurrences: Vec::new(),
+            fixed_constraints: Vec::new(),
+            fragments: Vec::new(),
+            edge_connectors: Vec::new(),
+        });
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(2),
+            instruction: TerminalSelectedInstructionId(2),
+            early_point: TerminalLiveRangePoint(4),
+            def_operand: 2,
+            def_virtual_register: TerminalVirtualRegisterId(2),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(5),
+            uses: vec![TerminalEarlyClobberUse {
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(3),
+                class: RegisterClassId(0),
+            }],
+        });
+
+        let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+        assert_eq!(homes.assignments[0].view, homes.assignments[1].view);
+        assert_eq!(homes.assignments[1].view, homes.assignments[2].view);
+        assert_ne!(homes.assignments[2].view, homes.assignments[3].view);
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
+                .unwrap(),
+            homes
+        );
+
+        for register in &mut legality.virtual_registers {
+            for point in &mut register.points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+            for point in &mut register.early_clobber_points {
+                point.candidates = vec![RegisterViewId(0)];
+            }
+        }
+        let expected = Err(TerminalRegisterHomeError::NoCompatibleHome {
+            function: 0,
+            register: 3,
+        });
+        assert_eq!(compute_function(0, &legality, &ranges, &physical), expected);
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical),
+            expected
+        );
+    }
+
+    #[test]
     fn tied_component_coexists_with_multiple_early_clobber_rows() {
         let physical = physical();
         let mut legality = legality(&[(0, 1), (2, 3), (4, 5), (6, 8), (9, 10), (11, 12)]);

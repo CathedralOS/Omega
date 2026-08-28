@@ -12,7 +12,7 @@ use crate::{
     validate_terminal_liveness,
 };
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
-use omega_terminal_selected_instructions::TerminalSelectedBlockId;
+use omega_terminal_selected_instructions::{TerminalSelectedBlockId, TerminalVirtualRegisterId};
 
 pub fn validate_terminal_live_ranges(
     selected: &impl crate::ValidatedTerminalSelectedAnalysis,
@@ -497,25 +497,37 @@ fn independently_derive_early_clobbers(
                         && tied_source.is_none_or(|source| source.operand != operand.operand)
                 })
                 .collect::<Vec<_>>();
-            let tie_isolated = match tied_source {
+            let tied_components = independently_merge_tied_components(&tied_edges);
+            // Independently replay the one-early-definition-per-component rule.
+            let tie_component_has_one_early_definition = match tied_source {
                 None => tied_edges.iter().all(|(left, right)| {
                     *left != definition.virtual_register && *right != definition.virtual_register
                 }),
                 Some(source) => {
-                    let incident = tied_edges
-                        .iter()
-                        .filter(|(left, right)| {
-                            *left == source.virtual_register
-                                || *right == source.virtual_register
-                                || *left == definition.virtual_register
-                                || *right == definition.virtual_register
-                        })
-                        .collect::<Vec<_>>();
-                    incident.len() == 1
-                        && *incident[0] == (source.virtual_register, definition.virtual_register)
+                    let Some(component) = tied_components.iter().find(|component| {
+                        component.contains(&source.virtual_register)
+                            && component.contains(&definition.virtual_register)
+                    }) else {
+                        return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                            function,
+                            instruction: definition.instruction.0,
+                            operand: definition.operand,
+                        });
+                    };
+                    tied_edges.contains(&(source.virtual_register, definition.virtual_register))
+                        && live
+                            .operand_positions
+                            .iter()
+                            .filter(|candidate| {
+                                candidate.early_clobber
+                                    && candidate.tied_to.is_some()
+                                    && component.contains(&candidate.virtual_register)
+                            })
+                            .count()
+                            == 1
                 }
             };
-            if !tie_isolated
+            if !tie_component_has_one_early_definition
                 || tied_source.is_some() && unrelated.is_empty()
                 || unrelated.iter().any(|operand| {
                     tied_edges.iter().any(|(left, right)| {
@@ -576,6 +588,26 @@ fn independently_derive_early_clobbers(
         });
     }
     Ok(rows)
+}
+
+fn independently_merge_tied_components(
+    edges: &[(TerminalVirtualRegisterId, TerminalVirtualRegisterId)],
+) -> Vec<BTreeSet<TerminalVirtualRegisterId>> {
+    let mut components = Vec::<BTreeSet<_>>::new();
+    for &(left, right) in edges {
+        let mut joined = BTreeSet::from([left, right]);
+        let mut retained = Vec::new();
+        for component in components {
+            if component.contains(&left) || component.contains(&right) {
+                joined.extend(component);
+            } else {
+                retained.push(component);
+            }
+        }
+        retained.push(joined);
+        components = retained;
+    }
+    components
 }
 
 fn independently_derive_ties(
@@ -1108,6 +1140,47 @@ mod tests {
             .tied_to = Some(0);
         assert!(matches!(
             independently_derive_early_clobbers(0, &tied_unrelated),
+            Err(TerminalLiveRangeError::UnsupportedEarlyClobber { .. })
+        ));
+    }
+
+    #[test]
+    fn component_tied_early_clobber_replay_matches_and_rejects_a_second_early_member() {
+        let selected = crate::compute::tests::supported_component_tied_early_clobber_function();
+        let live = crate::compute::compute_function(0, &selected).unwrap();
+        assert_eq!(
+            independently_derive_early_clobbers(0, &live).unwrap(),
+            crate::live_range_compute::derive_early_clobbers(0, &live).unwrap()
+        );
+        assert_eq!(
+            super::independently_derive_ties(0, &live).unwrap(),
+            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+        );
+
+        let mut two_early = live;
+        two_early
+            .operand_positions
+            .iter_mut()
+            .find(|operand| operand.virtual_register == TerminalVirtualRegisterId(1))
+            .unwrap()
+            .early_clobber = true;
+        two_early.operand_positions.push(TerminalOperandPosition {
+            position: TerminalLivenessPosition(0),
+            instruction: omega_terminal_selected_instructions::TerminalSelectedInstructionId(0),
+            operand: 2,
+            virtual_register: TerminalVirtualRegisterId(4),
+            access: RegisterOperandAccess::Use,
+            class: RegisterClassId(0),
+            fixed_view: None,
+            tied_to: None,
+            early_clobber: false,
+        });
+        assert!(matches!(
+            independently_derive_early_clobbers(0, &two_early),
+            Err(TerminalLiveRangeError::UnsupportedEarlyClobber { .. })
+        ));
+        assert!(matches!(
+            crate::live_range_compute::derive_early_clobbers(0, &two_early),
             Err(TerminalLiveRangeError::UnsupportedEarlyClobber { .. })
         ));
     }

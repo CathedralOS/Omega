@@ -585,7 +585,7 @@ mod tests {
     }
 
     #[test]
-    fn computes_before_phase_legality_for_isolated_tied_early_definition() {
+    fn computes_before_phase_legality_for_early_definition_in_tied_component() {
         let physical = physical();
         let target = NativeTarget {
             architecture: Architecture::X86_64,
@@ -606,31 +606,50 @@ mod tests {
         let ranges = TerminalFunctionLiveRanges {
             machine: MachineId::new(1).unwrap(),
             block_domains: Vec::new(),
-            virtual_registers: vec![range(0, 0, 1), range(1, 0, 1), range(2, 1, 2)],
-            tied_pairs: vec![TerminalDistinctUseDefTie {
-                block: TerminalSelectedBlockId(0),
-                position: TerminalLivenessPosition(0),
-                instruction: TerminalSelectedInstructionId(0),
-                use_operand: 0,
-                use_virtual_register: TerminalVirtualRegisterId(0),
-                use_point: TerminalLiveRangePoint(0),
-                def_operand: 2,
-                def_virtual_register: TerminalVirtualRegisterId(2),
-                def_point: TerminalLiveRangePoint(1),
-                class: RegisterClassId(0),
-            }],
+            virtual_registers: vec![
+                range(0, 0, 1),
+                range(1, 1, 3),
+                range(2, 2, 3),
+                range(3, 3, 4),
+            ],
+            tied_pairs: vec![
+                TerminalDistinctUseDefTie {
+                    block: TerminalSelectedBlockId(0),
+                    position: TerminalLivenessPosition(0),
+                    instruction: TerminalSelectedInstructionId(0),
+                    use_operand: 0,
+                    use_virtual_register: TerminalVirtualRegisterId(0),
+                    use_point: TerminalLiveRangePoint(0),
+                    def_operand: 1,
+                    def_virtual_register: TerminalVirtualRegisterId(1),
+                    def_point: TerminalLiveRangePoint(1),
+                    class: RegisterClassId(0),
+                },
+                TerminalDistinctUseDefTie {
+                    block: TerminalSelectedBlockId(0),
+                    position: TerminalLivenessPosition(1),
+                    instruction: TerminalSelectedInstructionId(1),
+                    use_operand: 0,
+                    use_virtual_register: TerminalVirtualRegisterId(1),
+                    use_point: TerminalLiveRangePoint(2),
+                    def_operand: 2,
+                    def_virtual_register: TerminalVirtualRegisterId(3),
+                    def_point: TerminalLiveRangePoint(3),
+                    class: RegisterClassId(0),
+                },
+            ],
             early_clobbers: vec![TerminalEarlyClobberConstraint {
                 block: TerminalSelectedBlockId(0),
-                position: TerminalLivenessPosition(0),
-                instruction: TerminalSelectedInstructionId(0),
-                early_point: TerminalLiveRangePoint(0),
+                position: TerminalLivenessPosition(1),
+                instruction: TerminalSelectedInstructionId(1),
+                early_point: TerminalLiveRangePoint(2),
                 def_operand: 2,
-                def_virtual_register: TerminalVirtualRegisterId(2),
+                def_virtual_register: TerminalVirtualRegisterId(3),
                 def_class: RegisterClassId(0),
-                def_point: TerminalLiveRangePoint(1),
+                def_point: TerminalLiveRangePoint(3),
                 uses: vec![TerminalEarlyClobberUse {
                     operand: 1,
-                    virtual_register: TerminalVirtualRegisterId(1),
+                    virtual_register: TerminalVirtualRegisterId(2),
                     class: RegisterClassId(0),
                 }],
             }],
@@ -642,15 +661,15 @@ mod tests {
         let replayed = crate::allocation_legality_validate::replay_register_for_test(
             0,
             &ranges,
-            &ranges.virtual_registers[2],
+            &ranges.virtual_registers[3],
             &availability,
             &physical,
             &reservations,
         )
         .unwrap();
-        assert_eq!(legality.virtual_registers[2], replayed);
+        assert_eq!(legality.virtual_registers[3], replayed);
         assert_eq!(
-            legality.virtual_registers[2].early_clobber_points[0].candidates,
+            legality.virtual_registers[3].early_clobber_points[0].candidates,
             vec![RegisterViewId(0), RegisterViewId(1)]
         );
     }

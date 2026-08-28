@@ -273,23 +273,25 @@ fn reject_unsupported_constraints(
             tied_edges.push((use_operand.virtual_register, definition.virtual_register));
         }
     }
-    for (instruction, def_operand, definition, tied_source, unrelated) in early_rows {
+    // SingleEarlyDefTiedComponentAgainstUntiedUsesV1 admits an ordinary tied
+    // component only when it owns exactly one early-clobber definition.
+    for (instruction, def_operand, definition, tied_source, unrelated) in &early_rows {
         let valid_tie = tied_source.is_none_or(|source| {
-            tied_edges
-                .iter()
-                .filter(|(left, right)| {
-                    *left == source
-                        || *right == source
-                        || *left == definition
-                        || *right == definition
-                })
-                .copied()
-                .eq(std::iter::once((source, definition)))
+            let component = tied_component(source, &tied_edges);
+            tied_edges.contains(&(source, *definition))
+                && component.contains(definition)
+                && early_rows
+                    .iter()
+                    .filter(|(_, _, candidate, candidate_source, _)| {
+                        candidate_source.is_some() && component.contains(candidate)
+                    })
+                    .count()
+                    == 1
         });
         let untied_definition_is_free = tied_source.is_some()
             || tied_edges
                 .iter()
-                .all(|(left, right)| *left != definition && *right != definition);
+                .all(|(left, right)| left != definition && right != definition);
         if !valid_tie
             || !untied_definition_is_free
             || unrelated.iter().any(|(register, _)| {
@@ -300,7 +302,7 @@ fn reject_unsupported_constraints(
         {
             return Err(TerminalLivenessError::UnsupportedEarlyClobber {
                 function: function_index,
-                instruction,
+                instruction: *instruction,
                 operand: unrelated
                     .iter()
                     .find(|(register, _)| {
@@ -308,11 +310,30 @@ fn reject_unsupported_constraints(
                             .iter()
                             .any(|(left, right)| left == register || right == register)
                     })
-                    .map_or(def_operand, |(_, operand)| *operand),
+                    .map_or(*def_operand, |(_, operand)| *operand),
             });
         }
     }
     Ok(())
+}
+
+fn tied_component(
+    seed: TerminalVirtualRegisterId,
+    edges: &[(TerminalVirtualRegisterId, TerminalVirtualRegisterId)],
+) -> BTreeSet<TerminalVirtualRegisterId> {
+    let mut component = BTreeSet::from([seed]);
+    loop {
+        let previous_len = component.len();
+        for (left, right) in edges {
+            if component.contains(left) || component.contains(right) {
+                component.insert(*left);
+                component.insert(*right);
+            }
+        }
+        if component.len() == previous_len {
+            return component;
+        }
+    }
 }
 
 fn reverse_block_transfer(
@@ -744,6 +765,78 @@ pub(crate) mod tests {
         function
     }
 
+    pub(crate) fn supported_component_tied_early_clobber_function() -> TerminalSelectedFunction {
+        let mut function = supported_isolated_tied_early_clobber_function();
+        let key = function.blocks[0].instructions[0].constraint;
+        let mut early = function.blocks[0].instructions.remove(0);
+        early.id = TerminalSelectedInstructionId(1);
+        early.operands[0].virtual_register = TerminalVirtualRegisterId(1);
+        early.operands[1].virtual_register = TerminalVirtualRegisterId(2);
+        early.operands[2].virtual_register = TerminalVirtualRegisterId(3);
+        function.blocks[0]
+            .instructions
+            .push(TerminalSelectedInstruction {
+                id: TerminalSelectedInstructionId(0),
+                kind: TerminalSelectedInstructionKind::CompareI64Zero,
+                constraint: key,
+                operands: vec![
+                    TerminalSelectedOperand {
+                        operand: 0,
+                        virtual_register: TerminalVirtualRegisterId(0),
+                        access: RegisterOperandAccess::Use,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: None,
+                        early_clobber: false,
+                    },
+                    TerminalSelectedOperand {
+                        operand: 1,
+                        virtual_register: TerminalVirtualRegisterId(1),
+                        access: RegisterOperandAccess::Def,
+                        class: RegisterClassId(0),
+                        fixed_view: None,
+                        tied_to: Some(0),
+                        early_clobber: false,
+                    },
+                ],
+                implicit_uses: Vec::new(),
+                implicit_defs: Vec::new(),
+                clobbers: Vec::new(),
+                provenance: TerminalSelectedInstructionProvenance::default(),
+            });
+        function.blocks[0].instructions.push(early);
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.id = TerminalSelectedInstructionId(2);
+        function
+    }
+
+    pub(crate) fn supported_multiple_component_tied_early_clobber_function()
+    -> TerminalSelectedFunction {
+        let mut function = supported_component_tied_early_clobber_function();
+        let mut ordinary = function.blocks[0].instructions[0].clone();
+        ordinary.id = TerminalSelectedInstructionId(2);
+        for operand in &mut ordinary.operands {
+            operand.virtual_register.0 += 4;
+        }
+        let mut early = function.blocks[0].instructions[1].clone();
+        early.id = TerminalSelectedInstructionId(3);
+        for operand in &mut early.operands {
+            operand.virtual_register.0 += 4;
+        }
+        function.blocks[0].instructions.extend([ordinary, early]);
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut function.blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.id = TerminalSelectedInstructionId(4);
+        function
+    }
+
     #[test]
     fn admits_only_distinct_use_to_def_ties_and_rejects_other_phase_frontiers() {
         let use_def = function_with_operand(RegisterOperandAccess::UseDef);
@@ -784,6 +877,18 @@ pub(crate) mod tests {
         let multiple_composed = supported_multiple_isolated_tied_early_clobber_function();
         assert_eq!(
             reject_unsupported_constraints(0, &multiple_composed),
+            Ok(())
+        );
+
+        let component_composed = supported_component_tied_early_clobber_function();
+        assert_eq!(
+            reject_unsupported_constraints(0, &component_composed),
+            Ok(())
+        );
+
+        let multiple_components = supported_multiple_component_tied_early_clobber_function();
+        assert_eq!(
+            reject_unsupported_constraints(0, &multiple_components),
             Ok(())
         );
 
@@ -875,6 +980,24 @@ pub(crate) mod tests {
             });
         assert!(matches!(
             reject_unsupported_constraints(0, &nonisolated),
+            Ok(())
+        ));
+
+        let mut same_component_second_early = supported_component_tied_early_clobber_function();
+        same_component_second_early.blocks[0].instructions[0].operands[1].early_clobber = true;
+        same_component_second_early.blocks[0].instructions[0]
+            .operands
+            .push(TerminalSelectedOperand {
+                operand: 2,
+                virtual_register: TerminalVirtualRegisterId(4),
+                access: RegisterOperandAccess::Use,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            });
+        assert!(matches!(
+            reject_unsupported_constraints(0, &same_component_second_early),
             Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
         ));
 
