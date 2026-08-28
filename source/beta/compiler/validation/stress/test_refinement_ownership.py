@@ -9,7 +9,8 @@ import unittest
 
 
 HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[3]
+ROOT = HERE.parents[4]
+WITNESSES = HERE.parent / 'admission/witnesses'
 REFERENCE = Path(
     os.environ.get(
         'OMEGA_PATH_BETA_REFERENCE',
@@ -44,7 +45,7 @@ class BetaRefinementOwnershipTests(unittest.TestCase):
         self.assertNotIn('bc2', sys.modules)
 
     def test_block_control_mapper_is_only_an_untrusted_witness_builder(self):
-        tree = ast.parse((HERE / 'bc_block_control_map.py').read_text())
+        tree = ast.parse((WITNESSES / 'bc_block_control_map.py').read_text())
         imported = {
             alias.name.split('.')[0]
             for node in ast.walk(tree)

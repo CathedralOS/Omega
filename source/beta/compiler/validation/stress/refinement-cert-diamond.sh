@@ -44,7 +44,7 @@ mkdir "$T/certs"
 # refl-path certs exercise every constructor family; straight-line fuzz certs go through prover.py, whose
 # certs the prover-diamond already double-checks). The gate seeds its RNG, so the cert set is stable.
 REFINE_CERT_DIR="$T/certs" REFINE_FUZZ=0 REFINE_LOOP_FUZZ=6 REFINE_COMPOSE_FUZZ=0 REFINE_NESTED_FUZZ=4 \
-  python3 "$OMEGA_PATH_BETA_VALIDATION/alpha_refinement_check.py" \
+  python3 "$OMEGA_GATE_DIR/alpha_refinement_check.py" \
     "$T/check.exe" "$BC" "$ASM" >/dev/null \
   || { echo "refinement gate failed during cert emission"; exit 1; }
 

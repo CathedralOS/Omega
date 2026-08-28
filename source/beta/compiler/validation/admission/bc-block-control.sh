@@ -3,6 +3,8 @@
 set -eu
 
 GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
+OBLIGATION_DIR="$GATE_DIR/obligations"
+WITNESS_DIR="$GATE_DIR/witnesses"
 OMEGA_REPO_ROOT=$GATE_DIR
 while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
   OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
@@ -55,7 +57,7 @@ stamp_beta_compiler "$T/bc" >/dev/null
 "$ASM" < "$T/fixed.alpha" > "$T/fixed.tape"
 cmp "$ARTIFACT" "$T/fixed.tape"
 
-python3 "$GATE_DIR/bc_block_control_map.py" \
+python3 "$WITNESS_DIR/bc_block_control_map.py" \
   --repo "$OMEGA_REPO_ROOT" \
   --source "$SOURCE" \
   --assembly "$T/fixed.alpha" \
@@ -68,7 +70,7 @@ SOURCE_LEN=$(wc -c < "$SOURCE" | tr -d ' ')
 TAPE_LEN=$(wc -c < "$ARTIFACT" | tr -d ' ')
 u32_file "$SOURCE_LEN" "$T/source.len"
 u32_file "$TAPE_LEN" "$T/tape.len"
-python3 "$GATE_DIR/bc_call_bounds.py" \
+python3 "$WITNESS_DIR/bc_call_bounds.py" \
   --repo "$OMEGA_REPO_ROOT" \
   --source "$SOURCE" \
   --output "$T/call-bounds.witness"
@@ -103,42 +105,42 @@ BC_OWNER_ARTIFACT_STRUCTURE=1
 bc_timing_finish
 
 emit_stack_checker_prefix() {
-  cat "$GATE_DIR/bc-block-control.alpha" \
-    "$GATE_DIR/bc-effect-sites.alpha" \
-    "$GATE_DIR/bc-frame-shape.alpha" \
-    "$GATE_DIR/bc-local-access.alpha" \
-    "$GATE_DIR/bc-memory-sites.alpha" \
-    "$GATE_DIR/bc-expr-primitives.alpha" \
-    "$GATE_DIR/bc-stack-pushes.alpha" \
-    "$GATE_DIR/bc-expr-composition.alpha" \
-    "$GATE_DIR/bc-raw-load-families.alpha" \
-    "$GATE_DIR/bc-call-bounds.alpha" \
-    "$GATE_DIR/bc-stack-register-custody.alpha" \
-    "$GATE_DIR/bc-ranged-store-bounds.alpha" \
-    "$GATE_DIR/bc-frame-summary.alpha" \
-    "$GATE_DIR/bc-ranged-store-transfer.alpha" \
-    "$GATE_DIR/bc-counter-transfer.alpha" \
-    "$GATE_DIR/bc-stack-potential-lift.alpha"
+  cat "$OBLIGATION_DIR/bc-block-control.alpha" \
+    "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+    "$OBLIGATION_DIR/bc-frame-shape.alpha" \
+    "$OBLIGATION_DIR/bc-local-access.alpha" \
+    "$OBLIGATION_DIR/bc-memory-sites.alpha" \
+    "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
+    "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
+    "$OBLIGATION_DIR/bc-expr-composition.alpha" \
+    "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
+    "$OBLIGATION_DIR/bc-call-bounds.alpha" \
+    "$OBLIGATION_DIR/bc-stack-register-custody.alpha" \
+    "$OBLIGATION_DIR/bc-ranged-store-bounds.alpha" \
+    "$OBLIGATION_DIR/bc-frame-summary.alpha" \
+    "$OBLIGATION_DIR/bc-ranged-store-transfer.alpha" \
+    "$OBLIGATION_DIR/bc-counter-transfer.alpha" \
+    "$OBLIGATION_DIR/bc-stack-potential-lift.alpha"
 }
 
 emit_name_eq_checker_prefix() {
   emit_stack_checker_prefix
   cat \
-    "$GATE_DIR/bc-post-stack-name-eq.alpha" \
-    "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-    "$GATE_DIR/bc-name-table-domain.alpha" \
-    "$GATE_DIR/bc-name-eq-control-shape.alpha" \
-    "$GATE_DIR/bc-name-eq-data-shape.alpha" \
-    "$GATE_DIR/bc-name-eq-summary.alpha"
+    "$OBLIGATION_DIR/bc-post-stack-name-eq.alpha" \
+    "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+    "$OBLIGATION_DIR/bc-name-table-domain.alpha" \
+    "$OBLIGATION_DIR/bc-name-eq-control-shape.alpha" \
+    "$OBLIGATION_DIR/bc-name-eq-data-shape.alpha" \
+    "$OBLIGATION_DIR/bc-name-eq-summary.alpha"
 }
 
 build_lookup_checker() {
   {
     emit_name_eq_checker_prefix
-    cat "$GATE_DIR/bc-post-name-eq-lookup.alpha" \
-      "$GATE_DIR/bc-lookup-control-shape.alpha" \
-      "$GATE_DIR/bc-lookup-data-shape.alpha" \
-      "$GATE_DIR/bc-lookup-summary.alpha"
+    cat "$OBLIGATION_DIR/bc-post-name-eq-lookup.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-summary.alpha"
   } > "$T/lookup-check.alpha"
   "$ASM" < "$T/lookup-check.alpha" > "$T/lookup-check.tape"
   stamp_seed "$T/lookup-check.tape" "$SEED" "$T/lookup-check" >/dev/null
@@ -147,25 +149,25 @@ build_lookup_checker() {
 build_bounded_emitters_checker() {
   {
     emit_stack_checker_prefix
-    cat "$GATE_DIR/bc-post-stack-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-write-str-event-helper.alpha" \
-      "$GATE_DIR/bc-write-str-summary.alpha" \
-      "$GATE_DIR/bc-post-write-str-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
-      "$GATE_DIR/bc-skip-ws-summary.alpha" \
-      "$GATE_DIR/bc-post-skip-ws-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-expect-shape.alpha" \
-      "$GATE_DIR/bc-expect-summary.alpha" \
-      "$GATE_DIR/bc-post-expect-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-emit-dec-shape.alpha" \
-      "$GATE_DIR/bc-emit-dec-summary.alpha" \
-      "$GATE_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-control-shape.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-data-shape.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-summary.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-slot-summary.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-post-stack-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-write-str-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
+      "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-skip-ws-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-expect-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expect-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-expect-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-summary.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-slot-summary.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-publication.alpha"
   } > "$T/bounded-emitters-check.alpha"
   "$ASM" < "$T/bounded-emitters-check.alpha" > "$T/bounded-emitters-check.tape"
   stamp_seed "$T/bounded-emitters-check.tape" "$SEED" \
@@ -175,12 +177,12 @@ build_bounded_emitters_checker() {
 build_emit_dec_word_checker() {
   {
     emit_stack_checker_prefix
-    cat "$GATE_DIR/bc-post-stack-emit-dec-word.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-emit-dec-shape.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-post-stack-emit-dec-word.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-domain.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-publication.alpha"
   } > "$T/emit-dec-word-check.alpha"
   "$ASM" < "$T/emit-dec-word-check.alpha" > "$T/emit-dec-word-check.tape"
   stamp_seed "$T/emit-dec-word-check.tape" "$SEED" \
@@ -205,7 +207,7 @@ label_emitters_require_module_budgets() {
     bc-label-emitters-publication.alpha \
     bc-post-label-emitters-base.alpha
   do
-    label_emitters_module_bytes=$(wc -c < "$GATE_DIR/$label_emitters_module" | tr -d ' ')
+    label_emitters_module_bytes=$(wc -c < "$OBLIGATION_DIR/$label_emitters_module" | tr -d ' ')
     if [ "$label_emitters_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $label_emitters_module is ${label_emitters_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -217,36 +219,36 @@ build_label_emitters_checker() {
   label_emitters_require_module_budgets
   {
     emit_stack_checker_prefix
-    cat "$GATE_DIR/bc-post-stack-label-emitters.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-write-str-event-helper.alpha" \
-      "$GATE_DIR/bc-write-str-summary.alpha" \
-      "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
-      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
-      "$GATE_DIR/bc-skip-ws-summary.alpha" \
-      "$GATE_DIR/bc-post-skip-ws-label-emitters.alpha" \
-      "$GATE_DIR/bc-expect-shape.alpha" \
-      "$GATE_DIR/bc-expect-summary.alpha" \
-      "$GATE_DIR/bc-post-expect-label-emitters.alpha" \
-      "$GATE_DIR/bc-emit-dec-shape.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-label-publication.alpha" \
-      "$GATE_DIR/bc-cursor-tail-summary.alpha" \
-      "$GATE_DIR/bc-label-core-shape.alpha" \
-      "$GATE_DIR/bc-label-counter-summary.alpha" \
-      "$GATE_DIR/bc-label-ref-summary.alpha" \
-      "$GATE_DIR/bc-emit-str-body-shape.alpha" \
-      "$GATE_DIR/bc-emit-str-body-cases.alpha" \
-      "$GATE_DIR/bc-emit-str-body-summary.alpha" \
-      "$GATE_DIR/bc-gen-emit-shape.alpha" \
-      "$GATE_DIR/bc-gen-emit-summary.alpha" \
-      "$GATE_DIR/bc-emit-cmp-control-shape.alpha" \
-      "$GATE_DIR/bc-emit-cmp-data-shape.alpha" \
-      "$GATE_DIR/bc-emit-cmp-cases.alpha" \
-      "$GATE_DIR/bc-emit-cmp-summary.alpha" \
-      "$GATE_DIR/bc-label-emitters-publication.alpha" \
-      "$GATE_DIR/bc-post-label-emitters-base.alpha"
+    cat "$OBLIGATION_DIR/bc-post-stack-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-write-str-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
+      "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-skip-ws-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-expect-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expect-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-expect-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-domain.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-label-publication.alpha" \
+      "$OBLIGATION_DIR/bc-cursor-tail-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-core-shape.alpha" \
+      "$OBLIGATION_DIR/bc-label-counter-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-ref-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-cases.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-summary.alpha" \
+      "$OBLIGATION_DIR/bc-gen-emit-shape.alpha" \
+      "$OBLIGATION_DIR/bc-gen-emit-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-cases.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-emitters-publication.alpha" \
+      "$OBLIGATION_DIR/bc-post-label-emitters-base.alpha"
   } > "$T/label-emitters-check.alpha"
   label_emitters_checker_source_bytes=$(wc -c < "$T/label-emitters-check.alpha" | tr -d ' ')
   if [ "$label_emitters_checker_source_bytes" -ge 900000 ]; then
@@ -265,16 +267,16 @@ build_label_emitters_checker() {
 }
 
 emit_expression_table_prefix() {
-  cat "$GATE_DIR/bc-block-control.alpha" \
-    "$GATE_DIR/bc-effect-sites.alpha" \
-    "$GATE_DIR/bc-frame-shape.alpha" \
-    "$GATE_DIR/bc-local-access.alpha" \
-    "$GATE_DIR/bc-memory-sites.alpha" \
-    "$GATE_DIR/bc-expr-primitives.alpha" \
-    "$GATE_DIR/bc-stack-pushes.alpha" \
-    "$GATE_DIR/bc-expr-composition.alpha" \
-    "$GATE_DIR/bc-raw-load-families.alpha" \
-    "$GATE_DIR/bc-call-bounds.alpha"
+  cat "$OBLIGATION_DIR/bc-block-control.alpha" \
+    "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+    "$OBLIGATION_DIR/bc-frame-shape.alpha" \
+    "$OBLIGATION_DIR/bc-local-access.alpha" \
+    "$OBLIGATION_DIR/bc-memory-sites.alpha" \
+    "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
+    "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
+    "$OBLIGATION_DIR/bc-expr-composition.alpha" \
+    "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
+    "$OBLIGATION_DIR/bc-call-bounds.alpha"
 }
 
 expression_family_require_module_budgets() {
@@ -294,7 +296,7 @@ expression_family_require_module_budgets() {
     bc-expression-gen-expr-rules.alpha \
     bc-expression-family-publication.alpha
   do
-    expression_family_module_bytes=$(wc -c < "$GATE_DIR/$expression_family_module" | tr -d ' ')
+    expression_family_module_bytes=$(wc -c < "$OBLIGATION_DIR/$expression_family_module" | tr -d ' ')
     if [ "$expression_family_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $expression_family_module is ${expression_family_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -305,17 +307,17 @@ expression_family_require_module_budgets() {
 build_expression_family_shape_checker() {
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-expression-shape-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-expression-leaf-shape.alpha" \
-      "$GATE_DIR/bc-expression-call-control-shape.alpha" \
-      "$GATE_DIR/bc-expression-call-data-shape.alpha" \
-      "$GATE_DIR/bc-expression-factor-control-shape.alpha" \
-      "$GATE_DIR/bc-expression-factor-data-shape.alpha" \
-      "$GATE_DIR/bc-expression-levels-shape.alpha" \
-      "$GATE_DIR/bc-expression-gen-expr-shape.alpha" \
-      "$GATE_DIR/bc-expression-family-shape.alpha"
+    cat "$OBLIGATION_DIR/bc-expression-shape-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-expression-leaf-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-call-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-call-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-factor-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-factor-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-levels-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-gen-expr-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expression-family-shape.alpha"
   } > "$T/expression-family-shape.alpha"
   "$ASM" < "$T/expression-family-shape.alpha" > "$T/expression-family-shape.tape"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
@@ -331,85 +333,85 @@ build_expression_family_shape_checker() {
 build_expression_family_semantic_checker() {
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-expression-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-write-str-event-helper.alpha" \
-      "$GATE_DIR/bc-write-str-summary.alpha" \
-      "$GATE_DIR/bc-post-write-str-label-emitters.alpha" \
-      "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
-      "$GATE_DIR/bc-skip-ws-summary.alpha" \
-      "$GATE_DIR/bc-post-skip-ws-label-emitters.alpha" \
-      "$GATE_DIR/bc-expect-shape.alpha" \
-      "$GATE_DIR/bc-expect-summary.alpha" \
-      "$GATE_DIR/bc-post-expect-expression.alpha" \
-      "$GATE_DIR/bc-emit-dec-shape.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-domain.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-summary.alpha" \
-      "$GATE_DIR/bc-emit-dec-word-label-publication.alpha" \
-      "$GATE_DIR/bc-cursor-tail-summary.alpha" \
-      "$GATE_DIR/bc-label-core-shape.alpha" \
-      "$GATE_DIR/bc-label-counter-summary.alpha" \
-      "$GATE_DIR/bc-label-ref-summary.alpha" \
-      "$GATE_DIR/bc-emit-str-body-shape.alpha" \
-      "$GATE_DIR/bc-emit-str-body-cases.alpha" \
-      "$GATE_DIR/bc-emit-str-body-summary.alpha" \
-      "$GATE_DIR/bc-gen-emit-shape.alpha" \
-      "$GATE_DIR/bc-gen-emit-summary.alpha" \
-      "$GATE_DIR/bc-emit-cmp-control-shape.alpha" \
-      "$GATE_DIR/bc-emit-cmp-data-shape.alpha" \
-      "$GATE_DIR/bc-emit-cmp-cases.alpha" \
-      "$GATE_DIR/bc-emit-cmp-summary.alpha" \
-      "$GATE_DIR/bc-label-emitters-publication.alpha" \
-      "$GATE_DIR/bc-post-label-emitters-expression.alpha" \
-      "$GATE_DIR/bc-classifier-shape.alpha" \
-      "$GATE_DIR/bc-classifier-summary.alpha" \
-      "$GATE_DIR/bc-read-ident-shape.alpha" \
-      "$GATE_DIR/bc-read-ident-summary.alpha" \
-      "$GATE_DIR/bc-emit-ident-shape.alpha" \
-      "$GATE_DIR/bc-emit-ident-summary.alpha" \
-      "$GATE_DIR/bc-expression-id-char.alpha" \
-      "$GATE_DIR/bc-fixed-keyword-shape-core.alpha" \
-      "$GATE_DIR/bc-fixed-keyword-data-shape.alpha" \
-      "$GATE_DIR/bc-fixed-keyword-cases.alpha" \
-      "$GATE_DIR/bc-fixed-keyword-summary.alpha" \
-      "$GATE_DIR/bc-literal-skip-shape.alpha" \
-      "$GATE_DIR/bc-literal-skip-summary.alpha" \
-      "$GATE_DIR/bc-post-literal-skip-expression.alpha" \
-      "$GATE_DIR/bc-parse-number-shape.alpha" \
-      "$GATE_DIR/bc-parse-number-summary.alpha" \
-      "$GATE_DIR/bc-parse-char-shape.alpha" \
-      "$GATE_DIR/bc-parse-char-cases.alpha" \
-      "$GATE_DIR/bc-parse-char-summary.alpha" \
-      "$GATE_DIR/bc-operator-classifier-shape.alpha" \
-      "$GATE_DIR/bc-operator-classifier-summary.alpha" \
-      "$GATE_DIR/bc-cmp-op-shape.alpha" \
-      "$GATE_DIR/bc-cmp-op-cases.alpha" \
-      "$GATE_DIR/bc-cmp-op-summary.alpha" \
-      "$GATE_DIR/bc-name-table-domain.alpha" \
-      "$GATE_DIR/bc-name-eq-control-shape.alpha" \
-      "$GATE_DIR/bc-name-eq-data-shape.alpha" \
-      "$GATE_DIR/bc-name-eq-summary.alpha" \
-      "$GATE_DIR/bc-post-name-eq-lookup.alpha" \
-      "$GATE_DIR/bc-lookup-control-shape.alpha" \
-      "$GATE_DIR/bc-lookup-data-shape.alpha" \
-      "$GATE_DIR/bc-lookup-summary.alpha" \
-      "$GATE_DIR/bc-emit-dec-summary.alpha" \
-      "$GATE_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-control-shape.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-data-shape.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-summary.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-slot-summary.alpha" \
-      "$GATE_DIR/bc-bounded-emitters-publication.alpha" \
-      "$GATE_DIR/bc-expression-prerequisites.alpha" \
-      "$GATE_DIR/bc-expression-resource-domain.alpha" \
-      "$GATE_DIR/bc-expression-tail-rules.alpha" \
-      "$GATE_DIR/bc-expression-leaf-rules.alpha" \
-      "$GATE_DIR/bc-expression-call-rules.alpha" \
-      "$GATE_DIR/bc-expression-factor-rules.alpha" \
-      "$GATE_DIR/bc-expression-levels-rules.alpha" \
-      "$GATE_DIR/bc-expression-gen-expr-rules.alpha" \
-      "$GATE_DIR/bc-expression-family-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-expression-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-write-str-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
+      "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-skip-ws-label-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-expect-shape.alpha" \
+      "$OBLIGATION_DIR/bc-expect-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-expect-expression.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-domain.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-word-label-publication.alpha" \
+      "$OBLIGATION_DIR/bc-cursor-tail-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-core-shape.alpha" \
+      "$OBLIGATION_DIR/bc-label-counter-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-ref-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-cases.alpha" \
+      "$OBLIGATION_DIR/bc-emit-str-body-summary.alpha" \
+      "$OBLIGATION_DIR/bc-gen-emit-shape.alpha" \
+      "$OBLIGATION_DIR/bc-gen-emit-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-cases.alpha" \
+      "$OBLIGATION_DIR/bc-emit-cmp-summary.alpha" \
+      "$OBLIGATION_DIR/bc-label-emitters-publication.alpha" \
+      "$OBLIGATION_DIR/bc-post-label-emitters-expression.alpha" \
+      "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
+      "$OBLIGATION_DIR/bc-classifier-summary.alpha" \
+      "$OBLIGATION_DIR/bc-read-ident-shape.alpha" \
+      "$OBLIGATION_DIR/bc-read-ident-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-ident-shape.alpha" \
+      "$OBLIGATION_DIR/bc-emit-ident-summary.alpha" \
+      "$OBLIGATION_DIR/bc-expression-id-char.alpha" \
+      "$OBLIGATION_DIR/bc-fixed-keyword-shape-core.alpha" \
+      "$OBLIGATION_DIR/bc-fixed-keyword-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-fixed-keyword-cases.alpha" \
+      "$OBLIGATION_DIR/bc-fixed-keyword-summary.alpha" \
+      "$OBLIGATION_DIR/bc-literal-skip-shape.alpha" \
+      "$OBLIGATION_DIR/bc-literal-skip-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-literal-skip-expression.alpha" \
+      "$OBLIGATION_DIR/bc-parse-number-shape.alpha" \
+      "$OBLIGATION_DIR/bc-parse-number-summary.alpha" \
+      "$OBLIGATION_DIR/bc-parse-char-shape.alpha" \
+      "$OBLIGATION_DIR/bc-parse-char-cases.alpha" \
+      "$OBLIGATION_DIR/bc-parse-char-summary.alpha" \
+      "$OBLIGATION_DIR/bc-operator-classifier-shape.alpha" \
+      "$OBLIGATION_DIR/bc-operator-classifier-summary.alpha" \
+      "$OBLIGATION_DIR/bc-cmp-op-shape.alpha" \
+      "$OBLIGATION_DIR/bc-cmp-op-cases.alpha" \
+      "$OBLIGATION_DIR/bc-cmp-op-summary.alpha" \
+      "$OBLIGATION_DIR/bc-name-table-domain.alpha" \
+      "$OBLIGATION_DIR/bc-name-eq-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-name-eq-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-name-eq-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-name-eq-lookup.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-lookup-summary.alpha" \
+      "$OBLIGATION_DIR/bc-emit-dec-summary.alpha" \
+      "$OBLIGATION_DIR/bc-post-emit-dec-bounded-emitters.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-control-shape.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-summary.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-slot-summary.alpha" \
+      "$OBLIGATION_DIR/bc-bounded-emitters-publication.alpha" \
+      "$OBLIGATION_DIR/bc-expression-prerequisites.alpha" \
+      "$OBLIGATION_DIR/bc-expression-resource-domain.alpha" \
+      "$OBLIGATION_DIR/bc-expression-tail-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-leaf-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-call-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-factor-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-levels-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-gen-expr-rules.alpha" \
+      "$OBLIGATION_DIR/bc-expression-family-publication.alpha"
   } > "$T/expression-family-semantic.alpha"
   expression_semantic_source_bytes=$(wc -c < "$T/expression-family-semantic.alpha" | tr -d ' ')
   if [ "$expression_semantic_source_bytes" -ge 1040000 ]; then
@@ -466,7 +468,7 @@ statement_family_require_module_budgets() {
     bc-statement-gfp-rules.alpha \
     bc-statement-family-publication.alpha
   do
-    statement_family_module_bytes=$(wc -c < "$GATE_DIR/$statement_family_module" | tr -d ' ')
+    statement_family_module_bytes=$(wc -c < "$OBLIGATION_DIR/$statement_family_module" | tr -d ' ')
     if [ "$statement_family_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $statement_family_module is ${statement_family_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -478,19 +480,19 @@ build_statement_family_shape_checker() {
   statement_family_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-statement-family-shape-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-statement-emit-epilogue-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-store-shape.alpha" \
-      "$GATE_DIR/bc-gen-stmts-boundary-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-block-shape.alpha" \
-      "$GATE_DIR/bc-statement-emit-state-label-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-state-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-to-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-stmt-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-stmt-data-shape.alpha" \
-      "$GATE_DIR/bc-statement-family-shape.alpha"
+    cat "$OBLIGATION_DIR/bc-statement-family-shape-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-statement-emit-epilogue-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-store-shape.alpha" \
+      "$OBLIGATION_DIR/bc-gen-stmts-boundary-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-block-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-emit-state-label-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-state-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-to-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-stmt-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-stmt-data-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-family-shape.alpha"
   } > "$T/statement-family-shape.alpha"
   "$ASM" < "$T/statement-family-shape.alpha" > "$T/statement-family-shape.tape"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
@@ -512,23 +514,23 @@ build_statement_family_semantic_checker() {
   statement_family_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-statement-semantic-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-statement-antecedents.alpha" \
-      "$GATE_DIR/bc-write-str-event-helper.alpha" \
-      "$GATE_DIR/bc-statement-emit-epilogue-shape.alpha" \
-      "$GATE_DIR/bc-statement-emit-epilogue-rules.alpha" \
-      "$GATE_DIR/bc-statement-gen-store-shape.alpha" \
-      "$GATE_DIR/bc-statement-gen-store-rules.alpha" \
-      "$GATE_DIR/bc-statement-emit-state-label-shape.alpha" \
-      "$GATE_DIR/bc-statement-state-label-rules.alpha" \
-      "$GATE_DIR/bc-statement-gen-to-rules.alpha" \
-      "$GATE_DIR/bc-statement-gen-stmt-rules.alpha" \
-      "$GATE_DIR/bc-statement-gen-stmt-fallback-rules.alpha" \
-      "$GATE_DIR/bc-statement-wrapper-rules.alpha" \
-      "$GATE_DIR/bc-statement-gfp-rules.alpha" \
-      "$GATE_DIR/bc-statement-family-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-statement-semantic-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-statement-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+      "$OBLIGATION_DIR/bc-statement-emit-epilogue-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-emit-epilogue-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-store-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-store-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-emit-state-label-shape.alpha" \
+      "$OBLIGATION_DIR/bc-statement-state-label-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-to-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-stmt-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gen-stmt-fallback-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-wrapper-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-gfp-rules.alpha" \
+      "$OBLIGATION_DIR/bc-statement-family-publication.alpha"
   } > "$T/statement-family-semantic.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/statement-family-semantic.alpha" \
@@ -652,7 +654,7 @@ parse_body_require_module_budgets() {
     bc-parse-body-shape.alpha \
     bc-parse-body-rules.alpha
   do
-    parse_body_module_bytes=$(wc -c < "$GATE_DIR/$parse_body_module" | tr -d ' ')
+    parse_body_module_bytes=$(wc -c < "$OBLIGATION_DIR/$parse_body_module" | tr -d ' ')
     if [ "$parse_body_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $parse_body_module is ${parse_body_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -664,12 +666,12 @@ build_parse_body_checker() {
   parse_body_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-parse-body-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-parse-body-antecedents.alpha" \
-      "$GATE_DIR/bc-parse-body-shape.alpha" \
-      "$GATE_DIR/bc-parse-body-rules.alpha"
+    cat "$OBLIGATION_DIR/bc-parse-body-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-parse-body-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-parse-body-shape.alpha" \
+      "$OBLIGATION_DIR/bc-parse-body-rules.alpha"
   } > "$T/parse-body.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/parse-body.alpha" > "$T/parse-body-ref.tape"
@@ -734,7 +736,7 @@ resource_classification_require_module_budgets() {
     bc-resource-profile.alpha \
     bc-resource-classification.alpha
   do
-    resource_module_bytes=$(wc -c < "$GATE_DIR/$resource_module" | tr -d ' ')
+    resource_module_bytes=$(wc -c < "$OBLIGATION_DIR/$resource_module" | tr -d ' ')
     if [ "$resource_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $resource_module is ${resource_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -746,13 +748,13 @@ build_resource_classification_checker() {
   resource_classification_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-resource-classification-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-resource-classification-shape.alpha" \
-      "$GATE_DIR/bc-resource-classification-antecedents.alpha" \
-      "$GATE_DIR/bc-resource-profile.alpha" \
-      "$GATE_DIR/bc-resource-classification.alpha"
+    cat "$OBLIGATION_DIR/bc-resource-classification-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-resource-classification-shape.alpha" \
+      "$OBLIGATION_DIR/bc-resource-classification-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-resource-profile.alpha" \
+      "$OBLIGATION_DIR/bc-resource-classification.alpha"
   } > "$T/resource-classification.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/resource-classification.alpha" > "$T/resource-classification-ref.tape"
@@ -809,7 +811,7 @@ declaration_budget_require_module_budgets() {
     bc-declaration-budget-publication.alpha
   do
     declaration_budget_module_bytes=$(wc -c \
-      < "$GATE_DIR/$declaration_budget_module" | tr -d ' ')
+      < "$OBLIGATION_DIR/$declaration_budget_module" | tr -d ' ')
     if [ "$declaration_budget_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $declaration_budget_module is ${declaration_budget_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -821,13 +823,13 @@ build_declaration_budget_checker() {
   declaration_budget_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-declaration-budget-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-declaration-budget-antecedents.alpha" \
-      "$GATE_DIR/bc-declaration-budget-shape.alpha" \
-      "$GATE_DIR/bc-declaration-budget-rules.alpha" \
-      "$GATE_DIR/bc-declaration-budget-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-declaration-budget-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-declaration-budget-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-declaration-budget-shape.alpha" \
+      "$OBLIGATION_DIR/bc-declaration-budget-rules.alpha" \
+      "$OBLIGATION_DIR/bc-declaration-budget-publication.alpha"
   } > "$T/declaration-budget.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/declaration-budget.alpha" > "$T/declaration-budget-ref.tape"
@@ -879,7 +881,7 @@ parse_proc_require_module_budgets() {
     bc-parse-proc-outcomes.alpha \
     bc-parse-proc-publication.alpha
   do
-    parse_proc_module_bytes=$(wc -c < "$GATE_DIR/$parse_proc_module" | tr -d ' ')
+    parse_proc_module_bytes=$(wc -c < "$OBLIGATION_DIR/$parse_proc_module" | tr -d ' ')
     if [ "$parse_proc_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $parse_proc_module is ${parse_proc_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -891,14 +893,14 @@ build_parse_proc_checker() {
   parse_proc_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-parse-proc-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-parse-proc-antecedents.alpha" \
-      "$GATE_DIR/bc-parse-proc-entry-shape.alpha" \
-      "$GATE_DIR/bc-parse-proc-entry-semantics.alpha" \
-      "$GATE_DIR/bc-parse-proc-outcomes.alpha" \
-      "$GATE_DIR/bc-parse-proc-publication.alpha"
+    cat "$OBLIGATION_DIR/bc-parse-proc-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-parse-proc-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-parse-proc-entry-shape.alpha" \
+      "$OBLIGATION_DIR/bc-parse-proc-entry-semantics.alpha" \
+      "$OBLIGATION_DIR/bc-parse-proc-outcomes.alpha" \
+      "$OBLIGATION_DIR/bc-parse-proc-publication.alpha"
   } > "$T/parse-proc.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/parse-proc.alpha" > "$T/parse-proc-ref.tape"
@@ -953,7 +955,7 @@ root_observation_require_module_budgets() {
     bc-root-observation-publication-payloads.alpha
   do
     root_observation_module_bytes=$(wc -c \
-      < "$GATE_DIR/$root_observation_module" | tr -d ' ')
+      < "$OBLIGATION_DIR/$root_observation_module" | tr -d ' ')
     if [ "$root_observation_module_bytes" -ge 20000 ]; then
       echo "bc block control FAIL — $root_observation_module is ${root_observation_module_bytes} bytes (20KB module cap)" >&2
       exit 1
@@ -965,17 +967,17 @@ build_root_observation_checker() {
   root_observation_require_module_budgets
   {
     emit_expression_table_prefix
-    cat "$GATE_DIR/bc-root-observation-root.alpha" \
-      "$GATE_DIR/bc-expression-selected-row-helpers.alpha" \
-      "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-      "$GATE_DIR/bc-root-observation-antecedents.alpha" \
-      "$GATE_DIR/bc-root-observation-shape.alpha" \
-      "$GATE_DIR/bc-root-observation-gfp.alpha" \
-      "$GATE_DIR/bc-root-observation-resource-join.alpha" \
-      "$GATE_DIR/bc-root-observation-memory-safety.alpha" \
-      "$GATE_DIR/bc-root-observation-maximal.alpha" \
-      "$GATE_DIR/bc-root-observation-publication.alpha" \
-      "$GATE_DIR/bc-root-observation-publication-payloads.alpha"
+    cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
+      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-gfp.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-resource-join.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-memory-safety.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-maximal.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-publication.alpha" \
+      "$OBLIGATION_DIR/bc-root-observation-publication-payloads.alpha"
   } > "$T/root-observation.alpha"
   python3 "$OMEGA_PATH_ALPHA_ASSEMBLER/asm_ref.py" \
     < "$T/root-observation.alpha" > "$T/root-observation-ref.tape"
@@ -1037,78 +1039,78 @@ smoke_statement_family_shape_checker
 bc_timing_finish
 
 bc_timing_start checker-a-canonical
-cat "$GATE_DIR/bc-block-control.alpha" \
-  "$GATE_DIR/bc-effect-sites.alpha" \
-  "$GATE_DIR/bc-frame-shape.alpha" \
-  "$GATE_DIR/bc-local-access.alpha" \
-  "$GATE_DIR/bc-memory-sites.alpha" \
-  "$GATE_DIR/bc-expr-primitives.alpha" \
-  "$GATE_DIR/bc-stack-pushes.alpha" \
-  "$GATE_DIR/bc-expr-composition.alpha" \
-  "$GATE_DIR/bc-raw-load-families.alpha" \
-  "$GATE_DIR/bc-call-bounds.alpha" \
-  "$GATE_DIR/bc-stack-register-custody.alpha" \
-  "$GATE_DIR/bc-ranged-store-bounds.alpha" \
-  "$GATE_DIR/bc-frame-summary.alpha" \
-  "$GATE_DIR/bc-ranged-store-transfer.alpha" \
-  "$GATE_DIR/bc-counter-transfer.alpha" \
-  "$GATE_DIR/bc-stack-potential-lift.alpha" \
-  "$GATE_DIR/bc-post-stack-fixed.alpha" \
-  "$GATE_DIR/bc-slurp-summary.alpha" \
-  "$GATE_DIR/bc-main-slurp-bridge.alpha" \
-  "$GATE_DIR/bc-write-str-event-helper.alpha" \
-  "$GATE_DIR/bc-write-str-summary.alpha" \
-  "$GATE_DIR/bc-fixed-emitter-summary.alpha" \
-  "$GATE_DIR/bc-cursor-leaf-summary.alpha" \
-  "$GATE_DIR/bc-skip-ws-summary.alpha" \
-  "$GATE_DIR/bc-main-ready-summary.alpha" \
-  "$GATE_DIR/bc-summary-combinators.alpha" \
-  "$GATE_DIR/bc-exact-shape-helpers.alpha" \
-  "$GATE_DIR/bc-main-loop-entry-summary.alpha" \
-  "$GATE_DIR/bc-classifier-shape.alpha" \
-  "$GATE_DIR/bc-classifier-summary.alpha" \
-  "$GATE_DIR/bc-read-ident-shape.alpha" \
-  "$GATE_DIR/bc-read-ident-summary.alpha" \
-  "$GATE_DIR/bc-expect-shape.alpha" \
-  "$GATE_DIR/bc-expect-summary.alpha" \
-  "$GATE_DIR/bc-declare-shape.alpha" \
-  "$GATE_DIR/bc-declare-summary.alpha" \
-  "$GATE_DIR/bc-let-keyword-shape.alpha" \
-  "$GATE_DIR/bc-let-keyword-summary.alpha" \
-  "$GATE_DIR/bc-literal-skip-shape.alpha" \
-  "$GATE_DIR/bc-literal-skip-summary.alpha" \
-  "$GATE_DIR/bc-count-lets-control-shape.alpha" \
-  "$GATE_DIR/bc-count-lets-data-shape.alpha" \
-  "$GATE_DIR/bc-count-lets-cases.alpha" \
-  "$GATE_DIR/bc-count-lets-summary.alpha" \
-  "$GATE_DIR/bc-parse-params-control-shape.alpha" \
-  "$GATE_DIR/bc-parse-params-data-shape.alpha" \
-  "$GATE_DIR/bc-parse-parameter-summary.alpha" \
-  "$GATE_DIR/bc-parse-capacity-summary.alpha" \
-  "$GATE_DIR/bc-emit-ident-shape.alpha" \
-  "$GATE_DIR/bc-emit-ident-summary.alpha" \
-  "$GATE_DIR/bc-emit-dec-shape.alpha" \
-  "$GATE_DIR/bc-emit-dec-summary.alpha" \
-  "$GATE_DIR/bc-fixed-decimal-emitters-shape.alpha" \
-  "$GATE_DIR/bc-fixed-decimal-emitters-summary.alpha" \
-  "$GATE_DIR/bc-parse-output-prefix-shape.alpha" \
-  "$GATE_DIR/bc-parse-output-prefix-summary.alpha" \
-  "$GATE_DIR/bc-gen-stmts-boundary-shape.alpha" \
-  "$GATE_DIR/bc-gen-stmts-boundary-summary.alpha" \
-  "$GATE_DIR/bc-parse-number-shape.alpha" \
-  "$GATE_DIR/bc-parse-number-summary.alpha" \
-  "$GATE_DIR/bc-parse-char-shape.alpha" \
-  "$GATE_DIR/bc-parse-char-cases.alpha" \
-  "$GATE_DIR/bc-parse-char-summary.alpha" \
-  "$GATE_DIR/bc-operator-classifier-shape.alpha" \
-  "$GATE_DIR/bc-operator-classifier-summary.alpha" \
-  "$GATE_DIR/bc-cmp-op-shape.alpha" \
-  "$GATE_DIR/bc-cmp-op-cases.alpha" \
-  "$GATE_DIR/bc-cmp-op-summary.alpha" \
-  "$GATE_DIR/bc-fixed-keyword-shape-core.alpha" \
-  "$GATE_DIR/bc-fixed-keyword-data-shape.alpha" \
-  "$GATE_DIR/bc-fixed-keyword-cases.alpha" \
-  "$GATE_DIR/bc-fixed-keyword-summary.alpha" > "$T/control-check.alpha"
+cat "$OBLIGATION_DIR/bc-block-control.alpha" \
+  "$OBLIGATION_DIR/bc-effect-sites.alpha" \
+  "$OBLIGATION_DIR/bc-frame-shape.alpha" \
+  "$OBLIGATION_DIR/bc-local-access.alpha" \
+  "$OBLIGATION_DIR/bc-memory-sites.alpha" \
+  "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
+  "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
+  "$OBLIGATION_DIR/bc-expr-composition.alpha" \
+  "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
+  "$OBLIGATION_DIR/bc-call-bounds.alpha" \
+  "$OBLIGATION_DIR/bc-stack-register-custody.alpha" \
+  "$OBLIGATION_DIR/bc-ranged-store-bounds.alpha" \
+  "$OBLIGATION_DIR/bc-frame-summary.alpha" \
+  "$OBLIGATION_DIR/bc-ranged-store-transfer.alpha" \
+  "$OBLIGATION_DIR/bc-counter-transfer.alpha" \
+  "$OBLIGATION_DIR/bc-stack-potential-lift.alpha" \
+  "$OBLIGATION_DIR/bc-post-stack-fixed.alpha" \
+  "$OBLIGATION_DIR/bc-slurp-summary.alpha" \
+  "$OBLIGATION_DIR/bc-main-slurp-bridge.alpha" \
+  "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
+  "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-emitter-summary.alpha" \
+  "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
+  "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
+  "$OBLIGATION_DIR/bc-main-ready-summary.alpha" \
+  "$OBLIGATION_DIR/bc-summary-combinators.alpha" \
+  "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
+  "$OBLIGATION_DIR/bc-main-loop-entry-summary.alpha" \
+  "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
+  "$OBLIGATION_DIR/bc-classifier-summary.alpha" \
+  "$OBLIGATION_DIR/bc-read-ident-shape.alpha" \
+  "$OBLIGATION_DIR/bc-read-ident-summary.alpha" \
+  "$OBLIGATION_DIR/bc-expect-shape.alpha" \
+  "$OBLIGATION_DIR/bc-expect-summary.alpha" \
+  "$OBLIGATION_DIR/bc-declare-shape.alpha" \
+  "$OBLIGATION_DIR/bc-declare-summary.alpha" \
+  "$OBLIGATION_DIR/bc-let-keyword-shape.alpha" \
+  "$OBLIGATION_DIR/bc-let-keyword-summary.alpha" \
+  "$OBLIGATION_DIR/bc-literal-skip-shape.alpha" \
+  "$OBLIGATION_DIR/bc-literal-skip-summary.alpha" \
+  "$OBLIGATION_DIR/bc-count-lets-control-shape.alpha" \
+  "$OBLIGATION_DIR/bc-count-lets-data-shape.alpha" \
+  "$OBLIGATION_DIR/bc-count-lets-cases.alpha" \
+  "$OBLIGATION_DIR/bc-count-lets-summary.alpha" \
+  "$OBLIGATION_DIR/bc-parse-params-control-shape.alpha" \
+  "$OBLIGATION_DIR/bc-parse-params-data-shape.alpha" \
+  "$OBLIGATION_DIR/bc-parse-parameter-summary.alpha" \
+  "$OBLIGATION_DIR/bc-parse-capacity-summary.alpha" \
+  "$OBLIGATION_DIR/bc-emit-ident-shape.alpha" \
+  "$OBLIGATION_DIR/bc-emit-ident-summary.alpha" \
+  "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
+  "$OBLIGATION_DIR/bc-emit-dec-summary.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-decimal-emitters-shape.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-decimal-emitters-summary.alpha" \
+  "$OBLIGATION_DIR/bc-parse-output-prefix-shape.alpha" \
+  "$OBLIGATION_DIR/bc-parse-output-prefix-summary.alpha" \
+  "$OBLIGATION_DIR/bc-gen-stmts-boundary-shape.alpha" \
+  "$OBLIGATION_DIR/bc-gen-stmts-boundary-summary.alpha" \
+  "$OBLIGATION_DIR/bc-parse-number-shape.alpha" \
+  "$OBLIGATION_DIR/bc-parse-number-summary.alpha" \
+  "$OBLIGATION_DIR/bc-parse-char-shape.alpha" \
+  "$OBLIGATION_DIR/bc-parse-char-cases.alpha" \
+  "$OBLIGATION_DIR/bc-parse-char-summary.alpha" \
+  "$OBLIGATION_DIR/bc-operator-classifier-shape.alpha" \
+  "$OBLIGATION_DIR/bc-operator-classifier-summary.alpha" \
+  "$OBLIGATION_DIR/bc-cmp-op-shape.alpha" \
+  "$OBLIGATION_DIR/bc-cmp-op-cases.alpha" \
+  "$OBLIGATION_DIR/bc-cmp-op-summary.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-keyword-shape-core.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-keyword-data-shape.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-keyword-cases.alpha" \
+  "$OBLIGATION_DIR/bc-fixed-keyword-summary.alpha" > "$T/control-check.alpha"
 "$ASM" < "$T/control-check.alpha" > "$T/control-check.tape"
 checker_a_tape_bytes=$(wc -c < "$T/control-check.tape" | tr -d ' ')
 checker_a_seed_payload_limit=$((HOLE_SIZE - 4))

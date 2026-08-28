@@ -24,7 +24,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 def find_repo_root(start):
     current = start
     while True:
-        if os.path.isfile(os.path.join(current, 'tools', 'bootstrap', 'paths.sh')):
+        if os.path.isfile(os.path.join(current, 'tools', 'lattice', 'paths.sh')):
             return current
         parent = os.path.dirname(current)
         if parent == current:

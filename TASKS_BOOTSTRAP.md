@@ -90,10 +90,13 @@ bootstrap. The durable source owners are therefore the language directories;
   evidence, not acceptance authority.
 - [ ] Collapse the Beta validator's generated checker/permutation explosion into
   one canonical obligation format and small responsibility-specific modules.
-  The present `source/beta/compiler/validation/` tree still has 249 files,
-  including 190 top-level `bc-*.alpha` fragments and roughly 72,000 lines; it
-  is not a completed modularization. First inventory which exact files are
-  consumed by the bounded admission command, then replace families of
+  The responsibility audit found 190 `bc-*.alpha` fragments, all consumed by
+  the bounded whole-compiler command, amid roughly 72,000 lines. They now live
+  under `validation/admission/obligations/`; the two exact-subject gates are in
+  `admission/`, untrusted witness producers are in `admission/witnesses/`, and
+  the curated/generated refinement suite is optional under `stress/` rather
+  than a default lattice stage. This is ownership cleanup, not completed
+  modularization. Next replace families of
   shape/control/data/publication permutations with one data-driven obligation
   decoder and responsibility-local checks. Delete cached viewers, duplicated
   generated programs, receipt matrices, and debug-only publication paths when

@@ -37,5 +37,5 @@ stamp_beta_compiler "$BC" >/dev/null 2>&1 || { echo "refinement: lattice bc arti
 stamp_proof_checker "$T/check.exe" >/dev/null 2>&1 || { echo "refinement: checker artifact unavailable"; exit 1; }
 
 echo "instruction-level refinement (alpha machine code provably computes its source meaning, checked without running it):"
-python3 "$OMEGA_PATH_BETA_VALIDATION/alpha_refinement_check.py" \
+python3 "$OMEGA_GATE_DIR/alpha_refinement_check.py" \
   "$T/check.exe" "$BC" "$ASM"

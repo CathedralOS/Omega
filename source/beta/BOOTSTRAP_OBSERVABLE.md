@@ -88,16 +88,17 @@ The retained evidence is intentionally responsibility-specific:
 
 - `cold-start/full-source.sh` reconstructs `bc.tape`, checks the fixed point,
   and runs the Beta corpus;
-- `compiler/validation/bc-artifact-structure.sh` checks reachable Alpha
+- `compiler/validation/admission/bc-artifact-structure.sh` checks reachable Alpha
   framing, direct targets, procedure regions, and call/return structure below
   `bc`;
-- `compiler/validation/bc-block-control.sh` reconstructs the canonical
+- `compiler/validation/admission/bc-block-control.sh` reconstructs the canonical
   whole-source/artifact conjunction and its 79,003-byte ROOT maximal-observation
   checker (SHA-256
   `33a15b13586df64bcbe714adf517f35cf3e312c1f70c9971a7e5fd3c971ca40a`),
   then applies four fail-closed format-binding controls;
-- `compiler/validation/refinement.sh` checks proof-carrying equivalence for its
-  stated symbolic program families with the below-Beta checker artifact;
+- optional `compiler/validation/stress/refinement.sh` checks proof-carrying
+  equivalence for its stated symbolic program families with the below-Beta
+  checker artifact;
 - reference and differential gates exercise finite behavior but grant no
   authority.
 
