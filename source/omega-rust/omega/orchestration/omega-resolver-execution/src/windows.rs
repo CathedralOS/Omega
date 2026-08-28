@@ -22,6 +22,11 @@ use windows_sys::Win32::System::JobObjects::{
     SetInformationJobObject, TerminateJobObject,
 };
 use windows_sys::Win32::System::SystemServices::JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO;
+#[cfg(test)]
+use windows_sys::Win32::System::SystemServices::{
+    JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT, JOB_OBJECT_MSG_END_OF_JOB_TIME,
+    JOB_OBJECT_MSG_JOB_MEMORY_LIMIT, JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT,
+};
 use windows_sys::Win32::System::Threading::{
     CREATE_SUSPENDED, GetProcessId, OpenThread, ResumeThread, THREAD_SUSPEND_RESUME,
 };
@@ -35,6 +40,42 @@ const JOB_TERMINATION_EXIT_CODE: u32 = 1;
 const SNAPSHOT_ATTEMPT_LIMIT: usize = 8;
 const WINDOWS_TIME_TICKS_PER_SECOND: u64 = 10_000_000;
 
+#[derive(Debug, Clone, Copy)]
+struct WindowsJobLimits {
+    active_processes: u64,
+    process_memory_bytes: u64,
+    aggregate_memory_bytes: u64,
+    aggregate_cpu_ticks: u64,
+}
+
+impl WindowsJobLimits {
+    fn production() -> io::Result<Self> {
+        let aggregate_cpu_ticks = CHILD_AGGREGATE_CPU_SECONDS
+            .checked_mul(WINDOWS_TIME_TICKS_PER_SECOND)
+            .ok_or_else(|| {
+                io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "the Windows aggregate CPU limit exceeds the API field",
+                )
+            })?;
+        Ok(Self {
+            active_processes: CHILD_PROCESS_LIMIT,
+            process_memory_bytes: CHILD_PROCESS_MEMORY_BYTES,
+            aggregate_memory_bytes: CHILD_AGGREGATE_MEMORY_BYTES,
+            aggregate_cpu_ticks,
+        })
+    }
+}
+
+#[cfg(test)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum JobLimitEvent {
+    ActiveProcess,
+    ProcessMemory,
+    AggregateMemory,
+    AggregateCpu,
+}
+
 /// A resolver child contained in a compiler-owned Windows Job Object.
 #[derive(Debug)]
 pub(crate) struct WindowsJobChild {
@@ -43,14 +84,20 @@ pub(crate) struct WindowsJobChild {
     completion_port: KernelHandle,
     primary_status: Option<ExitStatus>,
     active_processes_zero: bool,
+    #[cfg(test)]
+    limit_events: Vec<JobLimitEvent>,
 }
 
 impl WindowsJobChild {
     pub(crate) fn spawn(command: &mut Command) -> io::Result<Self> {
+        Self::spawn_with_config(command, WindowsJobLimits::production()?)
+    }
+
+    fn spawn_with_config(command: &mut Command, limits: WindowsJobLimits) -> io::Result<Self> {
         let job = create_job()?;
         let completion_port = create_completion_port()?;
 
-        configure_job_limits(&job)?;
+        configure_job_limits(&job, limits)?;
         associate_completion_port(&job, &completion_port)?;
 
         command.creation_flags(CREATE_SUSPENDED);
@@ -68,6 +115,8 @@ impl WindowsJobChild {
             completion_port,
             primary_status: None,
             active_processes_zero: false,
+            #[cfg(test)]
+            limit_events: Vec::new(),
         })
     }
 
@@ -130,7 +179,24 @@ impl WindowsJobChild {
             if message == JOB_OBJECT_MSG_ACTIVE_PROCESS_ZERO {
                 self.active_processes_zero = true;
             }
+            #[cfg(test)]
+            if let Some(event) = job_limit_event(message)
+                && !self.limit_events.contains(&event)
+            {
+                self.limit_events.push(event);
+            }
         }
+    }
+}
+
+#[cfg(test)]
+fn job_limit_event(message: u32) -> Option<JobLimitEvent> {
+    match message {
+        JOB_OBJECT_MSG_ACTIVE_PROCESS_LIMIT => Some(JobLimitEvent::ActiveProcess),
+        JOB_OBJECT_MSG_PROCESS_MEMORY_LIMIT => Some(JobLimitEvent::ProcessMemory),
+        JOB_OBJECT_MSG_JOB_MEMORY_LIMIT => Some(JobLimitEvent::AggregateMemory),
+        JOB_OBJECT_MSG_END_OF_JOB_TIME => Some(JobLimitEvent::AggregateCpu),
+        _ => None,
     }
 }
 
@@ -177,35 +243,32 @@ fn create_completion_port() -> io::Result<KernelHandle> {
     })
 }
 
-fn configure_job_limits(job: &KernelHandle) -> io::Result<()> {
-    let process_memory_limit = usize::try_from(CHILD_PROCESS_MEMORY_BYTES).map_err(|_| {
+fn configure_job_limits(job: &KernelHandle, configured: WindowsJobLimits) -> io::Result<()> {
+    let process_memory_limit = usize::try_from(configured.process_memory_bytes).map_err(|_| {
         io::Error::new(
             io::ErrorKind::Unsupported,
             "the Windows target cannot represent the process memory limit",
         )
     })?;
-    let job_memory_limit = usize::try_from(CHILD_AGGREGATE_MEMORY_BYTES).map_err(|_| {
+    let job_memory_limit = usize::try_from(configured.aggregate_memory_bytes).map_err(|_| {
         io::Error::new(
             io::ErrorKind::Unsupported,
             "the Windows target cannot represent the job memory limit",
         )
     })?;
 
-    let active_process_limit = u32::try_from(CHILD_PROCESS_LIMIT).map_err(|_| {
+    let active_process_limit = u32::try_from(configured.active_processes).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidInput,
             "the Windows active-process limit exceeds the API field",
         )
     })?;
-    let job_time_limit = CHILD_AGGREGATE_CPU_SECONDS
-        .checked_mul(WINDOWS_TIME_TICKS_PER_SECOND)
-        .and_then(|ticks| i64::try_from(ticks).ok())
-        .ok_or_else(|| {
-            io::Error::new(
-                io::ErrorKind::InvalidInput,
-                "the Windows aggregate CPU limit exceeds the API field",
-            )
-        })?;
+    let job_time_limit = i64::try_from(configured.aggregate_cpu_ticks).map_err(|_| {
+        io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "the Windows aggregate CPU limit exceeds the API field",
+        )
+    })?;
 
     let mut limits = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
     limits.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
@@ -370,12 +433,20 @@ fn raw_os_error_is(error: &io::Error, expected: u32) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::WindowsJobChild;
+    use super::{JobLimitEvent, WindowsJobChild, WindowsJobLimits};
+    use std::hint::black_box;
     use std::process::{Command, Stdio};
+    use std::sync::Mutex;
     use std::time::{Duration, Instant};
 
-    fn wait_bounded(child: &mut WindowsJobChild) -> std::process::ExitStatus {
-        let deadline = Instant::now() + Duration::from_secs(5);
+    const WORKER_MODE: &str = "OMEGA_RESOLVER_WINDOWS_JOB_WORKER";
+    const WORKER_VALUE: &str = "OMEGA_RESOLVER_WINDOWS_JOB_WORKER_VALUE";
+    const WORKER_TEST: &str = "windows::tests::job_limit_worker";
+    const MIB: u64 = 1024 * 1024;
+    static JOB_LIMIT_TEST_LOCK: Mutex<()> = Mutex::new(());
+
+    fn wait_bounded(child: &mut WindowsJobChild, timeout: Duration) -> std::process::ExitStatus {
+        let deadline = Instant::now() + timeout;
         loop {
             if let Some(status) = child.try_wait().expect("query Windows Job completion") {
                 return status;
@@ -388,6 +459,140 @@ mod tests {
         }
     }
 
+    fn test_limits(
+        active_processes: u64,
+        process_memory_mib: u64,
+        aggregate_memory_mib: u64,
+        aggregate_cpu: Duration,
+    ) -> WindowsJobLimits {
+        let aggregate_cpu_ticks = u64::try_from(aggregate_cpu.as_nanos() / u128::from(100_u64))
+            .expect("test CPU limit fits Windows ticks");
+        WindowsJobLimits {
+            active_processes,
+            process_memory_bytes: process_memory_mib * MIB,
+            aggregate_memory_bytes: aggregate_memory_mib * MIB,
+            aggregate_cpu_ticks,
+        }
+    }
+
+    fn worker_command(mode: &str, value: &str) -> Command {
+        let mut command = Command::new(std::env::current_exe().expect("resolve test executable"));
+        command
+            .args(["--exact", WORKER_TEST, "--test-threads=1"])
+            .env(WORKER_MODE, mode)
+            .env(WORKER_VALUE, value)
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
+        command
+    }
+
+    fn run_worker(
+        mode: &str,
+        value: &str,
+        limits: WindowsJobLimits,
+        timeout: Duration,
+    ) -> (std::process::ExitStatus, Vec<JobLimitEvent>) {
+        let mut command = worker_command(mode, value);
+        let mut child = WindowsJobChild::spawn_with_config(&mut command, limits)
+            .expect("spawn limited Windows Job worker");
+        let status = wait_bounded(&mut child, timeout);
+        (status, child.limit_events.clone())
+    }
+
+    fn parse_worker_values(value: &str, expected: usize) -> Vec<usize> {
+        let values = value
+            .split(',')
+            .map(|field| field.parse::<usize>().expect("parse worker value"))
+            .collect::<Vec<_>>();
+        assert_eq!(values.len(), expected, "unexpected worker value shape");
+        values
+    }
+
+    fn touch_memory(bytes: usize, hold_millis: usize) {
+        let mut memory = Vec::new();
+        memory
+            .try_reserve_exact(bytes)
+            .expect("worker memory reservation should remain below its expected limit");
+        memory.resize(bytes, 0x5a_u8);
+        black_box(&memory);
+        std::thread::sleep(Duration::from_millis(
+            u64::try_from(hold_millis).expect("hold duration fits u64"),
+        ));
+    }
+
+    fn wait_for_all(children: &mut [std::process::Child]) -> bool {
+        let mut every_child_succeeded = true;
+        for child in children {
+            every_child_succeeded &= child.wait().is_ok_and(|status| status.success());
+        }
+        every_child_succeeded
+    }
+
+    #[test]
+    fn job_limit_worker() {
+        let Ok(mode) = std::env::var(WORKER_MODE) else {
+            return;
+        };
+        let value = std::env::var(WORKER_VALUE).expect("limited worker value");
+        match mode.as_str() {
+            "hold" => {
+                let millis = value.parse::<u64>().expect("parse hold duration");
+                std::thread::sleep(Duration::from_millis(millis));
+            }
+            "fanout" => {
+                let values = parse_worker_values(&value, 2);
+                let expected_success = values[1] != 0;
+                let mut children = Vec::new();
+                let mut every_spawn_succeeded = true;
+                for _ in 0..values[0] {
+                    match worker_command("hold", "750").spawn() {
+                        Ok(child) => children.push(child),
+                        Err(_) => every_spawn_succeeded = false,
+                    }
+                }
+                let every_child_succeeded = wait_for_all(&mut children);
+                assert_eq!(
+                    every_spawn_succeeded && every_child_succeeded,
+                    expected_success,
+                    "active-process worker observed an unexpected fanout result"
+                );
+            }
+            "touch" => {
+                let values = parse_worker_values(&value, 2);
+                touch_memory(values[0], values[1]);
+            }
+            "aggregate-memory" => {
+                let values = parse_worker_values(&value, 3);
+                let expected_success = values[2] != 0;
+                let mut children = (0..values[0])
+                    .filter_map(|_| {
+                        worker_command("touch", &format!("{},750", values[1]))
+                            .spawn()
+                            .ok()
+                    })
+                    .collect::<Vec<_>>();
+                let every_child_spawned = children.len() == values[0];
+                let child_statuses_succeeded = wait_for_all(&mut children);
+                let every_child_succeeded = every_child_spawned && child_statuses_succeeded;
+                assert_eq!(
+                    every_child_succeeded, expected_success,
+                    "aggregate-memory worker observed an unexpected child result"
+                );
+            }
+            "spin" => {
+                let deadline = Instant::now()
+                    + Duration::from_millis(value.parse::<u64>().expect("parse spin duration"));
+                let mut value = 0_u64;
+                while Instant::now() < deadline {
+                    value = black_box(value.wrapping_mul(6364136223846793005).wrapping_add(1));
+                }
+                black_box(value);
+            }
+            _ => panic!("unknown Windows Job test worker mode `{mode}`"),
+        }
+    }
+
     #[test]
     fn job_reaches_active_process_zero_after_normal_exit() {
         let mut command = Command::new("cmd.exe");
@@ -397,7 +602,7 @@ mod tests {
             .stdout(Stdio::null())
             .stderr(Stdio::null());
         let mut child = WindowsJobChild::spawn(&mut command).expect("spawn contained child");
-        assert!(wait_bounded(&mut child).success());
+        assert!(wait_bounded(&mut child, Duration::from_secs(5)).success());
     }
 
     #[test]
@@ -410,6 +615,94 @@ mod tests {
             .stderr(Stdio::null());
         let mut child = WindowsJobChild::spawn(&mut command).expect("spawn contained child");
         child.kill().expect("terminate complete Windows Job");
-        assert!(!wait_bounded(&mut child).success());
+        assert!(!wait_bounded(&mut child, Duration::from_secs(5)).success());
+    }
+
+    #[test]
+    fn job_active_process_limit_rejects_excess_descendant() {
+        let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+        let control = test_limits(4, 512, 1024, Duration::from_secs(30));
+        let (status, events) = run_worker("fanout", "2,1", control, Duration::from_secs(10));
+        assert!(status.success(), "below-limit fanout should succeed");
+        assert!(!events.contains(&JobLimitEvent::ActiveProcess));
+
+        let limited = test_limits(2, 512, 1024, Duration::from_secs(30));
+        let (status, events) = run_worker("fanout", "2,0", limited, Duration::from_secs(10));
+        assert!(
+            status.success(),
+            "worker should observe the rejected excess child"
+        );
+        assert!(events.contains(&JobLimitEvent::ActiveProcess));
+    }
+
+    #[test]
+    fn job_process_memory_limit_blocks_excess_commit() {
+        let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+        let control = test_limits(4, 256, 512, Duration::from_secs(30));
+        let (status, events) = run_worker(
+            "touch",
+            &format!("{},0", 32 * MIB),
+            control,
+            Duration::from_secs(10),
+        );
+        assert!(
+            status.success(),
+            "below-limit process memory should succeed"
+        );
+        assert!(!events.contains(&JobLimitEvent::ProcessMemory));
+
+        let limited = test_limits(4, 128, 512, Duration::from_secs(30));
+        let (status, events) = run_worker(
+            "touch",
+            &format!("{},0", 256 * MIB),
+            limited,
+            Duration::from_secs(10),
+        );
+        assert!(!status.success(), "over-limit process memory must fail");
+        assert!(events.contains(&JobLimitEvent::ProcessMemory));
+    }
+
+    #[test]
+    fn job_aggregate_memory_limit_spans_descendants() {
+        let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+        let control = test_limits(4, 256, 512, Duration::from_secs(30));
+        let (status, events) = run_worker(
+            "aggregate-memory",
+            &format!("1,{},1", 32 * MIB),
+            control,
+            Duration::from_secs(10),
+        );
+        assert!(
+            status.success(),
+            "below-limit aggregate memory should succeed"
+        );
+        assert!(!events.contains(&JobLimitEvent::AggregateMemory));
+
+        let limited = test_limits(4, 256, 256, Duration::from_secs(30));
+        let (status, events) = run_worker(
+            "aggregate-memory",
+            &format!("2,{},0", 160 * MIB),
+            limited,
+            Duration::from_secs(15),
+        );
+        assert!(
+            status.success(),
+            "worker should observe an aggregate-memory child failure"
+        );
+        assert!(events.contains(&JobLimitEvent::AggregateMemory));
+    }
+
+    #[test]
+    fn job_aggregate_cpu_limit_terminates_the_job() {
+        let _serial = JOB_LIMIT_TEST_LOCK.lock().expect("lock Job limit tests");
+        let control = test_limits(2, 256, 512, Duration::from_secs(5));
+        let (status, events) = run_worker("spin", "100", control, Duration::from_secs(10));
+        assert!(status.success(), "below-limit aggregate CPU should succeed");
+        assert!(!events.contains(&JobLimitEvent::AggregateCpu));
+
+        let limited = test_limits(2, 256, 512, Duration::from_secs(1));
+        let (status, events) = run_worker("spin", "5000", limited, Duration::from_secs(10));
+        assert!(!status.success(), "over-limit aggregate CPU must terminate");
+        assert!(events.contains(&JobLimitEvent::AggregateCpu));
     }
 }
