@@ -127,24 +127,19 @@ label_ref_bind_parameter:
 label_ref_append_prefix:
         imm r20, 5
         call write_str_require_emit_event
-        imm r2, 1426
-        jeq r0, r2, label_ref_prefix_length
-        jmp reject
-label_ref_prefix_length:
+        mov r30, r0                   ; checked relative literal pointer
         imm r2, 2
         jeq r1, r2, label_ref_prefix_bytes
         jmp reject
 label_ref_prefix_bytes:
-        imm r20, 1426
+        mov r20, r30
         imm r21, 95                   ; '_'
         call require_tape_byte
-        imm r20, 1427
+        mov r20, r30
+        imm r1, 1
+        add r20, r1
         imm r21, 76                   ; 'L'
         call require_tape_byte
-        imm r20, 1448
-        imm r21, 31
-        imm r22, 1457
-        call exact_require_call
         imm r1, 535440
         imm r2, 2                    ; exact two-byte helper clause
         store r1, r2
@@ -160,8 +155,7 @@ label_ref_bind_child:
         imm r21, 6
         imm r22, 1
         imm r23, 0
-        imm r24, 1457
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 535432
         imm r21, 1
         call exact_require_cell
@@ -170,8 +164,7 @@ label_ref_bind_child:
         store r1, r2
         imm r20, 237
         imm r21, 6
-        imm r23, 1476
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 535456
         imm r21, 1
         call exact_require_cell
@@ -185,7 +178,9 @@ label_ref_bind_child:
         imm r24, 0
         imm r25, 40                    ; emit_dec procedure identity
         call exact_proc_entry_r25
-        imm r26, 1517
+        mov r26, r22
+        imm r1, 9
+        add r26, r1
         call summary_require_call_site
         imm r20, 535464
         imm r21, 1

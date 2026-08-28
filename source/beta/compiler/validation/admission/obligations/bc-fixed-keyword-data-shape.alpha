@@ -22,7 +22,6 @@ fixed_keyword_select_proc:             ; r20=procedure
 	jmp reject
 fixed_keyword_select_return:
 	imm r21, 6                    ; return keyword length
-	imm r22, 6617                 ; return procedure pc
 	imm r23, 54                   ; return first block
 	imm r24, 40                   ; return first transition
 	imm r25, 46                   ; return first event
@@ -34,7 +33,6 @@ fixed_keyword_select_return:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_state:
 	imm r21, 5
-	imm r22, 7943
 	imm r23, 63
 	imm r24, 47
 	imm r25, 60
@@ -46,7 +44,6 @@ fixed_keyword_select_state:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_to:
 	imm r21, 2
-	imm r22, 9084
 	imm r23, 71
 	imm r24, 53
 	imm r25, 72
@@ -58,7 +55,6 @@ fixed_keyword_select_to:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_when:
 	imm r21, 4
-	imm r22, 9670
 	imm r23, 76
 	imm r24, 56
 	imm r25, 78
@@ -70,7 +66,6 @@ fixed_keyword_select_when:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_byte:
 	imm r21, 4
-	imm r22, 10626
 	imm r23, 83
 	imm r24, 61
 	imm r25, 88
@@ -82,7 +77,6 @@ fixed_keyword_select_byte:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_word:
 	imm r21, 4
-	imm r22, 11582
 	imm r23, 90
 	imm r24, 66
 	imm r25, 98
@@ -94,7 +88,6 @@ fixed_keyword_select_word:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_read_byte:
 	imm r21, 9
-	imm r22, 12538
 	imm r23, 97
 	imm r24, 71
 	imm r25, 108
@@ -106,7 +99,6 @@ fixed_keyword_select_read_byte:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_write_byte:
 	imm r21, 10
-	imm r22, 14419
 	imm r23, 109
 	imm r24, 81
 	imm r25, 128
@@ -118,7 +110,6 @@ fixed_keyword_select_write_byte:
 	jmp fixed_keyword_store_metadata
 fixed_keyword_select_emit:
 	imm r21, 4
-	imm r22, 16485
 	imm r23, 122
 	imm r24, 92
 	imm r25, 150
@@ -129,6 +120,9 @@ fixed_keyword_select_emit:
 	imm r30, fixed_keyword_literal_emit
 
 fixed_keyword_store_metadata:
+	mov r0, r20
+	call exact_proc_entry_pc      ; selected procedure's checked entry
+	mov r22, r0
 	imm r1, 530360
 	store r1, r20
 	imm r1, 530368

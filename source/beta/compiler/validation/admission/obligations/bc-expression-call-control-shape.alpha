@@ -36,7 +36,8 @@ expression_call_control_require_proc:
 
 expression_call_control_require_blocks:
         imm r20, 150
-        imm r21, 21670
+        imm r21, 32                    ; gen_call procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 151
         imm r21, 21702
@@ -211,225 +212,130 @@ expression_call_control_require_emit:
         call exact_require_event
         ret
 
+; r21=source block, r22=arity, r23=target procedure identity. The event owner
+; reconstructs the unique call PC, target entry, and fallthrough.
+expression_call_control_require_call:
+        mov r24, r23
+        imm r23, 0
+        imm r20, 32                    ; gen_call owning procedure identity
+        call summary_require_call_fallthrough_identity
+        ret
+
+; r21=source block. The event owner reconstructs the unique source return and
+; validates its canonical epilogue.
+expression_call_control_require_return:
+        imm r20, 32                    ; gen_call owning procedure identity
+        call exact_require_event_epilogue
+        ret
+
 expression_call_control_require_events:
         ; Builtin-dispatch calls and returns.
-        imm r20, 242
         imm r21, 151
-        imm r22, 21702
-        imm r23, 0
-        imm r24, 0
-        imm r25, 12538
-        imm r26, 21711
-        call summary_require_call_site
-        imm r20, 243
+        imm r22, 0
+        imm r23, 21                    ; is_read_byte procedure identity
+        call expression_call_control_require_call
         imm r21, 152
-        imm r22, 21824
-        imm r23, 0
-        imm r24, 0
-        imm r25, 21226
-        imm r26, 21833
-        call summary_require_call_site
-        imm r20, 244
+        imm r22, 0
+        imm r23, 30                    ; gen_read_byte procedure identity
+        call expression_call_control_require_call
         imm r21, 152
-        imm r22, 5
-        imm r23, 21862
-        call exact_require_event
-        imm r20, 245
+        call expression_call_control_require_return
         imm r21, 153
-        imm r22, 21863
-        imm r23, 0
-        imm r24, 0
-        imm r25, 14419
-        imm r26, 21872
-        call summary_require_call_site
-        imm r20, 246
+        imm r22, 0
+        imm r23, 22                    ; is_write_byte procedure identity
+        call expression_call_control_require_call
         imm r21, 154
-        imm r22, 21985
-        imm r23, 0
-        imm r24, 0
-        imm r25, 21443
-        imm r26, 21994
-        call summary_require_call_site
-        imm r20, 247
+        imm r22, 0
+        imm r23, 31                    ; gen_write_byte procedure identity
+        call expression_call_control_require_call
         imm r21, 154
-        imm r22, 5
-        imm r23, 22023
-        call exact_require_event
-        imm r20, 248
+        call expression_call_control_require_return
         imm r21, 155
-        imm r22, 22024
-        imm r23, 0
-        imm r24, 0
-        imm r25, 16485
-        imm r26, 22033
-        call summary_require_call_site
-        imm r20, 249
+        imm r22, 0
+        imm r23, 23                    ; is_emit procedure identity
+        call expression_call_control_require_call
         imm r21, 156
-        imm r22, 22146
-        imm r23, 0
-        imm r24, 0
-        imm r25, 19556
-        imm r26, 22155
-        call summary_require_call_site
-        imm r20, 250
+        imm r22, 0
+        imm r23, 28                    ; gen_emit procedure identity
+        call expression_call_control_require_call
         imm r21, 156
-        imm r22, 5
-        imm r23, 22184
-        call exact_require_event
+        call expression_call_control_require_return
 
         ; Normal-call argument loop.
-        imm r20, 251
         imm r21, 157
-        imm r22, 22291
-        imm r23, 1
-        imm r24, 0
-        imm r25, 17441
-        imm r26, 22300
-        call summary_require_call_site
-        imm r20, 252
+        imm r22, 1
+        imm r23, 24                    ; expect procedure identity
+        call expression_call_control_require_call
         imm r21, 157
-        imm r22, 22329
-        imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 22338
-        call summary_require_call_site
-        imm r20, 253
+        imm r22, 0
+        imm r23, 10                    ; skip_ws procedure identity
+        call expression_call_control_require_call
         imm r21, 158
-        imm r22, 22347
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 22356
-        call summary_require_call_site
-        imm r20, 254
+        imm r22, 0
+        imm r23, 4                     ; cbyte procedure identity
+        call expression_call_control_require_call
         imm r21, 159
-        imm r22, 5
-        imm r23, 22676
-        call exact_require_event
-        imm r20, 255
+        call expression_call_control_require_return
         imm r21, 160
-        imm r22, 22677
-        imm r23, 0
-        imm r24, 0
-        imm r25, 61                    ; gen_expr procedure identity
-        call exact_proc_entry_r25
-        imm r26, 22686
-        call summary_require_call_site
-        imm r20, 256
+        imm r22, 0
+        imm r23, 61                    ; gen_expr procedure identity
+        call expression_call_control_require_call
         imm r21, 160
-        imm r22, 22803
-        imm r23, 0
-        imm r24, 0
-        imm r25, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r25
-        imm r26, 22812
-        call summary_require_call_site
-        imm r20, 257
+        imm r22, 0
+        imm r23, 47                    ; emit_push procedure identity
+        call expression_call_control_require_call
         imm r21, 160
-        imm r22, 22898
-        imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 22907
-        call summary_require_call_site
-        imm r20, 258
+        imm r22, 0
+        imm r23, 10                    ; skip_ws procedure identity
+        call expression_call_control_require_call
         imm r21, 160
-        imm r22, 22907
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 22916
-        call summary_require_call_site
-        imm r20, 259
+        imm r22, 0
+        imm r23, 4                     ; cbyte procedure identity
+        call expression_call_control_require_call
         imm r21, 161
-        imm r22, 5
-        imm r23, 23058
-        call exact_require_event
-        imm r20, 260
+        call expression_call_control_require_return
         imm r21, 162
-        imm r22, 23059
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 23068
-        call summary_require_call_site
-        imm r20, 261
+        imm r22, 0
+        imm r23, 5                     ; adv procedure identity
+        call expression_call_control_require_call
         imm r21, 162
-        imm r22, 23068
-        imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 23077
-        call summary_require_call_site
-        imm r20, 262
+        imm r22, 0
+        imm r23, 10                    ; skip_ws procedure identity
+        call expression_call_control_require_call
         imm r21, 163
-        imm r22, 23086
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 23095
-        call summary_require_call_site
-        imm r20, 263
+        imm r22, 0
+        imm r23, 5                     ; adv procedure identity
+        call expression_call_control_require_call
         imm r21, 165
-        imm r22, 23411
-        imm r23, 1
-        imm r24, 0
-        imm r25, 44                    ; emit_pop_into procedure identity
-        call exact_proc_entry_r25
-        imm r26, 23420
-        call summary_require_call_site
+        imm r22, 1
+        imm r23, 44                    ; emit_pop_into procedure identity
+        call expression_call_control_require_call
 
         ; Dynamic call spelling and final return.
         imm r20, 264
         imm r21, 166
         imm r22, 23463
         call expression_call_control_require_emit
-        imm r20, 265
         imm r21, 166
-        imm r22, 23574
-        imm r23, 2
-        imm r24, 0
-        imm r25, 31465
-        imm r26, 23583
-        call summary_require_call_site
+        imm r22, 2
+        imm r23, 45                    ; emit_ident_at procedure identity
+        call expression_call_control_require_call
         imm r20, 266
         imm r21, 166
         imm r22, 23613
         call expression_call_control_require_emit
-        imm r20, 267
+        imm r20, 32
         imm r21, 166
-        imm r22, 5
-        imm r23, 23651
-        call exact_require_event
-
-        ; Six explicit returns plus the synthetic fallthrough epilogue.
-        imm r20, 21843
-        imm r21, 21862
-        call exact_require_epilogue
-        imm r20, 22004
-        imm r21, 22023
-        call exact_require_epilogue
-        imm r20, 22165
-        imm r21, 22184
-        call exact_require_epilogue
-        imm r20, 22657
-        imm r21, 22676
-        call exact_require_epilogue
-        imm r20, 23039
-        imm r21, 23058
-        call exact_require_epilogue
-        imm r20, 23632
-        imm r21, 23651
-        call exact_require_epilogue
-        imm r20, 23652
-        imm r21, 23671
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 33                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 expression_call_control_require_region:
-        imm r20, 21670
-        imm r21, 23672
+        imm r20, 32                    ; gen_call procedure identity
+        call exact_proc_entry_r20
+        imm r21, 33                    ; parse_number procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 20
         imm r23, 7
         imm r24, 23
