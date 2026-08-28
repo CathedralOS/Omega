@@ -5408,6 +5408,16 @@ Remaining:
   relevance root is now a 176-line statement-context facade with the exact 15-
   function inventory unchanged.
 
+  Psi-owned pre-resolution evaluation now returns target-filterable syntax
+  beside one opaque, non-cloneable pre-check continuation. That continuation
+  privately retains the exact plan-laid rows, placed-view rows, and optional
+  package-selection authority from the same pre-resolution run, then is
+  consumed once against the matching typed tree. Both ordinary Omega frontend
+  routes may interpose only target filtering, resolution, and typing; they no
+  longer courier raw rows or select a second authority before pre-check.
+  Const-length, const-domain, plan-laid, placed-view, and wire-plan sequencing
+  remains Psi-owned and keeps its existing fail-fast order.
+
   Continue moving any remaining target-neutral generic/build-time probe
   sequencing out of `omega-compiler`; Psi owns those services and normalized
   plan carriers, while Omega owns target filtering and ABI/provider realization.

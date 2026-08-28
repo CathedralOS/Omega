@@ -295,9 +295,8 @@ impl Compiler {
                 syntax.sources.clone(),
             ),
         }?;
-        syntax.syntax_trees = evaluated.syntax_trees;
-        let placed_view_records = evaluated.placed_view_records;
-        let plan_laid_records = evaluated.plan_laid_records;
+        let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
+        syntax.syntax_trees = syntax_trees;
         // TARGET-SCOPED MACHINES (fs portable-contract settle 2026-07-18):
         // the SELECTED target's `<target> machine` implementations become
         // ordinary machines; every other target's stay inert. Loud edges:
@@ -322,19 +321,7 @@ impl Compiler {
         }
 
         let mut typed = symbol_resolved_trees_to_typed_trees(resolved, &mut timings)?;
-        match self.package_inputs.as_ref() {
-            Some(package_inputs) => psi_build_time_evaluation::evaluate_pre_check_with_authority(
-                &mut typed,
-                &plan_laid_records,
-                &placed_view_records,
-                std::sync::Arc::new(package_inputs.clone()),
-            ),
-            None => psi_build_time_evaluation::evaluate_pre_check(
-                &mut typed,
-                &plan_laid_records,
-                &placed_view_records,
-            ),
-        }?;
+        pre_check.evaluate(&mut typed)?;
         let mut boundary_calling_plan_realizations =
             crate::pipeline::calling_policy_plans::compute_boundary_calling_plans(
                 &mut typed,

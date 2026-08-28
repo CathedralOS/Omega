@@ -385,7 +385,8 @@ fn lower_checked_frontend(
             syntax.sources.clone(),
         ),
     }?;
-    syntax.syntax_trees = evaluated.syntax_trees;
+    let (syntax_trees, pre_check) = evaluated.into_syntax_and_pre_check();
+    syntax.syntax_trees = syntax_trees;
     let selected_target_machine_declarations =
         crate::pipeline::target_machines::filter_target_machines(
             &mut syntax.syntax_trees,
@@ -394,19 +395,7 @@ fn lower_checked_frontend(
     let build_source_id = syntax.build_source_id;
     let resolved = syntax_trees_to_symbol_resolved_trees(syntax, timings)?;
     let mut typed = symbol_resolved_trees_to_typed_trees(resolved, timings)?;
-    match package_inputs {
-        Some(package_inputs) => psi_build_time_evaluation::evaluate_pre_check_with_authority(
-            &mut typed,
-            &evaluated.plan_laid_records,
-            &evaluated.placed_view_records,
-            std::sync::Arc::new(package_inputs.clone()),
-        ),
-        None => psi_build_time_evaluation::evaluate_pre_check(
-            &mut typed,
-            &evaluated.plan_laid_records,
-            &evaluated.placed_view_records,
-        ),
-    }?;
+    pre_check.evaluate(&mut typed)?;
     // Build evaluation consumes this coherent private typed stage before the
     // final checked-tree lowering. Bind trait-valued parameter-field calls now
     // so the evaluator receives the same exact requirement identity that the
