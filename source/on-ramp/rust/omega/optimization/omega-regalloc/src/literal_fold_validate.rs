@@ -6,13 +6,13 @@ use omega_register_model::{
 use omega_terminal_target_operations_to_selected_instructions::terminal_selected_instruction_plan_identity;
 
 use crate::{
-    TerminalLiteralFoldError, TerminalLiteralFoldPlan, TerminalLiteralFoldPolicy,
-    TerminalLiteralFoldValidationReceipt, ValidatedTerminalAllocationLegality,
-    ValidatedTerminalAllocatorAvailability, ValidatedTerminalLiteralFold,
-    ValidatedTerminalLiveRanges, ValidatedTerminalRecoveryClassifications,
-    ValidatedTerminalSelectedAnalysis, ValidatedTerminalSpillChoices,
+    TerminalLiteralFoldError, TerminalLiteralFoldPlan, TerminalLiteralFoldValidationReceipt,
+    ValidatedTerminalAllocationLegality, ValidatedTerminalAllocatorAvailability,
+    ValidatedTerminalLiteralFold, ValidatedTerminalLiveRanges,
+    ValidatedTerminalRecoveryClassifications, ValidatedTerminalSelectedAnalysis,
+    ValidatedTerminalSpillChoices,
     literal_fold_transform::{
-        ensure_budget, fold_usage, immediate_row, replay_actions, validate_literal_fold_roots,
+        ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
     },
     terminal_literal_fold_identity,
 };
@@ -57,11 +57,8 @@ pub fn validate_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis>(
     {
         return Err(TerminalLiteralFoldError::RootMismatch);
     }
-    if plan.policy != TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 {
-        return Err(TerminalLiteralFoldError::UnsupportedPolicy);
-    }
-    let row = immediate_row(constraints, selected_keys)?;
-    let (expected_functions, transformed) = replay_actions(selected, recovery, row)?;
+    let rows = immediate_rows(constraints, selected_keys, plan.policy)?;
+    let (expected_functions, transformed) = replay_actions(selected, recovery, &rows)?;
     if plan.functions != expected_functions {
         return Err(TerminalLiteralFoldError::DecisionMismatch { function: 0 });
     }

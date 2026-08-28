@@ -34,18 +34,20 @@ pub enum TerminalMachineSemanticKind {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
+    ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
 }
 
 impl TerminalMachineSemanticKind {
-    pub const ALL: [Self; 8] = [
+    pub const ALL: [Self; 9] = [
         Self::CompareI64Zero,
         Self::MaterializeI64,
         Self::CopyI64,
         Self::ExactAddI64,
         Self::ExactAddI64Immediate,
         Self::ExactSubtractI64,
+        Self::ExactSubtractI64Immediate,
         Self::ConditionalBranchNonZero,
         Self::ReturnI64,
     ];
@@ -59,6 +61,7 @@ pub enum TerminalMachineAlternativeFamily {
     ExactAddI64,
     ExactAddI64Immediate,
     ExactSubtractI64,
+    ExactSubtractI64Immediate,
     ConditionalBranchNonZero,
     ReturnI64,
 }
@@ -72,6 +75,9 @@ impl From<TerminalMachineSemanticKind> for TerminalMachineAlternativeFamily {
             TerminalMachineSemanticKind::ExactAddI64 => Self::ExactAddI64,
             TerminalMachineSemanticKind::ExactAddI64Immediate => Self::ExactAddI64Immediate,
             TerminalMachineSemanticKind::ExactSubtractI64 => Self::ExactSubtractI64,
+            TerminalMachineSemanticKind::ExactSubtractI64Immediate => {
+                Self::ExactSubtractI64Immediate
+            }
             TerminalMachineSemanticKind::ConditionalBranchNonZero => Self::ConditionalBranchNonZero,
             TerminalMachineSemanticKind::ReturnI64 => Self::ReturnI64,
         }
@@ -632,13 +638,14 @@ fn validate_applicability(
 }
 
 impl TerminalSelectedConstraintKeys {
-    pub const fn in_identity_order(self) -> [RegisterConstraintKey; 8] {
+    pub const fn in_identity_order(self) -> [RegisterConstraintKey; 9] {
         [
             self.materialize_i64,
             self.copy_i64,
             self.add_i64,
             self.add_i64_immediate,
             self.subtract_i64,
+            self.subtract_i64_immediate,
             self.compare_i64_zero,
             self.conditional_branch,
             self.return_i64,
@@ -656,6 +663,7 @@ impl TerminalSelectedConstraintKeys {
             TerminalMachineSemanticKind::ExactAddI64 => self.add_i64,
             TerminalMachineSemanticKind::ExactAddI64Immediate => self.add_i64_immediate,
             TerminalMachineSemanticKind::ExactSubtractI64 => self.subtract_i64,
+            TerminalMachineSemanticKind::ExactSubtractI64Immediate => self.subtract_i64_immediate,
             TerminalMachineSemanticKind::ConditionalBranchNonZero => self.conditional_branch,
             TerminalMachineSemanticKind::ReturnI64 => self.return_i64,
         }

@@ -228,6 +228,7 @@ pub(crate) const fn semantic_kind_tag(kind: TerminalMachineSemanticKind) -> u8 {
         TerminalMachineSemanticKind::ExactSubtractI64 => 5,
         TerminalMachineSemanticKind::ConditionalBranchNonZero => 6,
         TerminalMachineSemanticKind::ReturnI64 => 7,
+        TerminalMachineSemanticKind::ExactSubtractI64Immediate => 8,
     }
 }
 
@@ -241,6 +242,7 @@ pub(crate) const fn alternative_family_tag(family: TerminalMachineAlternativeFam
         TerminalMachineAlternativeFamily::ExactSubtractI64 => 5,
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
+        TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
     }
 }
 
@@ -281,6 +283,7 @@ mod tests {
             add_i64: instruction(2),
             subtract_i64: instruction(4),
             add_i64_immediate: instruction(3),
+            subtract_i64_immediate: instruction(8),
             compare_i64_zero: instruction(5),
             conditional_branch: instruction(6),
             return_i64: RegisterConstraintKey {

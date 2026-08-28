@@ -179,6 +179,9 @@ fn replay_declaration<'a>(
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
             TerminalMachineSemanticKind::ExactSubtractI64
         }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
+            TerminalMachineSemanticKind::ExactSubtractI64Immediate
+        }
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             TerminalMachineSemanticKind::ConditionalBranchNonZero
         }
@@ -212,6 +215,7 @@ fn copied_selected_keys(
         add_i64: keys.add_i64,
         subtract_i64: keys.subtract_i64,
         add_i64_immediate: keys.add_i64_immediate,
+        subtract_i64_immediate: keys.subtract_i64_immediate,
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,

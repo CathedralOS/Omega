@@ -15,7 +15,7 @@ use psi_core::IntegerValue;
 
 use crate::{
     TerminalFunctionLiteralFold, TerminalLiteralFoldAction, TerminalLiteralFoldError,
-    TerminalRecoveryClassification, TerminalRecoveryVictimRole,
+    TerminalLiteralFoldPolicy, TerminalRecoveryClassification, TerminalRecoveryVictimRole,
     ValidatedTerminalAllocationLegality, ValidatedTerminalAllocatorAvailability,
     ValidatedTerminalLiveRanges, ValidatedTerminalRecoveryClassifications,
     ValidatedTerminalSelectedAnalysis, ValidatedTerminalSpillChoices,
@@ -72,16 +72,45 @@ pub(crate) fn validate_literal_fold_roots<S: ValidatedTerminalSelectedAnalysis>(
     Ok(())
 }
 
-pub(crate) fn immediate_row(
+pub(crate) struct ImmediateRows<'a> {
+    add: Option<&'a RegisterInstructionConstraint>,
+    subtract: Option<&'a RegisterInstructionConstraint>,
+}
+
+pub(crate) fn immediate_rows(
     constraints: &ValidatedRegisterConstraintCatalog,
     keys: TargetRegisterEnvironmentConstraintKeys,
-) -> Result<&RegisterInstructionConstraint, TerminalLiteralFoldError> {
-    let row = constraints
-        .catalog()
-        .constraints
-        .iter()
-        .find(|row| row.key == keys.add_i64_immediate)
-        .ok_or(TerminalLiteralFoldError::ImmediateConstraintMismatch)?;
+    policy: TerminalLiteralFoldPolicy,
+) -> Result<ImmediateRows<'_>, TerminalLiteralFoldError> {
+    let find = |key| {
+        constraints
+            .catalog()
+            .constraints
+            .iter()
+            .find(|row| row.key == key)
+            .ok_or(TerminalLiteralFoldError::ImmediateConstraintMismatch)
+    };
+    let (add, subtract) = match policy {
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => {
+            (Some(find(keys.add_i64_immediate)?), None)
+        }
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => {
+            (None, Some(find(keys.subtract_i64_immediate)?))
+        }
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => (
+            Some(find(keys.add_i64_immediate)?),
+            Some(find(keys.subtract_i64_immediate)?),
+        ),
+    };
+    for row in [add, subtract].into_iter().flatten() {
+        validate_immediate_row(row)?;
+    }
+    Ok(ImmediateRows { add, subtract })
+}
+
+fn validate_immediate_row(
+    row: &RegisterInstructionConstraint,
+) -> Result<(), TerminalLiteralFoldError> {
     let [left, result] = row.operands.as_slice() else {
         return Err(TerminalLiteralFoldError::ImmediateConstraintMismatch);
     };
@@ -99,7 +128,7 @@ pub(crate) fn immediate_row(
     {
         return Err(TerminalLiteralFoldError::ImmediateConstraintMismatch);
     }
-    Ok(row)
+    Ok(())
 }
 
 pub(crate) fn fold_usage(
@@ -138,7 +167,7 @@ pub(crate) fn fold_usage(
 pub(crate) fn replay_actions(
     selected: &impl ValidatedTerminalSelectedAnalysis,
     recovery: &ValidatedTerminalRecoveryClassifications,
-    row: &RegisterInstructionConstraint,
+    rows: &ImmediateRows<'_>,
 ) -> Result<
     (
         Vec<TerminalFunctionLiteralFold>,
@@ -167,7 +196,7 @@ pub(crate) fn replay_actions(
                 function_index,
                 source,
                 classification,
-                row,
+                rows,
             )?),
         };
         if let Some(action) = action {
@@ -175,7 +204,7 @@ pub(crate) fn replay_actions(
                 function_index,
                 &mut output.functions[function_index],
                 action,
-                row,
+                rows,
             )?;
         }
         functions.push(TerminalFunctionLiteralFold {
@@ -190,7 +219,7 @@ fn action_from_classification(
     function_index: usize,
     function: &TerminalSelectedFunction,
     candidate: &crate::TerminalPressureRecoveryClassification,
-    row: &RegisterInstructionConstraint,
+    rows: &ImmediateRows<'_>,
 ) -> Result<TerminalLiteralFoldAction, TerminalLiteralFoldError> {
     if candidate.role != TerminalRecoveryVictimRole::Incoming {
         return Err(TerminalLiteralFoldError::UnsupportedVictimRole {
@@ -260,11 +289,14 @@ fn action_from_classification(
             function: function_index,
         });
     }
-    let TerminalSelectedInstructionKind::ExactAddI64 { .. } = consumer.kind else {
-        return Err(TerminalLiteralFoldError::ConsumerMismatch {
-            function: function_index,
-        });
-    };
+    let row = match consumer.kind {
+        TerminalSelectedInstructionKind::ExactAddI64 { .. } => rows.add,
+        TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => rows.subtract,
+        _ => None,
+    }
+    .ok_or(TerminalLiteralFoldError::ConsumerMismatch {
+        function: function_index,
+    })?;
     let [left, right, result] = consumer.operands.as_slice() else {
         return Err(TerminalLiteralFoldError::ConsumerMismatch {
             function: function_index,
@@ -336,7 +368,7 @@ fn apply_action(
     function_index: usize,
     function: &mut TerminalSelectedFunction,
     action: TerminalLiteralFoldAction,
-    row: &RegisterInstructionConstraint,
+    rows: &ImmediateRows<'_>,
 ) -> Result<(), TerminalLiteralFoldError> {
     let block = function
         .blocks
@@ -360,25 +392,42 @@ fn apply_action(
         .ok_or(TerminalLiteralFoldError::DecisionMismatch {
             function: function_index,
         })?;
-    let TerminalSelectedInstructionKind::ExactAddI64 {
-        obligation,
-        accepted_fact,
-    } = consumer.kind
-    else {
-        return Err(TerminalLiteralFoldError::ConsumerMismatch {
+    let (row, kind) = match consumer.kind {
+        TerminalSelectedInstructionKind::ExactAddI64 {
+            obligation,
+            accepted_fact,
+        } => (
+            rows.add,
+            TerminalSelectedInstructionKind::ExactAddI64Immediate {
+                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
+                obligation,
+                accepted_fact,
+            },
+        ),
+        TerminalSelectedInstructionKind::ExactSubtractI64 {
+            obligation,
+            accepted_fact,
+        } => (
+            rows.subtract,
+            TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
+                immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
+                obligation,
+                accepted_fact,
+            },
+        ),
+        _ => (None, consumer.kind),
+    };
+    let row = row
+        .filter(|row| row.key == action.immediate_constraint)
+        .ok_or(TerminalLiteralFoldError::ConsumerMismatch {
             function: function_index,
-        });
-    };
-    let add_provenance = consumer.provenance.clone();
+        })?;
+    let consumer_provenance = consumer.provenance.clone();
     let mut operations = literal.provenance.operations;
-    operations.extend(add_provenance.operations);
+    operations.extend(consumer_provenance.operations);
     let mut fuel = literal.provenance.fuel;
-    fuel.extend(add_provenance.fuel);
-    consumer.kind = TerminalSelectedInstructionKind::ExactAddI64Immediate {
-        immediate: IntegerValue::Unsigned(u128::from(action.immediate)),
-        obligation,
-        accepted_fact,
-    };
+    fuel.extend(consumer_provenance.fuel);
+    consumer.kind = kind;
     consumer.constraint = action.immediate_constraint;
     consumer.operands = vec![
         selected_operand(&row.operands[0], action.left),
@@ -389,9 +438,9 @@ fn apply_action(
     consumer.clobbers = row.clobbers.clone();
     consumer.provenance = TerminalSelectedInstructionProvenance {
         operations,
-        values: add_provenance.values,
-        edges: add_provenance.edges,
-        obligations: add_provenance.obligations,
+        values: consumer_provenance.values,
+        edges: consumer_provenance.edges,
+        obligations: consumer_provenance.obligations,
         fuel,
     };
 

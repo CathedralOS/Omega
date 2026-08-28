@@ -260,6 +260,11 @@ fn family_and_operand_count(
             2,
             0..=0,
         ),
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => (
+            TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
+            2,
+            0..=0,
+        ),
         TerminalSelectedInstructionKind::ReturnI64 => {
             (TerminalMachineAlternativeFamily::ReturnI64, 1, 0..=0)
         }
@@ -387,8 +392,8 @@ fn append_lea_register(bytes: &mut Vec<u8>, left: u8, right: u8, destination: u8
     }
 }
 
-fn append_lea_immediate(bytes: &mut Vec<u8>, base: u8, destination: u8, displacement: u32) {
-    let use_disp8 = displacement <= 127;
+fn append_lea_immediate(bytes: &mut Vec<u8>, base: u8, destination: u8, displacement: i32) {
+    let use_disp8 = i8::try_from(displacement).is_ok();
     let uses_sib = base & 7 == 4;
     bytes.extend([
         rex(destination, 0, base),
@@ -403,7 +408,7 @@ fn append_lea_immediate(bytes: &mut Vec<u8>, base: u8, destination: u8, displace
         bytes.push(0x20 | (base & 7));
     }
     if use_disp8 {
-        bytes.push(displacement as u8);
+        bytes.push(displacement as i8 as u8);
     } else {
         bytes.extend(displacement.to_le_bytes());
     }
@@ -430,7 +435,20 @@ fn encode_unchecked(
             append_lea_register(&mut bytes, registers[0], registers[1], registers[2]);
         }
         TerminalSelectedInstructionKind::ExactAddI64Immediate { immediate, .. } => {
-            append_lea_immediate(&mut bytes, registers[0], registers[1], u12(immediate)?);
+            append_lea_immediate(
+                &mut bytes,
+                registers[0],
+                registers[1],
+                i32::try_from(u12(immediate)?).expect("u12 fits i32"),
+            );
+        }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+            append_lea_immediate(
+                &mut bytes,
+                registers[0],
+                registers[1],
+                -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
+            );
         }
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => match alternative.variant {
             0 => append_register_binary(&mut bytes, 0x31, registers[2], registers[2]),
@@ -676,6 +694,15 @@ fn validate_decoded(
                     displacement: i32::try_from(u12(immediate)?).expect("u12 fits i32"),
                 }]
         }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+            decoded
+                == [DecodedInstruction::Lea {
+                    destination: registers[1],
+                    base: registers[0],
+                    index: None,
+                    displacement: -i32::try_from(u12(immediate)?).expect("u12 fits i32"),
+                }]
+        }
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => match alternative.variant {
             0 => {
                 decoded
@@ -742,7 +769,8 @@ fn footprint(
         TerminalSelectedInstructionKind::ExactAddI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
-        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+        | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
         TerminalSelectedInstructionKind::ExactSubtractI64 { .. } if alternative.variant == 0 => {
@@ -804,7 +832,8 @@ fn footprint(
                 TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 TerminalSelectedInstructionKind::CopyI64
                 | TerminalSelectedInstructionKind::CompareI64Zero
-                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![0],
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 TerminalSelectedInstructionKind::ExactAddI64 { .. } => vec![0, 1],
                 TerminalSelectedInstructionKind::ExactSubtractI64 { .. }
                     if alternative.variant == 0 =>
@@ -817,7 +846,8 @@ fn footprint(
             match kind {
                 TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 TerminalSelectedInstructionKind::CopyI64
-                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![1],
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 TerminalSelectedInstructionKind::ExactAddI64 { .. }
                 | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 TerminalSelectedInstructionKind::CompareI64Zero => vec![],
@@ -947,6 +977,58 @@ mod tests {
             )
             .unwrap();
             assert_eq!(encoded.bytes().len(), size);
+        }
+    }
+
+    #[test]
+    fn subtract_immediate_lea_is_negative_canonical_and_flag_transparent() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let rax = physical.model().view_named("rax").unwrap().id;
+        let r12 = physical.model().view_named("r12").unwrap().id;
+        let fact = AcceptedObligationFactIdentity::from_bytes([6; 32]);
+        for (base, immediate, expected) in [
+            (rax, 0, vec![0x48, 0x8d, 0x40, 0x00]),
+            (rax, 128, vec![0x48, 0x8d, 0x40, 0x80]),
+            (rax, 129, vec![0x48, 0x8d, 0x80, 0x7f, 0xff, 0xff, 0xff]),
+            (
+                r12,
+                4095,
+                vec![0x49, 0x8d, 0x84, 0x24, 0x01, 0xf0, 0xff, 0xff],
+            ),
+        ] {
+            let kind = TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
+                immediate: IntegerValue::Unsigned(immediate),
+                obligation: ObligationId::new(4).unwrap(),
+                accepted_fact: fact,
+            };
+            let alternative = alternative(
+                TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
+                0,
+            );
+            let encoded =
+                encode_x86_64_terminal_selected_form(&physical, kind, alternative, &[base, rax])
+                    .unwrap();
+            assert_eq!(encoded.bytes(), expected);
+            assert!(!encoded.footprint().writes_rflags);
+            assert!(
+                encoded
+                    .footprint()
+                    .encoded
+                    .implicit_unit_clobbers
+                    .is_empty()
+            );
+            let mut wrong_sign = expected;
+            *wrong_sign.last_mut().unwrap() ^= 0x80;
+            assert!(
+                validate_x86_64_terminal_selected_form_encoding(
+                    &physical,
+                    kind,
+                    alternative,
+                    &[base, rax],
+                    &wrong_sign,
+                )
+                .is_err()
+            );
         }
     }
 

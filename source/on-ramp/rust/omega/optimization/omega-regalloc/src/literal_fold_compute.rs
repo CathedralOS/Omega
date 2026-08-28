@@ -12,7 +12,7 @@ use crate::{
     ValidatedTerminalLiveRanges, ValidatedTerminalRecoveryClassifications,
     ValidatedTerminalSelectedAnalysis, ValidatedTerminalSpillChoices,
     literal_fold_transform::{
-        ensure_budget, fold_usage, immediate_row, replay_actions, validate_literal_fold_roots,
+        ensure_budget, fold_usage, immediate_rows, replay_actions, validate_literal_fold_roots,
     },
 };
 
@@ -45,11 +45,8 @@ pub(crate) fn compute_terminal_literal_fold<S: ValidatedTerminalSelectedAnalysis
         reservations,
         selected_keys,
     )?;
-    if policy != TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 {
-        return Err(TerminalLiteralFoldError::UnsupportedPolicy);
-    }
-    let row = immediate_row(constraints, selected_keys)?;
-    let (functions, transformed) = replay_actions(selected, recovery, row)?;
+    let rows = immediate_rows(constraints, selected_keys, policy)?;
+    let (functions, transformed) = replay_actions(selected, recovery, &rows)?;
     let usage = fold_usage(
         selected,
         functions
