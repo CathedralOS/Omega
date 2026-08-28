@@ -2033,7 +2033,7 @@ noncanonical bytes, and publish decoded register/flag footprints.
 `omega-optimization-pipeline` then builds an immutable pre-layout fragment
 artifact rooted in both the selected plan and post-allocation machine sidecar.
 Every row binds its instruction, chosen alternative, canonical bytes, resolved
-size, decoded footprint, and encoded-realization effects under its v2 identity.
+size, decoded footprint, and encoded-realization effects under its v3 identity.
 Replayed validation compares external physical reads/writes, implicit units,
 memory, stack, trap, control, and catalog size bounds with the chosen catalog
 alternative. x86-64 near return is independently decoded as canonical `C3` and
@@ -2044,6 +2044,19 @@ access, and possible architectural fault. Neither form falsely reports the ABI
 result operand as an encoded read. Conditional branches alone remain explicit
 layout-deferred rows. Consequently this artifact is neither a concatenated code
 section nor emission/publication authority.
+
+The production active-resident vertical has a separate owning pre-layout
+carrier around that generic artifact. It consumes the full rematerialization
+carrier and its rematerialization-sourced post-allocation machine plan by value,
+replays both source-specific receipts, derives the transformed selected plan
+and physical model only from retained custody, and independently reconstructs
+the generic encoding. Its in-process receipt binds both upstream receipts, the
+transformed selected root, unchanged v3 encoding identity, and exact encoded
+and deferred row counts. Both ISA tests locate the fresh rematerialization
+instruction and require its scalar bytes; corrupt source custody, cross-source
+machine substitution, and byte mutation fail closed. This advances no resolved
+layout, frame, section, emission, or publication authority and adds no durable
+schema.
 
 A separate immutable v1 artifact resolves those branch rows only after choosing
 the explicit required-stage layout policy

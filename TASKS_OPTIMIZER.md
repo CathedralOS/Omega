@@ -2038,7 +2038,7 @@ dependency.
   immediate boundary.
 
   Opt-in orchestration joins those fragments to the exact selected plan and
-  post-allocation sidecar. Its immutable v2 identity binds both roots, every
+  post-allocation sidecar. Its immutable v3 identity binds both roots, every
   instruction ID and chosen alternative, the canonical bytes, the decoded
   physical footprint, and the complete encoded-realization effects. It compares
   byte counts with each target size declaration and requires the target decoder
@@ -2050,6 +2050,19 @@ dependency.
   The selected return value remains separate ABI custody in RAX/X0. Only
   conditional branches remain explicit deferred rows in this pre-layout
   artifact because they require resolved layout.
+
+  A rematerialization-specific owning carrier now advances that production
+  vertical through this pre-layout boundary without weakening the generic
+  encoder. It consumes the complete active-resident carrier and its source-
+  specific post-allocation machine plan by value, independently replays both,
+  derives the transformed selected plan and physical model only through that
+  retained custody, and then validates every generic encoding row. Its
+  dedicated receipt binds both upstream receipts, transformed selected root,
+  unchanged v3 encoding identity, and exact encoded/deferred row counts. Both
+  targets prove the fresh zero-fuel `MaterializeI64` has a real encoded row;
+  upstream corruption, cross-source machine substitution, and encoded-byte
+  mutation reject. It grants no resolved layout, frame, emission, or
+  publication authority and requires no new wire schema.
 
   A sibling immutable v1 function-relative layout artifact now resolves that
   deferral under the exact named required-stage policy
