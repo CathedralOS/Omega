@@ -11,19 +11,11 @@ emit_cmp_require_shape:
         ret
 
 emit_cmp_require_control_shape:
-        imm r20, 7151616
-        imm r21, 60
-        imm r22, 1                    ; parameter code
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 60
-        imm r22, 3                    ; code,set,done
-        call transfer_require_cell
         imm r20, 60
-        call call_bounds_frame_bytes
-        imm r1, 32
-        jeq r0, r1, emit_cmp_require_blocks
-        jmp reject
+        imm r21, 1                    ; parameter code
+        imm r22, 3                    ; code,set,done
+        imm r23, 32
+        call exact_require_proc_frame_identity
 
 emit_cmp_require_blocks:
         imm r20, 285

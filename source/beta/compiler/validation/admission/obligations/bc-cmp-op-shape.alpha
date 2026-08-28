@@ -1,19 +1,11 @@
 ; Exact source/artifact shape for cmp_op() procedure59.
 
 cmp_op_require_shape:
-        imm r20, 7151616
-        imm r21, 59
-        imm r22, 0                    ; no parameters
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 59
-        imm r22, 2                    ; locals c and saved i
-        call transfer_require_cell
         imm r20, 59
-        call call_bounds_frame_bytes
-        imm r1, 24
-        jeq r0, r1, cmp_op_shape_blocks
-        jmp reject
+        imm r21, 0                    ; no parameters
+        imm r22, 2                    ; locals c and saved i
+        imm r23, 24
+        call exact_require_proc_frame_identity
 
 cmp_op_shape_blocks:
         imm r20, 273

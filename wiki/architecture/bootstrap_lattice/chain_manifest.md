@@ -14,7 +14,7 @@ Committed native seeds:
 
 | target | artifact | bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `5d424055a6c2cbbcd627d011ed971fdc5e5dc0a1181be44bc5586ab37b84d845` |
+| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `e3bb2be7c9e40b3c7a0e66c98568194a743d6d6e354d467386e222ef35dde927` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | 267264 | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
 
 The accepted input is one length-prefixed Alpha tape; the output is the exact

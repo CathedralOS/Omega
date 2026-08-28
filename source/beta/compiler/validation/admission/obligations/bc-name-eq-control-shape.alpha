@@ -2,19 +2,11 @@
 ; Data-expression ownership lives in bc-name-eq-data-shape.alpha.
 
 name_eq_require_shape:
-        imm r20, 7151616
-        imm r21, 35
-        imm r22, 1                    ; parameter i
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 35
-        imm r22, 5                    ; i,a,b,len,k
-        call transfer_require_cell
         imm r20, 35
-        call call_bounds_frame_bytes
-        imm r1, 48                   ; exact proc35 frame bytes
-        jeq r0, r1, name_eq_shape_blocks
-        jmp reject
+        imm r21, 1                    ; parameter i
+        imm r22, 5                    ; i,a,b,len,k
+        imm r23, 48                   ; exact proc35 frame bytes
+        call exact_require_proc_frame_identity
 
 name_eq_shape_blocks:
         imm r20, 173

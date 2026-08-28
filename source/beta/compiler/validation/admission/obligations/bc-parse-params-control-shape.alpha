@@ -7,19 +7,11 @@
 ; Local/memory/expression payloads are kept in bc-parse-params-data-shape.alpha.
 
 parse_params_require_control_shape:
-        imm r20, 7151616
-        imm r21, 68
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 68
-        imm r22, 5
-        call transfer_require_cell
         imm r20, 68
-        call call_bounds_frame_bytes
-        imm r1, 48
-        jeq r0, r1, parse_params_shape_blocks
-        jmp reject
+        imm r21, 0
+        imm r22, 5
+        imm r23, 48
+        call exact_require_proc_frame_identity
 
 parse_params_shape_blocks:
         imm r20, 338

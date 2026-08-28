@@ -57,22 +57,16 @@ main_slurp_require_shape:
         ; slurp is procedure zero (arity zero, two slots); main is procedure
         ; 69 (arity zero, one slot).  These cells were independently parsed
         ; from the exact source and their prologues were already checked.
-        imm r20, 7151616
-        imm r21, 0
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
+        imm r20, 0
         imm r21, 0
         imm r22, 2
-        call transfer_require_cell
-        imm r20, 7151616
-        imm r21, 69
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 69
+        imm r23, 24
+        call exact_require_proc_frame_identity
+        imm r20, 69
+        imm r21, 0
         imm r22, 1
-        call transfer_require_cell
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
         ; Exact main entry/storage/ready blocks and source ownership.
         imm r20, 349

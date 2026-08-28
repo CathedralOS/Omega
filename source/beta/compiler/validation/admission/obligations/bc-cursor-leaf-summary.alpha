@@ -37,14 +37,11 @@ cursor_leaf_summary_init:
 ; ---- cbyte -------------------------------------------------------------
 
 cursor_require_cbyte_shape:
-        imm r20, 7151616
-        imm r21, 4
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 4
+        imm r20, 4
+        imm r21, 0
         imm r22, 1
-        call transfer_require_cell
+        imm r23, 16
+        call exact_require_proc_frame_identity
         imm r20, 8
         imm r21, 4                    ; cbyte procedure identity
         imm r22, 0
@@ -285,14 +282,11 @@ cursor_cbyte_value_payload:
 ; ---- adv ---------------------------------------------------------------
 
 cursor_require_adv_shape:
-        imm r20, 7151616
-        imm r21, 5
+        imm r20, 5
+        imm r21, 0
         imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 5
-        imm r22, 0
-        call transfer_require_cell
+        imm r23, 8
+        call exact_require_proc_frame_identity
         imm r20, 11
         imm r21, 5                    ; adv procedure identity
         imm r22, 0
@@ -412,14 +406,11 @@ cursor_adv_store_successor:
 ; ---- is_space ----------------------------------------------------------
 
 cursor_require_space_shape:
-        imm r20, 7151616
-        imm r21, 9
+        imm r20, 9
+        imm r21, 1
         imm r22, 1
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 9
-        imm r22, 1
-        call transfer_require_cell
+        imm r23, 16
+        call exact_require_proc_frame_identity
         imm r20, 27
         imm r21, 9                    ; is_space procedure identity
         imm r22, 0

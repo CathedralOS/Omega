@@ -7,33 +7,17 @@
 ; deliberately separated into the adjacent summary module.
 
 literal_skip_require_shape:
-        imm r20, 7151616
-        imm r21, 37
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 37
-        imm r22, 0
-        call transfer_require_cell
         imm r20, 37
-        call call_bounds_frame_bytes
-        imm r1, 8
-        jeq r0, r1, literal_skip_shape_string_frame
-        jmp reject
+        imm r21, 0
+        imm r22, 0
+        imm r23, 8
+        call exact_require_proc_frame_identity
 literal_skip_shape_string_frame:
-        imm r20, 7151616
-        imm r21, 38
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 38
-        imm r22, 0
-        call transfer_require_cell
         imm r20, 38
-        call call_bounds_frame_bytes
-        imm r1, 8
-        jeq r0, r1, literal_skip_shape_blocks
-        jmp reject
+        imm r21, 0
+        imm r22, 0
+        imm r23, 8
+        call exact_require_proc_frame_identity
 
 literal_skip_shape_blocks:
         imm r20, 183

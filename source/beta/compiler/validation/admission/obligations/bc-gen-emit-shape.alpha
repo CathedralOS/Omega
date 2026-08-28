@@ -31,19 +31,12 @@ gen_emit_require_shape:
         ret
 
 gen_emit_require_proc:
-        imm r20, 7151616
-        imm r21, 28
-        imm r22, 0                    ; no parameters
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 28
-        imm r22, 3                    ; slbl, albl, len
-        call transfer_require_cell
         imm r20, 28
-        call call_bounds_frame_bytes
-        imm r1, 32
-        jeq r0, r1, gen_emit_shape_ok
-        jmp reject
+        imm r21, 0                    ; no parameters
+        imm r22, 3                    ; slbl, albl, len
+        imm r23, 32
+        call exact_require_proc_frame_identity
+        jmp gen_emit_shape_ok
 
 gen_emit_require_block:
         imm r20, 146

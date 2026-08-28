@@ -16,19 +16,12 @@ parse_body_shape_init:
         jmp parse_body_rules_init
 
 parse_body_require_proc:
-        imm r20, 7151616
-        imm r21, 68
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 68
-        imm r22, 5
-        call transfer_require_cell
         imm r20, 68
-        call call_bounds_frame_bytes
-        imm r1, 48
-        jeq r0, r1, exact_shape_ok
-        jmp reject
+        imm r21, 0
+        imm r22, 5
+        imm r23, 48
+        call exact_require_proc_frame_identity
+        jmp exact_shape_ok
 
 parse_body_require_block:
         imm r20, 348

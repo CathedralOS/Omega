@@ -47,14 +47,11 @@ slurp_summary_init:
 
 slurp_summary_require_shape:
         ; Procedure zero has no parameters and exactly two local slots.
-        imm r20, 7151616
-        imm r21, 0
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
+        imm r20, 0
         imm r21, 0
         imm r22, 2
-        call transfer_require_cell
+        imm r23, 24
+        call exact_require_proc_frame_identity
 
         ; Exact cutpoints [entry,loop,body,full,done].
         imm r20, 0

@@ -43,14 +43,11 @@ skip_ws_summary_init:
 ; ---- Exact skip_ws_step shape -----------------------------------------
 
 skip_step_require_shape:
-        imm r20, 7151616
-        imm r21, 11
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 11
+        imm r20, 11
+        imm r21, 0
         imm r22, 1
-        call transfer_require_cell
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
         imm r20, 35
         imm r21, 11
@@ -303,14 +300,11 @@ skip_step_require_shape:
 ; ---- Exact skip_ws shape ----------------------------------------------
 
 skip_require_shape:
-        imm r20, 7151616
-        imm r21, 10
+        imm r20, 10
+        imm r21, 0
         imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 10
-        imm r22, 0
-        call transfer_require_cell
+        imm r23, 8
+        call exact_require_proc_frame_identity
         imm r20, 33
         imm r21, 10
         imm r22, 0

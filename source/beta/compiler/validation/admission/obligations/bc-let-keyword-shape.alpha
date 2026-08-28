@@ -7,33 +7,17 @@
 
 let_keyword_require_shape:
         ; id_char has one parameter; is_let has none.
-        imm r20, 7151616
-        imm r21, 13
-        imm r22, 1
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 13
-        imm r22, 1
-        call transfer_require_cell
         imm r20, 13
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, let_keyword_shape_is_let_frame
-        jmp reject
+        imm r21, 1
+        imm r22, 1
+        imm r23, 16
+        call exact_require_proc_frame_identity
 let_keyword_shape_is_let_frame:
-        imm r20, 7151616
-        imm r21, 14
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 14
-        imm r22, 0
-        call transfer_require_cell
         imm r20, 14
-        call call_bounds_frame_bytes
-        imm r1, 8
-        jeq r0, r1, let_keyword_shape_blocks
-        jmp reject
+        imm r21, 0
+        imm r22, 0
+        imm r23, 8
+        call exact_require_proc_frame_identity
 
 let_keyword_shape_blocks:
         imm r20, 47

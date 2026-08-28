@@ -20,23 +20,16 @@ root_observation_shape_init:
 
 root_observation_require_main_shape:
         ; main is exact procedure69: arity zero, one local slot, six blocks.
-        imm r20, 7151616
-        imm r21, 69
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 69
+        imm r20, 69
+        imm r21, 0
         imm r22, 1
-        call transfer_require_cell
+        imm r23, 16
+        call exact_require_proc_frame_identity
         imm r20, 349
         imm r21, 354
         imm r22, 69
         call exact_require_proc_blocks
-        imm r20, 69
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, root_observation_require_body_blocks
-        jmp reject
+        jmp root_observation_require_body_blocks
 root_observation_require_body_blocks:
         imm r20, 353
         imm r21, 69

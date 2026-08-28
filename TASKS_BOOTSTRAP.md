@@ -90,10 +90,15 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 62,102 lines; Checker A is 1,010,867 source bytes and the checker ROOT is
-  81,747 bytes. Shape, control, data, and
+  and 61,957 lines; Checker A is 1,024,369 source bytes and the checker ROOT is
+  81,772 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
-  offsets, macro bodies, or equivalent verification permutations.
+  offsets, macro bodies, or equivalent verification permutations. The first
+  procedure-custody tranche centralizes the canonical parameter/slot/frame
+  identity join for 52 consumers, removing 359 duplicated lines and 9,100
+  source bytes while retaining the existing nth/cardinality checks and all
+  eight binding teeth. Continue upward from that common owner into per-procedure
+  inventories rather than adding another parallel shape vocabulary.
 - [x] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
@@ -140,10 +145,13 @@ admission, and optional stress evidence stay under the same compiler owner.
   the exact compiler proposition below `bc` and check it with the Alpha-owned
   derivation checker. Candidate compiler output must never select its own
   proposition or accept its own evidence.
-- [ ] Keep alternate checkers, fuzzing, large corpora, exhaustive mutations,
+- [x] Keep alternate checkers, fuzzing, large corpora, exhaustive mutations,
   generated refinement samples, and developer reports optional. The default
   edge builds the artifact and runs only the bounded gates required to admit
-  that exact artifact.
+  that exact artifact. The lattice runner has exactly three Beta rows: cold
+  construction, structural framing, and exact maximal-observation
+  reconstruction. Path-policy tests pin that allowlist so optional evidence
+  cannot silently enter the default edge.
 
 Acceptance: changing one shared compiler macro changes `bc.beta`, its one shape
 owner, generated identities, and directly relevant semantic obligations only.
@@ -171,7 +179,12 @@ Delta.
   closed Delta publication program recorded 5,113 of 6,207 samples at Alpha's
   `next` dispatcher, with nearly all remaining samples in Alpha opcode handlers
   and no output yet. Dispatch remains the next optimization target; preparation
-  and packing completed in 1.15 seconds and 0.11 seconds respectively.
+  and packing completed in 1.15 seconds and 0.11 seconds respectively. The first
+  dispatch simplification now places the hottest `imm` handler immediately
+  before `next`, eliminating one native branch per immediate without changing
+  the dispatch mechanism. An interleaved representative Gamma loop improved
+  from 3.085 to 2.965 seconds (3.89%) and retired about 1.19% fewer native
+  instructions with byte-identical output.
 - [x] Retain the canonical evaluator input and output explicitly at the Delta
   producer edge, and retain evaluator/type-checker source and build-artifact
   identities at the `bc` → Gamma edge. The Delta publication evaluates an

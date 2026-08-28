@@ -7,19 +7,11 @@
 ; canonical decimal-output induction.
 
 emit_dec_require_shape:
-        imm r20, 7151616
-        imm r21, 40
-        imm r22, 1                    ; n parameter
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 40
-        imm r22, 1                    ; n parameter slot
-        call transfer_require_cell
         imm r20, 40
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, emit_dec_shape_blocks
-        jmp reject
+        imm r21, 1                    ; n parameter
+        imm r22, 1                    ; n parameter slot
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
 emit_dec_shape_blocks:
         imm r20, 204

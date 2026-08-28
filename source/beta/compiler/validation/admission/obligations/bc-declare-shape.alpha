@@ -6,19 +6,11 @@
 ; adjacent module owns the successful insertion and full-table meanings.
 
 declare_require_shape:
-        imm r20, 7151616
-        imm r21, 34
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        imm r21, 34
-        imm r22, 1
-        call transfer_require_cell
         imm r20, 34
-        call call_bounds_frame_bytes
-        imm r1, 16
-        jeq r0, r1, declare_shape_blocks
-        jmp reject
+        imm r21, 0
+        imm r22, 1
+        imm r23, 16
+        call exact_require_proc_frame_identity
 
 declare_shape_blocks:
         imm r20, 170

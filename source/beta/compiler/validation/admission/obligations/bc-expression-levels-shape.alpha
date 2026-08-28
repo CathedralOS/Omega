@@ -12,20 +12,11 @@ expression_levels_require_shape:
 
 ; r20=procedure,r21=frame bytes.
 expression_levels_require_one_proc:
-        mov r30, r20
-        mov r31, r21
-        imm r20, 7151616
-        mov r21, r30
-        imm r22, 0
-        call transfer_require_cell
-        imm r20, 7159808
-        mov r21, r30
+        mov r23, r21
+        imm r21, 0
         imm r22, 1                    ; one local operator slot
-        call transfer_require_cell
-        mov r20, r30
-        call call_bounds_frame_bytes
-        jeq r0, r31, exact_shape_ok
-        jmp reject
+        call exact_require_proc_frame_identity
+        ret
 
 expression_levels_require_proc_meta:
         imm r20, 57

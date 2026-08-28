@@ -19,22 +19,8 @@ expression_leaf_require_shape:
 
 ; r20=procedure, r21=parameter count, r22=slot count, r23=frame bytes.
 expression_leaf_require_one_proc:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        imm r20, 7151616
-        mov r21, r30
-        mov r22, r31
-        call transfer_require_cell
-        imm r20, 7159808
-        mov r21, r30
-        mov r22, r32
-        call transfer_require_cell
-        mov r20, r30
-        call call_bounds_frame_bytes
-        jeq r0, r33, exact_shape_ok
-        jmp reject
+        call exact_require_proc_frame_identity
+        ret
 
 expression_leaf_require_proc_meta:
         imm r20, 25
