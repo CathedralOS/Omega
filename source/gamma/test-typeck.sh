@@ -4,17 +4,17 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
@@ -58,7 +58,7 @@ tc '(data Nat (Z) (S Nat)) (def bad ((n Int)) Nat (S n))' 0 'constructor arg wro
 tc '(data Nat (Z) (S Nat)) (def bad ((n Nat)) Nat (Nope n))' 0 'unknown constructor'
 tc '(data Pair (Mk Int Int)) (def bad ((p Pair)) Int (match p ((Mk a) a)))' 0 'pattern arity wrong (1 of 2)'
 # the proof kernel's OWN code is statically type-safe under gamma's type system
-printf '%s' "$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma)" | "$T/tc.exe"; ct=$?
+printf '%s' "$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker_typed.gamma)" | "$T/tc.exe"; ct=$?
 if [ "$ct" = 1 ]; then PASS=$((PASS+1)); else FAIL=$((FAIL+1)); echo "  FAIL checker_typed.gamma should be well-typed (got $ct)"; fi
 echo "gamma typeck: $PASS passed, $FAIL failed"
 [ "$FAIL" = 0 ] || exit 1

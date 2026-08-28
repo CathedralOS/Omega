@@ -48,12 +48,10 @@ Principal artifacts:
 
 - `interp.beta` — canonical Gamma reference interpreter, written in Beta;
 - `typeck.beta` — monomorphic Gamma type checker, written in Beta;
+- `reference/` — optional Python evaluator, fuzz generator, and differential
+  runner;
 - `source/alpha/checker/implementations/gamma/` — independent
-  proof-kernel implementations hosted by Gamma and owned by Alpha's checker;
-- `canonical-bytes/` — reusable typed byte-cursor primitives;
-- `terminal-codec-primitives/` — reusable typed scalar, identity, type, integer-
-  value, UTF-8, and structural-leaf grammar fragments. It deliberately owns no
-  fixed terminal-format header or complete live codec;
+  proof-kernel implementations hosted by Gamma and owned by Alpha's checker.
 
 Run the principal gates from the repository root:
 
@@ -63,8 +61,7 @@ sh source/gamma/test-interp-gc.sh
 sh source/gamma/test-interp-arena.sh
 sh source/gamma/test-typeck.sh
 sh source/alpha/checker/gates/gamma-checker.sh
-sh source/gamma/test-canonical-bytes.sh
-sh source/gamma/test-terminal-codec-primitives.sh
+sh source/gamma/reference/gamma-diamond-py.sh
 ```
 
 The former terminal-ledger spike was retired after its format-18/vocabulary-20
@@ -80,23 +77,15 @@ surface, canonical evaluation, and static checking. The independent Python
 evaluator and the focused gates are conformance tools; agreement with them does
 not override `interp.beta`.
 
-`canonical-bytes/` and `terminal-codec-primitives/` are reusable programs in
-Gamma. Being written in and evaluated by Gamma does not make a consumer part of
-the language or its meaning. Artifact-specific obligation reconstruction belongs
-beside the artifact being admitted, not under the Gamma rung.
+The old generic canonical-byte and terminal-codec prototype was retired because
+no live artifact admission consumed it. Being written in Gamma did not make it
+part of Gamma meaning; artifact-specific reconstruction belongs beside the
+artifact being admitted.
 
-## Parked imperative Gamma
-
-`gamma.alpha`, `gamma_x64_windows.exe`, `build.sh`, `rebuild.sh`, and the root
-`examples/` directory implement the older compiler-first language with variables
-`a`–`j`, mutation, `if`/`while`, and decimal I/O. They remain compatibility and
-differential-testing artifacts only. They do not define canonical Gamma and
-must not grow into a second meaning path.
-
-The parked files remain co-located for compatibility only. Their classification,
-not their host-language suffix or directory proximity, determines their
-architectural role. The former `compiler/gamma` compatibility entry has been
-retired.
+The older compiler-first imperative language, its native artifact, scripts, and
+private examples were retired after confirming no canonical gate or external
+consumer used them. Git history retains that experiment; Gamma has one meaning
+route rather than a parked second compiler.
 
 See [LANGUAGE.md](LANGUAGE.md) for the canonical surface and
 [`rungs/gamma.md`](../../wiki/architecture/bootstrap_lattice/rungs/gamma.md) for

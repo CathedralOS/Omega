@@ -14,8 +14,9 @@ use omega_terminal_selected_instructions::{
 };
 
 use crate::{
-    AARCH64_AAPCS64_RETURN, AARCH64_ADD_I64, AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO,
-    AARCH64_CONDITIONAL_BRANCH, AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_MATERIALIZE_I64,
+    AARCH64_AAPCS64_RETURN, AARCH64_AAPCS64_RETURN_UNIT, AARCH64_ADD_I64,
+    AARCH64_ADD_I64_IMMEDIATE, AARCH64_COMPARE_I64_ZERO, AARCH64_CONDITIONAL_BRANCH,
+    AARCH64_COPY_I64, AARCH64_DARWIN_RETURN, AARCH64_DARWIN_RETURN_UNIT, AARCH64_MATERIALIZE_I64,
     AARCH64_SUBTRACT_I64, AARCH64_SUBTRACT_I64_IMMEDIATE,
 };
 
@@ -52,6 +53,7 @@ pub fn aarch64_terminal_machine_effect_catalog(
         target,
         register_constraints: constraints.identity(),
         selected_keys,
+        structural_unit_call: None,
         declarations: TerminalMachineSemanticKind::ALL
             .into_iter()
             .map(|semantic| declaration(semantic, selected_keys))
@@ -89,7 +91,15 @@ fn selected_keys(
             return Err(Aarch64TerminalMachineEffectCatalogValidationError::UnsupportedTargetAbi);
         }
     };
+    let return_unit = match target.object_format {
+        ObjectFormat::Elf => AARCH64_AAPCS64_RETURN_UNIT,
+        ObjectFormat::MachO => AARCH64_DARWIN_RETURN_UNIT,
+        ObjectFormat::Coff => {
+            return Err(Aarch64TerminalMachineEffectCatalogValidationError::UnsupportedTargetAbi);
+        }
+    };
     Ok(TerminalSelectedConstraintKeys {
+        structural_unit_call: None,
         materialize_i64: AARCH64_MATERIALIZE_I64,
         copy_i64: AARCH64_COPY_I64,
         add_i64: AARCH64_ADD_I64,
@@ -99,6 +109,7 @@ fn selected_keys(
         compare_i64_zero: AARCH64_COMPARE_I64_ZERO,
         conditional_branch: AARCH64_CONDITIONAL_BRANCH,
         return_i64,
+        return_unit,
     })
 }
 
@@ -115,6 +126,7 @@ fn declaration(
             semantic,
             TerminalMachineSemanticKind::ConditionalBranchNonZero
                 | TerminalMachineSemanticKind::ReturnI64
+                | TerminalMachineSemanticKind::ReturnUnit
         ) {
             TerminalMachineBarrier::ControlFlow
         } else {
@@ -159,7 +171,8 @@ fn encoded_effects(semantic: TerminalMachineSemanticKind) -> TerminalMachineEnco
         TerminalMachineSemanticKind::ExactAddI64Immediate
         | TerminalMachineSemanticKind::ExactSubtractI64Immediate => (vec![0], vec![1]),
         TerminalMachineSemanticKind::ConditionalBranchNonZero
-        | TerminalMachineSemanticKind::ReturnI64 => (vec![], vec![]),
+        | TerminalMachineSemanticKind::ReturnI64
+        | TerminalMachineSemanticKind::ReturnUnit => (vec![], vec![]),
     };
     let (implicit_uses, implicit_defs, trap, control) = match semantic {
         TerminalMachineSemanticKind::CompareI64Zero => (
@@ -180,7 +193,7 @@ fn encoded_effects(semantic: TerminalMachineSemanticKind) -> TerminalMachineEnco
                 TerminalMachineEncodedControlEffect::ConditionalRelativeBranchV1,
             )
         }
-        TerminalMachineSemanticKind::ReturnI64 => (
+        TerminalMachineSemanticKind::ReturnI64 | TerminalMachineSemanticKind::ReturnUnit => (
             units("x30"),
             units("pc"),
             TerminalMachineEncodedTrapBehavior::MayArchitecturalFaultV1,
@@ -271,6 +284,22 @@ mod tests {
             assert!(
                 validate_aarch64_terminal_machine_effect_catalog(target, &constraints, catalog)
                     .is_ok()
+            );
+            let catalog = aarch64_terminal_machine_effect_catalog(target, &constraints).unwrap();
+            let return_unit = catalog
+                .declarations
+                .iter()
+                .find(|row| row.semantic == TerminalMachineSemanticKind::ReturnUnit)
+                .unwrap();
+            assert!(
+                constraints
+                    .catalog()
+                    .constraints
+                    .iter()
+                    .find(|row| row.key == return_unit.constraint)
+                    .unwrap()
+                    .operands
+                    .is_empty()
             );
         }
     }

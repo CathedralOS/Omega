@@ -53,6 +53,14 @@ pub fn validate_terminal_allocation_legality(
             function: plan.functions.len().min(ranges.plan().functions.len()),
         });
     }
+    if plan.structural_unit_functions.len() != ranges.plan().structural_unit_functions.len() {
+        return Err(TerminalAllocationLegalityError::FunctionMismatch {
+            function: plan
+                .structural_unit_functions
+                .len()
+                .min(ranges.plan().structural_unit_functions.len()),
+        });
+    }
     for (function_index, (actual, source)) in plan
         .functions
         .iter()
@@ -88,6 +96,24 @@ pub fn validate_terminal_allocation_legality(
             validate_canonical(function_index, actual)?;
         }
     }
+    for (function_index, (actual, source)) in plan
+        .structural_unit_functions
+        .iter()
+        .zip(&ranges.plan().structural_unit_functions)
+        .enumerate()
+    {
+        if actual.machine != source.machine
+            || !actual.virtual_registers.is_empty()
+            || !source.virtual_registers.is_empty()
+            || !source.tied_pairs.is_empty()
+            || !source.early_clobbers.is_empty()
+            || !source.interference.is_empty()
+        {
+            return Err(TerminalAllocationLegalityError::FunctionMismatch {
+                function: function_index,
+            });
+        }
+    }
     let identity = terminal_allocation_legality_identity(&plan);
     let receipt = TerminalAllocationLegalityValidationReceipt {
         identity,
@@ -95,6 +121,7 @@ pub fn validate_terminal_allocation_legality(
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
         function_count: plan.functions.len(),
+        structural_unit_function_count: plan.structural_unit_functions.len(),
         virtual_register_count: plan
             .functions
             .iter()
@@ -388,6 +415,25 @@ fn replay_register(
         early_clobber_points,
         entry_transitions,
     })
+}
+
+#[cfg(test)]
+pub(crate) fn replay_register_for_test(
+    function_index: usize,
+    function: &crate::TerminalFunctionLiveRanges,
+    register: &TerminalVirtualLiveRange,
+    availability: &ValidatedTerminalAllocatorAvailability,
+    physical: &ValidatedPhysicalRegisterModel,
+    reservations: &ValidatedRegisterReservationProfile,
+) -> Result<TerminalVirtualRegisterAllocationLegality, TerminalAllocationLegalityError> {
+    replay_register(
+        function_index,
+        function,
+        register,
+        availability,
+        physical,
+        reservations,
+    )
 }
 
 fn occupied_units(

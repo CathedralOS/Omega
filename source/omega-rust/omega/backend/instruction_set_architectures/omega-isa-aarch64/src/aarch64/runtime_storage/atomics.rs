@@ -106,7 +106,7 @@ pub fn runtime_atomic_store_from_operand_width(
 /// The single RMW returns its observed prior in x26, which is then stored into
 /// the language result place.
 /// (An earlier fence-era comment here claimed this was unimplemented; the
-/// LDADDAL path is live and pinned by tests/canaries/pass/atomics on arm64 hosts.)
+/// LDADDAL path is live and pinned by tests/omega/pass/atomics on arm64 hosts.)
 pub fn encode_atomic_fetch_add(
     runtime_value_operands: &impl RuntimeValueOperandSource,
     target_offset: usize,

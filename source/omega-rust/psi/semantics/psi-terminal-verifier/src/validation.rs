@@ -38,6 +38,7 @@ mod frontier;
 mod machine;
 mod operations;
 mod propositions;
+mod quotient_correspondence;
 mod root_service_reach;
 mod structural_operations;
 
@@ -167,6 +168,7 @@ fn validate_module_with_policy(
     validate_structural_foundation(module)?;
     validate_closed_conformance_applications(module)?;
     float_meaning::validate_float_meaning_projections(module)?;
+    quotient_correspondence::validate_quotient_correspondences(module, policy)?;
 
     let mut registry = IdRegistry::default();
     for projection in module

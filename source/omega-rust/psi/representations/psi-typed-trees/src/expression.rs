@@ -451,6 +451,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    static_requirement_dispatch: call.static_requirement_dispatch.clone(),
                     machine_arguments: call.machine_arguments.clone(),
                     quotient_operation: call.quotient_operation.clone(),
                     private_layout_operation: call.private_layout_operation.clone(),
@@ -1451,6 +1452,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target,
+                    static_requirement_dispatch: call.static_requirement_dispatch,
                     machine_arguments: call.machine_arguments,
                     quotient_operation: call.quotient_operation,
                     private_layout_operation: call.private_layout_operation,
@@ -1671,6 +1673,7 @@ impl ExpressionTable {
                     receiver,
                     target_symbol: call.target_symbol,
                     target: call.target.clone(),
+                    static_requirement_dispatch: None,
                     machine_arguments: Box::default(),
                     quotient_operation: None,
                     private_layout_operation: None,
@@ -2157,6 +2160,9 @@ pub struct TableCallExpression {
     pub receiver: ExpressionHandle,
     pub target_symbol: SymbolHandle,
     pub target: Identifier,
+    /// Public requirement identity plus private closed realization retained
+    /// when static conformance dispatch rewrites `target_symbol`.
+    pub static_requirement_dispatch: Option<crate::typed_trees::StaticRequirementDispatch>,
     pub machine_arguments: Box<[StaticMachineArgument]>,
     /// An explicitly authored sealed quotient operation request. Retention is
     /// not admission: semantic validation must independently check quotient

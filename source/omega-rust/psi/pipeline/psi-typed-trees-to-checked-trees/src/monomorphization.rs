@@ -3155,6 +3155,7 @@ struct EvidenceRequirementRewrite {
     target: SymbolHandle,
     name: psi_typed_trees::name::Identifier,
     application_arguments: Box<[StaticMachineArgument]>,
+    dispatch: psi_typed_trees::typed_trees::StaticRequirementDispatch,
 }
 
 fn evidence_requirement_rewrites(
@@ -3187,6 +3188,9 @@ fn evidence_requirement_rewrites(
         let Some(rows) = program.closed_conformance_rows(selected) else {
             continue;
         };
+        let application =
+            crate::conformance_applications::close_conformance_application(program, binding)
+                .expect("validated selected conformance must close during specialization");
         let mut requirements = Vec::new();
         collect_evidence_requirement_closure(
             program,
@@ -3216,6 +3220,13 @@ fn evidence_requirement_rewrites(
                     .application
                     .as_ref()
                     .map_or_else(Box::default, |application| application.arguments.clone()),
+                dispatch: psi_typed_trees::typed_trees::StaticRequirementDispatch {
+                    application_fingerprint: application.fingerprint,
+                    declaring_trait: row.declaring_trait,
+                    requirement: row.requirement,
+                    realization_machine: row.realization_machine,
+                    realization_state: row.realization_state,
+                },
             });
         }
     }
@@ -3377,6 +3388,7 @@ fn rewrite_cloned_calls(
                 call.arguments = span_without_first(call.arguments);
             }
             if let Some(rewrite) = evidence_dispatch {
+                call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
                 call.machine_arguments = rewrite.application_arguments.clone();
             }
             substitute_forwarded_machine_arguments(
@@ -3430,6 +3442,7 @@ fn rewrite_cloned_calls(
             call.arguments = span_without_first(call.arguments);
         }
         if let Some(rewrite) = evidence_dispatch {
+            call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
             call.machine_arguments = rewrite.application_arguments.clone();
         }
         substitute_forwarded_machine_arguments(
@@ -3823,6 +3836,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
                 call.arguments = span_without_first(call.arguments);
             }
             if let Some(rewrite) = evidence_dispatch {
+                call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
                 call.machine_arguments = rewrite.application_arguments.clone();
             }
             substitute_forwarded_machine_arguments(
@@ -3873,6 +3887,7 @@ fn apply_specialization(program: &mut TypedTrees, candidate: &Candidate) {
             call.arguments = span_without_first(call.arguments);
         }
         if let Some(rewrite) = evidence_dispatch {
+            call.static_requirement_dispatch = Some(rewrite.dispatch.clone());
             call.machine_arguments = rewrite.application_arguments.clone();
         }
         substitute_forwarded_machine_arguments(

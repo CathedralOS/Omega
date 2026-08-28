@@ -133,7 +133,7 @@ fn source_canary() -> PathBuf {
         .ancestors()
         .nth(5)
         .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
-        .join("tests/canaries/pass/terminal_psi/structural_content_passthrough/main.omg")
+        .join("tests/omega/pass/terminal_psi/structural_content_passthrough/main.omg")
 }
 
 fn checked_source() -> psi_checked_trees::CheckedTrees {

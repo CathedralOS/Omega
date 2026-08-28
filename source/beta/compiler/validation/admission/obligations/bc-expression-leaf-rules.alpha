@@ -1,0 +1,221 @@
+; Parameterized semantic rules for gen_load and gen_write_byte.
+;
+; These rules do not execute a recursive child while they are introduced.  They
+; bind the exact call sites and establish the composition schema consumed by the
+; descending gen_expr induction: permissive delimiter, child GE(E), permissive
+; delimiter, then an unconditional fixed suffix.  In particular status252 from
+; the child never suppresses either suffix.  Work cells 540096..<540400.
+
+expression_leaf_rules_init:
+        call expression_leaf_reset
+        call expression_leaf_require_imports
+        call expression_leaf_prove_load
+        call expression_leaf_prove_write
+        jmp expression_call_rules_init
+
+expression_leaf_reset:
+        imm r1, 540096
+        imm r2, 0
+expression_leaf_reset_loop:
+        imm r3, 540400
+        jlt r1, r3, expression_leaf_reset_one
+        ret
+expression_leaf_reset_one:
+        store r1, r2
+        imm r3, 8
+        add r1, r3
+        jmp expression_leaf_reset_loop
+
+expression_leaf_require_imports:
+        imm r20, 540016
+        imm r21, 1364349016             ; XPRQ
+        call exact_require_cell
+        imm r20, 526960
+        imm r21, 1397774405             ; EXPS
+        call exact_require_cell
+        imm r20, 540024
+        imm r21, 1279347796             ; XTAL
+        call exact_require_cell
+        imm r20, 525816
+        imm r21, 1465074514             ; WSTR
+        call exact_require_cell
+        imm r1, 540096
+        imm r2, 1
+        store r1, r2
+        ret
+
+expression_leaf_require_child_call:
+        ; r20=event, r21=block, r22=pc, r23=target continuation.
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        imm r23, 0
+        imm r24, 0
+        imm r25, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r25
+        mov r26, r33
+        call summary_require_call_site
+        ret
+
+expression_leaf_require_expect:
+        ; r20=event, r21=block, r22=pc, r23=continuation.
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        imm r23, 1
+        imm r24, 0
+        imm r25, 17441
+        mov r26, r33
+        call summary_require_call_site
+        ret
+
+; Prove one fixed emit suffix and exact literal length. r20=row,r21=length.
+expression_leaf_require_fixed:
+        mov r30, r20
+        mov r31, r21
+        mov r20, r30
+        call write_str_require_emit_event
+        jeq r1, r31, exact_shape_ok
+        jmp reject
+
+expression_leaf_prove_load:
+        ; Exact ordered calls: expect('['), GE child, expect(']').
+        imm r20, 165
+        imm r21, 132
+        imm r22, 17805
+        imm r23, 17814
+        call expression_leaf_require_expect
+        imm r20, 166
+        imm r21, 132
+        imm r22, 17814
+        imm r23, 17823
+        call expression_leaf_require_child_call
+        imm r20, 167
+        imm r21, 132
+        imm r22, 17865
+        imm r23, 17874
+        call expression_leaf_require_expect
+
+        ; w==1 and its full-Word complement exhaust the exact equality guard.
+        imm r20, 358
+        imm r21, 133
+        imm r22, 3
+        imm r23, 10
+        imm r24, 17919
+        call transfer_require_primitive
+        imm r20, 359
+        imm r21, 133
+        imm r22, 1
+        imm r23, 1
+        imm r24, 17909
+        call transfer_require_primitive
+        imm r1, 540104
+        imm r2, 2                     ; exact two-way Word partition
+        store r1, r2
+
+        imm r20, 168
+        imm r21, 12                    ; "loadb r0,r0\n"
+        call expression_leaf_require_fixed
+        imm r20, 170
+        imm r21, 11                    ; "load r0,r0\n"
+        call expression_leaf_require_fixed
+        imm r1, 540112
+        imm r2, 2                     ; both suffixes bound
+        store r1, r2
+
+        ; Child status zero and numeric252 both continue through the closing
+        ; expect and selected suffix. No status writer exists in p25.
+        imm r10, 0
+expression_leaf_load_status_loop:
+        imm r1, 2
+        jlt r10, r1, expression_leaf_load_status_case
+        imm r1, 540128
+        imm r2, 2
+        store r1, r2
+        jmp expression_leaf_load_publish
+expression_leaf_load_status_case:
+        imm r1, 540120
+        store r1, r10                  ; 0=child success,1=child status252
+        imm r1, 540136
+        imm r2, 1
+        store r1, r2                   ; EXPS/XTAL closing expect composed
+        imm r1, 540144
+        store r1, r2                   ; suffix still appended
+        imm r1, 540152
+        store r1, r2                   ; exact child status retained
+        imm r1, 1
+        add r10, r1
+        jmp expression_leaf_load_status_loop
+expression_leaf_load_publish:
+        imm r20, 540096
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 540104
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 540112
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 540128
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 540032
+        imm r2, 1380207687             ; GLDR
+        store r1, r2
+        ret
+
+expression_leaf_prove_write:
+        imm r20, 237
+        imm r21, 149
+        imm r22, 21504
+        imm r23, 21513
+        call expression_leaf_require_expect
+        imm r20, 238
+        imm r21, 149
+        imm r22, 21513
+        imm r23, 21522
+        call expression_leaf_require_child_call
+        imm r20, 239
+        imm r21, 149
+        imm r22, 21564
+        imm r23, 21573
+        call expression_leaf_require_expect
+        imm r20, 240
+        imm r21, 9                     ; "write r0\n"
+        call expression_leaf_require_fixed
+
+        imm r10, 0
+expression_leaf_write_status_loop:
+        imm r1, 2
+        jlt r10, r1, expression_leaf_write_status_case
+        imm r1, 540184
+        imm r2, 2
+        store r1, r2
+        jmp expression_leaf_write_publish
+expression_leaf_write_status_case:
+        imm r1, 540160
+        store r1, r10
+        imm r1, 540168
+        imm r2, 1
+        store r1, r2                   ; EXPS/XTAL final expect executes
+        imm r1, 540176
+        store r1, r2                   ; write suffix executes
+        imm r1, 1
+        add r10, r1
+        jmp expression_leaf_write_status_loop
+expression_leaf_write_publish:
+        imm r20, 540184
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 540040
+        imm r2, 1414682439             ; GWRT
+        store r1, r2
+        ret

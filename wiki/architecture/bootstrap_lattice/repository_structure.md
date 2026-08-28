@@ -1,27 +1,54 @@
-# Bootstrap repository structure
+# Compiler lattice repository structure
 
 [Lattice overview](bootstrap_lattice.md) | [Standing decisions](decisions.md) |
 [Product repository layout](../repository_layout.md)
 
-The repository groups source by semantic owner. There is no standalone hosted
+The repository groups source by semantic owner. Bootstrap is a property of the
+compiler build graph, not a source owner, and there is no standalone hosted
 bridge between Delta and Omega.
 
 ```text
 source/
-  alpha/                 Alpha semantics, seeds, assembler, and root checker
-    checker/             universal derivation checker and its tests
-  beta/                  Beta language, reference meaning, and gates
-    compiler/            compiler source, artifact, cold start, and validation
-  gamma/                 Gamma language, interpreter, and type checker
-  delta/                 Delta language, compiler, meaning, and artifacts
-  omega/                 complete Omega-written product compiler
+  alpha/                 Alpha semantics and audited native VM seeds
+    assembler/           Alpha-source assembler and its built tape
+    checker/             universal derivation-checker source/artifact/gates
+  beta/                  Beta language and reference meaning
+    compiler/
+      bc.beta            one Beta compiler source
+      artifacts/         admitted bc tape
+      cold-start/        Alpha-written construction of that tape
+      validation/        exact bc source/artifact admission
+  gamma/                 Gamma language
+    interp.beta          canonical evaluator built by bc
+    typeck.beta          canonical type checker built by bc
+    reference/           optional differential implementation
+  delta/                 Delta language
+    compiler/
+      main.alp           one canonical Delta compiler source
+      artifacts/         admitted delta binary, when publication closes
+      validation/        exact delta producer-edge verification and custody
+    meaning/             canonical Delta-to-Gamma elaboration
+    tests/               Delta language cases
+  omega/                 one complete Omega-written product compiler source C
+    main.omg             product compiler entry
+    build.omg            product build selection
     psi/                 target-neutral phases through terminal Psi
   library/               core, allocation, and standard-library source
-  omega-rust/             temporary Rust product implementation/comparator
+  omega-rust/            maintained Rust product implementation/comparator
 
-tests/lattice/            shared bootstrap inputs
-tools/bootstrap/          replaceable convenience orchestration
+tests/lattice/            shared cross-rung inputs
+tests/omega/              Omega language acceptance/rejection cases
+tools/lattice/            replaceable convenience orchestration
 ```
+
+Names in this tree identify source owners, not build generations. In
+particular, `omega₀` and `omega` are two outputs from `source/omega/`; neither
+gets a source directory. The unsuffixed `source/omega/` is the canonical
+Omega-written implementation. The `-rust` suffix exists precisely because
+`source/omega-rust/` is a parallel implementation written in another language.
+Likewise, `bootstrap`, `assurance`, `refinement`, and `canaries` are not semantic
+owners and do not get generic repository buckets. Evidence stays beside the
+artifact it admits; product-language cases stay under `tests/omega/`.
 
 ## Ownership rules
 
@@ -40,8 +67,16 @@ tools/bootstrap/          replaceable convenience orchestration
 - The artifact being admitted owns its validation. For example,
   `source/beta/compiler/validation/` reconstructs the Beta compiler's
   source-to-artifact edge; there is no generic cross-rung dumping ground.
+- Alpha has no `compiler/` directory because its native VM seed executes Alpha
+  tapes and its assembler produces them. `source/alpha/checker/` is a separate
+  checker artifact used beside producer edges; it does not compile the next
+  language and is not a rung.
+- Gamma has no required compiler artifact. `bc` builds its Beta-written
+  evaluator and type checker, and those programs give the canonical route used
+  to realize and check Delta.
 - `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
-- `tools/bootstrap/` may invoke the chain. A script must not parse, resolve,
+- `tests/omega/` owns product-language cases; it is not a bootstrap artifact.
+- `tools/lattice/` may invoke the chain. A script must not parse, resolve,
   lower, discover source, manufacture evidence, or otherwise become a hidden
   compiler stage.
 
@@ -74,10 +109,12 @@ a rebuild of one compiler, not an untracked generation change.
 | current Rust comparator | `source/omega-rust/` |
 | root proof checking | `source/alpha/checker/` |
 | Beta compiler and its admission | `source/beta/compiler/` |
+| Delta compiler, artifacts, and admission | `source/delta/compiler/` |
 | language libraries | `source/library/` |
 | shared lattice inputs | `tests/lattice/` |
-| non-authoritative runners | `tools/bootstrap/` |
+| Omega language cases | `tests/omega/` |
+| non-authoritative runners | `tools/lattice/` |
 
 Cross-owner paths are resolved through
-[`tools/bootstrap/paths.sh`](../../../tools/bootstrap/paths.sh) and checked by
-[`tools/bootstrap/check-path-hygiene.sh`](../../../tools/bootstrap/check-path-hygiene.sh).
+[`tools/lattice/paths.sh`](../../../tools/lattice/paths.sh) and checked by
+[`tools/lattice/check-path-hygiene.sh`](../../../tools/lattice/check-path-hygiene.sh).

@@ -865,10 +865,12 @@ fn lower_evidence_term_ids(
         }
         for output in &invocation.outputs {
             let forwarded = proof_output_forwarded_source(checked, invocation, output).is_some();
+            let retains_callee_term =
+                !forwarded && invocation.static_requirement_dispatch.is_none();
             for handle in output
                 .output
                 .into_iter()
-                .chain((!forwarded).then_some(output.callee_output))
+                .chain(retains_callee_term.then_some(output.callee_output))
             {
                 let index = usize::try_from(handle.arena_index() - 1)
                     .expect("arena indices fit the host address space");
@@ -1160,6 +1162,14 @@ fn lower_proof_output_calls(
                 semantic_module,
                 invocation,
             )?;
+            let static_requirement_dispatch = lower_static_requirement_dispatch(
+                checked,
+                terminal_machine,
+                semantic_module,
+                invocation,
+                runtime_result,
+                runtime_call,
+            )?;
             let evidence_arguments = invocation
                 .evidence_arguments
                 .iter()
@@ -1217,16 +1227,16 @@ fn lower_proof_output_calls(
                             applications,
                             &callee_output.proposition,
                         )?,
-                        callee_output: forwarded_input_position
-                            .is_none()
-                            .then(|| {
-                                terminal_evidence_term_id(
-                                    term_ids,
-                                    output.callee_output,
-                                    "terminal proof-output callee term has no canonical identity",
-                                )
-                            })
-                            .transpose()?,
+                        callee_output: (forwarded_input_position.is_none()
+                            && invocation.static_requirement_dispatch.is_none())
+                        .then(|| {
+                            terminal_evidence_term_id(
+                                term_ids,
+                                output.callee_output,
+                                "terminal proof-output callee term has no canonical identity",
+                            )
+                        })
+                        .transpose()?,
                         instantiated_proposition: terminal_proposition_application_id(
                             checked,
                             term_ids,
@@ -1258,10 +1268,13 @@ fn lower_proof_output_calls(
                 ordinal: u32::try_from(ordinal).map_err(|_| {
                     LoweringError::Unsupported("terminal proof-output invocation count exceeds u32")
                 })?,
-                target_machine_identity: checked_evidence_machine_identity(
-                    checked,
-                    invocation.target_machine_symbol,
-                )?,
+                target_machine_identity: static_requirement_dispatch
+                    .as_ref()
+                    .map(|dispatch| Ok(dispatch.public_requirement_identity.clone()))
+                    .unwrap_or_else(|| {
+                        checked_evidence_machine_identity(checked, invocation.target_machine_symbol)
+                    })?,
+                static_requirement_dispatch,
                 runtime_result,
                 runtime_call,
                 evidence_arguments,
@@ -1271,6 +1284,138 @@ fn lower_proof_output_calls(
         .collect::<Result<Vec<_>, LoweringError>>()?;
     invocations.sort_unstable();
     Ok(invocations)
+}
+
+fn lower_static_requirement_dispatch(
+    checked: &CheckedTrees,
+    terminal_machine: MachineId,
+    semantic_module: &TerminalModule,
+    invocation: &psi_checked_trees::ProofOutputCallFact,
+    runtime_result: Option<ProofOutputRuntimeResult>,
+    runtime_call: Option<ProofOutputRuntimeCall>,
+) -> Result<Option<StaticRequirementDispatch>, LoweringError> {
+    let Some(dispatch) = invocation.static_requirement_dispatch else {
+        return Ok(None);
+    };
+    if dispatch.application_fingerprint == 0
+        || invocation.target_machine_symbol != dispatch.realization_machine
+        || invocation.target_state_symbol != dispatch.realization_state
+    {
+        return unsupported("static requirement proof output lost its exact checked realization");
+    }
+    let (Some(ProofOutputRuntimeResult::Unit), Some(runtime_call)) = (runtime_result, runtime_call)
+    else {
+        return unsupported(
+            "static requirement proof output is outside the bounded runtime Unit call",
+        );
+    };
+    let declaring_trait_identity = checked.symbols.display_path(dispatch.declaring_trait, "::");
+    let public_requirement_identity = checked_evidence_requirement_identity(
+        checked,
+        dispatch.declaring_trait,
+        dispatch.requirement,
+    )?;
+    let requirement_identity = checked.symbols.display_path(dispatch.requirement, "::");
+    let realization_identity = checked
+        .symbols
+        .display_path(dispatch.realization_state, "::");
+    if declaring_trait_identity.is_empty()
+        || public_requirement_identity.is_empty()
+        || requirement_identity.is_empty()
+        || realization_identity.is_empty()
+    {
+        return unsupported("static requirement proof output has an empty dispatch identity");
+    }
+    let checked_applications = checked
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == invocation.caller_machine_symbol)
+        .flat_map(|specialization| &specialization.conformance_applications)
+        .filter(|application| application.fingerprint == dispatch.application_fingerprint)
+        .collect::<Vec<_>>();
+    let [checked_application] = checked_applications.as_slice() else {
+        return unsupported(
+            "static requirement proof output has no unique checked conformance application",
+        );
+    };
+    if !checked_application.lifetime_arguments.is_empty()
+        || !checked_application.type_arguments.is_empty()
+        || !checked_application.const_arguments.is_empty()
+        || !checked_application.machine_arguments.is_empty()
+    {
+        return unsupported(
+            "static requirement proof output is outside the non-generic conformance rung",
+        );
+    }
+    let declaration_identity = checked
+        .symbols
+        .display_path(checked_application.declaration, "::");
+    let trait_identity = checked
+        .symbols
+        .display_path(checked_application.trait_definition, "::");
+    let expected_rows = checked_application
+        .rows
+        .iter()
+        .map(|row| {
+            Ok(psi_terminal::ClosedConformanceRow {
+                declaring_trait_identity: checked.symbols.display_path(row.declaring_trait, "::"),
+                public_requirement_identity: checked_evidence_requirement_identity(
+                    checked,
+                    row.declaring_trait,
+                    row.requirement,
+                )?,
+                requirement_identity: checked.symbols.display_path(row.requirement, "::"),
+                realization_identity: checked.symbols.display_path(row.realization_state, "::"),
+            })
+        })
+        .collect::<Result<Vec<_>, LoweringError>>()?;
+    let terminal_applications = semantic_module
+        .closed_conformance_applications
+        .iter()
+        .filter(|application| {
+            application.owner == terminal_machine
+                && application.declaration_identity == declaration_identity
+                && application.telescope.is_empty()
+                && application.subject_identity == checked_application.subject_identity
+                && application.trait_identity == trait_identity
+                && application.trait_arguments == checked_application.trait_arguments
+                && application.rows == expected_rows
+        })
+        .collect::<Vec<_>>();
+    let [application] = terminal_applications.as_slice() else {
+        return unsupported(
+            "static requirement proof output has no unique lowered conformance application",
+        );
+    };
+    if application.fingerprint == 0 {
+        return Err(LoweringError::Unsupported(
+            "static requirement proof output lost its closed conformance application",
+        ));
+    }
+    if application.trait_identity != declaring_trait_identity {
+        return unsupported(
+            "static requirement proof output selected a different conformance trait",
+        );
+    }
+    let mut rows = application.rows.iter().filter(|row| {
+        row.declaring_trait_identity == declaring_trait_identity
+            && row.public_requirement_identity == public_requirement_identity
+            && row.requirement_identity == requirement_identity
+            && row.realization_identity == realization_identity
+    });
+    if rows.next().is_none() || rows.next().is_some() {
+        return unsupported(
+            "static requirement proof output lost its exact closed conformance row",
+        );
+    }
+    Ok(Some(StaticRequirementDispatch {
+        conformance_application_fingerprint: application.fingerprint,
+        public_requirement_identity,
+        declaring_trait_identity,
+        requirement_identity,
+        realization_identity,
+        realization: runtime_call.callee,
+    }))
 }
 
 fn proof_output_forwarded_source(
@@ -1286,6 +1431,9 @@ fn proof_output_forwarded_argument<'a>(
     invocation: &'a psi_checked_trees::ProofOutputCallFact,
     output: &psi_checked_trees::ProofOutputFact,
 ) -> Option<&'a psi_checked_trees::ProofOutputEvidenceArgumentFact> {
+    if invocation.static_requirement_dispatch.is_some() {
+        return None;
+    }
     let source = checked
         .facts
         .proof
@@ -1649,8 +1797,9 @@ fn lower_evidence_producer_provenance(
         .proof_output_calls
         .iter()
         .filter_map(|(_, invocation)| {
-            (invocation.caller_machine_symbol == selected_machine)
-                .then_some(invocation.target_machine_symbol)
+            (invocation.caller_machine_symbol == selected_machine
+                && invocation.static_requirement_dispatch.is_none())
+            .then_some(invocation.target_machine_symbol)
         })
         .collect::<Vec<_>>();
     if let Some(plan) = checked
@@ -1781,7 +1930,7 @@ fn lower_evidence_producer_provenance(
     Ok(producers)
 }
 
-fn checked_evidence_requirement_identity(
+pub(super) fn checked_evidence_requirement_identity(
     checked: &CheckedTrees,
     declaring_trait: psi_symbols::SymbolHandle,
     requirement: psi_symbols::SymbolHandle,

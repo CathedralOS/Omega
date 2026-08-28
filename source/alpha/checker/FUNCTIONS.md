@@ -16,8 +16,8 @@ variable. A binary application is `(f fid x y)` = `FAPP(fid, FBUNDLE(x,y))`; the
 argument is `(y k)` = `PAR` in rule bodies, threaded through recursion. Next: N-ary (3+)
 arguments. The design below is the record.
 
-This is the trust anchor's stated #1 frontier
-(`README.md` / `proof-kernel/README.md`): today a `data`-declared type's constructors are inert
+This is the Alpha checker's stated #1 frontier
+([`README.md`](README.md)): today a `data`-declared type's constructors are inert
 data with structural equality + induction (`rec`), but there is no way to *define a
 function* over them (a `mirror`/`size`/`pred`) whose equations reduce. Adding it makes
 *theorems* over user types provable, not just their induction principles.

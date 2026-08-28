@@ -12,15 +12,282 @@ use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_symbols::SymbolHandle;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_terminal::BindingRelevance;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
 mod attached_unit_cases;
 mod content_conservation;
+mod quotient_correspondence;
 mod scalar_graph;
 mod structural_control_cases;
 mod structural_return_cases;
 mod unit_cleanup;
+
+fn checked_source(source: &str) -> psi_checked_trees::CheckedTrees {
+    let tokens = Lexer::new(source).tokenize().expect("tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("parse");
+    let resolved = lower_syntax_trees(&syntax).expect("resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("type");
+    lower_typed_trees(typed).expect("check")
+}
+
+#[test]
+fn program_entry_receipt_binds_checked_source_to_canonical_terminal_entry() {
+    let checked = checked_source(
+        r#"
+            data Main {}
+            machine Main::launch() {}
+        "#,
+    );
+    let source_signature_identity = [0x5a; 32];
+    let produced = produce_program_entry_terminal_artifact(
+        &checked,
+        "Main::launch",
+        source_signature_identity,
+    )
+    .expect("produce checked Unit ProgramEntry artifact");
+    let receipt = produced.receipt();
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|machine| machine.name == "Main::launch")
+        .expect("checked terminal selection");
+    let decoded = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("decode canonical semantic module");
+
+    assert_eq!(
+        receipt.source_signature_identity(),
+        source_signature_identity
+    );
+    assert_eq!(receipt.source_machine(), selection.machine);
+    assert_eq!(receipt.source_machine_name(), "Main::launch");
+    assert_eq!(receipt.terminal_entry(), decoded.entry);
+    assert_eq!(
+        receipt.terminal_psi_identity(),
+        produced.artifact().manifest().semantic()
+    );
+    assert!(
+        decoded
+            .machines
+            .iter()
+            .any(|machine| machine.id == receipt.terminal_entry()
+                && machine.result == TerminalMachineResult::Unit)
+    );
+    produced
+        .artifact()
+        .validate()
+        .expect("receipt-coupled artifact replays");
+}
+
+#[test]
+fn program_entry_receipt_retains_two_granted_extent_roots_and_their_boundary_handoff() {
+    let checked = checked_source(
+        r#"
+            data Extent [linear] {
+                base: addr;
+                length: u64;
+            }
+
+            boundary machine no_wrap(base: addr, length: u64) -> bool;
+
+            domain Extent::Granted
+            requires
+                no_wrap(self.base, self.length)
+            established by
+                ProgramStorageEntry::enter;
+
+            boundary trait ProgramStorageEntry {
+                machine enter(
+                    image: Extent in Granted,
+                    initial_storage: Extent in Granted
+                );
+            }
+
+            data ProgramLocalProducer {}
+            machine ProgramLocalProducer::handoff<machine Enter>(
+                image: Extent in Granted,
+                initial_storage: Extent in Granted
+            )
+            where machine Enter satisfies ProgramStorageEntry::enter;
+            {
+                Enter(image, initial_storage);
+            }
+        "#,
+    );
+    let source_signature_identity = [0xa5; 32];
+    let produced = produce_program_entry_terminal_artifact(
+        &checked,
+        "ProgramLocalProducer::handoff",
+        source_signature_identity,
+    )
+    .expect("produce exact two-root Unit ProgramEntry artifact");
+    let receipt = produced.receipt();
+    let selection = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .find(|machine| machine.name == "ProgramLocalProducer::handoff")
+        .expect("checked ProgramStorage producer selection");
+    let decoded = psi_terminal_codec::decode_module(produced.artifact().semantic_bytes())
+        .expect("decode canonical two-root semantic module");
+
+    assert_eq!(
+        receipt.source_signature_identity(),
+        source_signature_identity
+    );
+    assert_eq!(receipt.source_machine(), selection.machine);
+    assert_eq!(
+        receipt.source_machine_name(),
+        "ProgramLocalProducer::handoff"
+    );
+    assert_eq!(receipt.terminal_entry(), decoded.entry);
+    assert_eq!(
+        receipt.terminal_psi_identity(),
+        produced.artifact().manifest().semantic()
+    );
+
+    let entry = decoded
+        .machines
+        .iter()
+        .find(|machine| machine.id == receipt.terminal_entry())
+        .expect("receipt names one retained Terminal entry");
+    let [image, initial_storage] = entry.structural_parameters.as_slice() else {
+        panic!("ProgramStorage handoff must retain two structural inputs")
+    };
+    assert_eq!((image.position, initial_storage.position), (0, 1));
+    assert!(!image.is_self && !initial_storage.is_self);
+    assert_ne!(image.place, initial_storage.place);
+    assert_eq!(image.structural_type, initial_storage.structural_type);
+    assert_eq!(image.multiplicity, StructuralMultiplicity::Linear);
+    assert_eq!(initial_storage.multiplicity, StructuralMultiplicity::Linear);
+    assert_eq!(image.access, StructuralAccess::Owned);
+    assert_eq!(initial_storage.access, StructuralAccess::Owned);
+    let [image_domain] = image.qualifications.as_slice() else {
+        panic!("Image must retain exactly one qualification")
+    };
+    let [storage_domain] = initial_storage.qualifications.as_slice() else {
+        panic!("InitialStorage must retain exactly one qualification")
+    };
+    assert_eq!(image_domain, storage_domain);
+    let domain = decoded
+        .structural_domains
+        .iter()
+        .find(|domain| domain.id == *image_domain)
+        .expect("Granted domain declaration remains in the canonical artifact");
+    assert_eq!(domain.identity, "Extent::Granted");
+    assert_eq!(domain.carrier, image.structural_type);
+    let carrier = decoded
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == image.structural_type)
+        .expect("Extent carrier declaration remains in the canonical artifact");
+    assert_eq!(carrier.identity, "named(name(Extent))");
+    let StructuralTypeShape::Record { fields } = &carrier.shape else {
+        panic!("Extent carrier must remain a record")
+    };
+    assert!(matches!(fields.as_slice(), [base, length]
+        if base.identity == "base"
+            && base.relevance == BindingRelevance::Relevant
+            && matches!(base.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.is_address())
+            && length.identity == "length"
+            && length.relevance == BindingRelevance::Relevant
+            && matches!(length.field_type, StructuralFieldType::Scalar(ScalarType::Integer(integer)) if integer.sign() == psi_core::IntegerSign::Unsigned && integer.bits() == 64)));
+
+    assert!(
+        matches!(entry.structural_places.as_slice(), [image_place, storage_place]
+        if image_place.id == image.place
+            && image_place.kind == StructuralPlaceKind::Parameter { position: 0, is_self: false }
+            && storage_place.id == initial_storage.place
+            && storage_place.kind == StructuralPlaceKind::Parameter { position: 1, is_self: false })
+    );
+    let [image_claim, storage_claim] = entry.entry_claims.as_slice() else {
+        panic!("ProgramStorage handoff must retain two entry claims")
+    };
+    assert_eq!(image_claim.input, image.place);
+    assert_eq!(storage_claim.input, initial_storage.place);
+    assert!(image_claim.path.is_empty() && storage_claim.path.is_empty());
+    let [block] = entry.blocks.as_slice() else {
+        panic!("ProgramStorage handoff must remain straight-line")
+    };
+    let [call] = block.operations.as_slice() else {
+        panic!("ProgramStorage handoff must retain one Unit call")
+    };
+    let OperationKind::BoundaryCall {
+        boundary,
+        structural_arguments,
+        completion_receipts,
+        ..
+    } = &call.kind
+    else {
+        panic!("ProgramStorage handoff operation must remain BoundaryCall")
+    };
+    let boundary = decoded
+        .boundary_machines
+        .iter()
+        .find(|candidate| candidate.id == *boundary)
+        .expect("generic ProgramStorage requirement remains a bodyless boundary");
+    assert_eq!(boundary.structural_parameters.len(), 2);
+    assert_eq!(boundary.structural_parameters[0].position, 0);
+    assert_eq!(boundary.structural_parameters[1].position, 1);
+    assert!(
+        matches!(structural_arguments.as_slice(), [image_argument, storage_argument]
+        if image_argument.place == image.place
+            && image_argument.access == StructuralAccess::Owned
+            && image_argument.path.is_empty()
+            && storage_argument.place == initial_storage.place
+            && storage_argument.access == StructuralAccess::Owned
+            && storage_argument.path.is_empty())
+    );
+    assert!(
+        matches!(completion_receipts.as_slice(), [image_receipt, storage_receipt]
+        if image_receipt.claim == image_claim.claim
+            && image_receipt.argument_index == 0
+            && storage_receipt.claim == storage_claim.claim
+            && storage_receipt.argument_index == 1)
+    );
+    assert!(matches!(
+        block.terminator,
+        Terminator::ReturnUnit {
+            ref trivial_affine_discards,
+            ..
+        } if trivial_affine_discards.is_empty()
+    ));
+    produced
+        .artifact()
+        .validate()
+        .expect("two-root receipt-coupled artifact replays");
+}
+
+#[test]
+fn program_entry_receipt_rejects_a_scalar_result_machine() {
+    let checked = checked_source(
+        r#"
+            data Helper {}
+            machine Helper::touch() {}
+            data Token { value: u64; }
+            machine Token::drop(&mut self) { Helper::touch(); }
+            data Main {}
+            machine Main::launch(token: Token) -> u64 { 7u64 }
+        "#,
+    );
+    let error = produce_program_entry_terminal_artifact(&checked, "Main::launch", [0x11; 32])
+        .expect_err("ProgramEntry receipt requires a Unit result");
+    assert!(
+        matches!(
+            &error,
+            TerminalArtifactProductionError::EntryReceipt(
+                ProgramEntryTerminalReceiptError::NonUnitEntry
+            )
+        ),
+        "unexpected receipt rejection: {error:?}"
+    );
+}
 
 fn checked_write_line_literal() -> psi_checked_trees::CheckedTrees {
     let source = r#"
@@ -715,7 +982,7 @@ fn payloadless_sum_equality_lowers_to_case_membership_equivalence() {
         .expect("case-membership equality validates");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("case-membership module encodes");
-    assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())
@@ -796,7 +1063,7 @@ fn payload_bearing_sum_equality_uses_exact_case_payload_paths() {
         .expect("exact case-payload paths validate");
     let bytes = psi_terminal_codec::encode_module(&lowered.semantic_module)
         .expect("payload-bearing sum module encodes");
-    assert_eq!(&bytes[8..10], &31_u16.to_le_bytes());
+    assert_eq!(&bytes[8..10], &33_u16.to_le_bytes());
     assert_eq!(
         psi_terminal_codec::decode_module(&bytes),
         Ok(lowered.semantic_module.clone())

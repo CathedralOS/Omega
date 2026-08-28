@@ -43,8 +43,8 @@ structured language compiled by `bc`.
 
 No algebraic data types, pattern matching, safe type hierarchy, ownership,
 regions, effects, generics, or proofs. Gamma and Omega own the facilities they
-specify; provisional Delta retains only the independent facilities its bridge
-source justifies.
+specify; provisional Delta retains only the independent facilities its compiler
+source and direct product edge justify.
 Beta remains a small compiler-construction substrate with raw memory.
 
 ## Current repository reality
@@ -60,7 +60,8 @@ Beta remains a small compiler-construction substrate with raw memory.
 - `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
   maximal observations.
 
-`source/beta/compiler/cold-start/full-source.sh`, `source/beta/selfhost.sh`, and
+`source/beta/compiler/cold-start/full-source.sh`,
+`source/beta/compiler/validation/selfhost.sh`, and
 `source/beta/test.sh`
 gate reconstruction, the fixed point, and language behavior. The obsolete
 Python backend and gate were removed because they added no unique semantic or

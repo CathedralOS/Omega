@@ -360,6 +360,19 @@ pub(crate) fn bind_proof_output_call_facts(
             )));
             continue;
         };
+        let static_requirement = match checked_static_requirement_dispatch(
+            program,
+            package.machine_symbol,
+            call,
+            target_machine,
+            target_state,
+        ) {
+            Ok(dispatch) => dispatch,
+            Err(diagnostic) => {
+                diagnostics.push(diagnostic);
+                continue;
+            }
+        };
 
         let concrete = target_machine.lifetime_parameters.is_empty()
             && target_machine.type_parameters.is_empty()
@@ -381,21 +394,35 @@ pub(crate) fn bind_proof_output_call_facts(
             continue;
         }
 
+        let public_owner = static_requirement.as_ref().map(|(_, requirement)| {
+            ContractProofFactOwner::StateSignature {
+                owner_symbol: call
+                    .static_requirement_dispatch
+                    .as_ref()
+                    .expect("checked static requirement dispatch")
+                    .declaring_trait,
+                state_symbol: requirement.symbol,
+            }
+        });
         let mut callee_inputs = proof
             .evidence_terms
             .iter()
             .filter_map(|(handle, term)| {
-                (term.kind == ContractProofFactKind::Requires
-                    && (term.owner
-                        == ContractProofFactOwner::Machine {
-                            machine_symbol: target_machine.symbol,
-                        }
-                        || term.owner
-                            == (ContractProofFactOwner::MachineState {
+                let owner_matches = public_owner.map_or_else(
+                    || {
+                        term.owner
+                            == ContractProofFactOwner::Machine {
                                 machine_symbol: target_machine.symbol,
-                                state_symbol: target_state.symbol,
-                            })))
-                .then_some(handle)
+                            }
+                            || term.owner
+                                == (ContractProofFactOwner::MachineState {
+                                    machine_symbol: target_machine.symbol,
+                                    state_symbol: target_state.symbol,
+                                })
+                    },
+                    |owner| term.owner == owner,
+                );
+                (term.kind == ContractProofFactKind::Requires && owner_matches).then_some(handle)
             })
             .collect::<Vec<_>>();
         callee_inputs.sort_by_key(|handle| proof.evidence_terms.get(*handle).lane_position);
@@ -403,11 +430,15 @@ pub(crate) fn bind_proof_output_call_facts(
             .evidence_terms
             .iter()
             .filter_map(|(handle, term)| {
-                (term.kind == ContractProofFactKind::Ensures
-                    && term.owner
+                let owner_matches = public_owner.map_or(
+                    term.owner
                         == (ContractProofFactOwner::Machine {
                             machine_symbol: target_machine.symbol,
-                        })
+                        }),
+                    |owner| term.owner == owner,
+                );
+                (term.kind == ContractProofFactKind::Ensures
+                    && owner_matches
                     && !proof
                         .outcome_specific_guarantees
                         .iter()
@@ -639,7 +670,10 @@ pub(crate) fn bind_proof_output_call_facts(
                     proof,
                     package,
                     call,
-                    target_state,
+                    static_requirement.as_ref().map_or_else(
+                        || program.state_parameters(target_state),
+                        |(_, requirement)| program.state_signature_parameters(requirement),
+                    ),
                     callee_input,
                 )
             else {
@@ -680,7 +714,10 @@ pub(crate) fn bind_proof_output_call_facts(
                     proof,
                     package,
                     call,
-                    target_state,
+                    static_requirement.as_ref().map_or_else(
+                        || program.state_parameters(target_state),
+                        |(_, requirement)| program.state_signature_parameters(requirement),
+                    ),
                     callee_output,
                 )
             else {
@@ -728,6 +765,7 @@ pub(crate) fn bind_proof_output_call_facts(
             runtime_call,
             target_machine_symbol: target_machine.symbol,
             target_state_symbol: target_state.symbol,
+            static_requirement_dispatch: static_requirement.map(|(fact, _)| fact),
             evidence_arguments,
             outputs,
         });
@@ -739,6 +777,218 @@ pub(crate) fn bind_proof_output_call_facts(
     } else {
         Err(diagnostics)
     }
+}
+
+fn checked_static_requirement_dispatch<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    caller_machine: psi_symbols::SymbolHandle,
+    call: &psi_typed_trees::expression::TableCallExpression,
+    realization_machine: &'program psi_typed_trees::machine::Machine,
+    realization_state: &'program psi_typed_trees::state::State,
+) -> Result<
+    Option<(
+        psi_checked_trees::StaticRequirementDispatchFact,
+        &'program psi_typed_trees::signature::StateSignature,
+    )>,
+    psi_diagnostics::Diagnostic,
+> {
+    use psi_typed_trees::domain::ProofFact;
+    use psi_typed_trees::signature::SignatureContractKind;
+    use psi_typed_trees::trait_definition::ConformanceRowSource;
+
+    let Some(dispatch) = call.static_requirement_dispatch.as_ref() else {
+        return Ok(None);
+    };
+    let rejected = |reason: &str| {
+        psi_diagnostics::Diagnostic::error(format!(
+            "static named-witness requirement call `{}` is outside the first closed dispatch rung: {reason}",
+            call.target,
+        ))
+    };
+
+    if dispatch.application_fingerprint == 0
+        || dispatch.realization_machine != realization_machine.symbol
+        || dispatch.realization_state != realization_state.symbol
+        || call.target_symbol != realization_state.symbol
+    {
+        return Err(rejected(
+            "its retained public/private dispatch identities do not match the executable target",
+        ));
+    }
+
+    let applications = program
+        .machine_specializations
+        .iter()
+        .filter(|specialization| specialization.instance == caller_machine)
+        .flat_map(|specialization| &specialization.conformance_applications)
+        .filter(|application| application.fingerprint == dispatch.application_fingerprint)
+        .collect::<Vec<_>>();
+    let [application] = applications.as_slice() else {
+        return Err(rejected(
+            "its exact owner-scoped closed conformance application is absent or ambiguous",
+        ));
+    };
+    if application.trait_definition != dispatch.declaring_trait {
+        return Err(rejected(
+            "inherited parent-trait requirement rows remain unsupported",
+        ));
+    }
+    let rows = application
+        .rows
+        .iter()
+        .filter(|row| {
+            row.declaring_trait == dispatch.declaring_trait
+                && row.requirement == dispatch.requirement
+                && row.realization_machine == dispatch.realization_machine
+                && row.realization_state == dispatch.realization_state
+        })
+        .collect::<Vec<_>>();
+    if rows.len() != 1 {
+        return Err(rejected(
+            "its closed conformance application does not contain one exact requirement-to-realization row",
+        ));
+    }
+
+    let Some(trait_definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == dispatch.declaring_trait)
+    else {
+        return Err(rejected("its declaring trait is absent"));
+    };
+    let requirements = program
+        .trait_machine_signatures(trait_definition)
+        .iter()
+        .filter(|requirement| requirement.symbol == dispatch.requirement)
+        .collect::<Vec<_>>();
+    let [requirement] = requirements.as_slice() else {
+        return Err(rejected("its public requirement is absent or ambiguous"));
+    };
+    let Some(selected) = program
+        .conformances()
+        .iter()
+        .find(|conformance| conformance.symbol == application.declaration)
+    else {
+        return Err(rejected("its selected conformance declaration is absent"));
+    };
+    let selected_rows = program
+        .closed_conformance_rows(selected)
+        .ok_or_else(|| rejected("its selected conformance is not one complete closed map"))?;
+    let exact_rows = selected_rows
+        .iter()
+        .filter(|row| {
+            row.declaring_trait == dispatch.declaring_trait
+                && row.requirement == dispatch.requirement
+                && row.realization_machine == dispatch.realization_machine
+                && row.realization_state == dispatch.realization_state
+        })
+        .collect::<Vec<_>>();
+    let [selected_row] = exact_rows.as_slice() else {
+        return Err(rejected(
+            "its selected conformance no longer owns one exact realization row",
+        ));
+    };
+    if selected_row.source == ConformanceRowSource::TraitDefault {
+        return Err(rejected("trait-default realizations remain unsupported"));
+    }
+
+    let concrete = application.lifetime_arguments.is_empty()
+        && application.type_arguments.is_empty()
+        && application.const_arguments.is_empty()
+        && application.machine_arguments.is_empty()
+        && application.trait_arguments.is_empty()
+        && trait_definition.lifetime_parameters.is_empty()
+        && program.trait_type_parameters(trait_definition).is_empty()
+        && requirement.lifetime_parameters.is_empty()
+        && program
+            .state_signature_type_parameters(requirement)
+            .is_empty()
+        && selected.lifetime_parameters.is_empty()
+        && program.conformance_type_parameters(selected).is_empty()
+        && realization_machine.lifetime_parameters.is_empty()
+        && program
+            .machine_type_parameters(realization_machine)
+            .is_empty();
+    if !concrete {
+        return Err(rejected(
+            "the trait, requirement, selected conformance, and realization must be concrete and non-generic",
+        ));
+    }
+    if program.machine_states(realization_machine).len() != 1
+        || realization_machine.supply_mode != psi_language_semantics::MachineSupplyMode::CheckedBody
+        || requirement.return_type.is_valid()
+        || realization_state.return_type.is_valid()
+    {
+        return Err(rejected(
+            "the requirement and its checked realization must be one-state Unit callables",
+        ));
+    }
+
+    let contracts = program.state_signature_contracts(requirement);
+    if contracts.iter().any(|contract| {
+        !matches!(
+            contract.kind,
+            SignatureContractKind::Requires | SignatureContractKind::Ensures
+        )
+    }) {
+        return Err(rejected(
+            "outcome-guarded and crash contract rows remain unsupported",
+        ));
+    }
+    let named_requires = contracts
+        .iter()
+        .filter(|contract| {
+            contract.binding.is_some() && contract.kind == SignatureContractKind::Requires
+        })
+        .collect::<Vec<_>>();
+    let named_ensures = contracts
+        .iter()
+        .filter(|contract| {
+            contract.binding.is_some() && contract.kind == SignatureContractKind::Ensures
+        })
+        .collect::<Vec<_>>();
+    let ([required_input], [required_output]) =
+        (named_requires.as_slice(), named_ensures.as_slice())
+    else {
+        return Err(rejected(
+            "the public requirement must own exactly one named requires input and one unconditional named ensures output",
+        ));
+    };
+    if contracts.len() != 2 {
+        return Err(rejected(
+            "additional unnamed public requires or ensures rows remain unsupported",
+        ));
+    }
+    for contract in [*required_input, *required_output] {
+        let [ProofFact::Proposition(proposition)] =
+            program.proof_facts.span_or_empty(contract.facts)
+        else {
+            return Err(rejected(
+                "each public named lane must contain one witness-bearing proposition",
+            ));
+        };
+        if !proposition.binder_arguments.is_empty()
+            || !program
+                .expression_table
+                .expression_handles(proposition.arguments)
+                .is_empty()
+        {
+            return Err(rejected(
+                "the public witness proposition must be subjectless and non-generic",
+            ));
+        }
+    }
+
+    Ok(Some((
+        psi_checked_trees::StaticRequirementDispatchFact {
+            application_fingerprint: dispatch.application_fingerprint,
+            declaring_trait: dispatch.declaring_trait,
+            requirement: dispatch.requirement,
+            realization_machine: dispatch.realization_machine,
+            realization_state: dispatch.realization_state,
+        },
+        requirement,
+    )))
 }
 
 /// Bind outcome-specific producer guarantees to the one transition arm that
@@ -1219,7 +1469,7 @@ fn instantiate_proof_output_proposition(
     proof: &ProofFacts,
     package: &psi_typed_trees::typed_trees::ProofOutputCall,
     call: &psi_typed_trees::expression::TableCallExpression,
-    target_state: &psi_typed_trees::state::State,
+    target_parameters: &[psi_typed_trees::signature::StateParameter],
     term: psi_arena::Handle<CheckedEvidenceTerm>,
 ) -> Option<(psi_checked_trees::CheckedPropositionApplication, String)> {
     let contract = proof
@@ -1251,7 +1501,7 @@ fn instantiate_proof_output_proposition(
                 package.state_symbol,
                 package.statement_index,
                 &call_site,
-                target_state,
+                target_parameters,
                 *argument,
             )
         })

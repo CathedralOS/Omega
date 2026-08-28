@@ -653,9 +653,24 @@ Current ownership is:
   invocation, transitive suspension and blocking, checked termination and
   crash evidence, mutation frames, and capability flows while preserving their
   independent provenance. Crash evidence is refreshed after path-conditioned
-  validation mutates that axis. Neither envelope changes the published
-  fingerprint or promotes inferred witnesses into caller facts; resource
-  ceilings remain separate until that checked representation exists.
+  validation mutates that axis. The realized envelope now also retains one
+  declaration-ordered resource-derivation row for every exact machine entry.
+  Each row binds its machine, entry, and realized contract identity separately
+  to the required Terminal-plus-target stack closure, Terminal control/fuel-
+  schedule proof, and selected-instruction machine-state footprint. Checked
+  replay proves complete owned-entry coverage and rejects axis fusion or
+  identity drift. A checked boundary-callback use additionally retains one
+  exact receipt over the selected row's machine, entry, actual-contract, three
+  axis, and envelope identities beside its independent target calling-plan
+  key. Construction and nominal-use replay reject a foreign entry or endpoint;
+  target planning must still rejoin the receipt to the current checked roster
+  before backend carriage. The rows and receipts deliberately contain no
+  numeric ceiling, realized demand, target footprint, provider receipt, or
+  installation authority; their fingerprints are compilation-local join
+  summaries only. Neither envelope changes the published fingerprint or
+  promotes inferred witnesses into caller facts. Callback resource admission
+  remains closed until all three axes join their independently derived
+  downstream evidence.
   Published routes are removed
   only when the call evaluator proves them false; proved-true routes become
   unconditional, unknown routes are re-encoded in the caller's positional
@@ -731,9 +746,25 @@ Current ownership is:
   lane cardinality/order, normalized proposition, and evidence interface stay
   exact; outgoing selectors are pinned, with authored strengthening appended
   after the inherited prefix. The inherited machine-state facts point to the
-  satisfier's exact checked terms and lane positions. Generic substitution,
-  defaults, requirement calls, dispatch, Terminal publication, and package
-  exposure remain conservative fences. A
+  satisfier's exact checked terms and lane positions. The first static
+  requirement-call carrier is deliberately narrower than general dispatch:
+  specialization of an attached caller's explicit proof-static conformance
+  binder retains one
+  call-local closed application and its exact public-requirement/private-
+  realization row. The admitted requirement and realization are concrete,
+  non-generic, one-state Unit callables, and the requirement owns one
+  subjectless named input plus one subjectless unconditional named output.
+  Checked contract-call facts and proof-output terms are sourced from the
+  requirement signature, not the satisfier. The ordinary call still targets
+  the concrete realization, while a captured output mints a distinct
+  caller-local requirement witness even when the satisfier forwards a private
+  input. Concrete strengthening stays visible only to direct concrete calls.
+  Generic substitution on the public trait/requirement/satisfier surface,
+  inherited rows, defaults, scalar results, subject-bearing or wider public
+  lanes, direct named-conformance calls, and dynamic dispatch remain
+  conservative fences. Package review already owns the declaration-level lane
+  compatibility surface; this private call-site carrier adds no package
+  schema. A
   proof-static `term.member` binder argument resolves in its named-contract
   scope to the exact checked evidence-term handle and one unambiguous direct or
   inherited requirement row. The row retains the declaring trait's normalized

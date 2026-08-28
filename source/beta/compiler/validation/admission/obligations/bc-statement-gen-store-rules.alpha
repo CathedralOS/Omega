@@ -1,0 +1,287 @@
+; Exact finite semantics for gen_store (procedure26).
+;
+; Both GEXP calls are retained. RESOURCE is sticky: the exact sequential finite
+; product is (0,0), (0,252), (252,252). Even the first-child252 row executes
+; the delimiter/push/second-child/pop/store suffix. Private 549096..<549640.
+
+statement_gen_store_rules_init:
+        call statement_gen_store_rules_reset
+        call statement_gen_store_require_antecedents
+        call statement_gen_store_require_shape
+        call statement_gen_store_require_order
+        call statement_gen_store_require_width_partition
+        call statement_gen_store_prove_status_product
+        call statement_gen_store_require_result
+        imm r1, 546172
+        imm r2, 1381258067             ; SSTR
+        store r1, r2
+        jmp statement_state_label_rules_init
+
+statement_gen_store_rules_reset:
+        imm r10, 549096
+statement_gen_store_rules_reset_loop:
+        imm r1, 549640
+        jlt r10, r1, statement_gen_store_rules_reset_one
+        ret
+statement_gen_store_rules_reset_one:
+        imm r1, 0
+        store r10, r1
+        imm r1, 8
+        add r10, r1
+        jmp statement_gen_store_rules_reset_loop
+
+statement_gen_store_require_antecedents:
+        imm r20, 546156
+        imm r21, 1414414675             ; SANT
+        call exact_require_cell
+        imm r20, 546108
+        imm r21, 1480936513             ; ALEX: expect/WSTR
+        call exact_require_cell
+        imm r20, 546124
+        imm r21, 1414350145             ; AEMT: push/pop emitters
+        call exact_require_cell
+        imm r20, 546140
+        imm r21, 1347962177             ; AEXP: GEXP finite semantics
+        call exact_require_cell
+        imm r20, 546148
+        imm r21, 1346917185             ; ASHP
+        call exact_require_cell
+        imm r20, 546164
+        imm r21, 1229997395             ; SEPI
+        call exact_require_cell
+        imm r1, 549096
+        imm r2, 6
+        store r1, r2
+        ret
+
+; r20=event,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+statement_gen_store_require_site:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r20, r30
+        mov r21, r31
+        mov r22, r32
+        mov r23, r33
+        imm r24, 0
+        mov r25, r34
+        mov r26, r35
+        call summary_require_call_site
+        ret
+
+statement_gen_store_require_order:
+        ; Exact artifact order is also the semantic trace order.
+        imm r20, 172
+        imm r21, 136
+        imm r22, 18278
+        imm r23, 1
+        imm r24, 17441                 ; expect '['
+        imm r25, 18287
+        call statement_gen_store_require_site
+        imm r20, 173
+        imm r21, 136
+        imm r22, 18287
+        imm r23, 0
+        imm r24, 61                    ; first gen_expr procedure identity
+        call exact_proc_entry_r24
+        imm r25, 18296
+        call statement_gen_store_require_site
+        imm r20, 174
+        imm r21, 136
+        imm r22, 18338
+        imm r23, 1
+        imm r24, 17441                 ; expect ']'
+        imm r25, 18347
+        call statement_gen_store_require_site
+        imm r20, 175
+        imm r21, 136
+        imm r22, 18347
+        imm r23, 0
+        imm r24, 47                    ; emit_push procedure identity
+        call exact_proc_entry_r24
+        imm r25, 18356
+        call statement_gen_store_require_site
+        imm r20, 176
+        imm r21, 136
+        imm r22, 18398
+        imm r23, 1
+        imm r24, 17441                 ; expect '='
+        imm r25, 18407
+        call statement_gen_store_require_site
+        imm r20, 177
+        imm r21, 136
+        imm r22, 18407
+        imm r23, 0
+        imm r24, 61                    ; second gen_expr procedure identity
+        call exact_proc_entry_r24
+        imm r25, 18416
+        call statement_gen_store_require_site
+        imm r20, 178
+        imm r21, 136
+        imm r22, 18458
+        imm r23, 1
+        imm r24, 44                    ; emit_pop_into procedure identity
+        call exact_proc_entry_r24
+        imm r25, 18467
+        call statement_gen_store_require_site
+        imm r1, 549104
+        imm r2, 7
+        store r1, r2
+        imm r1, 549112
+        imm r2, 2                     ; distinct GEXP event rows
+        store r1, r2
+        ret
+
+statement_gen_store_require_width_partition:
+        ; Exact w==1 predicate: singleton byte case plus full-Word complement.
+        imm r20, 366
+        imm r21, 137
+        imm r22, 3
+        imm r23, 10
+        imm r24, 18512
+        call transfer_require_primitive
+        imm r20, 367
+        imm r21, 137
+        imm r22, 1
+        imm r23, 1
+        imm r24, 18502
+        call transfer_require_primitive
+        imm r20, 100
+        imm r21, 137
+        imm r22, 1
+        imm r23, 138
+        imm r24, 18571
+        call exact_require_transition
+        imm r20, 101
+        imm r21, 137
+        imm r22, 0
+        imm r23, 139
+        imm r24, 18590
+        call exact_require_transition
+        imm r20, 179
+        call write_str_require_emit_event_core
+        imm r2, 13                    ; "storeb r1,r0\n"
+        jeq r1, r2, statement_gen_store_byte_length_ok
+        jmp reject
+statement_gen_store_byte_length_ok:
+        imm r20, 181
+        call write_str_require_emit_event_core
+        imm r2, 12                    ; "store r1,r0\n"
+        jeq r1, r2, statement_gen_store_word_length_ok
+        jmp reject
+statement_gen_store_word_length_ok:
+        imm r1, 549120
+        imm r2, 2                     ; exact guard partition
+        store r1, r2
+        imm r1, 549128
+        imm r2, 2                     ; both fixed store suffixes bound
+        store r1, r2
+        ret
+
+; Six rows: two width classes times the three monotone RESOURCE products.
+; Each 40-byte row is (width-class,first,second,post-first-count,post-second).
+statement_gen_store_prove_status_product:
+        imm r10, 0                    ; 0=width1, 1=full complement
+        imm r11, 0                    ; resource pair index
+        imm r12, 0                    ; row count
+statement_gen_store_status_row:
+        mov r13, r12
+        imm r1, 40
+        mul r13, r1
+        imm r1, 549320
+        add r13, r1
+        mov r1, r10
+        imm r2, 1
+        add r1, r2                    ; width class tags 1 and2
+        store r13, r1
+        imm r1, 8
+        add r13, r1
+        imm r2, 0                     ; first status defaults zero
+        imm r1, 2
+        jeq r11, r1, statement_gen_store_first_252
+        jmp statement_gen_store_first_ready
+statement_gen_store_first_252:
+        imm r2, 252
+statement_gen_store_first_ready:
+        store r13, r2
+        imm r1, 8
+        add r13, r1
+        imm r2, 0                     ; only pair zero has second status zero
+        jz r11, statement_gen_store_second_ready
+        imm r2, 252
+statement_gen_store_second_ready:
+        store r13, r2
+        imm r1, 8
+        add r13, r1
+        imm r2, 6                     ; ],push,=,GEXP,pop,selected store
+        store r13, r2
+        imm r1, 8
+        add r13, r1
+        imm r2, 2                     ; pop and store after second status
+        store r13, r2
+        imm r1, 1
+        add r12, r1
+        add r11, r1
+        imm r1, 3
+        jlt r11, r1, statement_gen_store_status_row
+        imm r11, 0
+        imm r1, 1
+        add r10, r1
+        imm r1, 2
+        jlt r10, r1, statement_gen_store_status_row
+        imm r1, 6
+        jeq r12, r1, statement_gen_store_status_done
+        jmp reject
+statement_gen_store_status_done:
+        imm r1, 549136
+        imm r2, 3                     ; exact sticky status product
+        store r1, r2
+        imm r1, 549144
+        imm r2, 6                     ; all product/width rows composed
+        store r1, r2
+        imm r1, 549152
+        imm r2, 1                     ; p26 has no RESOURCE writer
+        store r1, r2
+        imm r1, 549160
+        imm r2, 6                     ; every finite row returns source zero
+        store r1, r2
+        imm r1, 549168
+        imm r2, 1                     ; frame restored in every finite row
+        store r1, r2
+        ret
+
+statement_gen_store_require_result:
+        imm r20, 549096
+        imm r21, 6
+        call exact_require_cell
+        imm r20, 549104
+        imm r21, 7
+        call exact_require_cell
+        imm r20, 549112
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 549120
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 549128
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 549136
+        imm r21, 3
+        call exact_require_cell
+        imm r20, 549144
+        imm r21, 6
+        call exact_require_cell
+        imm r20, 549152
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 549160
+        imm r21, 6
+        call exact_require_cell
+        imm r20, 549168
+        imm r21, 1
+        call exact_require_cell
+        ret

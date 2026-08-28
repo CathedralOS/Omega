@@ -1,0 +1,1526 @@
+; Responsibility-neutral exact shape/table helpers shared by semantic tranches.
+; Compiler-generated stack/frame macros are decoded here exactly once; semantic
+; consumers pass only their independently reconstructed PC/register/slot facts.
+; This file has no initialization edge and publishes no theorem token.
+
+; Exact saved-fp prologue prefix at r20. Return its checked instruction starts
+; (imm/sub/store/mov) in r0..r3 and exclusive successor in r4:
+; `imm r5,8; sub r15,r5; store r15,r14; mov r14,r15`.
+exact_require_prologue:
+        mov r25, r20
+        mov r20, r25
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 8
+        call require_tape_word
+        mov r20, r25
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 12
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 11
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r4, 10
+        add r1, r4
+        mov r2, r25
+        imm r4, 13
+        add r2, r4
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        mov r4, r25
+        imm r5, 19
+        add r4, r5
+        ret
+
+; Exact optional frame allocation at r20 for r21 bytes. Return imm/sub starts
+; in r0/r1 and exclusive successor in r2:
+; `imm r5,frame_bytes; sub r15,r5`.
+exact_require_frame_allocation:
+        mov r25, r20
+        mov r26, r21
+        mov r20, r25
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        mov r21, r26
+        call require_tape_word
+        mov r20, r25
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 12
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r2, 10
+        add r1, r2
+        mov r2, r25
+        imm r3, 13
+        add r2, r3
+        ret
+
+; Exact parameter store at r20 for argument register r21. Return mov/imm/sub/
+; store starts in r0..r3 and exclusive successor in r4:
+; `mov r5,r14; imm r4,8+8*k; sub r5,r4; store r5,rK`.
+exact_require_parameter_store:
+        mov r25, r20
+        mov r26, r21
+        mov r20, r25
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        mov r21, r26
+        imm r1, 1
+        add r21, r1
+        imm r1, 8
+        mul r21, r1
+        call require_tape_word
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 4
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 11
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 5
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        mov r21, r26
+        call require_tape_byte
+        mov r0, r25
+        mov r1, r25
+        imm r4, 3
+        add r1, r4
+        mov r2, r25
+        imm r4, 13
+        add r2, r4
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        mov r4, r25
+        imm r5, 19
+        add r4, r5
+        ret
+
+; Exact pop at r20 into register r21. Return load/imm/add starts in r0..r2 and
+; exclusive successor in r3:
+; `load rK,r15; imm r5,8; add r15,r5`.
+exact_require_pop:
+        call exact_match_pop
+        imm r1, 1
+        jeq r0, r1, exact_pop_extent
+        jmp reject
+exact_pop_extent:
+        mov r0, r25
+        mov r1, r25
+        imm r3, 3
+        add r1, r3
+        mov r2, r25
+        imm r3, 13
+        add r2, r3
+        mov r3, r25
+        imm r4, 16
+        add r3, r4
+        ret
+
+; Require one pop ending exactly at successor r20, into register r21. Return
+; the same instruction-start/successor tuple as exact_require_pop.
+exact_require_pop_before:
+        mov r30, r20
+        mov r31, r21
+        imm r1, 16
+        jlt r30, r1, reject
+        mov r20, r30
+        sub r20, r1
+        mov r21, r31
+        call exact_require_pop
+        jeq r3, r30, exact_pop_before_done
+        jmp reject
+exact_pop_before_done:
+        ret
+
+; Require count r21 contiguous pops immediately before successor r20, with
+; destinations count-1 down through r0. Return first pop start in r0 and the
+; checked common successor in r1. The macro extent is private to this owner.
+exact_require_pop_sequence:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r31
+        imm r1, 16
+        mul r32, r1
+        jlt r30, r32, reject
+        mov r33, r30
+        sub r33, r32                 ; first pop start
+        mov r34, r33                 ; cursor
+        mov r35, r31
+        imm r1, 0
+        jeq r35, r1, exact_pop_sequence_done
+        imm r1, 1
+        sub r35, r1                  ; first destination register
+exact_pop_sequence_loop:
+        mov r20, r34
+        mov r21, r35
+        call exact_require_pop
+        mov r34, r3
+        imm r1, 0
+        jeq r35, r1, exact_pop_sequence_done
+        imm r1, 1
+        sub r35, r1
+        jmp exact_pop_sequence_loop
+exact_pop_sequence_done:
+        jeq r34, r30, exact_pop_sequence_return
+        jmp reject
+exact_pop_sequence_return:
+        mov r0, r33
+        mov r1, r30
+        ret
+
+; Boolean form used by exhaustive artifact scanners. Inputs match the strict
+; adapter above; output r0 is one exactly for the canonical pop macro.
+exact_match_pop:
+        mov r25, r20
+        mov r26, r21
+        mov r2, r25
+        imm r1, 16
+        add r2, r1
+        imm r1, 524296
+        load r3, r1
+        jlt r3, r2, exact_match_pop_none
+        mov r20, r25
+        imm r21, 10
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_register
+        jmp exact_match_pop_none
+exact_match_pop_register:
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        mov r21, r26
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_sp
+        jmp exact_match_pop_none
+exact_match_pop_sp:
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_imm
+        jmp exact_match_pop_none
+exact_match_pop_imm:
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 1
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_step_register
+        jmp exact_match_pop_none
+exact_match_pop_step_register:
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 5
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_step
+        jmp exact_match_pop_none
+exact_match_pop_step:
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        imm r21, 8
+        call exact_tape_word_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add
+        jmp exact_match_pop_none
+exact_match_pop_add:
+        mov r20, r25
+        imm r1, 13
+        add r20, r1
+        imm r21, 3
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add_sp
+        jmp exact_match_pop_none
+exact_match_pop_add_sp:
+        mov r20, r25
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_add_step
+        jmp exact_match_pop_none
+exact_match_pop_add_step:
+        mov r20, r25
+        imm r1, 15
+        add r20, r1
+        imm r21, 5
+        call exact_tape_byte_matches
+        ret
+exact_match_pop_none:
+        imm r0, 0
+        ret
+
+; Boolean classifier form with checked exclusive successor in r1 on success.
+exact_match_pop_successor:
+        call exact_match_pop
+        imm r1, 1
+        jeq r0, r1, exact_match_pop_successor_found
+        ret
+exact_match_pop_successor_found:
+        mov r1, r25
+        imm r2, 16
+        add r1, r2
+        ret
+
+; Boolean byte/word equality at exact tape pc r20; output r0 is zero/one.
+exact_tape_byte_matches:
+        imm r1, 2097152
+        add r1, r20
+        loadb r2, r1
+        jeq r2, r21, exact_tape_matches
+        imm r0, 0
+        ret
+exact_tape_word_matches:
+        imm r1, 2097152
+        add r1, r20
+        load r2, r1
+        jeq r2, r21, exact_tape_matches
+        imm r0, 0
+        ret
+exact_tape_matches:
+        imm r0, 1
+        ret
+
+; Input r14 is a decoded start; output r0 is one iff the exact 16-byte push is
+; `imm r2,8; sub r15,r2; store r15,r0`.
+exact_match_push:
+        mov r20, r14
+        imm r1, 16
+        add r20, r1
+        imm r1, 524296
+        load r2, r1
+        jlt r2, r20, exact_match_push_none
+        mov r20, r14
+        imm r21, 1
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_register
+        jmp exact_match_push_none
+exact_match_push_register:
+        mov r20, r14
+        imm r1, 1
+        add r20, r1
+        imm r21, 2
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_step
+        jmp exact_match_push_none
+exact_match_push_step:
+        mov r20, r14
+        imm r1, 2
+        add r20, r1
+        imm r21, 8
+        call exact_tape_word_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub
+        jmp exact_match_push_none
+exact_match_push_sub:
+        mov r20, r14
+        imm r1, 10
+        add r20, r1
+        imm r21, 4
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub_sp
+        jmp exact_match_push_none
+exact_match_push_sub_sp:
+        mov r20, r14
+        imm r1, 11
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_sub_step
+        jmp exact_match_push_none
+exact_match_push_sub_step:
+        mov r20, r14
+        imm r1, 12
+        add r20, r1
+        imm r21, 2
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store
+        jmp exact_match_push_none
+exact_match_push_store:
+        mov r20, r14
+        imm r1, 13
+        add r20, r1
+        imm r21, 11
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store_sp
+        jmp exact_match_push_none
+exact_match_push_store_sp:
+        mov r20, r14
+        imm r1, 14
+        add r20, r1
+        imm r21, 15
+        call exact_tape_byte_matches
+        imm r1, 1
+        jeq r0, r1, exact_match_push_store_value
+        jmp exact_match_push_none
+exact_match_push_store_value:
+        mov r20, r14
+        imm r1, 15
+        add r20, r1
+        imm r21, 0
+        call exact_tape_byte_matches
+        ret
+exact_match_push_none:
+        imm r0, 0
+        ret
+
+; Strict push extent at r20. Return imm/sub/store starts in r0..r2 and
+; exclusive successor in r3. The boolean matcher remains available to the
+; exhaustive artifact scanner.
+exact_require_push:
+        mov r36, r14                 ; boolean scanner's input register
+        mov r37, r20
+        mov r14, r37
+        call exact_match_push
+        mov r14, r36
+        imm r1, 1
+        jeq r0, r1, exact_push_extent
+        jmp reject
+exact_push_extent:
+        mov r0, r37
+        mov r1, r37
+        imm r3, 10
+        add r1, r3
+        mov r2, r37
+        imm r3, 13
+        add r2, r3
+        mov r3, r37
+        imm r4, 16
+        add r3, r4
+        ret
+
+; Exhaust all expression primitive/push rows for selected blocks [r20,r21].
+; The four supplied half-open row intervals must contain every matching row
+; and no row owned by another block.
+summary_require_expr_census:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r36, r26
+        mov r37, r27
+        mov r38, r28
+        mov r39, r29
+        imm r10, 0
+        imm r11, 0
+summary_primitive_census_loop:
+        imm r1, 829                  ; exact expression primitive-row universe
+        jlt r10, r1, summary_primitive_census_row
+        mov r2, r33
+        sub r2, r32
+        jeq r11, r2, summary_push_census_init
+        jmp reject
+summary_primitive_census_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 8388608
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, summary_primitive_census_next
+        jlt r31, r3, summary_primitive_census_next
+        jlt r10, r32, reject
+        jlt r10, r33, summary_primitive_census_count
+        jmp reject
+summary_primitive_census_count:
+        imm r1, 1
+        add r11, r1
+summary_primitive_census_next:
+        imm r1, 1
+        add r10, r1
+        jmp summary_primitive_census_loop
+
+summary_push_census_init:
+        imm r10, 0
+        imm r11, 0
+summary_push_census_loop:
+        imm r1, 407                  ; exact expression push-row universe
+        jlt r10, r1, summary_push_census_row
+        mov r2, r35
+        sub r2, r34
+        mov r4, r37
+        sub r4, r36
+        add r2, r4
+        mov r4, r39
+        sub r4, r38
+        add r2, r4
+        jeq r11, r2, exact_shape_ok
+        jmp reject
+summary_push_census_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 9437184
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, summary_push_census_next
+        jlt r31, r3, summary_push_census_next
+        jlt r10, r34, summary_push_census_argument
+        jlt r10, r35, summary_push_census_count
+summary_push_census_argument:
+        jlt r10, r36, summary_push_census_store
+        jlt r10, r37, summary_push_census_count
+summary_push_census_store:
+        jlt r10, r38, reject
+        jlt r10, r39, summary_push_census_count
+        jmp reject
+summary_push_census_count:
+        imm r1, 1
+        add r11, r1
+summary_push_census_next:
+        imm r1, 1
+        add r10, r1
+        jmp summary_push_census_loop
+
+; Block row/PC in r20/r21.
+exact_require_block_pc:
+        imm r1, 8
+        mul r20, r1
+        imm r1, 3235840
+        add r1, r20
+        load r2, r1
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+
+; Canonical source-row identity to checked artifact-PC resolvers. The caller
+; supplies a source-owned row and every non-coordinate identity field; the
+; untrusted witness contributes only the PC after the independently rebuilt
+; tables agree on that identity. Each resolver rejects an out-of-range row and
+; clobbers only r0..r5.
+
+; Block row/procedure/kind in r20..r22; return artifact PC in r0.
+exact_block_identity_pc:
+        mov r5, r20
+        imm r1, 524320                 ; independently scanned block count
+        load r1, r1
+        jlt r5, r1, exact_block_identity_proc
+        jmp reject
+exact_block_identity_proc:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3145728
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_block_identity_kind
+        jmp reject
+exact_block_identity_kind:
+        imm r1, 3178496
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_block_identity_load
+        jmp reject
+exact_block_identity_load:
+        imm r1, 3235840
+        add r1, r5
+        load r0, r1
+        ret
+
+; Resolve independently scanned source procedure ID r0 to its unique entry-block
+; artifact PC. The untrusted witness supplies block locations, but it cannot
+; select this identity: source procedure ownership and entry kind are checked in
+; the canonical block tables before the one matching PC is returned. Clobbers
+; only r0..r5.
+exact_proc_entry_pc:
+        mov r5, r0
+        imm r4, 0                      ; block row
+        imm r3, 0                      ; matching entries
+        imm r0, 0                      ; selected artifact PC
+exact_proc_entry_loop:
+        imm r1, 524320                 ; independently scanned block count
+        load r1, r1
+        jlt r4, r1, exact_proc_entry_row
+        imm r1, 1
+        jeq r3, r1, exact_proc_entry_done
+        jmp reject
+exact_proc_entry_row:
+        mov r2, r4
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3145728
+        add r1, r2
+        load r1, r1
+        jeq r1, r5, exact_proc_entry_kind
+        jmp exact_proc_entry_next
+exact_proc_entry_kind:
+        imm r1, 3178496
+        add r1, r2
+        load r1, r1
+        imm r2, 0
+        jeq r1, r2, exact_proc_entry_match
+        jmp exact_proc_entry_next
+exact_proc_entry_match:
+        imm r1, 1
+        add r3, r1
+        mov r2, r4
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3235840
+        add r1, r2
+        load r0, r1
+exact_proc_entry_next:
+        imm r1, 1
+        add r4, r1
+        jmp exact_proc_entry_loop
+exact_proc_entry_done:
+        ret
+
+; Destination adapters let semantic consumers replace an absolute entry PC
+; with one extra call while leaving their other reconstructed arguments intact.
+exact_proc_entry_r20:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r20, r0
+        ret
+exact_proc_entry_r21:
+        mov r0, r21
+        call exact_proc_entry_pc
+        mov r21, r0
+        ret
+exact_proc_entry_r22:
+        mov r0, r22
+        call exact_proc_entry_pc
+        mov r22, r0
+        ret
+exact_proc_entry_r23:
+        mov r0, r23
+        call exact_proc_entry_pc
+        mov r23, r0
+        ret
+exact_proc_entry_r24:
+        mov r0, r24
+        call exact_proc_entry_pc
+        mov r24, r0
+        ret
+exact_proc_entry_r25:
+        mov r0, r25
+        call exact_proc_entry_pc
+        mov r25, r0
+        ret
+
+; Exact generated root prelude for independently reconstructed main procedure
+; identity r20. Return SP-init/FP-init/call/halt starts in r0..r3 and exclusive
+; successor in r4. All layout arithmetic stays with this compiler-macro owner.
+exact_require_program_prelude:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r30, r0                  ; checked main target
+        imm r20, 0
+        imm r21, 1
+        call require_tape_byte
+        imm r20, 1
+        imm r21, 15
+        call require_tape_byte
+        imm r20, 2
+        imm r21, 1048576
+        call require_tape_word
+        imm r20, 10
+        imm r21, 1
+        call require_tape_byte
+        imm r20, 11
+        imm r21, 14
+        call require_tape_byte
+        imm r20, 12
+        imm r21, 1048576
+        call require_tape_word
+        imm r20, 20
+        mov r21, r30
+        imm r22, 29
+        call exact_require_call
+        imm r20, 29
+        imm r21, 0
+        call require_tape_byte
+        imm r20, 30
+        imm r21, 0
+        call require_tape_byte
+        imm r0, 0
+        imm r1, 10
+        imm r2, 20
+        imm r3, 29
+        imm r4, 31
+        ret
+
+; Transition row/source-block/guarded/target/control-pc in r20..r24.
+exact_require_transition:
+        mov r25, r20
+        imm r1, 8
+        mul r25, r1
+        imm r1, 3215360
+        add r1, r25
+        load r2, r1
+        jeq r2, r21, exact_transition_guard
+        jmp reject
+exact_transition_guard:
+        imm r1, 3227648
+        add r1, r25
+        load r2, r1
+        jeq r2, r22, exact_transition_target
+        jmp reject
+exact_transition_target:
+        imm r1, 3231744
+        add r1, r25
+        load r2, r1
+        jeq r2, r23, exact_transition_pc
+        jmp reject
+exact_transition_pc:
+        imm r1, 3239936
+        add r1, r25
+        load r2, r1
+        jeq r2, r24, exact_shape_ok
+        jmp reject
+
+; Transition row/source-block/guarded/target-block in r20..r23; return the
+; checked control-instruction PC in r0.
+exact_transition_identity_pc:
+        mov r5, r20
+        imm r1, 524328                 ; independently scanned transition count
+        load r1, r1
+        jlt r5, r1, exact_transition_identity_source
+        jmp reject
+exact_transition_identity_source:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 3215360
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_transition_identity_guard
+        jmp reject
+exact_transition_identity_guard:
+        imm r1, 3227648
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_transition_identity_target
+        jmp reject
+exact_transition_identity_target:
+        imm r1, 3231744
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_transition_identity_load
+        jmp reject
+exact_transition_identity_load:
+        imm r1, 3239936
+        add r1, r5
+        load r0, r1
+        ret
+
+; Event row/block/kind/pc in r20..r23.
+exact_require_event:
+        mov r25, r20
+        imm r1, 8
+        mul r25, r1
+        imm r1, 7077888
+        add r1, r25
+        load r2, r1
+        jeq r2, r21, exact_event_kind
+        jmp reject
+exact_event_kind:
+        imm r1, 7086080
+        add r1, r25
+        load r2, r1
+        jeq r2, r22, exact_event_pc
+        jmp reject
+exact_event_pc:
+        imm r1, 7135232
+        add r1, r25
+        load r2, r1
+        jeq r2, r23, exact_shape_ok
+        jmp reject
+
+; The next source procedure identity in r20 identifies the byte after a
+; synthetic return. Reconstruct that return and its epilogue relatively.
+exact_require_preentry_epilogue:
+        mov r0, r20
+        call exact_proc_entry_pc
+        mov r20, r0
+        imm r1, 1
+        sub r20, r1
+        call exact_require_epilogue_at_ret
+        ret
+
+; Resolve a checked epilogue from its semantic return-instruction PC r20.
+exact_require_epilogue_at_ret:
+        mov r21, r20
+        imm r1, 19
+        jlt r20, r1, reject
+        sub r20, r1
+        call exact_require_epilogue
+        ret
+
+; Exact canonical epilogue at [r20,r21], with r21 the return instruction.
+; Return mov/load/imm/add/ret starts in r0..r4 and successor in r5.
+exact_require_epilogue:
+        mov r25, r20
+        mov r26, r21
+        mov r2, r25
+        imm r1, 19
+        add r2, r1
+        jeq r2, r26, exact_epilogue_ret_linked
+        jmp reject
+exact_epilogue_ret_linked:
+        mov r20, r25
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 2
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 3
+        add r20, r1
+        imm r21, 10
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 4
+        add r20, r1
+        imm r21, 14
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 5
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 6
+        add r20, r1
+        imm r21, 1
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 7
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 8
+        add r20, r1
+        imm r21, 8
+        call require_tape_word
+        mov r20, r25
+        imm r1, 16
+        add r20, r1
+        imm r21, 3
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 17
+        add r20, r1
+        imm r21, 15
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 18
+        add r20, r1
+        imm r21, 2
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 19
+        add r20, r1
+        imm r21, 20
+        call require_tape_byte
+        mov r5, r26
+        imm r6, 1
+        add r5, r6
+        mov r0, r25
+        mov r1, r25
+        imm r6, 3
+        add r1, r6
+        mov r2, r25
+        imm r6, 6
+        add r2, r6
+        mov r3, r25
+        imm r6, 16
+        add r3, r6
+        mov r4, r26
+        ret
+
+; Exhaust local/memory/transition/event rows for blocks [r20,r21].
+exact_require_effect_census:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r36, r26
+        mov r37, r27
+        mov r38, r28
+        mov r39, r29
+        imm r10, 0
+        imm r11, 0
+exact_effect_local_loop:
+        imm r1, 242
+        jlt r10, r1, exact_effect_local_row
+        mov r2, r33
+        sub r2, r32
+        jeq r11, r2, exact_effect_memory_init
+        jmp reject
+exact_effect_local_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7168000
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, exact_effect_local_next
+        jlt r31, r3, exact_effect_local_next
+        jlt r10, r32, reject
+        jlt r10, r33, exact_effect_local_match
+        jmp reject
+exact_effect_local_match:
+        imm r1, 1
+        add r11, r1
+exact_effect_local_next:
+        imm r1, 1
+        add r10, r1
+        jmp exact_effect_local_loop
+
+exact_effect_memory_init:
+        imm r10, 0
+        imm r11, 0
+exact_effect_memory_loop:
+        imm r1, 95
+        jlt r10, r1, exact_effect_memory_row
+        mov r2, r35
+        sub r2, r34
+        jeq r11, r2, exact_effect_transition_init
+        jmp reject
+exact_effect_memory_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7602176
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, exact_effect_memory_next
+        jlt r31, r3, exact_effect_memory_next
+        jlt r10, r34, reject
+        jlt r10, r35, exact_effect_memory_match
+        jmp reject
+exact_effect_memory_match:
+        imm r1, 1
+        add r11, r1
+exact_effect_memory_next:
+        imm r1, 1
+        add r10, r1
+        jmp exact_effect_memory_loop
+
+exact_effect_transition_init:
+        imm r10, 0
+        imm r11, 0
+exact_effect_transition_loop:
+        imm r1, 291
+        jlt r10, r1, exact_effect_transition_row
+        mov r2, r37
+        sub r2, r36
+        jeq r11, r2, exact_effect_event_init
+        jmp reject
+exact_effect_transition_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3215360
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, exact_effect_transition_next
+        jlt r31, r3, exact_effect_transition_next
+        jlt r10, r36, reject
+        jlt r10, r37, exact_effect_transition_match
+        jmp reject
+exact_effect_transition_match:
+        imm r1, 1
+        add r11, r1
+exact_effect_transition_next:
+        imm r1, 1
+        add r10, r1
+        jmp exact_effect_transition_loop
+
+exact_effect_event_init:
+        imm r10, 0
+        imm r11, 0
+exact_effect_event_loop:
+        imm r1, 613
+        jlt r10, r1, exact_effect_event_row
+        mov r2, r39
+        sub r2, r38
+        jeq r11, r2, exact_shape_ok
+        jmp reject
+exact_effect_event_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7077888
+        add r1, r2
+        load r3, r1
+        jlt r3, r30, exact_effect_event_next
+        jlt r31, r3, exact_effect_event_next
+        jlt r10, r38, reject
+        jlt r10, r39, exact_effect_event_match
+        jmp reject
+exact_effect_event_match:
+        imm r1, 1
+        add r11, r1
+exact_effect_event_next:
+        imm r1, 1
+        add r10, r1
+        jmp exact_effect_event_loop
+
+; Blocks [r20,r21] inclusive all and only belong to procedure r22.
+exact_require_proc_blocks:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        imm r10, 0
+        imm r11, 0
+exact_proc_block_loop:
+        imm r1, 355
+        jlt r10, r1, exact_proc_block_row
+        mov r2, r26
+        sub r2, r25
+        imm r1, 1
+        add r2, r1
+        jeq r11, r2, exact_shape_ok
+        jmp reject
+exact_proc_block_row:
+        mov r2, r10
+        imm r1, 8
+        mul r2, r1
+        imm r1, 3145728
+        add r1, r2
+        load r3, r1
+        jeq r3, r27, exact_proc_block_match
+        jmp exact_proc_block_next
+exact_proc_block_match:
+        jlt r10, r25, reject
+        jlt r26, r10, reject
+        imm r1, 1
+        add r11, r1
+exact_proc_block_next:
+        imm r1, 1
+        add r10, r1
+        jmp exact_proc_block_loop
+
+; Compatibility entry for regions with no direct output or raw byte access.
+; Inputs r20..r24 are start/end/call/ret/store totals.
+exact_quiet_scan_region:
+        mov r25, r24
+        imm r24, 0                   ; no direct writes
+        imm r26, 0                   ; reject loadb/storeb
+        call exact_effect_scan_region
+        ret
+
+; Canonical decoded effect census for [r20,r21). Inputs r22..r25 are exact
+; call/ret/write/store totals. r26 is zero to reject raw byte access or one to
+; admit it; halt, division, remainder, and input are always rejected. The
+; shared instruction-start and opcode tables keep this checker independent of
+; responsibility-specific source-shape data.
+exact_effect_scan_region:
+        mov r27, r20
+        mov r28, r21
+        mov r29, r22
+        mov r30, r23
+        mov r31, r24
+        mov r32, r25
+        mov r33, r26
+        imm r10, 0
+        imm r11, 0
+        imm r12, 0
+        imm r13, 0
+exact_effect_scan_loop:
+        jlt r27, r28, exact_effect_scan_pc
+        jeq r10, r29, exact_effect_scan_rets
+        jmp reject
+exact_effect_scan_rets:
+        jeq r11, r30, exact_effect_scan_writes
+        jmp reject
+exact_effect_scan_writes:
+        jeq r12, r31, exact_effect_scan_stores
+        jmp reject
+exact_effect_scan_stores:
+        jeq r13, r32, exact_shape_ok
+        jmp reject
+exact_effect_scan_pc:
+        imm r1, 4194304
+        add r1, r27
+        loadb r2, r1
+        imm r3, 1
+        jeq r2, r3, exact_effect_scan_start
+        jmp exact_effect_scan_next
+exact_effect_scan_start:
+        imm r1, 2097152
+        add r1, r27
+        loadb r2, r1
+        imm r3, 19
+        jeq r2, r3, exact_effect_scan_call
+        imm r3, 20
+        jeq r2, r3, exact_effect_scan_ret
+        imm r3, 18
+        jeq r2, r3, exact_effect_scan_write
+        imm r3, 11
+        jeq r2, r3, exact_effect_scan_store
+        imm r3, 0
+        jeq r2, r3, reject
+        imm r3, 6
+        jeq r2, r3, reject
+        imm r3, 7
+        jeq r2, r3, reject
+        imm r3, 8
+        jeq r2, r3, exact_effect_scan_raw
+        imm r3, 9
+        jeq r2, r3, exact_effect_scan_raw
+        imm r3, 17
+        jeq r2, r3, reject
+        jmp exact_effect_scan_next
+exact_effect_scan_raw:
+        imm r3, 1
+        jeq r33, r3, exact_effect_scan_next
+        jmp reject
+exact_effect_scan_call:
+        imm r1, 1
+        add r10, r1
+        jmp exact_effect_scan_next
+exact_effect_scan_ret:
+        imm r1, 1
+        add r11, r1
+        jmp exact_effect_scan_next
+exact_effect_scan_write:
+        imm r1, 1
+        add r12, r1
+        jmp exact_effect_scan_next
+exact_effect_scan_store:
+        imm r1, 1
+        add r13, r1
+exact_effect_scan_next:
+        imm r1, 1
+        add r27, r1
+        jmp exact_effect_scan_loop
+
+; Require the call at r20 to target r21 and have exact fallthrough r22.
+; This was originally private to the main/slurp bridge, but its contract and
+; implementation are responsibility-neutral and are also needed by Checker C.
+exact_require_call:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r2, r25
+        imm r1, 9
+        add r2, r1
+        jeq r2, r27, exact_require_call_opcode
+        jmp reject
+exact_require_call_opcode:
+        mov r20, r25
+        imm r21, 19
+        call require_tape_byte
+        mov r20, r25
+        imm r1, 1
+        add r20, r1
+        mov r21, r26
+        call require_tape_word
+        ret
+
+; Exact event-row argument arity at r20 must equal r21.
+exact_require_event_arity:
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 7143424
+        add r1, r2
+        load r2, r1
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+
+; Exact expression-height table entry for event row r20 must equal r21.
+exact_require_ambient_height:
+        mov r2, r20
+        imm r1, 8
+        mul r2, r1
+        imm r1, 10035200
+        add r1, r2
+        load r2, r1
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+
+; Rejoin one ordinary source call across the event, arity, expression-height,
+; and decoded-call tables. Inputs are event/block/pc/arity/ambient/target/
+; continuation in r20..r26.
+summary_require_call_site:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r33, r23
+        mov r34, r24
+        mov r35, r25
+        mov r36, r26
+        mov r20, r30
+        mov r21, r31
+        imm r22, 1
+        mov r23, r32
+        call exact_require_event
+        mov r20, r30
+        mov r21, r33
+        call exact_require_event_arity
+        mov r20, r30
+        mov r21, r34
+        call exact_require_ambient_height
+        mov r20, r32
+        mov r21, r35
+        mov r22, r36
+        call exact_require_call
+        ret
+
+; Canonical selected-row decoder family. These helpers rejoin values already
+; reconstructed into the exact local, memory, primitive, and push tables; they
+; do not accept a producer-selected subject or construct another witness.
+
+; Require one checked table cell: base r20, row r21, expected r22.
+transfer_require_cell:
+        imm r1, 8
+        mul r21, r1
+        add r20, r21
+        load r2, r20
+        jeq r2, r22, transfer_require_cell_ok
+        jmp reject
+transfer_require_cell_ok:
+        ret
+
+; local row/block/kind/slot/pc in r20..r24.
+transfer_require_local:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r20, 7168000
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 7176192
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 7184384
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        imm r20, 7192576
+        mov r21, r25
+        mov r22, r29
+        call transfer_require_cell
+        ret
+
+; Local row/block/kind/slot in r20..r23; return its checked artifact PC in r0.
+; The row is bounded by the independently reconstructed local-access count.
+exact_local_identity_pc:
+        mov r5, r20
+        imm r1, 524608
+        load r1, r1
+        jlt r5, r1, exact_local_identity_block
+        jmp reject
+exact_local_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 7168000
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_local_identity_kind
+        jmp reject
+exact_local_identity_kind:
+        imm r1, 7176192
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_local_identity_slot
+        jmp reject
+exact_local_identity_slot:
+        imm r1, 7184384
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_local_identity_load
+        jmp reject
+exact_local_identity_load:
+        imm r1, 7192576
+        add r1, r5
+        load r0, r1
+        ret
+
+; Memory row/block/kind/width in r20..r23; return checked artifact PC in r0.
+exact_memory_identity_pc:
+        mov r5, r20
+        imm r1, 524648
+        load r1, r1
+        jlt r5, r1, exact_memory_identity_block
+        jmp reject
+exact_memory_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 7602176
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_memory_identity_kind
+        jmp reject
+exact_memory_identity_kind:
+        imm r1, 7610368
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_memory_identity_width
+        jmp reject
+exact_memory_identity_width:
+        imm r1, 7618560
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_memory_identity_load
+        jmp reject
+exact_memory_identity_load:
+        imm r1, 7626752
+        add r1, r5
+        load r0, r1
+        ret
+
+; Compatibility adapter for memory row/block/kind/width/pc in r20..r24.
+transfer_require_memory:
+        mov r29, r24
+        call exact_memory_identity_pc
+        jeq r0, r29, exact_shape_ok
+        jmp reject
+
+; primitive row/block/kind/value-or-opcode/pc in r20..r24.
+transfer_require_primitive:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        mov r29, r24
+        imm r20, 8388608
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 8396800
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 8404992
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        imm r20, 8413184
+        mov r21, r25
+        mov r22, r29
+        call transfer_require_cell
+        ret
+
+; Primitive row/block/kind/value-or-opcode in r20..r23; return its checked
+; artifact PC in r0.
+exact_primitive_identity_pc:
+        mov r5, r20
+        imm r1, 524696
+        load r1, r1
+        jlt r5, r1, exact_primitive_identity_block
+        jmp reject
+exact_primitive_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 8388608
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_primitive_identity_kind
+        jmp reject
+exact_primitive_identity_kind:
+        imm r1, 8396800
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_primitive_identity_value
+        jmp reject
+exact_primitive_identity_value:
+        imm r1, 8404992
+        add r1, r5
+        load r2, r1
+        jeq r2, r23, exact_primitive_identity_load
+        jmp reject
+exact_primitive_identity_load:
+        imm r1, 8413184
+        add r1, r5
+        load r0, r1
+        ret
+
+; push row/block/kind/pc in r20..r23.
+transfer_require_push:
+        mov r25, r20
+        mov r26, r21
+        mov r27, r22
+        mov r28, r23
+        imm r20, 9437184
+        mov r21, r25
+        mov r22, r26
+        call transfer_require_cell
+        imm r20, 9445376
+        mov r21, r25
+        mov r22, r27
+        call transfer_require_cell
+        imm r20, 9453568
+        mov r21, r25
+        mov r22, r28
+        call transfer_require_cell
+        ret
+
+; Push row/source-block/kind in r20..r22; return its checked artifact PC in r0.
+exact_push_identity_pc:
+        mov r5, r20
+        imm r1, 524752
+        load r1, r1
+        jlt r5, r1, exact_push_identity_block
+        jmp reject
+exact_push_identity_block:
+        imm r1, 8
+        mul r5, r1
+        imm r1, 9437184
+        add r1, r5
+        load r2, r1
+        jeq r2, r21, exact_push_identity_kind
+        jmp reject
+exact_push_identity_kind:
+        imm r1, 9445376
+        add r1, r5
+        load r2, r1
+        jeq r2, r22, exact_push_identity_load
+        jmp reject
+exact_push_identity_load:
+        imm r1, 9453568
+        add r1, r5
+        load r0, r1
+        ret
+
+exact_require_cell:
+        load r2, r20
+        jeq r2, r21, exact_shape_ok
+        jmp reject
+exact_shape_ok:
+        ret

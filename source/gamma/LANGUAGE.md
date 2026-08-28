@@ -5,9 +5,8 @@ canonical meaning is the pure, fuel-bounded reference interpreter in
 `interp.beta`; its static checker is `typeck.beta`. Both are Beta programs built
 by the self-hosting Beta compiler.
 
-The old imperative language compiled by `gamma.alpha` is a parked compatibility
-artifact. It is not the canonical Gamma surface. Its historical programs remain
-under `examples/` and are built only by the legacy `build.sh` path.
+The old imperative compiler-first prototype is retired to Git history. It is
+not the canonical Gamma surface.
 
 ## Evaluated surface
 
@@ -48,7 +47,11 @@ metadata and leaves source name resolution, argument evaluation, fuel, and
 observable values unchanged. Exhausting the canonical
 interpreter's private source, argument, or node capacities is a fail-closed host
 outcome and never publishes a partial Gamma value. Parsed syntax is pinned for
-the evaluation. Runtime values may be reclaimed by a stable-address,
+the evaluation. A parsed variable expression may likewise cache its resolved
+slot relative to the current function frame: Gamma has no closures, lookup does
+not cross that frame, and the slot is fixed by the expression's lexical
+position, so repeated calls and recursive re-entry still read the current
+binding. Runtime values may be reclaimed by a stable-address,
 representation-aware conservative collector: candidate roots must decode to
 exact live allocation starts, so conservative retention cannot change values,
 matching, evaluation order, or printed constructor trees. Exhausting the
@@ -66,8 +69,8 @@ program := (data TYPE (CONSTRUCTOR TYPE...)...)*
 `Int` is built in. The type system is monomorphic and fully annotated. It checks
 function and constructor arity, operator operands, calls, return types, match
 scrutinees, pattern constructors, and agreement between match arms. It is
-deliberately small: enough to make interpreters, validators, canonical-byte
-decoders, and the independent Gamma proof-kernel implementation safe to write.
+deliberately small: enough to make interpreters, validators, decoders, and the
+independent Gamma proof-kernel implementation safe to write.
 
 ## Gates and examples
 
@@ -77,10 +80,8 @@ sh source/gamma/test-typeck.sh
 sh source/alpha/checker/gates/gamma-checker.sh
 ```
 
-Typed Gamma consumers live in `canonical-bytes/`, the reusable grammar fragments
-under `terminal-codec-primitives/`, and
-`source/alpha/checker/implementations/gamma/checker_typed.gamma`.
-They exercise the language but do not define it. The retired terminal-ledger
-prototype was artifact-assurance feasibility work, not Gamma meaning. The root
-`examples/*.gamma` corpus belongs to the parked imperative compiler and must not
-be used as the canonical language definition.
+The typed Gamma proof-kernel implementation lives under the checker that owns it
+at `source/alpha/checker/implementations/gamma/checker_typed.gamma`. The old
+generic canonical-byte and terminal-codec prototype was not consumed by a live
+artifact admission and is retired to Git history; future artifact-specific
+decoding belongs beside the artifact it admits.

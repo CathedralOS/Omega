@@ -63,7 +63,7 @@ fn unique_build_dir(tag: &str) -> TemporaryBuildDirectory {
 }
 
 fn assert_runtime_canary(canary_name: &str, tag: &str) {
-    let canary = repo_root().join("tests/canaries/pass").join(canary_name);
+    let canary = repo_root().join("tests/omega/pass").join(canary_name);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
         .expect("gapped outer-array canary should reach checked trees");
@@ -159,7 +159,7 @@ fn multiple_whole_aggregate_fields_interpret_run_natively_and_cross_compile() {
 
 #[test]
 fn gapped_record_outer_array_materializes_from_checked_owned_value() {
-    let canary = repo_root().join("tests/canaries/pass").join(RECORD_CANARY);
+    let canary = repo_root().join("tests/omega/pass").join(RECORD_CANARY);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
         .expect("gapped record-array canary should reach checked trees");
@@ -204,7 +204,7 @@ fn gapped_record_outer_array_materializes_from_checked_owned_value() {
 #[test]
 fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
     let canary = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(NESTED_ARRAY_CANARY);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
@@ -246,7 +246,7 @@ fn gapped_nested_array_outer_array_materializes_from_checked_owned_value() {
 #[test]
 fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
     let canary = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(RECORD_NESTED_ARRAY_CANARY);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))
@@ -368,7 +368,7 @@ fn gapped_record_nested_array_materialization_is_exact_and_atomic() {
 #[test]
 fn multiple_whole_aggregate_fields_materialize_by_key_and_reject_atomically() {
     let canary = repo_root()
-        .join("tests/canaries/pass")
+        .join("tests/omega/pass")
         .join(MULTIPLE_AGGREGATE_FIELDS_CANARY);
     let host = omega_target::TargetProfile::host();
     let checked = compile_to_checked(&canary.join("main.omg"), Some(host.target_name()))

@@ -12,7 +12,8 @@ use omega_terminal_selected_instructions::{
 
 use crate::{
     TerminalFunctionMachineEffects, TerminalInstructionMachineEffects, TerminalMachineEffectError,
-    TerminalPreAllocationMachineEffectPlan, ValidatedTerminalPreAllocationMachineEffects, receipt,
+    TerminalPreAllocationMachineEffectPlan, TerminalStructuralUnitCallMachineEffects,
+    ValidatedTerminalPreAllocationMachineEffects, receipt,
     terminal_pre_allocation_machine_effect_identity,
 };
 
@@ -69,6 +70,7 @@ pub fn validate_terminal_pre_allocation_machine_effects<S: ValidatedTerminalSele
         }
         validate_function(source_function, actual_function, constraints, catalog)?;
     }
+    validate_structural_functions(source, &plan, constraints, catalog)?;
     if plan.identity != terminal_pre_allocation_machine_effect_identity(&plan) {
         return Err(TerminalMachineEffectError::IdentityMismatch);
     }
@@ -76,6 +78,108 @@ pub fn validate_terminal_pre_allocation_machine_effects<S: ValidatedTerminalSele
     Ok(ValidatedTerminalPreAllocationMachineEffects::new(
         plan, receipt,
     ))
+}
+
+fn validate_structural_functions(
+    source: &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan,
+    plan: &TerminalPreAllocationMachineEffectPlan,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: &ValidatedTerminalMachineEffectCatalog,
+) -> Result<(), TerminalMachineEffectError> {
+    if source.structural_unit_functions.len() != plan.structural_unit_functions.len() {
+        return Err(TerminalMachineEffectError::NonCanonicalFunction);
+    }
+    let actual_machines = plan
+        .structural_unit_functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<BTreeSet<_>>();
+    if actual_machines.len() != plan.structural_unit_functions.len() {
+        return Err(TerminalMachineEffectError::NonCanonicalFunction);
+    }
+    for source_function in &source.structural_unit_functions {
+        let matches = plan
+            .structural_unit_functions
+            .iter()
+            .filter(|function| function.machine == source_function.machine)
+            .collect::<Vec<_>>();
+        let [actual] = matches.as_slice() else {
+            return Err(TerminalMachineEffectError::StructuralFunctionMismatch {
+                machine: source_function.machine,
+            });
+        };
+        if actual.block != source_function.entry_block
+            || actual.return_effect != source_function.terminator.effect
+            || actual.return_ownership != source_function.terminator.ownership
+        {
+            return Err(TerminalMachineEffectError::StructuralFunctionMismatch {
+                machine: source_function.machine,
+            });
+        }
+        validate_instruction(
+            &source_function.terminator.instruction,
+            &actual.return_instruction,
+            constraints,
+            catalog,
+        )?;
+        match (&source_function.call, &actual.call) {
+            (Some(source_call), Some(actual_call)) => validate_structural_call(
+                source_function.machine,
+                source_call,
+                actual_call,
+                constraints,
+                catalog,
+            )?,
+            (None, None) => {}
+            _ => {
+                return Err(TerminalMachineEffectError::StructuralCallMismatch {
+                    machine: source_function.machine,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
+fn validate_structural_call(
+    machine: psi_core::MachineId,
+    source: &omega_terminal_selected_instructions::TerminalSelectedStructuralUnitCallInstruction,
+    actual: &TerminalStructuralUnitCallMachineEffects,
+    constraints: &ValidatedRegisterConstraintCatalog,
+    catalog: &ValidatedTerminalMachineEffectCatalog,
+) -> Result<(), TerminalMachineEffectError> {
+    let constraint = constraints
+        .catalog()
+        .constraints
+        .iter()
+        .find(|row| row.key == source.constraint)
+        .ok_or(TerminalMachineEffectError::StructuralCallMismatch { machine })?;
+    let declaration = catalog
+        .catalog()
+        .structural_unit_call
+        .ok_or(TerminalMachineEffectError::StructuralCallMismatch { machine })?;
+    if !constraint.operands.is_empty()
+        || source.implicit_uses != constraint.implicit_uses
+        || source.implicit_defs != constraint.implicit_defs
+        || source.clobbers != constraint.clobbers
+        || declaration.constraint != source.constraint
+        || actual.instruction != source.id
+        || actual.operation != source.operation
+        || actual.callee != source.callee
+        || actual.constraint != source.constraint
+        || actual.unit_uses != constraint.implicit_uses
+        || actual.unit_defs != constraint.implicit_defs
+        || actual.unit_clobbers != constraint.clobbers
+        || actual.layout != source.layout
+        || actual.effect != source.effect
+        || actual.ownership != source.ownership
+        || actual.claim_transfers != source.claim_transfers
+        || actual.provenance != source.provenance
+        || actual.declaration != declaration
+    {
+        return Err(TerminalMachineEffectError::StructuralCallMismatch { machine });
+    }
+    Ok(())
 }
 
 fn validate_function(
@@ -186,6 +290,7 @@ fn replay_declaration<'a>(
             TerminalMachineSemanticKind::ConditionalBranchNonZero
         }
         TerminalSelectedInstructionKind::ReturnI64 => TerminalMachineSemanticKind::ReturnI64,
+        TerminalSelectedInstructionKind::ReturnUnit => TerminalMachineSemanticKind::ReturnUnit,
     };
     let declarations = catalog
         .catalog()
@@ -210,6 +315,7 @@ fn copied_selected_keys(
     keys: TargetRegisterEnvironmentConstraintKeys,
 ) -> TerminalSelectedConstraintKeys {
     TerminalSelectedConstraintKeys {
+        structural_unit_call: keys.structural_unit_call,
         materialize_i64: keys.materialize_i64,
         copy_i64: keys.copy_i64,
         add_i64: keys.add_i64,
@@ -219,5 +325,7 @@ fn copied_selected_keys(
         compare_i64_zero: keys.compare_i64_zero,
         conditional_branch: keys.conditional_branch,
         return_i64: keys.return_i64,
+        return_unit: keys.return_unit,
     }
 }
+use std::collections::BTreeSet;

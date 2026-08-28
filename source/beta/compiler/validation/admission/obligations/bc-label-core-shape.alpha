@@ -1,0 +1,282 @@
+; Exact source/artifact shape for new_label() and emit_lref(n).
+;
+; These are procedures 1 and 2, each with one entry block and no source
+; transitions.  new_label owns the fixed LBL load/update and explicit return;
+; emit_lref owns one exact "_L" helper event followed by one full-Word
+; emit_dec call.  This module establishes only shape/custody.  The adjacent
+; summaries own modular counter meaning and ordered output meaning.
+
+label_core_require_shape:
+        call label_core_require_proc_meta
+        call label_core_require_blocks
+        call label_core_require_events
+        call label_core_require_locals
+        call label_core_require_memory
+        call label_core_require_primitives
+        call label_core_require_pushes
+        call label_core_require_censuses
+        call label_core_require_decoded
+        ret
+
+; r20=procedure, r21=arity, r22=slots.  Both exact frames are sixteen bytes:
+; one saved caller fp word and one parameter/local word.
+label_core_require_one_proc:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        imm r20, 7151616
+        mov r21, r30
+        mov r22, r31
+        call transfer_require_cell
+        imm r20, 7159808
+        mov r21, r30
+        mov r22, r32
+        call transfer_require_cell
+        mov r20, r30
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, label_core_shape_ok
+        jmp reject
+
+label_core_require_proc_meta:
+        imm r20, 1                    ; new_label()
+        imm r21, 0
+        imm r22, 1
+        call label_core_require_one_proc
+        imm r20, 2                    ; emit_lref(n)
+        imm r21, 1
+        imm r22, 1
+        call label_core_require_one_proc
+        ret
+
+label_core_require_blocks:
+        imm r20, 5
+        imm r21, 1131
+        call exact_require_block_pc
+        imm r20, 5
+        imm r21, 5
+        imm r22, 1
+        call exact_require_proc_blocks
+        imm r20, 6
+        imm r21, 1366
+        call exact_require_block_pc
+        imm r20, 6
+        imm r21, 6
+        imm r22, 2
+        call exact_require_proc_blocks
+        ret
+
+label_core_require_events:
+        ; new_label's only source effect is its explicit return.
+        imm r20, 4
+        imm r21, 5
+        imm r22, 5
+        imm r23, 1345
+        call exact_require_event
+        imm r20, 1326
+        imm r21, 1345
+        call exact_require_epilogue
+        ; The compiler also emits the unreachable canonical fallthrough return.
+        imm r20, 1346
+        imm r21, 1365
+        call exact_require_epilogue
+
+        ; emit_lref first emits the exact inline literal, then calls emit_dec.
+        imm r20, 5
+        imm r21, 6
+        imm r22, 4
+        imm r23, 1448
+        call exact_require_event
+        imm r20, 1448
+        imm r21, 31                   ; __write_str
+        imm r22, 1457
+        call exact_require_call
+        imm r20, 6
+        imm r21, 6
+        imm r22, 1508
+        imm r23, 1
+        imm r24, 0
+        imm r25, 40                    ; emit_dec procedure identity
+        call exact_proc_entry_r25
+        imm r26, 1517
+        call summary_require_call_site
+        imm r20, 1517
+        imm r21, 1536
+        call exact_require_epilogue
+
+        ; Pin the jump-skipped two-byte literal independently of its event row.
+        imm r20, 1417
+        imm r21, 12                   ; jmp 1428
+        call require_tape_byte
+        imm r20, 1418
+        imm r21, 1428
+        call require_tape_word
+        imm r20, 1426
+        imm r21, 95                   ; '_'
+        call require_tape_byte
+        imm r20, 1427
+        imm r21, 76                   ; 'L'
+        call require_tape_byte
+        ret
+
+label_core_require_locals:
+        ; new_label: let n, n in n+1, and returned n.
+        imm r20, 10
+        imm r21, 5
+        imm r22, 2
+        imm r23, 0
+        imm r24, 1176
+        call transfer_require_local
+        imm r20, 11
+        imm r21, 5
+        imm r22, 1
+        imm r23, 0
+        imm r24, 1221
+        call transfer_require_local
+        imm r20, 12
+        imm r21, 5
+        imm r22, 1
+        imm r23, 0
+        imm r24, 1307
+        call transfer_require_local
+        ; emit_lref's n is loaded unchanged for its sole ordinary argument.
+        imm r20, 13
+        imm r21, 6
+        imm r22, 1
+        imm r23, 0
+        imm r24, 1457
+        call transfer_require_local
+        ret
+
+label_core_require_memory:
+        imm r20, 8
+        imm r21, 5
+        imm r22, 1                    ; word load LBL
+        imm r23, 8
+        imm r24, 1173
+        call transfer_require_memory
+        imm r20, 9
+        imm r21, 5
+        imm r22, 2                    ; word store LBL
+        imm r23, 8
+        imm r24, 1304
+        call transfer_require_memory
+        ret
+
+label_core_require_primitives:
+        imm r20, 24
+        imm r21, 5
+        imm r22, 1
+        imm r23, 2097104              ; load address
+        imm r24, 1163
+        call transfer_require_primitive
+        imm r20, 25
+        imm r21, 5
+        imm r22, 1
+        imm r23, 2097104              ; store address
+        imm r24, 1195
+        call transfer_require_primitive
+        ; Lexical rows put the operator before its right literal; PCs expose
+        ; the exact lowering order n, push, 1, add.
+        imm r20, 26
+        imm r21, 5
+        imm r22, 2
+        imm r23, 3                    ; wrapping add
+        imm r24, 1266
+        call transfer_require_primitive
+        imm r20, 27
+        imm r21, 5
+        imm r22, 1
+        imm r23, 1
+        imm r24, 1256
+        call transfer_require_primitive
+        ret
+
+label_core_require_pushes:
+        imm r20, 4
+        imm r21, 5
+        imm r23, 1240
+        call exact_require_binary_push    ; n binary-left push
+        imm r20, 379
+        imm r21, 5
+        imm r23, 1205
+        call exact_require_store_push    ; fixed LBL store-address push
+        imm r20, 237
+        imm r21, 6
+        imm r23, 1476
+        call exact_require_argument_push    ; emit_dec argument push
+        ret
+
+label_core_require_censuses:
+        ; new_label exact local/memory/transition/event ownership.
+        imm r20, 5
+        imm r21, 5
+        imm r22, 10
+        imm r23, 13
+        imm r24, 8
+        imm r25, 10
+        imm r26, 4
+        imm r27, 4
+        imm r28, 4
+        imm r29, 5
+        call exact_require_effect_census
+        ; new_label exact primitive/binary/argument/store-push ownership.
+        imm r20, 5
+        imm r21, 5
+        imm r22, 24
+        imm r23, 28
+        imm r24, 4
+        imm r25, 5
+        imm r26, 0
+        imm r27, 0
+        imm r28, 379
+        imm r29, 380
+        call summary_require_expr_census
+
+        ; emit_lref exact local/memory/transition/event ownership.
+        imm r20, 6
+        imm r21, 6
+        imm r22, 13
+        imm r23, 14
+        imm r24, 10
+        imm r25, 10
+        imm r26, 4
+        imm r27, 4
+        imm r28, 5
+        imm r29, 7
+        call exact_require_effect_census
+        ; No primitive/binary/store rows; only argument-push row 237.
+        imm r20, 6
+        imm r21, 6
+        imm r22, 0
+        imm r23, 0
+        imm r24, 0
+        imm r25, 0
+        imm r26, 237
+        imm r27, 238
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+        ret
+
+label_core_require_decoded:
+        ; The five stores are saved-fp/local/two temporaries/LBL.  Both returns
+        ; are real decoded instructions even though the second is unreachable.
+        imm r20, 1131
+        imm r21, 1366
+        imm r22, 0                    ; ordinary/helper calls
+        imm r23, 2                    ; explicit + synthetic returns
+        imm r24, 5                    ; all decoded word stores
+        call exact_quiet_scan_region
+        ; The three stores are saved-fp/parameter/argument staging.  Output is
+        ; inside the checked helper, not a direct write in this region.
+        imm r20, 1366
+        imm r21, 1537
+        imm r22, 2                    ; helper + emit_dec
+        imm r23, 1                    ; fallthrough return
+        imm r24, 3
+        call exact_quiet_scan_region
+        ret
+
+label_core_shape_ok:
+        ret

@@ -1,188 +1,252 @@
 # Bootstrap lattice — active work
 
-Last pruned: 2026-08-27.
+Last pruned: 2026-08-28.
 
-This queue builds one direct compiler sequence. It does not define a second
-orchestration language, a separately named hosted bridge, or a collection of
-checkpoint compilers.
+This queue closes one direct compiler sequence. It is organized by produced
+artifact, not by historical scripts, validation experiments, or intermediate
+repository buckets.
 
 ## Fixed model
 
-Let `C` be the exact production compiler source closure. `C` is ordinary Omega
-written deliberately against only the language surface needed to express a
-robust compiler. That restriction is a property of this source closure, not a
-new language, dialect, compiler, or repository owner.
+Let `C` be the exact production compiler source closure under `source/omega/`.
+It is ordinary Omega deliberately authored with only the language surface
+needed to express a robust compiler. That restriction is a property of `C`, not
+a new language, dialect, compiler, or source owner.
 
 ```text
-Alpha kernels
-    → Beta compiler
-    → Gamma compiler
-    → Delta-produced compiler
-    → compile C → omega₀
-    → compile the same C with omega₀ → omega
+audited Alpha VM seed
+    → Alpha assembler + Alpha-written Beta cold start → bc
+    → bc builds the canonical Gamma evaluator and type checker
+    → Gamma evaluates the declared Delta meaning route → delta
+    → delta compiles C → omega₀
+    → omega₀ compiles the same C → omega
 ```
 
-`omega₀` and `omega` implement the same language from the same source. The first
-binary may be conservatively lowered; the second may use the optimizer and
-advanced backend already present in `C`. The source may avoid difficult Omega
-features such as the mathematical proof surface or linear dependent types even
-though the compiler it implements accepts them.
+`omega₀` and `omega` implement the same full Omega language from the same
+source. `omega₀` may lower conservatively; `omega` may use the optimizer and
+advanced backend already implemented in `C`. Difficult Omega features such as
+the mathematical proof surface and linear dependent types may be absent from
+the source of `C` even though the compiler produced from `C` accepts them.
 
-Every arrow must be directly invocable as a compiler operation over exact input
-bytes with exact output bytes. Shell and Python programs may order commands,
-prepare temporary files, or run negative tests, but they are replaceable
-conveniences. No script may silently supply parsing, resolution, lowering,
-evidence construction, source discovery, or another semantic stage.
+The artifact chain is the bootstrap. There is no `omega-bootstrap` compiler,
+Omega subset language, checkpoint compiler generation, DDC stage, or source
+directory for either `omega₀` or `omega`. Shell and Python may invoke exact
+commands, manage temporary files, and run negative tests. They may not supply
+source discovery, parsing, resolution, lowering, evidence construction, or any
+other semantic stage.
 
-The retired `source/on-ramp/omega-bootstrap` implementation, its private checked
-IR generations, and its mirrored refinement snapshots are not bootstrap inputs.
-Git history is their archive.
+## Repository ownership
 
-## Standing invariants
+```text
+source/alpha/assembler/             Alpha source-to-tape construction
+source/alpha/checker/               separate derivation-checker artifact
+source/beta/compiler/               bc source, artifact, cold start, admission
+source/gamma/                       canonical evaluator and type checker
+source/delta/compiler/              delta source, artifact, adjacent admission
+source/delta/meaning/               canonical Delta-to-Gamma meaning route
+source/omega/                       the one product compiler source closure C
+source/omega/psi/                   target-neutral phases inside C
+source/omega-rust/                  optional implementation/comparator
+tests/lattice/                      shared cross-rung inputs
+tools/lattice/                      replaceable command ordering
+```
 
-- Alpha, Beta, Gamma, Delta, and Omega are the only language capabilities in
-  the chain.
-- The final Delta-produced compiler accepts `C` directly. There is no separate
-  `omega-bootstrap` compiler between Delta and `omega₀`.
-- `C` uses an ordinary-Omega subset by authoring discipline: no private syntax,
-  altered meaning, file allowlist, AST-permutation matching, or separately
-  versioned profile.
-- The compiler source is authored once. `delta C → omega₀` and
-  `omega₀ C → omega` consume the same closure.
-- The Rust producer at `source/omega-rust` is a development implementation and
-  differential comparator. It is not a bootstrap or release dependency.
-- Authority comes from exact source, pinned semantics, checked obligations,
-  disclosed admissions, and source-to-artifact refinement—not compiler
-  pedigree, fixed points, or agreement with Rust.
-- The universal proof checker belongs to Alpha and is not another language rung.
-- The artifact being admitted owns its validation. Validation may consume the
-  Alpha checker, but candidate compiler output never accepts its own evidence.
-- Standalone interpreters, viewers, REPLs, and debugging tools remain outside
-  `C` unless the compiler executable imports them.
+The Alpha checker is a separate binary from the Alpha VM and assembler. It is a
+trust-floor service used beside compiler edges, not the compiler that builds
+Beta and not another rung. Gamma likewise has no required compiler binary: `bc`
+builds the Beta-written Gamma evaluator and type checker, and those programs
+provide the canonical route used to realize Delta.
 
-## Current state
+The artifact being admitted owns its validation. Beta admission therefore
+lives under `source/beta/compiler/validation/`; Delta publication and executable
+custody live under `source/delta/compiler/validation/`. Do not recreate generic
+`bootstrap/`, `canaries/`, `assurance/`, `refinement/`, `on-ramp/`,
+`proof-kernel/`, or repository-level `psi/` owners.
 
-| Owner | Present | Required closure |
+Product compiler implementation belongs to **OMEGA-PRODUCT-COMPILER-SOURCE** in
+[`TASKS.md`](TASKS.md), not here. This queue consumes the exact closure that task
+publishes; it does not maintain a second Psi/Omega implementation backlog.
+
+## Edge status
+
+| Producer edge | Current state | Remaining result |
 | --- | --- | --- |
-| Alpha | audited seed, VM, assembler, below-Beta checker artifact, implementations, and gates | preserve the explicit checker reconstruction and disclosed machine/host admissions |
-| Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
-| Gamma | interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution |
-| Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
-| Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | finish the product compiler and freeze the exact surface actually used by `C` |
-| Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
+| Alpha seed and cold start → `bc` | exact source and tape exist; Alpha-rooted construction and bounded admission gates run | make the admission implementation small enough to audit and change locally |
+| `bc` → Gamma evaluator/type checker | canonical Beta-written programs and bounded gates exist | preserve this route; do not invent a Gamma compiler artifact |
+| Gamma meaning route → `delta` | source closure, repeated-output publication checks, target-dialect validation, and artifact identity custody exist | complete canonical execution, executable reconstruction, and checked publication |
+| `delta + C` → `omega₀` | source owners fixed; compiler and final closure incomplete | accept the exact ordinary-Omega surface used by complete `C` and check the first build |
+| `omega₀ + C` → `omega` | model fixed | rebuild unchanged `C` and check the second edge independently |
 
-## Execution queue
+The Rust compiler under `source/omega-rust/` remains a useful differential
+producer while maintained. Its agreement, availability, or pedigree is never a
+bootstrap or release condition.
 
-### 0. Close and simplify the trust floor
+## 1. Alpha seed and cold start → `bc`
 
-- [x] Put the root checker under `source/alpha/checker/`.
-- [x] Put the Beta compiler source, artifact, cold start, and admission evidence
-  together under `source/beta/compiler/`.
-- [x] Remove the generic `source/refinement/` owner. Future validation belongs
-  beside the compiler or artifact being admitted.
-- [x] Replace the circular `bc → check.beta → admit bc` story with a checker
-  whose accepted artifact is constructed and audited below the Beta compiler it
-  validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
-  evidence, not acceptance authority.
-- [x] Collapse the Beta validator's generated checker/permutation explosion into
-  one canonical obligation format and small responsibility-specific modules.
-  Delete cached HTML viewers, duplicated generated programs, receipt matrices,
-  and debug-only publication paths when no human or authoritative command
-  consumes them.
-- [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
-  campaigns as optional stress suites. The default lattice path must build each
-  compiler and run only the bounded admission gates required for that edge.
-- [x] State every admitted artifact, checker, exact input, exact output, and
-  remaining assumption in one short chain manifest that can be audited without
-  reading orchestration scripts.
+The accepted Beta compiler is `source/beta/compiler/bc.beta` and
+`source/beta/compiler/artifacts/bc.tape`. Its cold construction, artifact
+admission, and optional stress evidence stay under the same compiler owner.
 
-### 1. Publish the Delta-produced compiler from below
+- [ ] Collapse the remaining Beta admission explosion into one canonical exact
+  instruction/event/memory identity format plus small responsibility-specific
+  semantic modules. The current bounded admission consists of 189 Alpha modules
+  and 64,990 lines; the checker ROOT is 82,172 bytes. Shape, control, data, and
+  publication modules must consume common decoded facts rather than repeat byte
+  offsets, macro bodies, or equivalent verification permutations.
+- [ ] Finish identity localization before changing the shared compiler frame
+  macros. Procedure, block, transition, event, local, primitive, push,
+  continuation, epilogue, and shared macro identities are centralized. The r13
+  word-size optimization still shifts 81 semantic modules. The checked
+  stable-row memory resolver has landed with the complete `gen_stmts` and
+  `gen_expr` memory families plus a same-block swapped-PC tooth; 31 further
+  modules must consume it.
+  The 27-module internal-site audit found only one missing shared owner:
+  synthetic `__write_str`. The other consumers can migrate through the existing
+  procedure/block/transition/event/local/memory/primitive/push/epilogue APIs and
+  checked relative emit layout; source rows `259` and `391` must not be mistaken
+  for shifting artifact PCs. The memory and internal-site consumer sets leave
+  46 modules in their remaining union. First centralize the helper extent and
+  remove its duplicate shape checks, then migrate existing-identity consumers,
+  procedure/epilogue consumers, and relative emit-layout consumers in that
+  order. Add a same-complete-key emit-occurrence swap tooth after the
+  net-negative centralization.
+- [ ] Apply the r13 optimization only after that localization. Acceptance is a
+  change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
+  identities, and adjacent manifests—not mechanical edits across unrelated
+  semantic modules. Preserve the cold-start fixed point and both exact-subject
+  admission gates. The measured representative Gamma workload improvement was
+  about 10.5%; remeasure the canonical workload after admission.
+- [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
+  simulation/coinduction judgment and finite certificate shape, then reconstruct
+  the exact compiler proposition below `bc` and check it with the Alpha-owned
+  derivation checker. Candidate compiler output must never select its own
+  proposition or accept its own evidence.
+- [ ] Keep alternate checkers, fuzzing, large corpora, exhaustive mutations,
+  generated refinement samples, and developer reports optional. The default
+  edge builds the artifact and runs only the bounded gates required to admit
+  that exact artifact.
 
-Current lower-rung progress: the publication verifier binds the canonical
-source closure and tools, reconstructs the packed Gamma program, independently
-decodes repeated executions, requires byte-identical assembly, and validates
-the bounded target dialect. It remains fail-closed until those observations
-come from the exact full-source execution; it does not manufacture the missing
-compiler artifact.
+Acceptance: changing one shared compiler macro changes `bc.beta`, its one shape
+owner, generated identities, and directly relevant semantic obligations only.
+No cached viewer, receipt matrix, source-row permutation suite, or debug output
+is required by the edge.
+
+## 2. `bc` → canonical Gamma meaning
+
+`source/gamma/interp.beta` and `source/gamma/typeck.beta` are the canonical
+Gamma programs built by `bc`. Gamma supplies safe definitional evaluation; it
+does not contribute a separately published native compiler between Beta and
+Delta.
+
+- [ ] Keep the full compiler-sized evaluation bounded and practical without
+  changing Alpha or Gamma meaning, hiding a semantic stage in a runner, or
+  weakening exact evidence joins. A 12-hour ceiling is emergency containment,
+  not an acceptable normal gate duration.
+- [ ] After the admitted r13 change, profile the exact Delta publication input
+  again before attempting another dispatch mechanism or speculative Gamma
+  rewrite. Preparation is already sub-second-to-low-second work; prior sampling
+  placed roughly 90% of the canonical execution in Alpha instruction dispatch.
+- [ ] Retain the canonical evaluator/type-checker inputs and outputs explicitly
+  at the Delta producer edge. Optional Python and alternate Gamma
+  implementations remain differential evidence only.
+
+## 3. Gamma meaning route → `delta`
+
+The canonical source is `source/delta/compiler/main.alp`; its independently
+declared lower-rung meaning route is implemented under `source/delta/meaning/`.
+The publication verifier already binds the source closure and tools,
+reconstructs the packed Gamma program, compares repeated assembly observations,
+and validates the bounded Darwin ARM64 target dialect. No compiler artifact has
+yet been published.
+
+The 2026-08-28 exact attempt was stopped after both parallel executions reached
+9,660 seconds with no output. It produced no receipt and grants no authority.
 
 - [ ] Execute the exact canonical Delta compiler source through the accepted
-  Gamma route for every required build host.
-- [ ] Bind source identity, Delta semantics/resources, target identity, emitted
-  artifact identity, and direct lower-rooted refinement.
-- [ ] Replace provisional checked-in artifacts with publication receipts rooted
-  in that execution.
-- [ ] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
-  a verifier for already observed data, not a hidden producer.
-- [ ] Ensure the publication path is reproducible by running the constituent
-  compiler commands directly without `tools/bootstrap/verify-lattice.sh`.
+  Gamma route on the required V1 host, Darwin ARM64, using the four literal
+  elaboration, packing, and repeated-execution commands. Retain the exact
+  repeated assembly observation and receipt. A bounded smoke execution is not a
+  substitute.
+- [x] Complete realization replay in
+  `source/delta/compiler/validation/`. `generate` and `verify` now run the exact
+  supplied absolute tool paths and literal command profile against the captured
+  assembly, validate the fresh temporary Mach-O, require empty diagnostics and
+  byte equality with the candidate, and re-snapshot all inputs afterward.
+  Handcrafted Mach-O fixtures can test the container validator but cannot mint
+  reconstruction-bearing receipts.
+- [ ] Bind source identity, target identity, assembly identity, replayed
+  executable identity, reconstruction obligations, and disclosed target/host
+  admissions in the eventual publication receipt. Preserve `OPEN_REFINEMENT`
+  until the independently selected source-to-artifact proposition is checked.
+- [ ] **BLOCKED — OWNER Q16:** ratify the independent Delta v1 language,
+  resource, exhaustion, and observation semantics, then bind that semantic
+  subject into lower-rooted source-to-artifact refinement. The existing
+  translator and corpus cannot select their own contract.
+- [ ] Install the admitted result only under
+  `source/delta/compiler/artifacts/`, with receipts rooted in the exact canonical
+  execution and realization replay.
 
-### 2. Make the Delta-produced compiler accept the surface used by `C`
+Exact execution, realization replay, strict target validation, frontend work,
+and performance work are engineering tasks and are not blocked on Q16. Add
+another host only when a separately declared publication profile requires it.
 
-- [ ] Derive the required input surface from the live resolved closure `C`, not
-  from frozen vertical canaries or historical bridge formats.
-- [ ] Implement that ordinary-Omega source frontend, checked semantics,
-  conservative lowering, target realization, and artifact emission in the
-  Delta compiler stage.
-- [ ] Preserve ordinary Omega meaning for every accepted form and reject every
-  unsupported form before artifact publication.
-- [ ] Keep resource ceilings explicit and adjacent-boundary tested.
-- [ ] Reuse ordinary compiler formats where useful; do not create a private
-  sequence of versioned bridge IRs merely to measure progress.
+## 4. `delta + C` → `omega₀`
 
-### 3. Close the product compiler source
+The Delta compiler needs to accept only the compositional ordinary-Omega forms
+actually used by the complete compiler closure `C`. Accepted forms retain
+ordinary Omega meaning; unsupported forms reject. This is not a Delta=Omega
+claim and does not define a named Omega subset.
 
-Design blocker: [`OWNER_QUESTIONS.md`](OWNER_QUESTIONS.md) Q8 must settle the
-requested-target versus source-selected-target rule before the durable product
-build entry and final `C` closure can freeze. This does not block implementation
-of compiler modules that do not exercise target selection.
+- [ ] Consume the deterministic transitive compiler manifest published by
+  **OMEGA-PRODUCT-COMPILER-SOURCE**. Do not maintain a bootstrap-private source
+  list, file allowlist, AST profile, feature list, or checkpoint tree.
+- [ ] **BLOCKED — OWNER Q8:** settle requested-target versus source-selected
+  target semantics, finalize the durable product build entry, and bind the
+  package-resolved manifest for `C`.
+- [ ] Once the complete compiler builds, derive the exact ordinary-Omega surface
+  used by its resolved closure. Implement that surface in the Delta compiler
+  with checked semantics, conservative lowering, target realization, explicit
+  resource ceilings, and deterministic rejection outside the supported set.
+- [ ] Keep generated/compile-time source, package acceptance, build inputs,
+  imported tools, target selection, and emitted-artifact custody explicit in
+  the closure. Omit interpreters, REPLs, viewers, proof explorers, debuggers, and
+  other tools not imported by the compiler executable.
+- [ ] Run `delta C → omega₀`, reconstruct and check the exact source/artifact
+  refinement edge, retain all target dependencies and admissions, and run the
+  compiler acceptance suite with `omega₀`.
 
-- [ ] Finish the Omega-written Psi frontend, proof checking, optimizer, target
-  lowering, artifact emission, and command entrypoint required by production
-  `omega`.
-- [ ] Compute the exact transitive compiler executable closure `C` through the
-  package system.
-- [ ] Census the ordinary Omega forms used by `C` only after the complete
-  compiler builds; record a tested input boundary without naming a new dialect.
-- [ ] Keep package acceptance, generated-source custody, target semantics, and
-  admitted boundary claims explicit in the closure.
-- [ ] Do not include tools that the compiler executable does not import.
+Acceptance: the first Omega build is one direct Delta compiler invocation over
+the product-owned closure. No shell/Python translation, private IR generation,
+or second source tree participates.
 
-### 4. Perform the first direct Omega build
+## 5. `omega₀ + C` → `omega`
 
-- [ ] Run the published Delta-produced compiler directly over `C`.
-- [ ] Verify and retain the exact `delta C → omega₀` source/artifact refinement
-  edge, all reconstructed obligations, target closure, and disclosed admissions.
-- [ ] Execute compiler acceptance tests with `omega₀`.
-- [ ] Reject any build that requires a shell/Python transformation not expressible
-  as the Delta compiler invocation itself.
+- [ ] Run `omega₀ C → omega` without modifying, regenerating, translating, or
+  selectively replacing any part of `C`.
+- [ ] Reconstruct and check the second source/artifact edge independently of the
+  first.
+- [ ] Demonstrate that the conservatively and production-lowered artifacts
+  implement the same pinned source meaning.
+- [ ] Treat binary equality and Rust agreement as reproducibility or diagnostic
+  evidence only. Correctness comes from the checked edges and explicit
+  admissions.
 
-### 5. Rebuild the same source with Omega
+## Non-authoritative orchestration
 
-- [ ] Run `omega₀ C → omega` without modifying, regenerating, or translating `C`.
-- [ ] Verify the second source/artifact edge independently.
-- [ ] Treat binary equality as reproducibility evidence only. Semantic
-  correctness comes from the checked edges, not equality between binaries.
-- [ ] Demonstrate that optimized and conservative artifacts implement the same
-  pinned source meaning.
+Every required producer, checker, and gate command must remain directly
+invocable. `tools/lattice/` may provide one short convenience sequence whose
+failures print the exact command to rerun. No bootstrap claim may depend on that
+runner, its working directory, or a particular shell.
 
-### 6. Keep orchestration non-authoritative
-
-- [x] Keep one Omega-written product source tree under `source/omega/`, with
-  target-neutral Psi phases nested under `source/omega/psi/`; do not create a
-  standalone Psi rung or an `omega-bootstrap` owner.
-- [x] Maintain one short optional runner that invokes the independently
-  executable gates in order.
-- [x] Remove obsolete aliases, cache profiles, historical bridge formats, and
-  path manifests when no current compiler invocation consumes them.
-- [x] Every runner failure must name the exact compiler/gate command that can be
-  rerun manually.
-- [x] No bootstrap claim may depend on the runner implementation, working
-  directory, or availability of a particular shell.
+Path ownership is enforced by [`tools/lattice/test-paths.sh`](tools/lattice/test-paths.sh)
+and [`tools/lattice/check-path-hygiene.sh`](tools/lattice/check-path-hygiene.sh).
+Remove obsolete aliases, cached profiles, historical bridge formats, and
+validation output when no current compiler edge consumes them.
 
 ## External contract dependencies
 
-The first authoritative build also requires the package/security owner to
-publish the accepted-lock/source-closure projection used by `C`. Until then,
+The first authoritative product build also requires the package/security owner
+to publish the accepted-lock/source-closure projection used by `C`. Until then,
 compiler-issued package-review rows remain review data rather than acceptance
 authority. This blocks final publication, not implementation of the direct
 compiler sequence.

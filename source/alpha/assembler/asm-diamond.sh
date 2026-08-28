@@ -9,17 +9,17 @@ set -e
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "asm-diamond SKIP — no python3"; exit 0; }
 . "${OMEGA_PATH_BETA_COMPILER}/artifact_env.sh"
@@ -50,7 +50,7 @@ if [ -x "$BC" ]; then
   gen cmps 'proc main(){ let a=5 return (a<8)*7 + (a>8) + (a==5) }'
   gen mem  'proc main(){ let b=2097152 word[b]=42 return word[b] }'
   # the big one: the checker (assemble bc''s compilation of check.beta both ways)
-  if [ -f "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta ] && "$BC" < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/beta/check.beta > "$T/check.asm" 2>/dev/null; then
+  if [ -f "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/beta/check.beta ] && "$BC" < "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/beta/check.beta > "$T/check.asm" 2>/dev/null; then
     cmp_asm "bc: check.beta (the trust anchor)" "$T/check.asm"; fi
 else
   echo "  (skipped bc-compiled cases — bc not available)"

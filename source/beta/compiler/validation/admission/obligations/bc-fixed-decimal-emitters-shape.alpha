@@ -1,0 +1,368 @@
+; Exact source/artifact shape for emit_proc_prologue and emit_param_store.
+;
+; These two bounded output leaves contain only fixed-string helper calls and
+; bounded emit_dec children.  This module binds their complete procedure,
+; control, effect, local, primitive, push, epilogue, and decoded inventories.
+; The adjacent meaning module owns value bounds and ordered output.
+
+fixed_decimal_emitters_require_shape:
+        imm r20, 7151616
+        imm r21, 42
+        imm r22, 1                    ; nslots parameter
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 42
+        imm r22, 1                    ; one parameter slot
+        call transfer_require_cell
+        imm r20, 42
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, fixed_decimal_shape_param_proc
+        jmp reject
+fixed_decimal_shape_param_proc:
+        imm r20, 7151616
+        imm r21, 43
+        imm r22, 1                    ; k parameter
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 43
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 43
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, fixed_decimal_shape_blocks
+        jmp reject
+
+fixed_decimal_shape_blocks:
+        imm r20, 209
+        imm r21, 42
+        imm r22, 0                   ; emit_proc_prologue entry
+        call exact_block_identity_pc
+        imm r20, 210
+        imm r21, 42
+        imm r22, 1                   ; state chk
+        call exact_block_identity_pc
+        imm r20, 211
+        imm r21, 42
+        imm r22, 1                   ; state slots
+        call exact_block_identity_pc
+        imm r20, 209
+        imm r21, 211
+        imm r22, 42
+        call exact_require_proc_blocks
+        imm r20, 212
+        imm r21, 43
+        imm r22, 0                   ; emit_param_store entry/body
+        call exact_block_identity_pc
+        imm r20, 212
+        imm r21, 212
+        imm r22, 43
+        call exact_require_proc_blocks
+        call fixed_decimal_shape_transitions
+        call fixed_decimal_shape_events
+        call fixed_decimal_shape_locals
+        call fixed_decimal_shape_primitives
+        call fixed_decimal_shape_pushes
+        call fixed_decimal_shape_censuses
+        ret
+
+fixed_decimal_shape_transitions:
+        imm r20, 166
+        imm r21, 210
+        imm r22, 1
+        imm r23, 211
+        call exact_transition_identity_pc ; checked nslots>0 guard
+        ret
+
+fixed_decimal_shape_events:
+        imm r20, 42
+        imm r21, 209
+        imm r22, fixed_decimal_literal_imm_r5_8
+        imm r23, 9
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 209
+        imm r22, fixed_decimal_literal_sub_r15_r5
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 209
+        imm r22, fixed_decimal_literal_store_r15_r14
+        imm r23, 14
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 209
+        imm r22, fixed_decimal_literal_mov_r14_r15
+        imm r23, 12
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 210
+        call exact_require_event_epilogue
+        imm r20, 42
+        imm r21, 211
+        imm r22, fixed_decimal_literal_imm_r5_prefix
+        imm r23, 7
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 211
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40                  ; emit_dec procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 42
+        imm r21, 211
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 211
+        imm r22, fixed_decimal_literal_sub_r15_r5
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 42
+        imm r21, 211
+        call exact_require_event_epilogue
+        imm r20, 43                  ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
+
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_mov_r5_r14
+        imm r23, 11
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_imm_r4_prefix
+        imm r23, 7
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40                  ; emit_dec procedure identity
+        imm r25, 0                   ; first of two identical complete keys
+        imm r26, 2                   ; exact cardinality
+        call summary_require_nth_call_fallthrough_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        imm r24, 0                   ; first identical newline
+        imm r25, 2                   ; exact cardinality
+        call exact_nth_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_sub_r5_r4
+        imm r23, 10
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_store_r5_prefix
+        imm r23, 10
+        call exact_unique_emit_event_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40                  ; emit_dec procedure identity
+        imm r25, 1                   ; second of two identical complete keys
+        imm r26, 2                   ; exact cardinality
+        call summary_require_nth_call_fallthrough_identity
+        imm r20, 43
+        imm r21, 212
+        imm r22, fixed_decimal_literal_newline
+        imm r23, 1
+        imm r24, 1                   ; second identical newline
+        imm r25, 2                   ; exact cardinality
+        call exact_nth_emit_event_identity
+        imm r20, 44                  ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
+        ret
+
+fixed_decimal_shape_locals:
+        imm r20, 121
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        call exact_local_identity_pc
+        imm r20, 122
+        imm r21, 211
+        imm r22, 1
+        imm r23, 0
+        call exact_local_identity_pc
+        imm r20, 123
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        call exact_local_identity_pc
+        imm r20, 124
+        imm r21, 212
+        imm r22, 1
+        imm r23, 0
+        call exact_local_identity_pc
+        ret
+
+fixed_decimal_shape_primitives:
+        imm r20, 532
+        imm r21, 210
+        imm r22, 3
+        imm r23, 9                   ; nslots>0
+        call exact_primitive_identity_pc
+        imm r20, 533
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        call exact_primitive_identity_pc
+        imm r20, 534
+        imm r21, 210
+        imm r22, 1
+        imm r23, 0
+        call exact_primitive_identity_pc
+        imm r20, 535
+        imm r21, 211
+        imm r22, 2
+        imm r23, 5                   ; nslots*8
+        call exact_primitive_identity_pc
+        imm r20, 536
+        imm r21, 211
+        imm r22, 1
+        imm r23, 8
+        call exact_primitive_identity_pc
+        imm r20, 537
+        imm r21, 211
+        imm r22, 1
+        imm r23, 0
+        call exact_primitive_identity_pc
+
+        imm r20, 538
+        imm r21, 212
+        imm r22, 1
+        imm r23, 8
+        call exact_primitive_identity_pc
+        imm r20, 539
+        imm r21, 212
+        imm r22, 2
+        imm r23, 3                   ; 8 + 8*k
+        call exact_primitive_identity_pc
+        imm r20, 540
+        imm r21, 212
+        imm r22, 1
+        imm r23, 8
+        call exact_primitive_identity_pc
+        imm r20, 541
+        imm r21, 212
+        imm r22, 2
+        imm r23, 5                   ; 8*k
+        call exact_primitive_identity_pc
+        ret
+
+fixed_decimal_shape_pushes:
+        imm r20, 152
+        imm r21, 210
+        call exact_require_binary_push_identity
+        imm r20, 153
+        imm r21, 211
+        call exact_require_binary_push_identity
+        imm r20, 318
+        imm r21, 211
+        call exact_require_argument_push_identity
+        imm r20, 154
+        imm r21, 212
+        call exact_require_binary_push_identity
+        imm r20, 155
+        imm r21, 212
+        call exact_require_binary_push_identity
+        imm r20, 319
+        imm r21, 212
+        call exact_require_argument_push_identity
+        imm r20, 320
+        imm r21, 212
+        call exact_require_argument_push_identity
+        ret
+
+fixed_decimal_shape_censuses:
+        imm r20, 209
+        imm r21, 211
+        imm r22, 121
+        imm r23, 123
+        imm r24, 54
+        imm r25, 54                  ; no raw memory
+        imm r26, 166
+        imm r27, 167
+        imm r28, 316
+        imm r29, 326                 ; exclusive prologue event row
+        call exact_require_effect_census
+        imm r20, 209
+        imm r21, 211
+        imm r22, 532
+        imm r23, 538
+        imm r24, 152
+        imm r25, 154
+        imm r26, 318
+        imm r27, 319
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 212
+        imm r21, 212
+        imm r22, 123
+        imm r23, 125
+        imm r24, 54
+        imm r25, 54
+        imm r26, 167
+        imm r27, 167                 ; no transitions
+        imm r28, 326
+        imm r29, 334
+        call exact_require_effect_census
+        imm r20, 212
+        imm r21, 212
+        imm r22, 538
+        imm r23, 542                 ; exclusive parameter primitive row
+        imm r24, 154
+        imm r25, 156
+        imm r26, 319
+        imm r27, 321
+        imm r28, 0
+        imm r29, 0
+        call summary_require_expr_census
+
+        imm r20, 42                  ; emit_proc_prologue identity
+        call exact_proc_entry_r20
+        imm r21, 43                  ; emit_param_store identity
+        call exact_proc_entry_r21
+        imm r22, 8                   ; seven WSTR + one DECS
+        imm r23, 3                   ; two source + synthetic return
+        imm r24, 5                   ; frame/parameter/push stores
+        call exact_quiet_scan_region
+        imm r20, 43                  ; emit_param_store identity
+        call exact_proc_entry_r20
+        imm r21, 44                    ; emit_pop_into procedure identity
+        call exact_proc_entry_r21
+        imm r22, 8                   ; six WSTR + two DECS
+        imm r23, 1                   ; synthetic return
+        imm r24, 6                   ; frame/parameter/push stores
+        call exact_quiet_scan_region
+        ret
+
+fixed_decimal_literal_imm_r5_8:
+        db "imm r5,8\n"
+fixed_decimal_literal_sub_r15_r5:
+        db "sub r15,r5\n"
+fixed_decimal_literal_store_r15_r14:
+        db "store r15,r14\n"
+fixed_decimal_literal_mov_r14_r15:
+        db "mov r14,r15\n"
+fixed_decimal_literal_imm_r5_prefix:
+        db "imm r5,"
+fixed_decimal_literal_newline:
+        db "\n"
+fixed_decimal_literal_mov_r5_r14:
+        db "mov r5,r14\n"
+fixed_decimal_literal_imm_r4_prefix:
+        db "imm r4,"
+fixed_decimal_literal_sub_r5_r4:
+        db "sub r5,r4\n"
+fixed_decimal_literal_store_r5_prefix:
+        db "store r5,r"

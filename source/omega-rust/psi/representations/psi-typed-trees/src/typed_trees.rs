@@ -296,6 +296,22 @@ pub struct ClosedConformanceRowIdentity {
     pub realization_state: psi_symbols::SymbolHandle,
 }
 
+/// One requirement call resolved through an exact closed static conformance.
+///
+/// Monomorphization rewrites the executable target to `realization_state`, but
+/// the public erased contract remains owned by `declaring_trait` and
+/// `requirement`.  Keeping both identities on the call prevents later proof
+/// lowering from mistaking satisfier-local evidence for public witness
+/// identity.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct StaticRequirementDispatch {
+    pub application_fingerprint: u64,
+    pub declaring_trait: psi_symbols::SymbolHandle,
+    pub requirement: psi_symbols::SymbolHandle,
+    pub realization_machine: psi_symbols::SymbolHandle,
+    pub realization_state: psi_symbols::SymbolHandle,
+}
+
 /// One validated, FULLY-STATIC layout plan applied to a synthesized data
 /// definition (the compiler-generated `Policy<Schema>` instance). Offsets are
 /// per field in declaration order; the plan was validated (bounds, overlap,

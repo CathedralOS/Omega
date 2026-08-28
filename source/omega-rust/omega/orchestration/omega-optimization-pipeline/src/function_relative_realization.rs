@@ -49,7 +49,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFRM\0\0";
-const MANIFEST_VERSION: u32 = 4;
+const MANIFEST_VERSION: u32 = 6;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionRelativeOptimizationRealizationStage {
@@ -86,6 +86,7 @@ pub struct FunctionRelativeOptimizationRealizationManifest {
     pub selections: OptimizationSelectionIdentity,
     pub selected_lowering_selections: OptimizationSelectionIdentity,
     pub selected_lowering_completion: Option<SelectedLoweringOptimizationCompletionIdentity>,
+    pub allocation_recovery_selections: OptimizationSelectionIdentity,
     pub post_allocation_machine_selections: OptimizationSelectionIdentity,
     pub function_relative_layout_selections: OptimizationSelectionIdentity,
     pub pre_physical_manifest: PrePhysicalOptimizationManifestIdentity,
@@ -119,7 +120,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
     pub fn recomputed_identity(&self) -> FunctionRelativeOptimizationRealizationManifestIdentity {
         let mut canonical = Vec::new();
         canonical
-            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v4\0");
+            .extend_from_slice(b"omega.function-relative-optimization-realization-manifest.v6\0");
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -171,6 +172,8 @@ impl FunctionRelativeOptimizationRealizationManifest {
                 return Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownSelectedLoweringCompletionStatus(tag));
             }
         };
+        let allocation_recovery_selections =
+            OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let post_allocation_machine_selections =
             OptimizationSelectionIdentity::from_bytes(cursor.array()?);
         let function_relative_layout_selections =
@@ -219,6 +222,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
         let target = decode_target(&mut cursor)?;
         let layout_policy = match cursor.byte()? {
             1 => TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1,
+            2 => TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1,
             tag => {
                 return Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownLayoutPolicy(
@@ -261,6 +265,7 @@ impl FunctionRelativeOptimizationRealizationManifest {
             selections,
             selected_lowering_selections,
             selected_lowering_completion,
+            allocation_recovery_selections,
             post_allocation_machine_selections,
             function_relative_layout_selections,
             pre_physical_manifest,
@@ -326,6 +331,12 @@ impl FunctionRelativeOptimizationRealizationManifest {
             .unwrap(),
             None => writeln!(output, "selected-lowering completion: not run").unwrap(),
         }
+        writeln!(
+            output,
+            "allocation-recovery suite: {}",
+            hex(&self.allocation_recovery_selections.bytes())
+        )
+        .unwrap();
         writeln!(
             output,
             "post-allocation-machine suite: {}",
@@ -1897,8 +1908,8 @@ fn expected_cbnz_manifest(
     {
         return Err(FunctionRelativeOptimizationRealizationError::RootMismatch);
     }
-    let baseline_bytes = statistics(baseline_layout)?.bytes;
-    let final_statistics = statistics(layout)?;
+    let baseline_bytes = function_relative_statistics(baseline_layout)?.bytes;
+    let final_statistics = function_relative_statistics(layout)?;
     let expected_shrink = u64::try_from(fusion.custody().action_count())
         .ok()
         .and_then(|count| count.checked_mul(4))
@@ -1913,6 +1924,9 @@ fn expected_cbnz_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections: post_phase.identity(),
         function_relative_layout_selections: layout_phase.identity(),
         pre_physical_manifest,
@@ -1999,7 +2013,7 @@ fn expected_manifest(
     }
     validate_relaxation_manifest_roots(baseline_layout, relaxation, selections)?;
     let final_layout = final_layout(baseline_layout, relaxation);
-    let statistics = statistics(final_layout)?;
+    let statistics = function_relative_statistics(final_layout)?;
     let unavailable = FunctionRelativeOptimizationUnavailableData::Unavailable;
     let mut record = FunctionRelativeOptimizationRealizationManifest {
         identity: FunctionRelativeOptimizationRealizationManifestIdentity::from_canonical_bytes(
@@ -2010,6 +2024,9 @@ fn expected_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: Some(completion.identity()),
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: completion.source().manifest(),
@@ -2109,6 +2126,9 @@ fn expected_direct_manifest(
         selections: selections.identity(),
         selected_lowering_selections,
         selected_lowering_completion: None,
+        allocation_recovery_selections: selections
+            .for_phase(OptimizationExecutionPhase::AllocationRecovery)
+            .identity(),
         post_allocation_machine_selections,
         function_relative_layout_selections,
         pre_physical_manifest: source.manifest(),
@@ -2126,7 +2146,7 @@ fn expected_direct_manifest(
         target: baseline_layout.target(),
         layout_policy: baseline_layout.policy(),
         scope: FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1,
-        statistics: statistics(relaxation.layout())?,
+        statistics: function_relative_statistics(relaxation.layout())?,
         frame: unavailable,
         machine_emission: unavailable,
         section_placement: unavailable,
@@ -2140,7 +2160,7 @@ fn expected_direct_manifest(
     Ok(ValidatedFunctionRelativeOptimizationRealizationManifest { record })
 }
 
-fn statistics(
+pub(crate) fn function_relative_statistics(
     layout: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<
     FunctionRelativeOptimizationRealizationStatistics,
@@ -2196,6 +2216,13 @@ fn statistics(
     })
 }
 
+pub(crate) fn seal_function_relative_manifest(
+    mut record: FunctionRelativeOptimizationRealizationManifest,
+) -> ValidatedFunctionRelativeOptimizationRealizationManifest {
+    record.identity = record.recomputed_identity();
+    ValidatedFunctionRelativeOptimizationRealizationManifest { record }
+}
+
 fn custody_receipt(
     homes: &StagedOptimizedRegisterHomesAfterSelectedLowering,
     machine: &StagedOptimizedPostAllocationMachinePlan,
@@ -2240,6 +2267,7 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
         }
         None => canonical.push(0),
     }
+    canonical.extend_from_slice(&manifest.allocation_recovery_selections.bytes());
     for identity in [
         manifest.post_allocation_machine_selections.bytes(),
         manifest.function_relative_layout_selections.bytes(),
@@ -2273,6 +2301,7 @@ fn encode_manifest_content(manifest: &FunctionRelativeOptimizationRealizationMan
     encode_target(&mut canonical, manifest.target);
     canonical.push(match manifest.layout_policy {
         TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1 => 1,
+        TerminalSelectedFunctionLayoutPolicy::SingleEntryBlockV1 => 2,
     });
     canonical.push(match manifest.scope {
         FunctionRelativeOptimizationRealizationScope::FunctionRelativeFragmentsWithValidatedWholeFunctionExitV1 => 1,

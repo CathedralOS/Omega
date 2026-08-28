@@ -1,0 +1,55 @@
+// RUN CANARY (exit 70) + interpreter differential. A LET-BOUND comparison
+// of a decoded field (`let m = d.x == 3` after Schema::decode) reads the
+// DECODED value -- the wire-wide fold this pins was: the wire encode/
+// decode selection branches skipped the static-value bookkeeping every
+// other call shape performs, so the pre-decode constant (`d.x = 0`)
+// survived the decode and the compare emitted `mov #0` as its operand.
+// FIXED by clearing RuntimeStaticValues on wire-call selection in BOTH
+// walk sites (the dispatch route and the straight-line body route). The
+// probe-narrowed matrix that localized it: direct guards were fine (place
+// reads), plain &mut calls were fine (their selection invalidates), and
+// no-preinit was fine (nothing stale) -- only decode-then-let-compare
+// folded, twins and self-typed values alike. PROMOTED from
+// tests/omega/pending (the misnamed schema_self_decode pin; three analysis
+// revisions live in git history as a case study in hypothesis-vs-
+// disassembly).
+// exits: 71 = the let-bound compare read the stale pre-decode constant.
+// Does a SAMPLE-TWIN decode + field GUARD share the fold bug? No corpus
+// canary guard-reads a decoded field (they re-encode instead).
+use omega::language::std::console;
+data PointMsg {
+    #0 x: u32;
+    #1 y: u32;
+}
+data PointSample {
+    x: u32;
+    y: u32;
+}
+data WireVerdict {
+    case Invalid;
+    case Sound;
+}
+data Main {
+    console: Console;
+    buffer: [u8; 32];
+    written: u64;
+    read: u64;
+    verdict: WireVerdict;
+}
+machine Main::main(&mut self) {
+    let q: PointSample;
+    q.x = 3;
+    q.y = 4;
+    PointMsg::encode(&q, &mut self.buffer, &mut self.written);
+    let d: PointSample;
+    d.x = 0;
+    d.y = 0;
+    PointMsg::decode(&mut d, &self.buffer, &mut self.read, &mut self.verdict);
+    let matches: bool = d.x == 3;
+    transition matches {
+        true -> good()
+        _ -> bad()
+    }
+    state good(&mut self) { self.console.exit_process(70); }
+    state bad(&mut self)  { self.console.exit_process(71); }
+}

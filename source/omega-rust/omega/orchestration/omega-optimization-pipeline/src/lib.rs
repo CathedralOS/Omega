@@ -19,6 +19,10 @@ use omega_terminal_psi_to_abstract_operations::{
 };
 use psi_proof_admission::AdmissionProfile;
 
+mod active_resident_function_relative_realization;
+mod active_resident_rematerialization;
+mod active_resident_resolved_selected_form_layout;
+mod active_resident_selected_form_encoding;
 mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
@@ -41,12 +45,43 @@ mod report;
 mod resolved_selected_form_layout;
 mod selected_reanalysis;
 mod selection;
+mod terminal_object_artifact;
+mod terminal_object_callable_entry;
+mod unit_function_relative_realization;
 mod whole_function_exit_contract;
 mod x86_branch_relaxation;
 
+pub use active_resident_function_relative_realization::{
+    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
+    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
+    StagedOptimizedActiveResidentRematerializationFunctionRelativeRealizationCustodyReceipt,
+    stage_optimized_active_resident_rematerialization_function_relative_realization,
+    validate_optimized_active_resident_rematerialization_function_relative_realization,
+};
+pub use active_resident_rematerialization::{
+    OptimizedActiveResidentRematerializationError, StagedOptimizedActiveResidentRematerialization,
+    StagedOptimizedActiveResidentRematerializationCustodyReceipt,
+    stage_optimized_active_resident_rematerialization,
+    validate_optimized_active_resident_rematerialization,
+};
+pub use active_resident_resolved_selected_form_layout::{
+    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError,
+    StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout,
+    StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayoutCustodyReceipt,
+    stage_optimized_active_resident_rematerialization_resolved_selected_form_layout,
+    validate_optimized_active_resident_rematerialization_resolved_selected_form_layout,
+};
+pub use active_resident_selected_form_encoding::{
+    OptimizedActiveResidentRematerializationSelectedFormEncodingError,
+    StagedOptimizedActiveResidentRematerializationSelectedFormEncoding,
+    StagedOptimizedActiveResidentRematerializationSelectedFormEncodingCustodyReceipt,
+    stage_optimized_active_resident_rematerialization_selected_form_encoding,
+    validate_optimized_active_resident_rematerialization_selected_form_encoding,
+};
 pub use allocation_legality::{
     OptimizedAllocationLegalityCustodyError, StagedOptimizedAllocationLegality,
     StagedOptimizedAllocationLegalityCustodyReceipt, stage_optimized_allocation_legality,
+    stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1,
     stage_optimized_allocation_legality_for_frameless_leaf,
     stage_optimized_allocation_legality_with_availability,
     validate_optimized_allocation_legality_custody,
@@ -144,10 +179,13 @@ pub use liveness::{
 pub use machine_effects::{
     OptimizedMachineEffectPipelineError, StagedOptimizedMachineEffectCustodyReceipt,
     StagedOptimizedMachineEffectSourceCustodyReceipt, StagedOptimizedMachineEffects,
-    stage_optimized_machine_effects, stage_optimized_machine_effects_after_fixed_view_copies,
+    stage_optimized_machine_effects,
+    stage_optimized_machine_effects_after_active_resident_rematerialization,
+    stage_optimized_machine_effects_after_fixed_view_copies,
     stage_optimized_machine_effects_after_literal_folds,
     stage_optimized_machine_effects_after_selected_lowering,
     validate_optimized_machine_effect_custody,
+    validate_optimized_machine_effect_custody_after_active_resident_rematerialization,
     validate_optimized_machine_effect_custody_after_fixed_view_copies,
     validate_optimized_machine_effect_custody_after_literal_folds,
     validate_optimized_machine_effect_custody_after_selected_lowering,
@@ -161,9 +199,11 @@ pub use post_allocation_machine_effects::{
     StagedOptimizedPostAllocationMachineCustodyReceipt, StagedOptimizedPostAllocationMachinePlan,
     StagedOptimizedPostAllocationMachineSourceCustodyReceipt,
     stage_optimized_post_allocation_machine_plan,
+    stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization,
     stage_optimized_post_allocation_machine_plan_after_fixed_view_copies,
     stage_optimized_post_allocation_machine_plan_after_literal_folds,
     stage_optimized_post_allocation_machine_plan_after_selected_lowering,
+    validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody,
     validate_optimized_post_allocation_machine_plan_after_fixed_view_copy_custody,
     validate_optimized_post_allocation_machine_plan_after_literal_fold_custody,
     validate_optimized_post_allocation_machine_plan_after_selected_lowering_custody,
@@ -179,8 +219,10 @@ pub use post_allocation_machine_optimizations::{
 pub use post_allocation_selected_form_encoding::{
     DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
     StagedOptimizedSelectedFormEncoding, TerminalSelectedFormDecodedFootprint,
-    TerminalSelectedFormEncodingIdentity, TerminalSelectedFormEncodingRow,
-    TerminalSelectedFormEncodingState, TerminalSelectedFormMachineOptimizationCustody,
+    TerminalSelectedFormEncodingCounts, TerminalSelectedFormEncodingIdentity,
+    TerminalSelectedFormEncodingRow, TerminalSelectedFormEncodingState,
+    TerminalSelectedFormMachineOptimizationCustody, TerminalSelectedStructuralUnitCallEncodingRow,
+    TerminalSelectedStructuralUnitFunctionEncoding,
     stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     validate_optimized_layout_independent_selected_form_encoding,
@@ -201,6 +243,8 @@ pub use register_homes::{
 };
 pub use report::{
     OptimizationPipelineReport, OptimizationReportRequest, optimization_pipeline_report,
+    optimization_pipeline_report_from_terminal_object_artifact,
+    optimization_pipeline_report_from_terminal_ordinary_callable_entry,
 };
 pub use resolved_selected_form_layout::{
     OptimizedResolvedSelectedFormLayoutError, StagedOptimizedResolvedSelectedFormLayout,
@@ -222,13 +266,44 @@ pub use selection::{
     StagedOptimizedSelectedInstructions, StagedOptimizedSelectionCustodyReceipt,
     stage_optimized_instruction_selection, validate_optimized_selection_custody,
 };
+pub use terminal_object_artifact::{
+    OptimizedTerminalObjectArtifactCustodyReceipt, OptimizedTerminalObjectArtifactError,
+    OptimizedTerminalObjectArtifactManifest, OptimizedTerminalObjectArtifactManifestDecodeError,
+    OptimizedTerminalObjectArtifactRecord, OptimizedTerminalObjectArtifactRecordDecodeError,
+    OptimizedTerminalObjectArtifactStage, OptimizedTerminalObjectArtifactStatistics,
+    OptimizedTerminalObjectArtifactUnavailableData, StagedValidatedOptimizedTerminalObjectArtifact,
+    ValidatedOptimizedTerminalObjectArtifactManifest,
+    stage_validated_optimized_terminal_object_artifact,
+    validate_optimized_terminal_object_artifact,
+};
+pub use terminal_object_callable_entry::{
+    OptimizedTerminalOrdinaryCallableEntryCustodyReceipt,
+    OptimizedTerminalOrdinaryCallableEntryDecodeError,
+    OptimizedTerminalOrdinaryCallableEntryDisposition, OptimizedTerminalOrdinaryCallableEntryError,
+    OptimizedTerminalOrdinaryCallableEntryManifest,
+    OptimizedTerminalOrdinaryCallableEntryManifestDecodeError,
+    OptimizedTerminalOrdinaryCallableEntryRecord, OptimizedTerminalOrdinaryCallableEntryStage,
+    OptimizedTerminalOrdinaryCallableEntryUnavailableData,
+    OptimizedTerminalOrdinaryCallableParameter, OptimizedTerminalOrdinaryCallableResult,
+    OptimizedTerminalOrdinaryCallableReturn, StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
+    ValidatedOptimizedTerminalOrdinaryCallableEntryManifest,
+    stage_validated_optimized_terminal_ordinary_callable_entry,
+    validate_optimized_terminal_ordinary_callable_entry,
+};
+pub use unit_function_relative_realization::{
+    OptimizedUnitFunctionRelativeRealizationError, StagedOptimizedUnitFunctionRelativeRealization,
+    StagedOptimizedUnitFunctionRelativeRealizationCustodyReceipt,
+    stage_optimized_unit_function_relative_realization,
+    validate_optimized_unit_function_relative_realization,
+};
 pub use whole_function_exit_contract::{
     TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
     TerminalWholeFunctionExitContractError, TerminalWholeFunctionExitContractIdentity,
     TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitLayoutCustody,
     TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
     TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
-    ValidatedTerminalWholeFunctionExitContract, stage_terminal_whole_function_exit_contract,
+    TerminalWholeFunctionReturnValueEvidence, ValidatedTerminalWholeFunctionExitContract,
+    stage_terminal_whole_function_exit_contract,
     stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion,
     stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
     validate_terminal_whole_function_exit_contract,
@@ -346,10 +421,13 @@ pub fn optimize_verified_terminal_input(
 mod tests {
     use std::collections::BTreeSet;
 
+    use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
     use omega_optimization_core::{
         Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
+    use omega_optimization_unit::{
+        FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
+    };
     use omega_psi_optimizer::OptimizationRunError;
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
@@ -358,7 +436,8 @@ mod tests {
         TerminalArchitecturalUnitActionKind, TerminalFixedViewCopyError,
         TerminalFixedViewCopyPolicy, TerminalLiteralFoldPlan, TerminalLiteralFoldPolicy,
         TerminalLiveRangeError, TerminalLiveRangeFragment, TerminalLiveRangePoint,
-        TerminalLivenessError, TerminalRecoveryClassification,
+        TerminalLivenessError, TerminalPressureRematerializationError,
+        TerminalPressureRematerializationPolicy, TerminalRecoveryClassification,
         TerminalRecoveryClassificationPolicy, TerminalRecoveryVictimRole,
         TerminalRegisterHomeError, TerminalRegisterHomePlan, TerminalSpillChoicePolicy,
         TerminalVirtualFixedConstraintSite, TerminalVirtualInterference,
@@ -384,24 +463,28 @@ mod tests {
         TerminalLegalizedTemporaryId, terminal_legalized_operation_plan_identity,
     };
     use omega_terminal_selected_instructions::{
-        TerminalMachineBarrier, TerminalSelectedInstructionKind, TerminalSelectedTerminator,
-        TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+        TerminalMachineBarrier, TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
+        TerminalSelectedTerminator, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
     };
     use omega_terminal_target_operations::{
         TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
     };
     use omega_terminal_target_operations_to_selected_instructions::{
-        SelectedInstructionError, TerminalLegalizationError,
+        SelectedInstructionError, TerminalLegalizationError, legalize_terminal_target_operations,
         terminal_legalization_validator_identity, terminal_selected_instruction_plan_identity,
         validate_terminal_legalized_operations, validate_terminal_selected_instructions,
     };
     use psi_core::{
-        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-        ObligationId, OperationId, ScalarType, ValueId,
+        BlockId, ContractId, DomainSemanticId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+        MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralDomainId,
+        StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
     };
     use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
-        Block, MachineContract, Operation, OperationKind, OperationResult, SuccessorEdge,
+        BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
+        StructuralAccess, StructuralDomainDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
         TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
         VocabularyMarker,
     };
@@ -415,6 +498,15 @@ mod tests {
 
     fn selected_lowering_budget() -> OptimizationWorkBudget {
         OptimizationWorkBudget::new(10_000, 10_000, 100_000, 10_000, 64).unwrap()
+    }
+
+    fn canonical_terminal_artifact(
+        semantic: &[u8],
+        proof: &[u8],
+    ) -> psi_terminal_codec::CanonicalTerminalArtifact {
+        let module = psi_terminal_codec::decode_module(semantic).unwrap();
+        let proof = psi_terminal_codec::decode_proof_bundle(proof).unwrap();
+        psi_terminal_codec::CanonicalTerminalArtifact::from_parts(&module, &proof, None).unwrap()
     }
 
     fn artifact() -> (Vec<u8>, Vec<u8>) {
@@ -447,6 +539,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -648,6 +741,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines,
         }
     }
@@ -695,6 +789,310 @@ mod tests {
         stage_optimized_instruction_selection(target).unwrap()
     }
 
+    fn unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(3_501).unwrap();
+        let entry = BlockId::new(3_502).unwrap();
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: Vec::new(),
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Unit,
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::ReturnUnit {
+                        edge: EdgeId::new(3_503).unwrap(),
+                        trivial_affine_discards: Vec::new(),
+                    },
+                }],
+                contract: MachineContract {
+                    id: ContractId::new(3_504).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_unit_return(
+        target: NativeTarget,
+    ) -> (Vec<u8>, Vec<u8>, StagedOptimizedSelectedInstructions) {
+        let (semantic, proof) = unit_return_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        (
+            semantic,
+            proof,
+            stage_optimized_instruction_selection(target).unwrap(),
+        )
+    }
+
+    fn structurally_parameterized_unit_return_artifact() -> (Vec<u8>, Vec<u8>) {
+        let (semantic, proof) = unit_return_artifact();
+        let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let structural_type = StructuralTypeId::new(3_505).unwrap();
+        let place = PlaceId::new(3_506).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "UnitStructuralInput".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(1).unwrap(),
+                    identity: "value".into(),
+                    relevance: BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                }],
+            },
+        });
+        let entry = module.machines.first_mut().unwrap();
+        entry.structural_parameters = vec![StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        }];
+        entry.structural_places = vec![StructuralPlaceDeclaration {
+            id: place,
+            kind: StructuralPlaceKind::Parameter {
+                position: 0,
+                is_self: false,
+            },
+        }];
+        (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    }
+
+    fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
+        let caller = MachineId::new(3_601).unwrap();
+        let callee = MachineId::new(3_602).unwrap();
+        let extent = StructuralTypeId::new(3_603).unwrap();
+        let granted = StructuralDomainId::new(3_604).unwrap();
+        let caller_places = [PlaceId::new(3_605).unwrap(), PlaceId::new(3_606).unwrap()];
+        let callee_places = [PlaceId::new(3_607).unwrap(), PlaceId::new(3_608).unwrap()];
+        let parameter = |place, position| StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type: extent,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: vec![granted],
+        };
+        let places = |roots: [PlaceId; 2]| {
+            roots
+                .into_iter()
+                .enumerate()
+                .map(|(position, id)| StructuralPlaceDeclaration {
+                    id,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: u32::try_from(position).unwrap(),
+                        is_self: false,
+                    },
+                })
+                .collect::<Vec<_>>()
+        };
+        let parameters = |roots: [PlaceId; 2]| {
+            roots
+                .into_iter()
+                .enumerate()
+                .map(|(position, place)| parameter(place, u32::try_from(position).unwrap()))
+                .collect::<Vec<_>>()
+        };
+        let contract = |id| MachineContract {
+            id,
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: caller,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: extent,
+                identity: "named(name(Extent))".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "base".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::address(64).unwrap(),
+                            )),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "length".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            )),
+                        },
+                    ],
+                },
+            }],
+            structural_domains: vec![StructuralDomainDeclaration {
+                id: granted,
+                semantic_domain: DomainSemanticId::new(3_609).unwrap(),
+                identity: "Extent::Granted".into(),
+                carrier: extent,
+                content_projection: None,
+            }],
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![
+                TerminalMachine {
+                    id: caller,
+                    attachment: None,
+                    parameters: Vec::new(),
+                    structural_parameters: parameters(caller_places),
+                    result: TerminalMachineResult::Unit,
+                    structural_places: places(caller_places),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    content_identity_reshuffles: Vec::new(),
+                    content_partition_compositions: Vec::new(),
+                    entry: BlockId::new(3_610).unwrap(),
+                    blocks: vec![Block {
+                        id: BlockId::new(3_610).unwrap(),
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(3_611).unwrap(),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::CallUnit {
+                                callee,
+                                structural_arguments: caller_places
+                                    .into_iter()
+                                    .map(|place| psi_terminal::StructuralArgument {
+                                        place,
+                                        path: Vec::new(),
+                                        access: StructuralAccess::Owned,
+                                    })
+                                    .collect(),
+                                claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
+                            },
+                        }],
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(3_612).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    }],
+                    contract: contract(ContractId::new(3_613).unwrap()),
+                },
+                TerminalMachine {
+                    id: callee,
+                    attachment: None,
+                    parameters: Vec::new(),
+                    structural_parameters: parameters(callee_places),
+                    result: TerminalMachineResult::Unit,
+                    structural_places: places(callee_places),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    content_identity_reshuffles: Vec::new(),
+                    content_partition_compositions: Vec::new(),
+                    entry: BlockId::new(3_614).unwrap(),
+                    blocks: vec![Block {
+                        id: BlockId::new(3_614).unwrap(),
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(3_615).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    }],
+                    contract: contract(ContractId::new(3_616).unwrap()),
+                },
+            ],
+        };
+        let proof = ProofBundle::default();
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
+        let (semantic, proof) = unit_return_artifact();
+        let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let attachment = StructuralTypeId::new(3_507).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: attachment,
+            identity: "UnitStaticAttachment".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        });
+        module.machines.first_mut().unwrap().attachment = Some(attachment);
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            proof,
+            attachment,
+        )
+    }
+
     fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         let machine = MachineId::new(4_001).unwrap();
         let entry = BlockId::new(4_002).unwrap();
@@ -722,6 +1120,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -826,6 +1225,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -929,6 +1329,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -1023,6 +1424,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -1111,6 +1513,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -1219,6 +1622,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -1378,6 +1782,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -1522,6 +1927,315 @@ mod tests {
         )
     }
 
+    fn conditional_active_resident_exact_add_chain_artifact() -> (Vec<u8>, Vec<u8>) {
+        let machine = MachineId::new(5_201).unwrap();
+        let entry = BlockId::new(5_202).unwrap();
+        let when_true = BlockId::new(5_203).unwrap();
+        let when_false = BlockId::new(5_204).unwrap();
+        let condition = ValueId::new(5_205).unwrap();
+        let resident = ValueId::new(5_206).unwrap();
+        let left = ValueId::new(5_207).unwrap();
+        let right = ValueId::new(5_208).unwrap();
+        let inner = ValueId::new(5_209).unwrap();
+        let middle = ValueId::new(5_210).unwrap();
+        let result_value = ValueId::new(5_211).unwrap();
+        let false_value = ValueId::new(5_212).unwrap();
+        let machine_result = ValueId::new(5_213).unwrap();
+        let resident_operation = OperationId::new(5_221).unwrap();
+        let left_operation = OperationId::new(5_222).unwrap();
+        let right_operation = OperationId::new(5_223).unwrap();
+        let inner_operation = OperationId::new(5_224).unwrap();
+        let middle_operation = OperationId::new(5_225).unwrap();
+        let result_operation = OperationId::new(5_226).unwrap();
+        let false_operation = OperationId::new(5_227).unwrap();
+        let inner_obligation = ObligationId::new(5_231).unwrap();
+        let middle_obligation = ObligationId::new(5_232).unwrap();
+        let result_obligation = ObligationId::new(5_233).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 64).unwrap());
+        let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
+        let operation = |id, result, kind| Operation {
+            id,
+            result: OperationResult::Scalar(declaration(result, scalar_type)),
+            kind,
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: machine,
+            structural_types: Vec::new(),
+            structural_domains: Vec::new(),
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![TerminalMachine {
+                id: machine,
+                attachment: None,
+                parameters: vec![declaration(condition, ScalarType::Boolean)],
+                structural_parameters: Vec::new(),
+                result: TerminalMachineResult::Scalar(declaration(machine_result, scalar_type)),
+                structural_places: Vec::new(),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                content_entry_claims: Vec::new(),
+                content_identity_reshuffles: Vec::new(),
+                content_partition_compositions: Vec::new(),
+                entry,
+                blocks: vec![
+                    Block {
+                        id: entry,
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::Conditional {
+                            condition,
+                            when_true: SuccessorEdge {
+                                edge: EdgeId::new(5_241).unwrap(),
+                                target: when_true,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                            when_false: SuccessorEdge {
+                                edge: EdgeId::new(5_242).unwrap(),
+                                target: when_false,
+                                arguments: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
+                            },
+                        },
+                    },
+                    Block {
+                        id: when_true,
+                        parameters: Vec::new(),
+                        operations: vec![
+                            operation(
+                                resident_operation,
+                                resident,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(3),
+                                },
+                            ),
+                            operation(
+                                left_operation,
+                                left,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(5),
+                                },
+                            ),
+                            operation(
+                                right_operation,
+                                right,
+                                OperationKind::IntegerConstant {
+                                    value: IntegerValue::Unsigned(7),
+                                },
+                            ),
+                            operation(
+                                inner_operation,
+                                inner,
+                                OperationKind::ExactIntegerAdd {
+                                    left,
+                                    right,
+                                    obligation: inner_obligation,
+                                },
+                            ),
+                            operation(
+                                middle_operation,
+                                middle,
+                                OperationKind::ExactIntegerAdd {
+                                    left: resident,
+                                    right: inner,
+                                    obligation: middle_obligation,
+                                },
+                            ),
+                            operation(
+                                result_operation,
+                                result_value,
+                                OperationKind::ExactIntegerAdd {
+                                    left: resident,
+                                    right: middle,
+                                    obligation: result_obligation,
+                                },
+                            ),
+                        ],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_243).unwrap(),
+                            value: result_value,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                    Block {
+                        id: when_false,
+                        parameters: Vec::new(),
+                        operations: vec![operation(
+                            false_operation,
+                            false_value,
+                            OperationKind::IntegerConstant {
+                                value: IntegerValue::Unsigned(11),
+                            },
+                        )],
+                        terminator: Terminator::Return {
+                            edge: EdgeId::new(5_244).unwrap(),
+                            value: false_value,
+                            cleanup_actions: Vec::new(),
+                        },
+                    },
+                ],
+                contract: MachineContract {
+                    id: ContractId::new(5_251).unwrap(),
+                    crash_routes: Vec::new(),
+                    requires: Vec::new(),
+                    ensures: Vec::new(),
+                    outcome_specific_ensures: Vec::new(),
+                },
+            }],
+        };
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: [inner_obligation, middle_obligation, result_obligation]
+                .into_iter()
+                .map(|obligation| ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                })
+                .collect(),
+        };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn staged_active_resident_exact_add_chain(
+        target: NativeTarget,
+    ) -> StagedOptimizedSelectedInstructions {
+        staged_active_resident_exact_add_chain_with_selections(
+            target,
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+        )
+    }
+
+    fn staged_active_resident_exact_add_chain_with_selections(
+        target: NativeTarget,
+        selections: OptimizationSelections,
+    ) -> StagedOptimizedSelectedInstructions {
+        let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(selections),
+        )
+        .unwrap();
+        let target =
+            omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                .unwrap();
+        stage_optimized_instruction_selection(target).unwrap()
+    }
+
+    fn staged_active_resident_two_view_legality(
+        target: NativeTarget,
+    ) -> StagedOptimizedAllocationLegality {
+        staged_active_resident_two_view_legality_with_selections(
+            target,
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+        )
+    }
+
+    fn staged_active_resident_two_view_legality_with_selections(
+        target: NativeTarget,
+        selections: OptimizationSelections,
+    ) -> StagedOptimizedAllocationLegality {
+        let ranges = stage_optimized_live_ranges(
+            stage_optimized_liveness(staged_active_resident_exact_add_chain_with_selections(
+                target, selections,
+            ))
+            .unwrap(),
+        )
+        .unwrap();
+        stage_optimized_allocation_legality_for_active_resident_immediate_u64_multi_use_rematerialization_v1(ranges)
+            .unwrap()
+    }
+
+    fn staged_active_resident_rematerialization_and_machine(
+        target: NativeTarget,
+    ) -> (
+        StagedOptimizedActiveResidentRematerialization,
+        StagedOptimizedPostAllocationMachinePlan,
+    ) {
+        let source = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(target),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let machine =
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &source,
+            )
+            .unwrap();
+        (source, machine)
+    }
+
+    fn staged_active_resident_resolved_layout(
+        target: NativeTarget,
+    ) -> StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout {
+        let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
+        let pre_layout = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+            source, machine,
+        )
+        .unwrap();
+        stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(pre_layout)
+            .unwrap()
+    }
+
+    fn staged_active_resident_resolved_layout_with_selections(
+        target: NativeTarget,
+        selections: OptimizationSelections,
+    ) -> StagedOptimizedActiveResidentRematerializationResolvedSelectedFormLayout {
+        let source = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality_with_selections(target, selections),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let machine =
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &source,
+            )
+            .unwrap();
+        let pre_layout = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+            source, machine,
+        )
+        .unwrap();
+        stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(pre_layout)
+            .unwrap()
+    }
+
+    fn staged_active_resident_function_relative_realization(
+        target: NativeTarget,
+    ) -> StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization {
+        stage_optimized_active_resident_rematerialization_function_relative_realization(
+            staged_active_resident_resolved_layout(target),
+        )
+        .unwrap()
+    }
+
     fn conditional_widened_u8_exact_add_artifact() -> (Vec<u8>, Vec<u8>) {
         conditional_widened_u8_exact_add_artifact_with_values([200, 55], [254, 1])
     }
@@ -1606,6 +2320,7 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![TerminalMachine {
                 id: machine,
                 attachment: None,
@@ -4217,6 +4932,7 @@ mod tests {
             let legality = stage_optimized_allocation_legality(ranges).unwrap();
             assert_eq!(legality.custody().entry_transition_count(), 0);
             assert_eq!(legality.custody().function_count(), 1);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
             let homes = stage_optimized_register_homes(legality).unwrap();
             assert_eq!(homes.custody().assignment_count(), 7);
             let selected_stage = homes
@@ -5118,6 +5834,893 @@ mod tests {
             assert_eq!(homes.assignments[2].view, homes.assignments[5].view);
             assert_ne!(homes.assignments[1].view, homes.assignments[2].view);
         }
+    }
+
+    #[test]
+    fn active_resident_multi_use_rematerialization_reaches_fresh_homes_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let source = staged_active_resident_two_view_legality(target);
+            assert_eq!(
+                source
+                    .live_range_stage()
+                    .liveness_stage()
+                    .selected_stage()
+                    .legalized()
+                    .plan()
+                    .functions[0]
+                    .recipe,
+                TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
+            );
+            let source_selected = source
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .plan()
+                .clone();
+            let source_resident = source_selected.functions[0].blocks[1].instructions[0].clone();
+            assert_eq!(source_resident.id.0, 2);
+            assert!(matches!(
+                source_resident.kind,
+                TerminalSelectedInstructionKind::MaterializeI64 {
+                    value: IntegerValue::Unsigned(3)
+                }
+            ));
+
+            let staged = stage_optimized_active_resident_rematerialization(
+                source,
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization(&staged).unwrap(),
+                staged.custody()
+            );
+            let choice = staged.choices().plan().functions[0]
+                .choice
+                .as_ref()
+                .unwrap();
+            assert_eq!(choice.incoming, TerminalVirtualRegisterId(3));
+            assert_eq!(choice.selected_victim, TerminalVirtualRegisterId(1));
+            let classification = staged.classifications().plan().functions[0]
+                .classification
+                .as_ref()
+                .unwrap();
+            assert_eq!(classification.victim, TerminalVirtualRegisterId(1));
+            assert!(matches!(
+                classification.role,
+                TerminalRecoveryVictimRole::ActiveResident { .. }
+            ));
+            let TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                defining_instruction,
+                source_value,
+                value,
+                provenance,
+                future_uses,
+            } = &classification.classification
+            else {
+                panic!("active resident must retain literal eligibility")
+            };
+            assert_eq!(*defining_instruction, source_resident.id);
+            assert_eq!(*source_value, ValueId::new(5_206).unwrap());
+            assert_eq!(*value, IntegerValue::Unsigned(3));
+            assert_eq!(provenance, &source_resident.provenance);
+            assert_eq!(future_uses.len(), 2);
+
+            let action = staged.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .unwrap();
+            assert_eq!(action.victim, TerminalVirtualRegisterId(1));
+            assert_eq!(action.original_materialize, source_resident.id);
+            assert_eq!(action.rewrites.len(), 2);
+            assert_eq!(
+                staged.rematerialization().receipt().rewritten_use_count(),
+                2
+            );
+            assert_eq!(staged.rematerialization().receipt().applied_count(), 1);
+            let transformed = staged.rematerialization().transformed();
+            assert_eq!(
+                transformed.functions[0].blocks[1].instructions[0],
+                source_resident
+            );
+            let fresh = transformed.functions[0].blocks[1]
+                .instructions
+                .iter()
+                .find(|instruction| instruction.id == action.fresh_materialize)
+                .unwrap();
+            assert!(fresh.provenance.operations.is_empty());
+            assert!(fresh.provenance.edges.is_empty());
+            assert!(fresh.provenance.obligations.is_empty());
+            assert!(fresh.provenance.fuel.is_empty());
+            assert_eq!(fresh.provenance.values, vec![ValueId::new(5_206).unwrap()]);
+            let rewritten_uses = transformed.functions[0].blocks[1]
+                .instructions
+                .iter()
+                .flat_map(|instruction| &instruction.operands)
+                .filter(|operand| operand.virtual_register == action.result_virtual_register)
+                .count();
+            assert_eq!(rewritten_uses, 3);
+            assert_ne!(
+                staged.liveness().receipt().identity(),
+                staged.source().custody().liveness()
+            );
+            assert_ne!(
+                staged.ranges().receipt().identity(),
+                staged.source().custody().ranges()
+            );
+            assert_ne!(
+                staged.legality().receipt().identity(),
+                staged.source().custody().legality()
+            );
+            assert_eq!(staged.legality().receipt().entry_transition_count(), 0);
+            assert_eq!(
+                staged.homes().receipt().ranges(),
+                staged.ranges().receipt().identity()
+            );
+            assert_eq!(
+                staged.homes().receipt().legality(),
+                staged.legality().receipt().identity()
+            );
+            assert_eq!(staged.homes().receipt().assignment_count(), 9);
+            assert_eq!(
+                staged
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                vec![
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        staged.rematerialization().receipt().identity()
+                    )
+                ]
+            );
+            assert_eq!(
+                staged.post_allocation_manifest().record().selected,
+                staged.rematerialization().receipt().transformed_selected()
+            );
+        }
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_machine_custody_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let source = stage_optimized_active_resident_rematerialization(
+                staged_active_resident_two_view_legality(target),
+                TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                selected_lowering_budget(),
+            )
+            .unwrap();
+            let source_selected = source
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage();
+            let transformed_selected = source.rematerialization().receipt().transformed_selected();
+
+            let effects =
+                stage_optimized_machine_effects_after_active_resident_rematerialization(&source)
+                    .unwrap();
+            assert_eq!(effects.effects().receipt().selected(), transformed_selected);
+            assert_eq!(
+                effects.effects().plan().optimization_unit,
+                source.custody().source().optimization_unit()
+            );
+            assert_eq!(
+                effects.effects().plan().fuel_schedule,
+                source.custody().source().fuel_schedule()
+            );
+            assert_eq!(effects.effects().plan().target, target);
+            assert_eq!(
+                effects.effects().receipt().register_environment(),
+                source_selected.register_environment().identity()
+            );
+            assert_eq!(
+                effects.custody().source(),
+                &StagedOptimizedMachineEffectSourceCustodyReceipt::ActiveResidentRematerialization(
+                    source.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_machine_effect_custody_after_active_resident_rematerialization(
+                    &source,
+                    effects.effects(),
+                )
+                .unwrap(),
+                effects.custody()
+            );
+
+            let post =
+                stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                    &source,
+                )
+                .unwrap();
+            assert_eq!(post.machine().receipt().selected(), transformed_selected);
+            assert_eq!(
+                post.machine().receipt().effects(),
+                post.effects().effects().receipt().identity()
+            );
+            assert_eq!(
+                post.machine().receipt().homes(),
+                source.homes().receipt().identity()
+            );
+            assert_eq!(
+                post.machine().receipt().post_allocation_manifest(),
+                source.post_allocation_manifest().record().identity
+            );
+            assert_eq!(
+                post.machine().receipt().register_environment(),
+                source_selected.register_environment().identity()
+            );
+            assert_eq!(
+                post.custody().source(),
+                &StagedOptimizedPostAllocationMachineSourceCustodyReceipt::ActiveResidentRematerialization(
+                    source.custody()
+                )
+            );
+            assert_eq!(
+                &validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+                    &source,
+                    &post,
+                )
+                .unwrap(),
+                post.custody()
+            );
+
+            assert_eq!(
+                omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                    source_selected.selected(),
+                    post.effects().effects(),
+                    source.ranges(),
+                    source.legality(),
+                    source.homes(),
+                    source.post_allocation_manifest(),
+                    source_selected.register_environment().identity(),
+                    source_selected.register_environment().physical(),
+                    source_selected.register_environment().constraints(),
+                    post.machine().plan().clone(),
+                ),
+                Err(omega_machine_optimizer::TerminalPostAllocationMachineError::SelectedRootMismatch)
+            );
+        }
+
+        let mut corrupted = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_x64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        crate::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
+            &mut corrupted,
+        );
+        assert!(matches!(
+            stage_optimized_machine_effects_after_active_resident_rematerialization(&corrupted),
+            Err(
+                OptimizedMachineEffectPipelineError::ActiveResidentRematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+        assert!(matches!(
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &corrupted,
+            ),
+            Err(
+                OptimizedPostAllocationMachinePipelineError::ActiveResidentRematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+
+        let x86 = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_x64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let arm = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_arm64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        let x86_post =
+            stage_optimized_post_allocation_machine_plan_after_active_resident_rematerialization(
+                &x86,
+            )
+            .unwrap();
+        assert!(
+            validate_optimized_post_allocation_machine_plan_after_active_resident_rematerialization_custody(
+                &arm,
+                &x86_post,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_layout_independent_encoding_on_both_architectures()
+    {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
+            let transformed_selected = source.rematerialization().receipt().transformed_selected();
+            let machine_root = machine.machine().receipt().identity();
+            let machine_row_count = machine.custody().instruction_count();
+            let rematerialization = source.custody();
+            let fresh_materialize = source.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .unwrap()
+                .fresh_materialize;
+
+            let staged = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                source, machine,
+            )
+            .unwrap();
+            assert_eq!(staged.encoding().selected(), transformed_selected);
+            assert_eq!(staged.encoding().machine(), machine_root);
+            assert_eq!(staged.custody().rematerialization(), rematerialization);
+            assert_eq!(staged.custody().machine(), staged.machine().custody());
+            assert_eq!(
+                staged.custody().transformed_selected(),
+                transformed_selected
+            );
+            assert_eq!(staged.custody().encoding(), staged.encoding().identity());
+            assert_eq!(staged.custody().row_count(), machine_row_count);
+            assert_eq!(
+                staged.custody().encoded_count() + staged.custody().deferred_count(),
+                machine_row_count
+            );
+            assert_eq!(staged.custody().deferred_count(), 1);
+            assert!(staged.encoding().rows().iter().all(|row| match &row.state {
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. } => !bytes.is_empty(),
+                TerminalSelectedFormEncodingState::DeferredControl { .. } => true,
+            }));
+            let fresh_row = staged
+                .encoding()
+                .rows()
+                .iter()
+                .find(|row| row.instruction == fresh_materialize)
+                .expect("fresh rematerialization must reach the encoder roster");
+            assert_eq!(
+                fresh_row.alternative.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::MaterializeI64
+            );
+            assert!(matches!(
+                &fresh_row.state,
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. } if !bytes.is_empty()
+            ));
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization_selected_form_encoding(
+                    &staged,
+                )
+                .unwrap(),
+                staged.custody().clone()
+            );
+        }
+    }
+
+    #[test]
+    fn active_resident_rematerialization_encoding_rejects_detached_or_corrupt_custody() {
+        let (mut corrupt_source, machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        crate::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
+            &mut corrupt_source,
+        );
+        assert!(matches!(
+            stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                corrupt_source,
+                machine,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationSelectedFormEncodingError::Rematerialization(
+                    OptimizedActiveResidentRematerializationError::ReceiptMismatch
+                )
+            )
+        ));
+
+        let (x86_source, _) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        let (_, arm_machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_arm64());
+        assert!(matches!(
+            stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                x86_source,
+                arm_machine,
+            ),
+            Err(OptimizedActiveResidentRematerializationSelectedFormEncodingError::Machine(_))
+        ));
+
+        let (source, machine) =
+            staged_active_resident_rematerialization_and_machine(NativeTarget::linux_x64());
+        let mut staged = stage_optimized_active_resident_rematerialization_selected_form_encoding(
+            source, machine,
+        )
+        .unwrap();
+        crate::active_resident_selected_form_encoding::corrupt_active_resident_selected_form_encoding_byte_for_test(
+            &mut staged,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_selected_form_encoding(&staged),
+            Err(
+                OptimizedActiveResidentRematerializationSelectedFormEncodingError::Encoding(
+                    OptimizedSelectedFormEncodingError::ArtifactMismatch
+                )
+            )
+        );
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_resolved_layout_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (source, machine) = staged_active_resident_rematerialization_and_machine(target);
+            let fresh_materialize = source.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .unwrap()
+                .fresh_materialize;
+            let physical = source
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment()
+                .physical()
+                .identity();
+            let pre_layout =
+                stage_optimized_active_resident_rematerialization_selected_form_encoding(
+                    source, machine,
+                )
+                .unwrap();
+            let pre_layout_custody = pre_layout.custody().clone();
+            let selected = pre_layout.encoding().selected();
+            let machine = pre_layout.encoding().machine();
+            let pre_layout_encoding = pre_layout.encoding().identity();
+
+            let staged =
+                stage_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+                    pre_layout,
+                )
+                .unwrap();
+            let layout = staged.layout();
+            let custody = staged.custody();
+            assert_eq!(custody.pre_layout_custody(), &pre_layout_custody);
+            assert_eq!(custody.selected(), selected);
+            assert_eq!(custody.machine(), machine);
+            assert_eq!(custody.pre_layout(), pre_layout_encoding);
+            assert_eq!(custody.physical(), physical);
+            assert_eq!(custody.layout(), layout.identity());
+            assert_eq!(custody.target(), target);
+            assert_eq!(
+                custody.policy(),
+                TerminalSelectedFunctionLayoutPolicy::EntryThenZeroFallthroughThenNonzeroV1
+            );
+            assert_eq!(custody.function_count(), 1);
+            assert_eq!(custody.block_count(), 3);
+            assert_eq!(
+                custody.instruction_count(),
+                custody.pre_layout_custody().row_count()
+            );
+            assert_eq!(
+                custody.instruction_count(),
+                layout
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.blocks)
+                    .map(|block| block.instructions.len())
+                    .sum()
+            );
+            assert_eq!(
+                custody.byte_count(),
+                layout
+                    .functions()
+                    .iter()
+                    .map(|function| function.byte_count)
+                    .sum()
+            );
+            assert_eq!(custody.resolved_branch_count(), 1);
+            let rows = layout
+                .functions()
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .collect::<Vec<_>>();
+            let fresh_row = rows
+                .iter()
+                .find(|row| row.instruction == fresh_materialize)
+                .expect("fresh rematerialization must survive resolved layout");
+            assert_eq!(
+                fresh_row.alternative.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::MaterializeI64
+            );
+            assert!(!fresh_row.bytes.is_empty());
+            assert_eq!(
+                rows.iter().filter(|row| row.branch.is_some()).count(),
+                custody.resolved_branch_count()
+            );
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+                    &staged,
+                )
+                .unwrap(),
+                custody.clone()
+            );
+        }
+    }
+
+    #[test]
+    fn active_resident_resolved_layout_rejects_pre_layout_layout_and_receipt_mutation() {
+        let mut corrupt_pre_layout =
+            staged_active_resident_resolved_layout(NativeTarget::linux_x64());
+        crate::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_pre_layout_byte_for_test(
+            &mut corrupt_pre_layout,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+                &corrupt_pre_layout,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::PreLayout(
+                    OptimizedActiveResidentRematerializationSelectedFormEncodingError::Encoding(
+                        OptimizedSelectedFormEncodingError::ArtifactMismatch,
+                    ),
+                ),
+            )
+        );
+
+        let mut corrupt_layout = staged_active_resident_resolved_layout(NativeTarget::linux_x64());
+        crate::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_byte_for_test(
+            &mut corrupt_layout,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+                &corrupt_layout,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::Layout(
+                    OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch,
+                ),
+            )
+        );
+
+        let mut corrupt_receipt = staged_active_resident_resolved_layout(NativeTarget::linux_x64());
+        crate::active_resident_resolved_selected_form_layout::corrupt_active_resident_resolved_layout_receipt_for_test(
+            &mut corrupt_receipt,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_resolved_selected_form_layout(
+                &corrupt_receipt,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::ReceiptMismatch,
+            )
+        );
+    }
+
+    #[test]
+    fn active_resident_rematerialization_reaches_function_relative_exit_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = staged_active_resident_function_relative_realization(target);
+            let source = staged.source();
+            let rematerialization = source.pre_layout().source();
+            let physical = rematerialization
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment()
+                .physical();
+            let admitted_names = match target.architecture {
+                omega_target::Architecture::X86_64 => ["rax", "rcx"],
+                omega_target::Architecture::Aarch64 => ["x0", "x1"],
+            };
+            let admitted_views = admitted_names
+                .into_iter()
+                .map(|name| physical.model().view_named(name).unwrap().id)
+                .collect::<BTreeSet<_>>();
+            let TerminalAllocatorAvailabilityPolicy::ExplicitUnconstrainedViewAllowlistV1 { views } =
+                &rematerialization
+                    .source()
+                    .allocator_availability()
+                    .plan()
+                    .policy
+            else {
+                panic!("pressure fixture must retain an explicit caller-saved allowlist")
+            };
+            assert_eq!(
+                views.iter().copied().collect::<BTreeSet<_>>(),
+                admitted_views
+            );
+            let action = rematerialization.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .expect("the explicit active-resident staging route must rematerialize");
+            let fresh = action.fresh_materialize;
+            let transformed_selected = rematerialization
+                .rematerialization()
+                .receipt()
+                .transformed_selected();
+            let fresh_layout_row = source
+                .layout()
+                .functions()
+                .iter()
+                .flat_map(|function| &function.blocks)
+                .flat_map(|block| &block.instructions)
+                .find(|instruction| instruction.instruction == fresh)
+                .expect("fresh rematerialization must survive function-relative layout");
+            assert_eq!(
+                fresh_layout_row.alternative.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::MaterializeI64
+            );
+            assert!(!fresh_layout_row.bytes.is_empty());
+
+            let manifest = staged.manifest().record();
+            let empty = OptimizationSelections::default().identity();
+            assert_eq!(
+                manifest.selections,
+                OptimizationSelections::new([
+                    Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                ])
+                .unwrap()
+                .identity()
+            );
+            assert_eq!(manifest.selected_lowering_selections, empty);
+            assert_eq!(manifest.selected_lowering_completion, None);
+            assert_eq!(manifest.allocation_recovery_selections, manifest.selections);
+            assert_eq!(manifest.post_allocation_machine_selections, empty);
+            assert_eq!(manifest.function_relative_layout_selections, empty);
+            assert_eq!(
+                manifest.pre_physical_manifest,
+                rematerialization.custody().source().manifest()
+            );
+            assert_eq!(
+                manifest.post_allocation_manifest,
+                rematerialization
+                    .post_allocation_manifest()
+                    .record()
+                    .identity
+            );
+            assert_eq!(manifest.selected, transformed_selected);
+            assert_eq!(manifest.baseline_pre_layout, manifest.pre_layout);
+            assert_eq!(manifest.baseline_resolved_layout, manifest.resolved_layout);
+            assert_eq!(manifest.x86_branch_relaxation, None);
+            assert_eq!(manifest.aarch64_cbnz_fusion, None);
+            assert_eq!(manifest.target, target);
+            assert_eq!(
+                rematerialization
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                [
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        rematerialization.rematerialization().receipt().identity(),
+                    )
+                ]
+            );
+            assert_eq!(
+                staged.exit_contract().contract().selected,
+                transformed_selected
+            );
+            assert_eq!(
+                staged.exit_contract().contract().resolved_layout,
+                source.layout().identity()
+            );
+            assert!(matches!(
+                staged.exit_contract().contract().layout_custody,
+                TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1
+            ));
+            assert!(
+                staged
+                    .exit_contract()
+                    .contract()
+                    .functions
+                    .iter()
+                    .all(|function| function.modified_callee_saved_units.is_empty())
+            );
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(&manifest.encode()),
+                Ok(manifest.clone())
+            );
+            assert_eq!(
+                validate_optimized_active_resident_rematerialization_function_relative_realization(
+                    &staged,
+                )
+                .unwrap(),
+                staged.custody().clone()
+            );
+            assert_eq!(staged.custody().source(), source.custody());
+            assert_eq!(
+                staged.custody().exit_contract(),
+                staged.exit_contract().identity()
+            );
+            assert_eq!(staged.custody().realization(), manifest.identity);
+        }
+    }
+
+    #[test]
+    fn active_resident_function_relative_realization_rejects_corrupt_or_detached_custody() {
+        let target = NativeTarget::linux_x64();
+
+        let mut source_corruption = staged_active_resident_function_relative_realization(target);
+        crate::active_resident_function_relative_realization::corrupt_active_resident_function_relative_source_for_test(
+            &mut source_corruption,
+        );
+        assert!(matches!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &source_corruption,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::Source(
+                    OptimizedActiveResidentRematerializationResolvedSelectedFormLayoutError::Layout(
+                        OptimizedResolvedSelectedFormLayoutError::ArtifactMismatch,
+                    ),
+                ),
+            )
+        ));
+
+        let mut exit_corruption = staged_active_resident_function_relative_realization(target);
+        crate::active_resident_function_relative_realization::corrupt_active_resident_function_relative_exit_for_test(
+            &mut exit_corruption,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &exit_corruption,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch,
+                ),
+            )
+        );
+
+        let mut manifest_corruption = staged_active_resident_function_relative_realization(target);
+        crate::active_resident_function_relative_realization::corrupt_active_resident_function_relative_manifest_for_test(
+            &mut manifest_corruption,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &manifest_corruption,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::RootMismatch,
+            )
+        );
+
+        let mut receipt_corruption = staged_active_resident_function_relative_realization(target);
+        crate::active_resident_function_relative_realization::corrupt_active_resident_function_relative_receipt_for_test(
+            &mut receipt_corruption,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &receipt_corruption,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ReceiptMismatch,
+            )
+        );
+
+        let mut detached = staged_active_resident_function_relative_realization(target);
+        let foreign =
+            staged_active_resident_function_relative_realization(NativeTarget::linux_arm64());
+        crate::active_resident_function_relative_realization::replace_active_resident_function_relative_exit_for_test(
+            &mut detached,
+            &foreign,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization_function_relative_realization(
+                &detached,
+            ),
+            Err(
+                OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::ExitContract(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch,
+                ),
+            )
+        );
+    }
+
+    #[test]
+    fn active_resident_function_relative_realization_rejects_unexecuted_later_phase_selections() {
+        for later in [
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ] {
+            let selections = OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                later,
+            ])
+            .unwrap();
+            let source = staged_active_resident_resolved_layout_with_selections(
+                NativeTarget::linux_x64(),
+                selections,
+            );
+            assert!(matches!(
+                stage_optimized_active_resident_rematerialization_function_relative_realization(
+                    source,
+                ),
+                Err(
+                    OptimizedActiveResidentRematerializationFunctionRelativeRealizationError::LaterPhaseSelected,
+                )
+            ));
+        }
+    }
+
+    #[test]
+    fn active_resident_stage_declines_default_single_use_and_exhausted_budget() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let default = stage_optimized_allocation_legality(
+                stage_optimized_live_ranges(
+                    stage_optimized_liveness(staged_active_resident_exact_add_chain(target))
+                        .unwrap(),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            assert!(matches!(
+                stage_optimized_active_resident_rematerialization(
+                    default,
+                    TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                    TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                    TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                    selected_lowering_budget(),
+                ),
+                Err(OptimizedActiveResidentRematerializationError::Rematerialization(
+                    TerminalPressureRematerializationError::NoAction
+                ))
+            ));
+            assert!(matches!(
+                stage_optimized_active_resident_rematerialization(
+                    staged_active_resident_two_view_legality(target),
+                    TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                    TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                    TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+                    selected_lowering_budget(),
+                ),
+                Err(OptimizedActiveResidentRematerializationError::UnsupportedPolicy)
+            ));
+            assert!(matches!(
+                stage_optimized_active_resident_rematerialization(
+                    staged_active_resident_two_view_legality(target),
+                    TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+                    TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+                    TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+                    OptimizationWorkBudget::new(1, 1, 1, 1, 1).unwrap(),
+                ),
+                Err(OptimizedActiveResidentRematerializationError::SpillChoice(
+                    omega_regalloc::TerminalSpillChoiceError::BudgetExceeded { .. }
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn active_resident_stage_rejects_corrupted_vertical_custody() {
+        let mut staged = stage_optimized_active_resident_rematerialization(
+            staged_active_resident_two_view_legality(NativeTarget::linux_x64()),
+            TerminalSpillChoicePolicy::SingleBlockFarthestEndThenHighestVregV1,
+            TerminalRecoveryClassificationPolicy::SelectedVictimImmediateU64EligibilityV1,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            selected_lowering_budget(),
+        )
+        .unwrap();
+        crate::active_resident_rematerialization::corrupt_active_resident_rematerialization_custody_for_test(
+            &mut staged,
+        );
+        assert_eq!(
+            validate_optimized_active_resident_rematerialization(&staged),
+            Err(OptimizedActiveResidentRematerializationError::ReceiptMismatch)
+        );
     }
 
     #[test]
@@ -6241,12 +7844,12 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&7_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        5
+                        7
                     )
                 )
             );
@@ -6275,7 +7878,7 @@ mod tests {
             let content_offset = 8 + 4 + 32;
             let selected_lowering_completion_status_offset = content_offset + 1 + 2 * 32;
             let x86_branch_relaxation_status_offset =
-                selected_lowering_completion_status_offset + 1 + 32 + 11 * 32;
+                selected_lowering_completion_status_offset + 1 + 32 + 12 * 32;
             let aarch64_cbnz_fusion_status_offset = x86_branch_relaxation_status_offset + 1;
             let mut unknown_stage = encoded.clone();
             unknown_stage[content_offset] = 9;
@@ -6732,6 +8335,117 @@ mod tests {
                 .unwrap(),
                 machine.custody()
             );
+        }
+    }
+
+    #[test]
+    fn compiler_facing_physical_pipeline_runs_only_the_named_active_resident_rematerialization() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+            let selections = OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                    .unwrap(),
+            )
+            .unwrap();
+            let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                target,
+                &[],
+            )
+            .unwrap();
+            let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+                realization,
+            } = &staged
+            else {
+                panic!("the exact rematerialization selection must use its owning realization")
+            };
+            let rematerialization = realization.source().pre_layout().source();
+            let manifest = realization.manifest().record();
+            let empty = OptimizationSelections::default().identity();
+            assert_eq!(staged.selections(), selections.identity());
+            assert_eq!(staged.selected_lowering_completion(), None);
+            assert!(staged.function_relative_realization().is_none());
+            assert_eq!(
+                staged
+                    .active_resident_rematerialization_function_relative_realization()
+                    .unwrap()
+                    .custody(),
+                realization.custody()
+            );
+            assert_eq!(
+                staged.function_relative_manifest(),
+                Some(realization.manifest())
+            );
+            assert!(staged.post_allocation_machine_optimization().is_none());
+            assert_eq!(
+                manifest.allocation_recovery_selections,
+                selections.identity()
+            );
+            assert_eq!(manifest.selected_lowering_selections, empty);
+            assert_eq!(manifest.post_allocation_machine_selections, empty);
+            assert_eq!(manifest.function_relative_layout_selections, empty);
+            assert_eq!(manifest.selected_lowering_completion, None);
+            assert_eq!(rematerialization.custody().applied_count(), 1);
+            assert_eq!(rematerialization.custody().rewritten_use_count(), 2);
+            assert_eq!(
+                staged
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                [
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        rematerialization.rematerialization().receipt().identity(),
+                    )
+                ]
+            );
+            assert_eq!(
+                staged.machine().machine().receipt().selected(),
+                manifest.selected
+            );
+            assert_eq!(
+                manifest.publication,
+                FunctionRelativeOptimizationUnavailableData::Unavailable
+            );
+        }
+    }
+
+    #[test]
+    fn allocation_recovery_compositions_reject_instead_of_dispatching_a_hidden_policy() {
+        let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+        for selections in [
+            OptimizationSelections::new([
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ])
+            .unwrap(),
+            OptimizationSelections::new([
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+            ])
+            .unwrap(),
+        ] {
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+            )
+            .unwrap();
+            assert!(matches!(
+                stage_optimized_verified_physical_pipeline_with_provider_executions(
+                    optimized,
+                    NativeTarget::linux_x64(),
+                    &[],
+                ),
+                Err(OptimizedVerifiedPhysicalPipelineError::UnsupportedPhysicalPhaseComposition)
+            ));
         }
     }
 
@@ -7348,10 +9062,10 @@ mod tests {
             Err(FunctionFragmentEmissionManifestDecodeError::IdentityMismatch)
         );
         let mut wrong_version = record.encode();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&wrong_version),
-            Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(2))
+            Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(1))
         );
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&record.encode()[..20]),
@@ -7498,6 +9212,190 @@ mod tests {
     }
 
     #[test]
+    fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_architectures() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let realization = staged_active_resident_function_relative_realization(target);
+            let rematerialization = realization.source().pre_layout().source();
+            let action = rematerialization.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .expect("the admitted source must retain its rematerialization action");
+            let fresh = action.fresh_materialize;
+            let transformed_selected = rematerialization
+                .rematerialization()
+                .receipt()
+                .transformed_selected();
+            let transformed_homes = rematerialization.homes().receipt();
+            let register_environment = rematerialization
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment()
+                .identity();
+            let optimized_source = rematerialization
+                .source()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized();
+            let pre_physical = optimized_source.pre_physical_manifest().record().identity;
+            let verified_input = optimized_source.verified_input().clone();
+            let source_manifest = realization.manifest().record().clone();
+            let mut emitted = stage_optimized_function_fragment_emission(
+                StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
+                    Box::new(realization),
+                ),
+            )
+            .unwrap();
+
+            assert_eq!(
+                validate_optimized_function_fragment_emission(&emitted).unwrap(),
+                emitted.custody()
+            );
+            assert_eq!(
+                emitted.source().selected_plan().terminal_psi,
+                emitted.fragments().terminal_psi
+            );
+            assert_eq!(
+                emitted.source().register_homes().receipt(),
+                transformed_homes
+            );
+            assert_eq!(
+                emitted.source().register_environment().identity(),
+                register_environment
+            );
+            assert_eq!(
+                emitted.source().pre_physical_manifest().record().identity,
+                pre_physical
+            );
+            assert_eq!(emitted.source().verified_input(), &verified_input);
+            assert_eq!(emitted.fragments().selected, transformed_selected);
+            assert_eq!(emitted.manifest().record().selected, transformed_selected);
+            assert_eq!(
+                emitted.manifest().record().source_realization,
+                source_manifest.identity
+            );
+            assert_eq!(
+                source_manifest.allocation_recovery_selections,
+                source_manifest.selections
+            );
+            assert_eq!(
+                emitted.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+
+            let fresh_span = emitted.fragments().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.instruction == fresh)
+                .expect("the fresh materialization must have an emitted instruction span");
+            assert_eq!(
+                fresh_span.alternative.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::MaterializeI64
+            );
+            assert!(!fresh_span.bytes.is_empty());
+
+            let branch = emitted.fragments().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.branch.is_some())
+                .expect("the conditional source must retain one resolved branch");
+            match target.architecture {
+                omega_target::Architecture::X86_64 => {
+                    assert_eq!(&branch.bytes[..2], [0x0f, 0x85]);
+                    assert_eq!(branch.bytes.len(), 6);
+                }
+                omega_target::Architecture::Aarch64 => {
+                    let instruction =
+                        u32::from_le_bytes(branch.bytes.as_slice().try_into().unwrap());
+                    assert_eq!(instruction & 0xff00_001f, 0x5400_0001);
+                    assert_eq!(branch.bytes.len(), 4);
+                }
+            }
+
+            let record = emitted.manifest().record();
+            let encoded = record.encode();
+            assert_eq!(&encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(encoded[45], 3);
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&encoded),
+                Ok(record.clone())
+            );
+            let mut unknown_source = encoded;
+            unknown_source[45] = 5;
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&unknown_source),
+                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(5))
+            );
+
+            let original_fresh_byte = emitted.fragments().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.instruction == fresh)
+                .unwrap()
+                .bytes[0];
+            emitted.fragments_mut().functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| row.instruction == fresh)
+                .unwrap()
+                .bytes[0] ^= 1;
+            emitted.fragments_mut().identity = emitted.fragments().recomputed_identity();
+            assert_eq!(
+                validate_optimized_function_fragment_emission(&emitted),
+                Err(FunctionFragmentEmissionError::ArtifactMismatch)
+            );
+            emitted.fragments_mut().functions[0]
+                .blocks
+                .iter_mut()
+                .flat_map(|block| &mut block.instructions)
+                .find(|row| row.instruction == fresh)
+                .unwrap()
+                .bytes[0] = original_fresh_byte;
+            emitted.fragments_mut().identity = emitted.fragments().recomputed_identity();
+            assert_eq!(
+                validate_optimized_function_fragment_emission(&emitted).unwrap(),
+                emitted.custody()
+            );
+
+            let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+            assert_eq!(
+                validate_optimized_relocation_free_text_section(&placed).unwrap(),
+                placed.custody()
+            );
+            assert_eq!(
+                placed.text_section().relocation_requirements,
+                omega_object_file::TerminalTextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+            );
+            assert_eq!(
+                placed
+                    .manifest()
+                    .record()
+                    .statistics
+                    .relocation_requirements,
+                0
+            );
+            assert_eq!(
+                placed.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            let text_encoded = placed.manifest().record().encode();
+            assert_eq!(&text_encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(text_encoded[45], 3);
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&text_encoded),
+                Ok(placed.manifest().record().clone())
+            );
+        }
+    }
+
+    #[test]
     fn relocation_free_rel8_text_section_replays_bytes_manifest_and_custody() {
         let (semantic, proof) = conditional_exact_binary_artifact(false);
         let selections =
@@ -7579,10 +9477,10 @@ mod tests {
             Err(FunctionFragmentTextSectionManifestDecodeError::TrailingBytes)
         );
         let mut wrong_version = record.encode();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&wrong_version),
-            Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(2))
+            Err(FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(1))
         );
         let mut stale_identity = record.encode();
         stale_identity[12] ^= 1;
@@ -7914,6 +9812,267 @@ mod tests {
     }
 
     #[test]
+    fn optimized_rel8_terminal_object_artifact_binds_replays_and_reports_without_authority() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let terminal = canonical_terminal_artifact(&semantic, &proof);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let physical_report = optimization_pipeline_report(&physical);
+        assert_eq!(physical_report.function_fragment(), None);
+        assert_eq!(physical_report.text_section(), None);
+        assert_eq!(physical_report.object_container(), None);
+        assert_eq!(physical_report.terminal_object_artifact(), None);
+        let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
+            physical
+        else {
+            panic!("rel8 must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+        let mut staged =
+            stage_validated_optimized_terminal_object_artifact(terminal, object).unwrap();
+
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged).unwrap(),
+            staged.custody()
+        );
+        let artifact = staged.artifact();
+        assert_eq!(artifact.terminal_psi, staged.source().object().terminal_psi);
+        assert_eq!(
+            artifact.semantic_entry,
+            staged.source().object().semantic_entry
+        );
+        assert_eq!(artifact.statistics.relocation_records, 0);
+        assert_eq!(
+            artifact.pre_physical_manifest,
+            staged
+                .source()
+                .source()
+                .source()
+                .function_relative_manifest()
+                .record()
+                .pre_physical_manifest
+        );
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&artifact.encode()),
+            Ok(artifact.clone())
+        );
+        let manifest = staged.manifest().record();
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&manifest.encode()),
+            Ok(manifest.clone())
+        );
+        assert_eq!(
+            manifest.external_entry_bridge,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.executable_image,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.installation,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+        assert_eq!(
+            manifest.publication,
+            OptimizedTerminalObjectArtifactUnavailableData::Unavailable
+        );
+
+        let artifact_identity = artifact.identity;
+        let object_bytes = staged.source().container().bytes.clone();
+        let report = optimization_pipeline_report_from_terminal_object_artifact(&staged);
+        assert_eq!(
+            report.render_human_text(OptimizationReportRequest::Suppressed),
+            None
+        );
+        let rendered = report
+            .render_human_text(OptimizationReportRequest::EmitHumanText)
+            .unwrap();
+        assert!(rendered.contains("[optimized Terminal object artifact]"));
+        assert!(rendered.contains("publication: unavailable"));
+        assert_eq!(staged.artifact().identity, artifact_identity);
+        assert_eq!(staged.source().container().bytes, object_bytes);
+        assert_eq!(
+            report.function_fragment().unwrap().identity,
+            artifact.function_fragment_manifest
+        );
+        assert_eq!(
+            report.text_section().unwrap().identity,
+            artifact.text_section_manifest
+        );
+        assert_eq!(
+            report.object_container().unwrap().identity,
+            artifact.object_container_manifest
+        );
+        assert_eq!(
+            report.terminal_object_artifact().unwrap().artifact,
+            artifact.identity
+        );
+
+        let original_artifact = staged.artifact().clone();
+        staged.artifact_mut().statistics.relocation_records = 1;
+        let corrupted_artifact_identity = staged.artifact().recomputed_identity();
+        staged.artifact_mut().identity = corrupted_artifact_identity;
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ArtifactMismatch)
+        );
+        *staged.artifact_mut() = original_artifact;
+
+        let original_manifest = staged.manifest().record().clone();
+        staged
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .function_symbols += 1;
+        let corrupted_manifest_identity = staged.manifest().record().recomputed_identity();
+        staged.manifest_mut().record_mut().identity = corrupted_manifest_identity;
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ManifestMismatch)
+        );
+        *staged.manifest_mut().record_mut() = original_manifest;
+        staged.corrupt_custody_for_test();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged),
+            Err(OptimizedTerminalObjectArtifactError::ReceiptMismatch)
+        );
+    }
+
+    #[test]
+    fn optimized_cbnz_terminal_object_artifact_retains_zero_span_and_rejects_detached_proof() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+
+        let module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let mut detached_proof = psi_terminal_codec::decode_proof_bundle(&proof).unwrap();
+        detached_proof.evidence.pop();
+        let detached = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &module,
+            &detached_proof,
+            None,
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_validated_optimized_terminal_object_artifact(detached, object),
+            Err(OptimizedTerminalObjectArtifactError::ProofMismatch)
+        ));
+
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct realization")
+        };
+        let emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let placed = stage_optimized_relocation_free_text_section(emitted).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(placed).unwrap();
+        let staged = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap();
+        assert!(
+            staged.source().source().text_section().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|instruction| instruction.byte_count == 0)
+        );
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&staged).unwrap(),
+            staged.custody()
+        );
+
+        let mut wrong_magic = staged.artifact().encode();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&wrong_magic),
+            Err(OptimizedTerminalObjectArtifactRecordDecodeError::WrongMagic)
+        );
+        let mut wrong_version = staged.manifest().record().encode();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&wrong_version),
+            Err(OptimizedTerminalObjectArtifactManifestDecodeError::UnsupportedVersion(2))
+        );
+        let mut trailing = staged.artifact().encode();
+        trailing.push(0);
+        assert_eq!(
+            OptimizedTerminalObjectArtifactRecord::decode(&trailing),
+            Err(OptimizedTerminalObjectArtifactRecordDecodeError::TrailingBytes)
+        );
+        let mut stale = staged.manifest().record().encode();
+        stale[12] ^= 1;
+        assert_eq!(
+            OptimizedTerminalObjectArtifactManifest::decode(&stale),
+            Err(OptimizedTerminalObjectArtifactManifestDecodeError::IdentityMismatch)
+        );
+    }
+
+    #[test]
     fn relocation_free_text_section_preserves_disconnected_function_order_without_padding() {
         let (semantic, proof) = conditional_exact_binary_artifact(false);
         let selections =
@@ -8027,6 +10186,15 @@ mod tests {
             validate_optimized_relocation_free_terminal_object_container(&x86).unwrap(),
             x86.custody()
         );
+        let x86 = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            x86,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&x86).unwrap(),
+            x86.custody()
+        );
 
         let arm_selections = OptimizationSelections::new([
             Optimization::SelectedIncomingU12ExactAddImmediate,
@@ -8070,6 +10238,15 @@ mod tests {
         let arm = stage_optimized_relocation_free_terminal_object_container(arm).unwrap();
         assert_eq!(
             validate_optimized_relocation_free_terminal_object_container(&arm).unwrap(),
+            arm.custody()
+        );
+        let arm = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            arm,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_terminal_object_artifact(&arm).unwrap(),
             arm.custody()
         );
     }
@@ -8745,6 +10922,7 @@ mod tests {
 
             let liveness = stage_optimized_liveness(selected).unwrap();
             assert_eq!(liveness.custody().function_count(), 2);
+            assert_eq!(liveness.custody().structural_unit_function_count(), 0);
             assert_eq!(liveness.custody().block_count(), 6);
             assert_eq!(liveness.custody().virtual_register_count(), 6);
             assert_eq!(liveness.custody().instruction_count(), 12);
@@ -8779,6 +10957,7 @@ mod tests {
 
             let ranges = stage_optimized_live_ranges(liveness).unwrap();
             assert_eq!(ranges.custody().function_count(), 2);
+            assert_eq!(ranges.custody().structural_unit_function_count(), 0);
             assert_eq!(ranges.custody().block_count(), 6);
             assert_eq!(ranges.custody().virtual_register_count(), 6);
             assert_eq!(ranges.custody().interference_count(), 0);
@@ -8813,6 +10992,7 @@ mod tests {
 
             let legality = stage_optimized_allocation_legality(ranges).unwrap();
             assert_eq!(legality.custody().function_count(), 2);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
             assert_eq!(legality.custody().virtual_register_count(), 6);
             let range_stage = legality.live_range_stage();
             let environment = range_stage
@@ -8837,6 +11017,7 @@ mod tests {
 
             let homes = stage_optimized_register_homes(legality).unwrap();
             assert_eq!(homes.custody().function_count(), 2);
+            assert_eq!(homes.custody().structural_unit_function_count(), 0);
             assert_eq!(homes.custody().assignment_count(), 6);
             assert_eq!(
                 homes
@@ -8907,6 +11088,782 @@ mod tests {
                 )
                 .is_err()
             );
+        }
+    }
+
+    #[test]
+    fn structural_unit_return_reaches_legalization_and_stops_before_selection() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = structurally_parameterized_unit_return_artifact();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                    .unwrap();
+
+            assert!(matches!(
+                stage_optimized_instruction_selection(target),
+                Err(OptimizedSelectionPipelineError::Selection(
+                    SelectedInstructionError::UnsupportedSourceShape { function: 0 }
+                ))
+            ));
+        }
+    }
+
+    #[test]
+    fn structural_unit_call_reaches_post_allocation_machine_custody() {
+        let (semantic, proof) = structural_extent_call_unit_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::uefi_x64(),
+        )
+        .unwrap();
+        let legalized = legalize_terminal_target_operations(
+            target.target_operations(),
+            target.optimized().plan(),
+            target.optimized().unit(),
+        )
+        .expect("structural Unit call must reach the distinct v6 custody roster");
+
+        assert!(legalized.plan().unit_functions.is_empty());
+        assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
+        assert_eq!(legalized.receipt().function_count(), 2);
+        let caller = &legalized.plan().structural_unit_functions[0];
+        let callee = &legalized.plan().structural_unit_functions[1];
+        assert_eq!(caller.parameters.len(), 2);
+        assert_eq!(callee.parameters.len(), 2);
+        assert!(callee.call.is_none());
+        let call = caller.call.as_ref().expect("caller retains one Unit call");
+        assert_eq!(call.arguments.len(), 2);
+        assert!(call.claim_transfers.is_empty());
+        assert!(matches!(
+            call.ownership.as_slice(),
+            [OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty()
+        ));
+        assert!(matches!(
+            caller.return_ownership.as_slice(),
+            [OwnershipEvent::Cleanup(cleanups)] if cleanups.is_empty()
+        ));
+        assert_eq!(call.effect.output, caller.return_effect.input);
+        for (parameter, register, copy_offset) in [
+            (&caller.parameters[0], MachineRegister::X86Rcx, 32),
+            (&caller.parameters[1], MachineRegister::X86Rdx, 48),
+        ] {
+            assert!(matches!(
+                parameter.target.placement.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(actual),
+                    copy_stack_byte_offset: Some(actual_offset),
+                    byte_size: 16,
+                    alignment: 8,
+                }] if *actual == register && *actual_offset == copy_offset
+            ));
+        }
+        assert_eq!(
+            call.arguments[0].target.source,
+            caller.parameters[0].target.placement
+        );
+        assert_eq!(
+            call.arguments[1].target.source,
+            caller.parameters[1].target.placement
+        );
+        assert_eq!(
+            call.arguments[0].target.destination,
+            callee.parameters[0].target.placement
+        );
+        assert_eq!(
+            call.arguments[1].target.destination,
+            callee.parameters[1].target.placement
+        );
+
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0].parameters.swap(0, 1);
+        assert!(
+            validate_terminal_legalized_operations(
+                target.target_operations(),
+                target.optimized().plan(),
+                target.optimized().unit(),
+                corrupted,
+            )
+            .is_err()
+        );
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .effect
+            .output += 1;
+        assert!(
+            validate_terminal_legalized_operations(
+                target.target_operations(),
+                target.optimized().plan(),
+                target.optimized().unit(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let selected = stage_optimized_instruction_selection(target)
+            .expect("the exact Microsoft-x64 structural call must reach selected v9");
+        assert_eq!(selected.custody().function_count(), 2);
+        assert!(selected.selected().plan().functions.is_empty());
+        assert_eq!(
+            selected.selected().plan().structural_unit_functions.len(),
+            2
+        );
+        let selected_caller = &selected.selected().plan().structural_unit_functions[0];
+        let selected_call = selected_caller
+            .call
+            .as_ref()
+            .expect("caller owns one atomic structural Unit call");
+        let selected_call_uses = selected_call.implicit_uses.clone();
+        assert_eq!(selected_call.id, TerminalSelectedInstructionId(0));
+        assert_eq!(
+            selected_call.constraint,
+            omega_terminal_isa_x86_64::X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+        );
+        assert!(selected_call.implicit_uses.len() >= 4);
+        assert!(selected_call.implicit_defs.len() >= 2);
+        assert!(!selected_call.clobbers.is_empty());
+        assert_eq!(
+            selected_caller.terminator.instruction.id,
+            TerminalSelectedInstructionId(1)
+        );
+
+        let effects = stage_optimized_machine_effects(&selected)
+            .expect("structural call must reach pre-allocation effect custody");
+        assert_eq!(effects.effects().plan().structural_unit_functions.len(), 2);
+        let effect_call = effects.effects().plan().structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("caller effect roster owns the atomic call");
+        assert_eq!(effect_call.callee, selected_call.callee);
+        assert_eq!(effect_call.unit_uses, selected_call.implicit_uses);
+        assert_eq!(effect_call.effect, selected_call.effect);
+        assert_eq!(effect_call.ownership, selected_call.ownership);
+        assert_eq!(
+            effect_call.declaration.frame,
+            omega_terminal_selected_instructions::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                frame_byte_count: 72,
+                shadow_byte_count: 32,
+                pre_call_stack_alignment: 16,
+            }
+        );
+        assert_eq!(
+            &validate_optimized_machine_effect_custody(&selected, effects.effects()).unwrap(),
+            effects.custody()
+        );
+
+        let mut corrupted = effects.effects().plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .unit_uses
+            .clear();
+        let environment = selected.register_environment();
+        let catalog = omega_terminal_isa_x86_64::validate_x86_64_terminal_machine_effect_catalog(
+            NativeTarget::uefi_x64(),
+            environment.constraints(),
+            omega_terminal_isa_x86_64::x86_64_terminal_machine_effect_catalog(
+                NativeTarget::uefi_x64(),
+                environment.constraints(),
+            )
+            .unwrap(),
+        )
+        .unwrap();
+        assert!(
+            omega_machine_optimizer::validate_terminal_pre_allocation_machine_effects(
+                selected.selected(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                &catalog,
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let liveness = stage_optimized_liveness(selected)
+            .expect("zero-VReg structural functions must retain architectural liveness");
+        assert_eq!(liveness.custody().function_count(), 0);
+        assert_eq!(liveness.custody().structural_unit_function_count(), 2);
+        assert!(liveness.liveness().plan().functions.is_empty());
+        assert_eq!(
+            liveness.liveness().plan().structural_unit_functions.len(),
+            2
+        );
+        let live_caller = &liveness.liveness().plan().structural_unit_functions[0];
+        assert!(live_caller.entry_definitions.is_empty());
+        assert!(live_caller.operand_positions.is_empty());
+        assert_eq!(live_caller.blocks[0].instructions.len(), 2);
+        assert_eq!(
+            live_caller.blocks[0].instructions[0].unit_uses,
+            selected_call_uses
+        );
+
+        let ranges = stage_optimized_live_ranges(liveness)
+            .expect("structural architectural flow must reach zero-VReg ranges");
+        assert_eq!(ranges.custody().function_count(), 0);
+        assert_eq!(ranges.custody().structural_unit_function_count(), 2);
+        assert!(ranges.ranges().plan().functions.is_empty());
+        assert_eq!(ranges.ranges().plan().structural_unit_functions.len(), 2);
+        let range_caller = &ranges.ranges().plan().structural_unit_functions[0];
+        assert!(range_caller.virtual_registers.is_empty());
+        assert!(range_caller.tied_pairs.is_empty());
+        assert!(range_caller.early_clobbers.is_empty());
+        assert!(range_caller.interference.is_empty());
+        assert!(!range_caller.architectural_units.is_empty());
+        assert!(
+            range_caller
+                .architectural_units
+                .iter()
+                .any(|unit| !unit.actions.is_empty())
+        );
+        let mut corrupted = ranges.ranges().plan().clone();
+        corrupted.structural_unit_functions[0].architectural_units[0]
+            .actions
+            .clear();
+        assert!(
+            validate_terminal_live_ranges(
+                ranges.liveness_stage().selected_stage().selected(),
+                ranges.liveness_stage().liveness(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let legality = stage_optimized_allocation_legality(ranges)
+            .expect("zero-VReg structural functions must require no candidate homes");
+        assert_eq!(legality.custody().function_count(), 0);
+        assert_eq!(legality.custody().structural_unit_function_count(), 2);
+        assert!(legality.legality().plan().functions.is_empty());
+        assert_eq!(
+            legality.legality().plan().structural_unit_functions.len(),
+            2
+        );
+        assert!(
+            legality
+                .legality()
+                .plan()
+                .structural_unit_functions
+                .iter()
+                .all(|function| function.virtual_registers.is_empty())
+        );
+        let mut corrupted = legality.legality().plan().clone();
+        corrupted.structural_unit_functions.swap(0, 1);
+        let range_stage = legality.live_range_stage();
+        let environment = range_stage
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        assert!(
+            validate_terminal_allocation_legality(
+                range_stage.ranges(),
+                legality.allocator_availability(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let homes = stage_optimized_register_homes(legality)
+            .expect("structural functions must receive exact empty home rosters");
+        assert_eq!(homes.custody().function_count(), 0);
+        assert_eq!(homes.custody().structural_unit_function_count(), 2);
+        assert!(homes.homes().plan().functions.is_empty());
+        assert_eq!(homes.homes().plan().structural_unit_functions.len(), 2);
+        assert!(
+            homes
+                .homes()
+                .plan()
+                .structural_unit_functions
+                .iter()
+                .all(|function| function.assignments.is_empty())
+        );
+        assert_eq!(
+            homes
+                .post_allocation_manifest()
+                .record()
+                .statistics
+                .functions,
+            0
+        );
+        assert_eq!(
+            homes
+                .post_allocation_manifest()
+                .record()
+                .statistics
+                .structural_unit_functions,
+            2
+        );
+        let mut corrupted = homes.homes().plan().clone();
+        corrupted.structural_unit_functions.swap(0, 1);
+        let legality_stage = homes.legality_stage();
+        let range_stage = legality_stage.live_range_stage();
+        let environment = range_stage
+            .liveness_stage()
+            .selected_stage()
+            .register_environment();
+        assert!(
+            validate_terminal_register_homes(
+                legality_stage.legality(),
+                range_stage.ranges(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                environment.reservations(),
+                environment.allocation_constraint_keys(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let post = stage_optimized_post_allocation_machine_plan(&homes)
+            .expect("structural call must reach post-allocation machine custody");
+        assert!(post.machine().plan().functions.is_empty());
+        assert_eq!(post.machine().plan().structural_unit_functions.len(), 2);
+        assert!(
+            post.machine().plan().structural_unit_functions[0]
+                .call
+                .is_some()
+        );
+        assert!(
+            post.machine().plan().structural_unit_functions[1]
+                .call
+                .is_none()
+        );
+        assert_eq!(post.custody().function_count(), 0);
+        assert_eq!(post.custody().structural_unit_function_count(), 2);
+        assert_eq!(post.machine().receipt().function_count(), 2);
+        assert_eq!(post.machine().receipt().instruction_count(), 3);
+        assert_eq!(post.machine().receipt().operand_count(), 0);
+        let mut corrupted = post.machine().plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .unit_uses
+            .clear();
+        assert!(
+            omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                range_stage.liveness_stage().selected_stage().selected(),
+                post.effects().effects(),
+                range_stage.ranges(),
+                legality_stage.legality(),
+                homes.homes(),
+                homes.post_allocation_manifest(),
+                environment.identity(),
+                environment.physical(),
+                environment.constraints(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        let encoding = stage_optimized_layout_independent_selected_form_encoding(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+        )
+        .expect("structural Unit calls must retain typed unresolved pre-layout encoding");
+        assert!(encoding.rows().is_empty());
+        assert_eq!(encoding.structural_unit_functions().len(), 2);
+        assert_eq!(
+            encoding.counts(),
+            TerminalSelectedFormEncodingCounts {
+                ordinary_encoded: 0,
+                ordinary_deferred_control: 0,
+                structural_encoded_call_templates: 1,
+                structural_encoded_returns: 2,
+                structural_deferred_internal_control: 1,
+                structural_internal_fixups: 1,
+            }
+        );
+        let encoded_caller = &encoding.structural_unit_functions()[0];
+        let encoded_callee = &encoding.structural_unit_functions()[1];
+        let encoded_call = encoded_caller
+            .call
+            .as_ref()
+            .expect("caller owns one unresolved structural call template");
+        assert_eq!(encoded_call.bytes.len(), 89);
+        assert_eq!(
+            encoded_call.callee,
+            post.machine().plan().structural_unit_functions[0]
+                .call
+                .as_ref()
+                .unwrap()
+                .callee
+        );
+        assert_eq!(encoded_call.fixup.callee, encoded_call.callee);
+        assert_eq!(encoded_call.fixup.opcode_byte_offset, 80);
+        assert_eq!(encoded_call.fixup.field_byte_offset, 81);
+        assert_eq!(encoded_call.fixup.next_instruction_byte_offset, 85);
+        assert_eq!(encoded_call.fixup.field_byte_width, 4);
+        assert_eq!(&encoded_call.bytes[81..85], &[0, 0, 0, 0]);
+        assert!(encoded_callee.call.is_none());
+        for function in [encoded_caller, encoded_callee] {
+            assert!(matches!(
+                &function.return_instruction.state,
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. }
+                    if bytes.as_slice() == [0xc3]
+            ));
+        }
+        validate_optimized_layout_independent_selected_form_encoding(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+        )
+        .unwrap();
+
+        let mut corrupted = encoding.clone();
+        corrupted.structural_unit_functions_mut()[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] ^= 1;
+        assert!(matches!(
+            validate_optimized_layout_independent_selected_form_encoding(
+                range_stage.liveness_stage().selected_stage().selected(),
+                &post,
+                environment.physical(),
+                &corrupted,
+            ),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
+        let mut corrupted = encoding.clone();
+        corrupted.counts_mut().structural_internal_fixups = 0;
+        assert!(matches!(
+            validate_optimized_layout_independent_selected_form_encoding(
+                range_stage.liveness_stage().selected_stage().selected(),
+                &post,
+                environment.physical(),
+                &corrupted,
+            ),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
+    }
+
+    #[test]
+    fn unit_legalization_retains_a_static_attachment_without_inventing_a_receiver() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof, attachment) = statically_attached_unit_return_artifact();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                    .unwrap();
+            let selected = stage_optimized_instruction_selection(target).unwrap();
+
+            assert_eq!(
+                selected.selected().plan().functions[0].attachment,
+                Some(attachment)
+            );
+            assert!(
+                selected.selected().plan().functions[0]
+                    .virtual_registers
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn zero_vreg_unit_return_reaches_replayed_homes_and_machine_custody() {
+        for target in [
+            NativeTarget::linux_x64(),
+            NativeTarget::uefi_x64(),
+            NativeTarget::linux_arm64(),
+        ] {
+            let (semantic, proof, selected) = staged_unit_return(target);
+            let selected_function = &selected.selected().plan().functions[0];
+            assert!(selected_function.virtual_registers.is_empty());
+            assert_eq!(selected_function.blocks.len(), 1);
+            assert!(selected_function.blocks[0].instructions.is_empty());
+            let TerminalSelectedTerminator::Return { instruction, .. } =
+                &selected_function.blocks[0].terminator
+            else {
+                panic!("Unit selection must end in the generic return terminator");
+            };
+            assert_eq!(
+                instruction.kind,
+                TerminalSelectedInstructionKind::ReturnUnit
+            );
+            assert!(instruction.operands.is_empty());
+
+            let raw_liveness = analyze_terminal_liveness(selected.selected()).unwrap();
+            let mut corrupted_liveness = raw_liveness.plan().clone();
+            corrupted_liveness.functions[0].blocks[0]
+                .unit_live_in
+                .clear();
+            assert!(matches!(
+                validate_terminal_liveness(selected.selected(), corrupted_liveness),
+                Err(TerminalLivenessError::BlockMismatch {
+                    function: 0,
+                    block: 0
+                })
+            ));
+
+            let liveness = stage_optimized_liveness(selected).unwrap();
+            assert_eq!(liveness.custody().function_count(), 1);
+            assert_eq!(liveness.custody().structural_unit_function_count(), 0);
+            assert_eq!(liveness.custody().block_count(), 1);
+            assert_eq!(liveness.custody().virtual_register_count(), 0);
+            assert_eq!(liveness.custody().instruction_count(), 1);
+            assert_eq!(liveness.custody().successor_count(), 0);
+            let live_function = &liveness.liveness().plan().functions[0];
+            assert!(live_function.entry_definitions.is_empty());
+            assert!(live_function.operand_positions.is_empty());
+            assert!(live_function.blocks[0].virtual_live_in.is_empty());
+            assert!(live_function.blocks[0].virtual_live_out.is_empty());
+            assert!(!live_function.blocks[0].unit_live_in.is_empty());
+            assert!(live_function.blocks[0].unit_live_out.is_empty());
+
+            let raw_ranges = analyze_terminal_live_ranges(
+                liveness.selected_stage().selected(),
+                liveness.liveness(),
+            )
+            .unwrap();
+            let mut corrupted_ranges = raw_ranges.plan().clone();
+            corrupted_ranges.functions[0].architectural_units.pop();
+            assert!(matches!(
+                validate_terminal_live_ranges(
+                    liveness.selected_stage().selected(),
+                    liveness.liveness(),
+                    corrupted_ranges,
+                ),
+                Err(TerminalLiveRangeError::ArchitecturalUnitMismatch { function: 0, .. })
+            ));
+
+            let ranges = stage_optimized_live_ranges(liveness).unwrap();
+            assert_eq!(ranges.custody().function_count(), 1);
+            assert_eq!(ranges.custody().structural_unit_function_count(), 0);
+            assert_eq!(ranges.custody().block_count(), 1);
+            assert_eq!(ranges.custody().virtual_register_count(), 0);
+            assert_eq!(ranges.custody().virtual_occurrence_count(), 0);
+            assert_eq!(ranges.custody().fixed_constraint_count(), 0);
+            assert_eq!(ranges.custody().virtual_fragment_count(), 0);
+            assert_eq!(ranges.custody().interference_count(), 0);
+            assert!(ranges.custody().architectural_unit_count() > 0);
+            assert_eq!(
+                ranges.ranges().plan().functions[0]
+                    .block_domains
+                    .iter()
+                    .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                    .collect::<Vec<_>>(),
+                vec![(0, 0, 2)]
+            );
+
+            let legality = stage_optimized_allocation_legality(ranges).unwrap();
+            assert_eq!(legality.custody().function_count(), 1);
+            assert_eq!(legality.custody().structural_unit_function_count(), 0);
+            assert_eq!(legality.custody().virtual_register_count(), 0);
+            assert_eq!(legality.custody().point_count(), 0);
+            assert_eq!(legality.custody().candidate_count(), 0);
+            assert_eq!(legality.custody().entry_transition_count(), 0);
+            let range_stage = legality.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_legality = legality.legality().plan().clone();
+            corrupted_legality.functions[0].machine = MachineId::new(3_599).unwrap();
+            assert!(matches!(
+                validate_terminal_allocation_legality(
+                    range_stage.ranges(),
+                    legality.allocator_availability(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_legality,
+                ),
+                Err(TerminalAllocationLegalityError::FunctionMismatch { function: 0 })
+            ));
+
+            let homes = stage_optimized_register_homes(legality).unwrap();
+            assert_eq!(homes.custody().function_count(), 1);
+            assert_eq!(homes.custody().structural_unit_function_count(), 0);
+            assert_eq!(homes.custody().assignment_count(), 0);
+            assert!(homes.homes().plan().functions[0].assignments.is_empty());
+            assert!(
+                homes
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations
+                    .is_empty()
+            );
+            let legality_stage = homes.legality_stage();
+            let range_stage = legality_stage.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_homes = homes.homes().plan().clone();
+            corrupted_homes.functions[0].machine = MachineId::new(3_599).unwrap();
+            assert!(matches!(
+                validate_terminal_register_homes(
+                    legality_stage.legality(),
+                    range_stage.ranges(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_homes,
+                ),
+                Err(TerminalRegisterHomeError::FunctionMismatch { function: 0 })
+            ));
+
+            let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+            assert_eq!(post.custody().instruction_count(), 1);
+            assert_eq!(post.machine().plan().functions.len(), 1);
+            let post_instruction = &post.machine().plan().functions[0].blocks[0].instructions[0];
+            assert_eq!(
+                post_instruction.alternative.key.family,
+                omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::ReturnUnit
+            );
+            assert!(post_instruction.operands.is_empty());
+            let mut corrupted_post = post.machine().plan().clone();
+            corrupted_post.functions[0].machine = MachineId::new(3_599).unwrap();
+            let selected_stage = range_stage.liveness_stage().selected_stage();
+            assert!(
+                omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                    selected_stage.selected(),
+                    post.effects().effects(),
+                    range_stage.ranges(),
+                    legality_stage.legality(),
+                    homes.homes(),
+                    homes.post_allocation_manifest(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    corrupted_post,
+                )
+                .is_err()
+            );
+
+            let mut realization =
+                stage_optimized_unit_function_relative_realization(homes).unwrap();
+            assert_eq!(realization.manifest().record().statistics.functions, 1);
+            assert_eq!(realization.manifest().record().statistics.blocks, 1);
+            assert_eq!(realization.manifest().record().statistics.instructions, 1);
+            assert_eq!(
+                realization.manifest().record().statistics.bytes,
+                match target.architecture {
+                    omega_target::Architecture::X86_64 => 1,
+                    omega_target::Architecture::Aarch64 => 4,
+                }
+            );
+            let [function] = realization.exit_contract().contract().functions.as_slice() else {
+                panic!("Unit exit contract must retain one function");
+            };
+            let [returned] = function.returns.as_slice() else {
+                panic!("Unit exit contract must retain one return");
+            };
+            assert!(matches!(
+                returned.value,
+                whole_function_exit_contract::TerminalWholeFunctionReturnValueEvidence::UnitV1
+            ));
+            let receipt =
+                validate_optimized_unit_function_relative_realization(&realization).unwrap();
+            assert_eq!(receipt, *realization.custody());
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &realization.manifest().record().encode()
+                ),
+                Ok(realization.manifest().record().clone())
+            );
+
+            realization.exit_contract_mut().contract_mut().functions[0].returns[0].value =
+                whole_function_exit_contract::TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+                    virtual_register: TerminalVirtualRegisterId(0),
+                    view: RegisterViewId(0),
+                    units: Vec::new(),
+                };
+            assert!(matches!(
+                validate_optimized_unit_function_relative_realization(&realization),
+                Err(OptimizedUnitFunctionRelativeRealizationError::Exit(
+                    TerminalWholeFunctionExitContractError::ArtifactMismatch
+                ))
+            ));
+            realization.exit_contract_mut().contract_mut().functions[0].returns[0].value =
+                TerminalWholeFunctionReturnValueEvidence::UnitV1;
+            validate_optimized_unit_function_relative_realization(&realization).unwrap();
+
+            let fragments = stage_optimized_function_fragment_emission(
+                StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(Box::new(realization)),
+            )
+            .unwrap();
+            assert_eq!(
+                fragments.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::UnitBaselineV1
+            );
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&fragments.manifest().record().encode()),
+                Ok(fragments.manifest().record().clone())
+            );
+            assert_eq!(fragments.fragments().functions.len(), 1);
+            assert_eq!(fragments.fragments().functions[0].blocks.len(), 1);
+            let emitted_bytes = fragments.fragments().functions[0].bytes.clone();
+            assert_eq!(
+                emitted_bytes.as_slice(),
+                match target.architecture {
+                    omega_target::Architecture::X86_64 => &[0xc3][..],
+                    omega_target::Architecture::Aarch64 => &[0xc0, 0x03, 0x5f, 0xd6][..],
+                }
+            );
+
+            let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+            assert_eq!(
+                text.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::UnitBaselineV1
+            );
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&text.manifest().record().encode()),
+                Ok(text.manifest().record().clone())
+            );
+            assert_eq!(text.text_section().bytes, emitted_bytes);
+            let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+            let artifact = stage_validated_optimized_terminal_object_artifact(
+                canonical_terminal_artifact(&semantic, &proof),
+                object,
+            )
+            .unwrap();
+            assert_eq!(
+                artifact.artifact().semantic_entry,
+                MachineId::new(3_501).unwrap()
+            );
+            assert_eq!(
+                artifact.artifact().statistics.text_bytes,
+                emitted_bytes.len() as u64
+            );
+            assert_eq!(artifact.artifact().statistics.relocation_records, 0);
         }
     }
 
@@ -10316,5 +13273,542 @@ mod tests {
                 TerminalLivenessError::RootMismatch
             ))
         ));
+    }
+
+    fn staged_callable_object_artifact(
+        target: NativeTarget,
+        selected_lowering: bool,
+    ) -> StagedValidatedOptimizedTerminalObjectArtifact {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let layout = match target.architecture {
+            omega_target::Architecture::X86_64 => Optimization::X86RelaxConditionalBranchesToRel8V1,
+            omega_target::Architecture::Aarch64 => {
+                Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1
+            }
+        };
+        let selections = if selected_lowering {
+            OptimizationSelections::new([
+                Optimization::SelectedIncomingU12ExactAddImmediate,
+                layout,
+            ])
+            .unwrap()
+        } else {
+            OptimizationSelections::new([layout]).unwrap()
+        };
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let source = match physical {
+            StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization))
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(
+                    realization,
+                ))
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } => {
+                StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
+                    Box::new(realization),
+                )
+            }
+            StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
+                realization,
+            } => StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
+                Box::new(realization),
+            ),
+            _ => panic!("fixture must complete a function-relative realization"),
+        };
+        let fragments = stage_optimized_function_fragment_emission(source).unwrap();
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+        stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap()
+    }
+
+    fn staged_active_resident_callable_object_artifact(
+        target: NativeTarget,
+    ) -> StagedValidatedOptimizedTerminalObjectArtifact {
+        let (semantic, proof) = conditional_active_resident_exact_add_chain_artifact();
+        let selections = OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::ActiveResidentRematerialization {
+            realization,
+        } = physical
+        else {
+            panic!("the root-build rematerialization selection must retain its owning realization")
+        };
+        let fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
+                realization,
+            ),
+        )
+        .unwrap();
+        let text = stage_optimized_relocation_free_text_section(fragments).unwrap();
+        let object = stage_optimized_relocation_free_terminal_object_container(text).unwrap();
+        stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn active_resident_root_build_reaches_object_artifact_and_ordinary_callable_on_both_isas() {
+        use omega_calling_conventions::{CallingPolicy, MachineRegister};
+
+        let selections = OptimizationSelections::new([
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+        ])
+        .unwrap()
+        .identity();
+        for (target, policy, parameter, result) in [
+            (
+                NativeTarget::linux_x64(),
+                CallingPolicy::SystemVAMD64,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                CallingPolicy::MicrosoftX64,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+        ] {
+            let artifact = staged_active_resident_callable_object_artifact(target);
+            let object_stage = artifact.source();
+            let text_stage = object_stage.source();
+            let fragment_stage = text_stage.source();
+            let StagedOptimizedFunctionFragmentEmissionSource::ActiveResidentRematerialization(
+                realization,
+            ) = fragment_stage.source()
+            else {
+                panic!("object custody must retain the rematerialization realization")
+            };
+            let rematerialization = realization.source().pre_layout().source();
+            let fresh = rematerialization.rematerialization().plan().functions[0]
+                .action
+                .as_ref()
+                .expect("the exact root-build family must apply one rematerialization")
+                .fresh_materialize;
+            let emitted_fresh = text_stage.text_section().functions[0]
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .find(|row| row.instruction == fresh)
+                .expect("the object text section must retain the fresh materialization span");
+            assert_ne!(emitted_fresh.byte_count, 0);
+            assert_eq!(
+                validate_optimized_function_fragment_emission(fragment_stage).unwrap(),
+                fragment_stage.custody()
+            );
+            assert_eq!(
+                validate_optimized_relocation_free_text_section(text_stage).unwrap(),
+                text_stage.custody()
+            );
+            assert_eq!(
+                validate_optimized_relocation_free_terminal_object_container(object_stage).unwrap(),
+                object_stage.custody()
+            );
+            assert_eq!(fragment_stage.manifest().record().selections, selections);
+            assert_eq!(text_stage.manifest().record().selections, selections);
+            assert_eq!(object_stage.manifest().record().selections, selections);
+            assert_eq!(artifact.artifact().selections, selections);
+            assert_eq!(
+                realization
+                    .manifest()
+                    .record()
+                    .allocation_recovery_selections,
+                selections
+            );
+            assert_eq!(
+                fragment_stage.manifest().record().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert_eq!(
+                rematerialization
+                    .post_allocation_manifest()
+                    .record()
+                    .selected_transformations,
+                [
+                    PostAllocationSelectedTransformation::PressureRematerialization(
+                        rematerialization.rematerialization().receipt().identity(),
+                    )
+                ]
+            );
+            assert_eq!(object_stage.object().relocation_record_count, 0);
+            assert_eq!(object_stage.object().symbols.len(), 1);
+            assert_eq!(
+                object_stage.object().text_section.bytes,
+                text_stage.text_section().bytes
+            );
+            assert_eq!(
+                object_stage.object().semantic_entry_symbol,
+                object_stage.object().symbols[0].symbol
+            );
+            assert_eq!(
+                object_stage.object().symbols[0].linkage,
+                omega_object_file::TerminalRelocationFreeObjectSymbolLinkage::ObjectLocalV1
+            );
+            assert_eq!(
+                object_stage.object().symbols[0].role,
+                omega_object_file::TerminalRelocationFreeObjectSymbolRole::SemanticEntryV1
+            );
+            assert_ne!(object_stage.object().symbols[0].name, "main");
+            assert_ne!(object_stage.object().symbols[0].name, "_main");
+            assert_eq!(
+                artifact.artifact().pre_physical_manifest,
+                fragment_stage
+                    .source()
+                    .pre_physical_manifest()
+                    .record()
+                    .identity
+            );
+            assert_eq!(
+                artifact.artifact().post_allocation_manifest,
+                fragment_stage
+                    .source()
+                    .post_allocation_manifest()
+                    .record()
+                    .identity
+            );
+            assert_eq!(
+                validate_optimized_terminal_object_artifact(&artifact).unwrap(),
+                artifact.custody()
+            );
+            assert_eq!(
+                OptimizedTerminalObjectArtifactRecord::decode(&artifact.artifact().encode())
+                    .unwrap(),
+                *artifact.artifact()
+            );
+            assert_eq!(
+                OptimizedTerminalObjectArtifactManifest::decode(
+                    &artifact.manifest().record().encode()
+                )
+                .unwrap(),
+                *artifact.manifest().record()
+            );
+            let artifact_report =
+                optimization_pipeline_report_from_terminal_object_artifact(&artifact);
+            assert_eq!(
+                artifact_report.function_fragment().unwrap().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert!(artifact_report.ordinary_callable_entry().is_none());
+
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(artifact)
+                .expect("the rematerialized semantic entry remains an ordinary callable");
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let entry = staged.entry();
+            assert_eq!(entry.selections, selections);
+            assert_eq!(entry.calling_policy, policy);
+            assert_eq!(entry.parameters.len(), 1);
+            assert_eq!(entry.parameters[0].abi_register, parameter);
+            assert_eq!(
+                entry.parameters[0].fixed_view,
+                entry.parameters[0].assigned_view
+            );
+            assert_eq!(entry.result.abi_register, result);
+            assert_eq!(entry.returns.len(), 2);
+            assert!(entry.returns.iter().all(|returned| {
+                returned.view == entry.result.view
+                    && returned.storage_units == entry.result.storage_units
+            }));
+            assert_eq!(
+                entry.disposition,
+                OptimizedTerminalOrdinaryCallableEntryDisposition::ExternalProcessEntryBridgeRequiredV1
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryRecord::decode(&entry.encode().unwrap())
+                    .unwrap(),
+                *entry
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryManifest::decode(
+                    &staged.manifest().record().encode()
+                )
+                .unwrap(),
+                *staged.manifest().record()
+            );
+            let report =
+                optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
+            assert_eq!(
+                report.function_fragment().unwrap().source_kind,
+                FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
+            );
+            assert_eq!(
+                report.object_container().unwrap().identity,
+                staged.source().source().manifest().record().identity
+            );
+            assert_eq!(
+                report.terminal_object_artifact().unwrap().artifact,
+                staged.source().artifact().identity
+            );
+            assert_eq!(
+                report.ordinary_callable_entry().unwrap().entry,
+                entry.identity
+            );
+            let human = report
+                .render_human_text(OptimizationReportRequest::EmitHumanText)
+                .unwrap();
+            assert!(human.contains("external process entry bridge: required"));
+            assert!(human.contains("publication: unavailable"));
+        }
+    }
+
+    #[test]
+    fn ordinary_callable_entry_replays_target_abi_and_edge_specific_results() {
+        use omega_calling_conventions::{CallingPolicy, MachineRegister};
+
+        for (target, policy, parameter, result) in [
+            (
+                NativeTarget::linux_x64(),
+                CallingPolicy::SystemVAMD64,
+                MachineRegister::X86Rdi,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::windows_x64(),
+                CallingPolicy::MicrosoftX64,
+                MachineRegister::X86Rcx,
+                MachineRegister::X86Rax,
+            ),
+            (
+                NativeTarget::linux_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+            (
+                NativeTarget::macos_arm64(),
+                CallingPolicy::Aapcs64,
+                MachineRegister::Aarch64X(0),
+                MachineRegister::Aarch64X(0),
+            ),
+        ] {
+            let artifact = staged_callable_object_artifact(target, false);
+            let object_identity = artifact.source().object().identity;
+            let object_bytes = artifact.source().container().bytes.clone();
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(artifact)
+                .expect("ordinary callable classification");
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let entry = staged.entry();
+            assert_eq!(entry.calling_policy, policy);
+            assert_eq!(entry.parameters.len(), 1);
+            assert_eq!(entry.parameters[0].abi_register, parameter);
+            assert_eq!(
+                entry.parameters[0].fixed_view,
+                entry.parameters[0].assigned_view
+            );
+            assert_eq!(entry.result.abi_register, result);
+            assert_eq!(entry.returns.len(), 2);
+            assert_ne!(entry.returns[0].value, entry.returns[1].value);
+            assert_ne!(
+                entry.returns[0].virtual_register,
+                entry.returns[1].virtual_register
+            );
+            assert!(entry.returns.iter().all(|returned| {
+                returned.view == entry.result.view
+                    && returned.storage_units == entry.result.storage_units
+            }));
+            assert_eq!(staged.source().source().object().identity, object_identity);
+            assert_eq!(staged.source().source().container().bytes, object_bytes);
+            assert_eq!(staged.source().source().object().relocation_record_count, 0);
+            assert_ne!(entry.semantic_entry_symbol_name, "main");
+            assert_ne!(entry.semantic_entry_symbol_name, "_main");
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryRecord::decode(&entry.encode().unwrap())
+                    .unwrap(),
+                *entry
+            );
+            assert_eq!(
+                OptimizedTerminalOrdinaryCallableEntryManifest::decode(
+                    &staged.manifest().record().encode()
+                )
+                .unwrap(),
+                *staged.manifest().record()
+            );
+        }
+    }
+
+    #[test]
+    fn ordinary_callable_entry_accepts_both_selected_lowering_compositions_and_reports_opaquely() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+                staged_callable_object_artifact(target, true),
+            )
+            .unwrap();
+            let artifact_identity = staged.source().artifact().identity;
+            let container_identity = staged.source().source().container().identity;
+            let container_bytes = staged.source().source().container().bytes.clone();
+            assert_eq!(
+                validate_optimized_terminal_ordinary_callable_entry(&staged).unwrap(),
+                staged.custody()
+            );
+            let prior = optimization_pipeline_report_from_terminal_object_artifact(staged.source());
+            assert!(prior.ordinary_callable_entry().is_none());
+            let report =
+                optimization_pipeline_report_from_terminal_ordinary_callable_entry(&staged);
+            assert_eq!(
+                report.ordinary_callable_entry(),
+                Some(staged.manifest().record())
+            );
+            assert!(
+                report
+                    .render_human_text(OptimizationReportRequest::Suppressed)
+                    .is_none()
+            );
+            let text = report
+                .render_human_text(OptimizationReportRequest::EmitHumanText)
+                .unwrap();
+            assert!(text.contains("external process entry bridge: required"));
+            assert!(text.contains("publication: unavailable"));
+            assert_eq!(staged.source().artifact().identity, artifact_identity);
+            assert_eq!(
+                staged.source().source().container().identity,
+                container_identity
+            );
+            assert_eq!(staged.source().source().container().bytes, container_bytes);
+        }
+    }
+
+    #[test]
+    fn ordinary_callable_entry_rejects_record_manifest_and_codec_corruption() {
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().returns[0].value = ValueId::new(99_991).unwrap();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().parameters[0].storage_units.clear();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().semantic_entry_symbol_name = "main".to_owned();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.entry_mut().exit_policy =
+            TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessLeafV1;
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::RecordMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.manifest_mut().record_mut().return_count += 1;
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::ManifestMismatch)
+        );
+
+        let mut staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        staged.corrupt_custody_for_test();
+        assert_eq!(
+            validate_optimized_terminal_ordinary_callable_entry(&staged),
+            Err(OptimizedTerminalOrdinaryCallableEntryError::ReceiptMismatch)
+        );
+
+        let staged = stage_validated_optimized_terminal_ordinary_callable_entry(
+            staged_callable_object_artifact(NativeTarget::linux_x64(), false),
+        )
+        .unwrap();
+        let mut wrong_magic = staged.entry().encode().unwrap();
+        wrong_magic[0] ^= 1;
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&wrong_magic),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::WrongMagic)
+        );
+        let mut wrong_version = staged.manifest().record().encode();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryManifest::decode(&wrong_version),
+            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(2))
+        );
+        let mut trailing = staged.entry().encode().unwrap();
+        trailing.push(0);
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&trailing),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::TrailingBytes)
+        );
+        let mut stale = staged.entry().encode().unwrap();
+        stale[12] ^= 1;
+        assert_eq!(
+            OptimizedTerminalOrdinaryCallableEntryRecord::decode(&stale),
+            Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::IdentityMismatch)
+        );
     }
 }

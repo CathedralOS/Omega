@@ -67,6 +67,7 @@ pub struct StagedOptimizedRegisterHomeCustodyReceipt {
     homes: TerminalRegisterHomeIdentity,
     post_allocation_manifest: PostAllocationOptimizationManifestIdentity,
     function_count: usize,
+    structural_unit_function_count: usize,
     assignment_count: usize,
 }
 
@@ -125,6 +126,9 @@ impl StagedOptimizedRegisterHomeCustodyReceipt {
     }
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
     pub const fn assignment_count(self) -> usize {
         self.assignment_count
@@ -275,6 +279,7 @@ fn custody_receipt(
         homes: homes.identity(),
         post_allocation_manifest: manifest,
         function_count: homes.function_count(),
+        structural_unit_function_count: homes.structural_unit_function_count(),
         assignment_count: homes.assignment_count(),
     }
 }

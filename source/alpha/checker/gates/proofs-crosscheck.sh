@@ -3,7 +3,7 @@
 #
 # elab-test.sh already checks that every corpus/proofs/*.elab elaborates to a certificate the trusted implementations/beta/check.beta
 # accepts. Replaying the certificates through separately written checkers provides
-# regression evidence; it is not DDC and does not replace a soundness argument. The cross-check establishes implementations/reference/check_ref.py ==
+# regression evidence; it does not replace a soundness argument. The cross-check establishes implementations/reference/check_ref.py ==
 # implementations/beta/check.beta on a rule-coverage FUZZ corpus, but the real compositional theorems (the FTA, sqrt2
 # irrationality, the list/number-theory library — 200+ proofs) were only ever run through implementations/beta/check.beta.
 #
@@ -18,20 +18,20 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 command -v python3 >/dev/null 2>&1 || { echo "proofs-crosscheck: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
@@ -41,7 +41,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" 2>/dev/null && "$ASM" < "$T/a.asm" > "$T/a.tape" 2>/dev/null && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "proofs-crosscheck: interp.beta build failed"; exit 1; }
-CHECK="$T/check.exe"; DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+CHECK="$T/check.exe"; DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 
 PASS=0; FAIL=0; GAMMA=0; GSKIP=0
 for f in corpus/proofs/*.elab; do
@@ -52,7 +52,7 @@ for f in corpus/proofs/*.elab; do
   if [ "$vb" = accept ] && [ "$vr" = accept ]; then PASS=$((PASS+1))
   else FAIL=$((FAIL+1)); echo "  FAIL $(basename "$f") : implementations/beta/check.beta=$vb check_ref=$vr (must both accept)"; continue; fi
   # THIRD leg: implementations/gamma/checker.gamma (via refcert_to_gamma). Untranslatable/arena-exhaust -> skip; REJECT -> fail.
-  gg=$(printf '%s' "$cert" | python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/refcert_to_gamma.py 2>/dev/null)
+  gg=$(printf '%s' "$cert" | python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/refcert_to_gamma.py 2>/dev/null)
   if [ -z "$gg" ]; then GSKIP=$((GSKIP+1)); continue; fi
   gsz=$(printf '%s' "$gg" | wc -c | tr -d ' ')
   ( printf '%s\n%s\n' "$DEFS" "$gg" | perl -e 'alarm 30; exec @ARGV' "$T/interp.exe" >/dev/null 2>&1 ) 2>/dev/null; eg=$?

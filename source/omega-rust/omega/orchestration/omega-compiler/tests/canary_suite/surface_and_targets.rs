@@ -45,7 +45,7 @@ fn retired_domain_when_surface_is_absent_from_authored_corpus() {
         ["const", "domain", retired_role].join("_"),
     ];
     let syntax_exceptions = [
-        "tests/canaries/fail/domains/domain_when_clause_retired/main.omg",
+        "tests/omega/fail/domains/domain_when_clause_retired/main.omg",
         "wiki/language_guide/chapter_8_domains.md",
     ];
     let mut violations = Vec::new();

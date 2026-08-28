@@ -9,6 +9,7 @@ name = "omega_optimization_pipeline"
 path = "src/lib.rs"
 
 [dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
 omega-lowering-optimizer = { path = "../../optimization/omega-lowering-optimizer" }
 omega-machine-optimizer = { path = "../../optimization/omega-machine-optimizer" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
@@ -32,11 +33,11 @@ omega-target = { path = "../../foundation/omega-target" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
 sha2 = "0.10.9"
 
 [dev-dependencies]
 omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
-psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

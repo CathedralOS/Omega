@@ -8,11 +8,11 @@
 # reference interpreter). They were written differently, in different languages,
 # at different rungs. For each proof below — expressed in BOTH input syntaxes — the
 # two checkers must return the SAME verdict, and it must be the expected one. A
-# disagreement exposes a bug or unsupported semantic mismatch. Agreement is not
-# DDC and does not itself prove either checker sound.
+# disagreement exposes a bug or unsupported semantic mismatch. Agreement does
+# not itself prove either checker sound.
 #
 # A THIRD oracle joins below: implementations/gamma/checker_typed.gamma — the fully type-annotated checker
-# that typeck.beta accepts — mechanically type-erased (erase_types.py) to the untyped
+# that typeck.beta accepts — mechanically type-erased by the checker-owned tool to the untyped
 # surface interp runs. It must agree with implementations/gamma/checker.gamma on ALL 83 cases (user-function
 # proofs are rewritten from the wrapper rule form to the typed flat form by
 # tools/frule_to_flat.py). This makes "the checker is statically type-safe" and "the checker is
@@ -21,20 +21,20 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
@@ -44,7 +44,7 @@ stamp_beta_compiler "$T/bc.exe" >/dev/null
 bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" && "$ASM" < "$T/a.asm" > "$T/a.tape" && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
 stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "build interp.beta failed"; exit 1; }
-DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
+DEFS=$(cat "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker.gamma)
 # Third oracle: the TYPE-CHECKED checker (implementations/gamma/checker_typed.gamma, the artifact typeck.beta
 # accepts), mechanically type-erased to the untyped surface interp runs. Agreement here
 # means the checker gamma's type system validates is the SAME checker that's behaviorally
@@ -56,7 +56,7 @@ DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
 # helper where the two representations actually diverge. No case is skipped.
 TPASS=0; TFAIL=0; HAVE_TYPED=0
 if command -v python3 >/dev/null 2>&1; then
-  if python3 "${OMEGA_PATH_GAMMA}"/erase_types.py < "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
+  if python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/erase-gamma-types.py < "${OMEGA_PATH_ALPHA_CHECKER}"/implementations/gamma/checker_typed.gamma > "$T/erased.gamma"; then
     TDEFS=$(cat "$T/erased.gamma"); HAVE_TYPED=1
   fi
 fi
@@ -71,7 +71,7 @@ dia() {
   else FAIL=$((FAIL+1)); echo "  FAIL $1 : beta=$vb gamma=$gv expect=$4"; fi
   if [ "$HAVE_TYPED" = 1 ]; then
     case "$3" in
-      *Fapp*|*Frule*) t3=$(printf '%s' "$3" | python3 "${OMEGA_PATH_PROOF_KERNEL}"/tools/frule_to_flat.py) ;;  # wrapper rules -> flat
+      *Fapp*|*Frule*) t3=$(printf '%s' "$3" | python3 "${OMEGA_PATH_ALPHA_CHECKER}"/tools/frule_to_flat.py) ;;  # wrapper rules -> flat
       *) t3=$3 ;;
     esac
     printf '%s\n%s\n' "$TDEFS" "$t3" | "$T/interp.exe" >/dev/null; vt=$?

@@ -25,8 +25,8 @@ use crate::{
     TerminalResolvedSelectedFunctionLayout, validate_optimized_resolved_selected_form_layout,
 };
 
-const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v1";
-const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v1";
+const RELAXATION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation.v2";
+const REVISION_SCHEMA: &[u8] = b"omega.terminal.x86-branch-relaxation-revision.v2";
 
 /// Explicit post-layout optimization policy. It is neither part of the
 /// required baseline layout nor an encoder heuristic.
@@ -1176,6 +1176,7 @@ fn encode_alternative(hasher: &mut Sha256, alternative: TerminalMachineAlternati
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }]);
     hasher.update(alternative.variant.to_le_bytes());
 }

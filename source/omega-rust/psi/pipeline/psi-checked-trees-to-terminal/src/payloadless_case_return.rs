@@ -124,6 +124,7 @@ pub(super) fn lower_payloadless_case_return_machine(
             evidence_contract_lanes: Vec::new(),
             proof_output_calls: Vec::new(),
             closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
             machines: vec![machine],
         },
         proof_bundle: ProofBundle::default(),

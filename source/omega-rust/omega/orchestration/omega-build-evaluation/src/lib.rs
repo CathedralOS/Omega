@@ -1450,6 +1450,7 @@ pub fn validate_selected_program_entry_shape(
     .map_err(|diagnostic| vec![Diagnostic::error(diagnostic)])
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
     pub semantic_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
     pub storage_entry: omega_program_storage::SelectedProgramStorageEntryPlan,
@@ -1462,6 +1463,7 @@ pub struct SelectedProgramEntryCallingPlans {
 /// of becoming independent driver couriers. A test-harness entry-name override
 /// is deliberately absent: it cannot acquire source, calling-plan, or storage
 /// authority through this carrier.
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCompilerProgramEntry {
     source_signature: omega_program_storage::SelectedProgramEntrySourceSignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,

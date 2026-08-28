@@ -1122,7 +1122,9 @@ dependencies = [
  "omega-target",
  "omega-terminal-isa-x86_64",
  "omega-terminal-selected-instructions",
+ "omega-terminal-target-operations",
  "psi-core",
+ "psi-terminal",
  "sha2",
 ]
 
@@ -1237,6 +1239,7 @@ dependencies = [
 name = "omega-optimization-pipeline"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-lowering-optimizer",
  "omega-machine-optimizer",
  "omega-object-file",
@@ -1424,6 +1427,7 @@ dependencies = [
  "psi-language-semantics",
  "psi-symbols",
  "psi-typed-trees",
+ "sha2",
 ]
 
 [[package]]
@@ -1658,6 +1662,7 @@ dependencies = [
  "psi-syntax-trees",
  "serde",
  "serde_json",
+ "sha2",
 ]
 
 [[package]]
@@ -1942,6 +1947,7 @@ version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
  "omega-optimization-core",
+ "omega-optimization-unit",
  "omega-register-model",
  "omega-target",
  "omega-terminal-installation-evidence",
@@ -1954,6 +1960,7 @@ dependencies = [
 name = "omega-terminal-legalized-operations"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-target",
@@ -2016,10 +2023,12 @@ dependencies = [
 name = "omega-terminal-native-realization"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-effects",
  "omega-lowering-optimizer",
  "omega-optimization-core",
  "omega-optimization-pipeline",
+ "omega-program-storage",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",
@@ -2030,9 +2039,16 @@ dependencies = [
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-target-operations",
  "omega-terminal-target-operations-to-assigned-target-operations",
+ "psi-checked-trees",
+ "psi-checked-trees-to-terminal",
  "psi-diagnostics",
  "psi-proof-admission",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-syntax-trees-to-symbol-resolved-trees",
  "psi-terminal-codec",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees-to-checked-trees",
 ]
 
 [[package]]
@@ -2054,6 +2070,7 @@ dependencies = [
 name = "omega-terminal-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-register-model",
@@ -2093,12 +2110,15 @@ dependencies = [
 name = "omega-terminal-target-operations-to-selected-instructions"
 version = "0.1.0"
 dependencies = [
+ "omega-calling-conventions",
  "omega-optimization-core",
  "omega-optimization-unit",
  "omega-optimization-validation",
  "omega-register-model",
  "omega-target",
  "omega-terminal-abstract-operations",
+ "omega-terminal-abstract-operations-to-target-operations",
+ "omega-terminal-isa-x86_64",
  "omega-terminal-legalized-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
@@ -2271,7 +2291,9 @@ dependencies = [
  "psi-terminal-interpreter",
  "psi-terminal-verifier",
  "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
  "psi-typed-trees-to-checked-trees",
+ "psi-validation",
 ]
 
 [[package]]

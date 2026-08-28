@@ -1,0 +1,232 @@
+; Exact main.body/main.resource custody for the whole-root checker.
+;
+; PPRC describes the child outcome but does not own the caller's RESOURCE_FAIL
+; guard, success-only skip_ws suffix, loop backedge, or resource return.  This
+; module reconstructs those sites from the canonical source/artifact tables and
+; scans the complete decoded regions for hidden I/O, halt, stores, div, rem, or
+; invalid fallthrough.
+
+root_observation_shape_init:
+        call root_observation_require_main_shape
+        call root_observation_require_body_events
+        call root_observation_require_body_data
+        call root_observation_require_body_edges
+        call root_observation_require_body_censuses
+        call root_observation_require_quiet_regions
+        imm r1, 616016
+        imm r2, 826823506              ; RSH1
+        store r1, r2
+        jmp root_observation_gfp_init
+
+root_observation_require_main_shape:
+        ; main is exact procedure69: arity zero, one local slot, six blocks.
+        imm r20, 7151616
+        imm r21, 69
+        imm r22, 0
+        call transfer_require_cell
+        imm r20, 7159808
+        imm r21, 69
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 349
+        imm r21, 354
+        imm r22, 69
+        call exact_require_proc_blocks
+        imm r20, 69
+        call call_bounds_frame_bytes
+        imm r1, 16
+        jeq r0, r1, root_observation_require_body_blocks
+        jmp reject
+root_observation_require_body_blocks:
+        imm r20, 353
+        imm r21, 51405
+        call exact_require_block_pc
+        imm r20, 354
+        imm r21, 51549
+        call exact_require_block_pc
+        imm r20, 3145728
+        imm r21, 353
+        imm r22, 69
+        call transfer_require_cell
+        imm r20, 3178496
+        imm r21, 353
+        imm r22, 1
+        call transfer_require_cell
+        imm r20, 3145728
+        imm r21, 354
+        imm r22, 69
+        call transfer_require_cell
+        imm r20, 3178496
+        imm r21, 354
+        imm r22, 1
+        call transfer_require_cell
+        ret
+
+root_observation_require_body_events:
+        ; parse_proc(), zero arguments, empty ambient expression stack.
+        imm r20, 610
+        imm r21, 353
+        imm r22, 51405
+        imm r23, 0
+        imm r24, 0
+        imm r25, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r25
+        imm r26, 51414
+        call summary_require_call_site
+
+        ; The whitespace call exists only on the RESOURCE_FAIL==0 suffix.
+        imm r20, 611
+        imm r21, 353
+        imm r22, 51531
+        imm r23, 0
+        imm r24, 0
+        imm r25, 4277
+        imm r26, 51540
+        call summary_require_call_site
+
+        ; Explicit resource return after the exact load expression.
+        imm r20, 612
+        imm r21, 354
+        imm r22, 5
+        imm r23, 51581
+        call exact_require_event
+        ret
+
+root_observation_require_body_data:
+        ; main.body reads RESOURCE_FAIL for the exact !=0 guard.
+        imm r20, 93
+        imm r21, 353
+        imm r22, 1
+        imm r23, 8
+        imm r24, 51424
+        call transfer_require_memory
+        imm r20, 812
+        imm r21, 353
+        imm r22, 1
+        imm r23, 2097072
+        imm r24, 51414
+        call transfer_require_primitive
+        imm r20, 814
+        imm r21, 353
+        imm r22, 1
+        imm r23, 0
+        imm r24, 51443
+        call transfer_require_primitive
+        imm r20, 813
+        imm r21, 353
+        imm r22, 3
+        imm r23, 11                   ; exact != comparison
+        imm r24, 51453
+        call transfer_require_primitive
+        imm r20, 234
+        imm r21, 353
+        imm r23, 51427
+        call exact_require_binary_push
+
+        ; main.resource returns the loaded word, not a newly invented 252.
+        imm r20, 94
+        imm r21, 354
+        imm r22, 1
+        imm r23, 8
+        imm r24, 51559
+        call transfer_require_memory
+        imm r20, 815
+        imm r21, 354
+        imm r22, 1
+        imm r23, 2097072
+        imm r24, 51549
+        call transfer_require_primitive
+        ret
+
+root_observation_require_body_edges:
+        ; Guard true jumps to resource; false falls through to skip_ws.
+        imm r20, 289
+        imm r21, 353
+        imm r22, 1
+        imm r23, 354                   ; exact resource block target
+        imm r24, 51512
+        call exact_require_transition
+        imm r20, 51512
+        imm r21, 13                   ; jz
+        call require_tape_byte
+        imm r20, 51513
+        imm r21, 0
+        call require_tape_byte
+        imm r20, 51514
+        imm r21, 51531                ; zero -> success-only skip_ws
+        call require_tape_word
+        imm r20, 51522
+        imm r21, 12                   ; jmp
+        call require_tape_byte
+        imm r20, 51523
+        imm r21, 51549                ; nonzero -> resource
+        call require_tape_word
+
+        ; Exact unconditional success backedge to main.loop.
+        imm r20, 290
+        imm r21, 353
+        imm r22, 0
+        imm r23, 352
+        imm r24, 51540
+        call exact_require_transition
+        imm r20, 51540
+        imm r21, 12
+        call require_tape_byte
+        imm r20, 51541
+        imm r21, 51262                 ; exact success backedge target
+        call require_tape_word
+
+        ; Exact resource epilogue and synthetic fallthrough epilogue.
+        imm r20, 51562
+        imm r21, 51581
+        call exact_require_epilogue
+        imm r20, 51582
+        imm r21, 51601
+        call exact_require_epilogue
+        ret
+
+root_observation_require_body_censuses:
+        ; These are the final table rows: no omitted main suffix effect exists.
+        imm r20, 353
+        imm r21, 354
+        imm r22, 242
+        imm r23, 242                  ; no local accesses
+        imm r24, 93
+        imm r25, 95                   ; two RESOURCE_FAIL loads
+        imm r26, 289
+        imm r27, 291                  ; guard and backedge
+        imm r28, 610
+        imm r29, 613                  ; parse, skip, return
+        call exact_require_effect_census
+        imm r20, 353
+        imm r21, 354
+        imm r22, 812
+        imm r23, 816                  ; address, !=, zero, address
+        imm r24, 234
+        imm r25, 235                  ; guard-left push
+        imm r26, 371
+        imm r27, 371                  ; no argument pushes
+        imm r28, 0
+        imm r29, 0                    ; no store-address pushes
+        call summary_require_expr_census
+        ret
+
+root_observation_require_quiet_regions:
+        ; Calls are semantically discharged by PPRC/SWSQ/SWSX.  Locally there
+        ; is no direct output, halt, byte access, div/rem, or hidden store.
+        imm r20, 51405
+        imm r21, 51549
+        imm r22, 2                    ; parse_proc and success-only skip_ws
+        imm r23, 0
+        imm r24, 1                    ; exact guard-left stack push store
+        call exact_quiet_scan_region
+        imm r20, 51549
+        imm r21, 51602
+        imm r22, 0
+        imm r23, 2                    ; explicit and synthetic epilogues
+        imm r24, 0
+        call exact_quiet_scan_region
+        imm r1, 616048
+        imm r2, 1                    ; exact suffix/trap-free decoded shape
+        store r1, r2
+        ret

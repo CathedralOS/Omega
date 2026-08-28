@@ -372,6 +372,30 @@ pub fn validate_nominal_callback_placement_bindings(
             )));
             continue;
         }
+        let Some(resource_envelope) = checked
+            .facts
+            .contract_plans
+            .resource_envelope(nominal_use.selected_machine, nominal_use.selected_entry)
+        else {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` is missing its exact checked entry resource envelope",
+                nominal_use.canonical_requirement_overload
+            )));
+            continue;
+        };
+        if placement.resource_receipt.contract_fingerprint()
+            != nominal_use.selected_actual_envelope.contract_fingerprint
+            || placement
+                .resource_receipt
+                .validate_against(resource_envelope)
+                .is_err()
+        {
+            diagnostics.push(Diagnostic::error(format!(
+                "nominal callback use for `{}` does not bind its exact checked entry resource receipt",
+                nominal_use.canonical_requirement_overload
+            )));
+            continue;
+        }
         let private_materialization = match bound_private_callback_materialization(
             nominal_use,
             realizations,
@@ -395,6 +419,7 @@ pub fn validate_nominal_callback_placement_bindings(
             satisfaction_requirement: nominal_use.satisfaction_requirement,
             canonical_requirement_overload: nominal_use.canonical_requirement_overload.clone(),
             boundary_calling_plan_fingerprint: realized_fingerprint,
+            resource_receipt: placement.resource_receipt,
             boundary_entry_plan: validated.plan().clone(),
             private_materialization,
         });
@@ -886,9 +911,14 @@ pub fn close_outbound_callback_materializations(
                     placement.boundary_calling_plan_fingerprint == old_fingerprint
                 })
             {
+                let resource_receipt = nominal_use
+                    .callback_placement
+                    .expect("matched callback placement")
+                    .resource_receipt;
                 nominal_use.callback_placement =
                     Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
                         boundary_calling_plan_fingerprint: new_fingerprint,
+                        resource_receipt,
                     });
             }
         }
@@ -2948,14 +2978,28 @@ mod tests {
         let boundary_trait = psi_symbols::SymbolHandle::from_arena_index(1);
         let requirement = psi_symbols::SymbolHandle::from_arena_index(2);
         let registration_operation = psi_symbols::SymbolHandle::from_arena_index(3);
+        let selected_machine = psi_symbols::SymbolHandle::from_arena_index(4);
+        let selected_entry = psi_symbols::SymbolHandle::from_arena_index(5);
+        let selected_actual_fingerprint = 7;
+        let resource_envelope =
+            psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                selected_machine,
+                selected_entry,
+                selected_actual_fingerprint,
+            );
+        let resource_receipt =
+            psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+                &resource_envelope,
+            )
+            .expect("canonical callback resource receipt");
         let nominal_use = psi_checked_trees::CheckedNominalMachineUse {
             site: psi_checked_trees::NominalMachineUseSite::Expression(
                 psi_typed_trees::expression::ExpressionHandle::from_arena_index(1),
             ),
             registration_operation,
             static_machine_ordinal: 0,
-            selected_machine: psi_symbols::SymbolHandle::from_arena_index(4),
-            selected_entry: psi_symbols::SymbolHandle::from_arena_index(5),
+            selected_machine,
+            selected_entry,
             satisfaction_trait: boundary_trait,
             satisfaction_requirement: requirement,
             canonical_requirement_overload: "Handler::call(i32)->i32".to_owned(),
@@ -2964,17 +3008,41 @@ mod tests {
                     contract_fingerprint: 6,
                 },
             selected_actual_envelope: psi_checked_trees::CheckedMachineContractEnvelopeIdentity {
-                contract_fingerprint: 7,
+                contract_fingerprint: selected_actual_fingerprint,
             },
             callback_placement: Some(psi_checked_trees::CheckedCallbackPlacementIdentity {
                 boundary_calling_plan_fingerprint: fingerprint,
+                resource_receipt,
             }),
             refinement: psi_checked_trees::CheckedMachineContractRefinement {
                 published_requirement_fingerprint: 6,
-                selected_actual_fingerprint: 7,
+                selected_actual_fingerprint,
             },
         };
         let mut checked = psi_checked_trees::CheckedTrees::default();
+        checked.facts.contract_plans.realized_envelopes = vec![
+            psi_checked_trees::RealizedMachineContractEnvelope {
+                machine: selected_machine,
+                contract_fingerprint: selected_actual_fingerprint,
+                effective_service_reach: Vec::new(),
+                concrete_service_reach: Vec::new(),
+                unresolved_installation_reaches: Vec::new(),
+                effective_synchronous_invocations: Vec::new(),
+                checked_may_suspend: false,
+                checked_may_block: false,
+                checked_termination:
+                    psi_language_semantics::TerminationGuarantee::NoGuarantee,
+                checked_crash: psi_checked_trees::CrashPlan::default(),
+                mutation: Vec::new(),
+                capabilities: Vec::new(),
+                resources:
+                    psi_checked_trees::CheckedMachineResourceEnvelopes::from_checked_contract_entries(
+                        selected_machine,
+                        selected_actual_fingerprint,
+                        [selected_entry],
+                    ),
+            },
+        ];
         checked.facts.nominal_machine_uses =
             psi_checked_trees::NominalMachineUseFacts::try_with_uses([nominal_use])
                 .expect("valid nominal callback row");
@@ -3040,12 +3108,54 @@ mod tests {
         assert_eq!(bound.selected_machine, nominal_use.selected_machine);
         assert_eq!(bound.selected_entry, nominal_use.selected_entry);
         assert_eq!(
+            bound.resource_receipt,
+            nominal_use
+                .callback_placement
+                .expect("checked callback placement")
+                .resource_receipt
+        );
+        assert_eq!(
             bound.boundary_calling_plan_fingerprint,
             realizations[0].fingerprint
         );
         assert_eq!(
             bound.boundary_entry_plan,
             realizations[0].boundary_entry_plan
+        );
+    }
+
+    #[test]
+    fn nominal_callback_placement_rejoins_the_current_entry_resource_envelope() {
+        let (mut checked, realizations) = nominal_callback_fixture();
+        checked.facts.contract_plans.realized_envelopes.clear();
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("a callback cannot lose its current resource envelope");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("missing its exact checked entry")
+        );
+
+        let (mut checked, realizations) = nominal_callback_fixture();
+        let nominal_use = &mut checked.facts.nominal_machine_uses.uses[0];
+        let foreign = psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+            nominal_use.selected_machine,
+            psi_symbols::SymbolHandle::from_arena_index(17),
+            nominal_use.selected_actual_envelope.contract_fingerprint,
+        );
+        nominal_use
+            .callback_placement
+            .as_mut()
+            .expect("callback placement")
+            .resource_receipt =
+            psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(&foreign)
+                .expect("canonical foreign entry receipt");
+        let diagnostics = validate_nominal_callback_placement_bindings(&checked, &realizations)
+            .expect_err("a callback cannot substitute another entry resource receipt");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("does not bind its exact checked entry resource receipt")
         );
     }
 

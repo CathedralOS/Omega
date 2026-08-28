@@ -1,0 +1,554 @@
+; Conditional semantics for gen_to() procedure66.
+;
+; This process does not import another checker's theorem cells. SANT and the
+; four package markers below name antecedents which the shell establishes by
+; conjoining Checker A, Checker E, Checker F, and the statement-shape process
+; over the identical control.bundle. The result published here is therefore
+; the p66 implication, not an unconditional cross-process theorem.
+;
+; Guarded trace, for target slice T and entry label Word ell:
+;   GEXP || "jz r0," || LREF(ell) || "\n" || "jmp " || STATE(T) ||
+;   "\n" || LREF(ell) || ":\n"
+; and LBL becomes ell+1 modulo 2^64. GEXP's numeric-252 completion still takes
+; the entire suffix because its exact continuation is the new_label call.
+;
+; Plain trace:
+;   "jmp " || STATE(T) || "\n"
+; It restores CUR to the saved pre-lookahead value. It does not restore IDOFF or
+; IDLEN: those retain the lookahead identifier written by the second read_ident.
+;
+; Public implication: 546188 SDTO. Private cells: 548000..<548272.
+
+statement_gen_to_rules_init:
+        imm r1, 546188
+        imm r2, 0
+        store r1, r2
+        call statement_gen_to_require_antecedents
+        call statement_gen_to_reset_private
+        call statement_gen_to_require_selected_shape
+        call statement_gen_to_prove_target_custody
+        call statement_gen_to_prove_lookahead_partition
+        call statement_gen_to_prove_guarded
+        call statement_gen_to_prove_plain
+        call statement_gen_to_publish
+        jmp statement_gen_stmt_rules_init
+
+statement_gen_to_require_antecedents:
+        imm r20, 546156
+        imm r21, 1414414675             ; SANT antecedent table complete
+        call exact_require_cell
+        imm r20, 546108
+        imm r21, 1480936513             ; ALEX lexical/cursor/output package
+        call exact_require_cell
+        imm r20, 546132
+        imm r21, 1279413313             ; ALBL modular label package
+        call exact_require_cell
+        imm r20, 546140
+        imm r21, 1347962177             ; AEXP expression package
+        call exact_require_cell
+        imm r20, 546148
+        imm r21, 1346917185             ; ASHP exact statement shape
+        call exact_require_cell
+        ret
+
+statement_gen_to_reset_private:
+        imm r10, 548000
+statement_gen_to_reset_private_loop:
+        imm r1, 548272
+        jlt r10, r1, statement_gen_to_reset_private_one
+        ret
+statement_gen_to_reset_private_one:
+        imm r2, 0
+        store r10, r2
+        imm r1, 8
+        add r10, r1
+        jmp statement_gen_to_reset_private_loop
+
+; r20=row,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+statement_gen_to_require_call:
+        mov r26, r25
+        mov r25, r24
+        imm r24, 0                    ; exact ambient expression height
+        call summary_require_call_site
+        ret
+
+; r20=row,r21=block,r22=call pc. Every emit lowers to __write_str at31 and
+; returns to pc+9. Literal identity/length is supplied by ALEX's exhaustive WSTR
+; clauses; exact row order below selects the seven clauses used by p66.
+statement_gen_to_require_emit:
+        mov r30, r20
+        mov r31, r21
+        mov r32, r22
+        mov r20, r30
+        mov r21, r31
+        imm r22, 4
+        mov r23, r32
+        call exact_require_event
+        mov r20, r32
+        imm r21, 31
+        mov r22, r32
+        imm r1, 9
+        add r22, r1
+        call exact_require_call
+        ret
+
+statement_gen_to_require_return:
+        mov r23, r22
+        imm r22, 5
+        call exact_require_event
+        ret
+
+; Recheck the control landmarks which give the conditional clauses their exact
+; artifact interpretation. ASHP separately owns the exhaustive p66 inventory.
+statement_gen_to_require_selected_shape:
+        imm r20, 258
+        imm r21, 319
+        imm r22, 1
+        imm r23, 320
+        imm r24, 46356                ; is_when()==1 -> guarded
+        call exact_require_transition
+        imm r20, 259
+        imm r21, 319
+        imm r22, 0
+        imm r23, 321
+        imm r24, 46375                ; complement -> plain
+        call exact_require_transition
+
+        ; First and lookahead whitespace/identifier calls plus exact classifier
+        ; handoff. These continuations keep each saved value tied to the right
+        ; identifier rather than to the later lookahead token.
+        imm r20, 521
+        imm r21, 318
+        imm r22, 46130
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 46139
+        call statement_gen_to_require_call
+        imm r20, 522
+        imm r21, 318
+        imm r22, 46139
+        imm r23, 0
+        imm r24, 5217
+        imm r25, 46148
+        call statement_gen_to_require_call
+        imm r20, 523
+        imm r21, 318
+        imm r22, 46212
+        imm r23, 0
+        imm r24, 4277
+        imm r25, 46221
+        call statement_gen_to_require_call
+        imm r20, 524
+        imm r21, 318
+        imm r22, 46253
+        imm r23, 0
+        imm r24, 5217
+        imm r25, 46262
+        call statement_gen_to_require_call
+        imm r20, 525
+        imm r21, 319
+        imm r22, 46262
+        imm r23, 0
+        imm r24, 9670
+        imm r25, 46271
+        call statement_gen_to_require_call
+
+        ; Guarded child sequence. In particular GEXP returns directly to NLBL.
+        imm r20, 526
+        imm r21, 320
+        imm r22, 46384
+        imm r23, 0
+        imm r24, 61                    ; gen_expr procedure identity
+        call exact_proc_entry_r24
+        imm r25, 46393
+        call statement_gen_to_require_call
+        imm r20, 527
+        imm r21, 320
+        imm r22, 46393
+        imm r23, 0
+        imm r24, 1131
+        imm r25, 46402
+        call statement_gen_to_require_call
+        imm r20, 528
+        imm r21, 320
+        imm r22, 46456
+        call statement_gen_to_require_emit
+        imm r20, 529
+        imm r21, 320
+        imm r22, 46516
+        imm r23, 1
+        imm r24, 1366
+        imm r25, 46525
+        call statement_gen_to_require_call
+        imm r20, 530
+        imm r21, 320
+        imm r22, 46555
+        call statement_gen_to_require_emit
+        imm r20, 531
+        imm r21, 320
+        imm r22, 46597
+        call statement_gen_to_require_emit
+        imm r20, 532
+        imm r21, 320
+        imm r22, 46708
+        imm r23, 2
+        imm r24, 45404
+        imm r25, 46717
+        call statement_gen_to_require_call
+        imm r20, 533
+        imm r21, 320
+        imm r22, 46747
+        call statement_gen_to_require_emit
+        imm r20, 534
+        imm r21, 320
+        imm r22, 46807
+        imm r23, 1
+        imm r24, 1366
+        imm r25, 46816
+        call statement_gen_to_require_call
+        imm r20, 535
+        imm r21, 320
+        imm r22, 46847
+        call statement_gen_to_require_emit
+        imm r20, 536
+        imm r21, 320
+        imm r22, 46885
+        call statement_gen_to_require_return
+
+        ; Plain suffix after the unique CUR restore.
+        imm r20, 537
+        imm r21, 321
+        imm r22, 46983
+        call statement_gen_to_require_emit
+        imm r20, 538
+        imm r21, 321
+        imm r22, 47094
+        imm r23, 2
+        imm r24, 45404
+        imm r25, 47103
+        call statement_gen_to_require_call
+        imm r20, 539
+        imm r21, 321
+        imm r22, 47133
+        call statement_gen_to_require_emit
+        imm r20, 540
+        imm r21, 321
+        imm r22, 47171
+        call statement_gen_to_require_return
+
+        ; The full p66 memory census has exactly the three entry loads and the
+        ; sole plain-block CUR store. There is no guarded restore and no p66
+        ; store to IDOFF/IDLEN.
+        imm r20, 318
+        imm r21, 321
+        imm r22, 207
+        imm r23, 218
+        imm r24, 78
+        imm r25, 82
+        imm r26, 258
+        imm r27, 260
+        imm r28, 521
+        imm r29, 541
+        call exact_require_effect_census
+        imm r20, 81
+        imm r21, 321
+        imm r22, 2
+        imm r23, 8
+        imm r24, 46947                ; exact CUR store
+        call transfer_require_memory
+        imm r1, 548000
+        imm r2, 1                    ; selected shape/control complete
+        store r1, r2
+        ret
+
+; The first read_ident result is copied into local slots0/1 before the second
+; read_ident may overwrite IDOFF/IDLEN. Both state-label calls reload these same
+; slots; the lookahead cannot retarget either branch.
+statement_gen_to_prove_target_custody:
+        imm r20, 207
+        imm r21, 318
+        imm r22, 2
+        imm r23, 0
+        imm r24, 46161
+        call transfer_require_local
+        imm r20, 208
+        imm r21, 318
+        imm r22, 2
+        imm r23, 1
+        imm r24, 46193
+        call transfer_require_local
+        imm r20, 212
+        imm r21, 320
+        imm r22, 1
+        imm r23, 0
+        imm r24, 46606
+        call transfer_require_local
+        imm r20, 213
+        imm r21, 320
+        imm r22, 1
+        imm r23, 1
+        imm r24, 46641
+        call transfer_require_local
+        imm r20, 216
+        imm r21, 321
+        imm r22, 1
+        imm r23, 0
+        imm r24, 46992
+        call transfer_require_local
+        imm r20, 217
+        imm r21, 321
+        imm r22, 1
+        imm r23, 1
+        imm r24, 47027
+        call transfer_require_local
+        imm r1, 548008
+        imm r2, 1                    ; saved target slice custody
+        store r1, r2
+        imm r1, 548176
+        store r1, r2                 ; survives lookahead read_ident
+        ret
+
+statement_gen_to_prove_lookahead_partition:
+        ; Local2 snapshots CUR before the lookahead identifier.
+        imm r20, 209
+        imm r21, 318
+        imm r22, 2
+        imm r23, 2
+        imm r24, 46234
+        call transfer_require_local
+        imm r20, 215
+        imm r21, 321
+        imm r22, 1
+        imm r23, 2
+        imm r24, 46912
+        call transfer_require_local
+        imm r1, 548016
+        imm r2, 1                    ; saved pre-lookahead CUR
+        store r1, r2
+        imm r1, 548024
+        imm r2, 2                    ; exhaustive guarded/plain split
+        store r1, r2
+        imm r1, 548184
+        imm r2, 1                    ; guarded has no cursor restore
+        store r1, r2
+        imm r1, 548192
+        imm r2, 1                    ; plain restore address is CUR only
+        store r1, r2
+        ret
+
+; Prove both possible GEXP completion classes. Case0 is ordinary completion;
+; case1 is numeric status252. Exact PC46393 makes new_label and the whole suffix
+; unconditional in both cases. The label successor check is explicitly modular.
+statement_gen_to_prove_guarded:
+        imm r10, 0
+        imm r11, 0
+statement_gen_to_guarded_case_loop:
+        imm r1, 2
+        jlt r10, r1, statement_gen_to_guarded_case
+        imm r1, 2
+        jeq r11, r1, statement_gen_to_guarded_modular_label
+        jmp reject
+statement_gen_to_guarded_case:
+        imm r1, 548168
+        store r1, r10                  ; selected GEXP completion provenance
+        imm r1, 548032
+        imm r2, 1
+        store r1, r2                   ; GEXP returns to exact suffix
+        imm r1, 548040
+        store r1, r2                   ; suffix retained, including case252
+        imm r1, 1
+        add r10, r1
+        add r11, r1
+        jmp statement_gen_to_guarded_case_loop
+
+statement_gen_to_guarded_modular_label:
+        ; ALBL supplies ell -> ell+1 for arbitrary Word ell. Recheck the wrap
+        ; endpoint so this module cannot silently strengthen it to freshness.
+        imm r20, 0
+        imm r1, 1
+        sub r20, r1                  ; WORD_MAX = 0-1 modulo 2^64
+        add r20, r1
+        imm r1, 0
+        jeq r20, r1, statement_gen_to_guarded_label_wrap
+        jmp reject
+statement_gen_to_guarded_label_wrap:
+        ; Exact local3 custody carries NLBL's returned old ell to both LREF
+        ; arguments. The argument-push rows also pin the two state-label slices
+        ; in noff,nlen order on both branches.
+        imm r20, 210
+        imm r21, 320
+        imm r22, 2
+        imm r23, 3
+        imm r24, 46402
+        call transfer_require_local
+        imm r20, 211
+        imm r21, 320
+        imm r22, 1
+        imm r23, 3
+        imm r24, 46465
+        call transfer_require_local
+        imm r20, 214
+        imm r21, 320
+        imm r22, 1
+        imm r23, 3
+        imm r24, 46756
+        call transfer_require_local
+        imm r20, 353
+        imm r21, 320
+        imm r23, 46484
+        call exact_require_argument_push
+        imm r20, 354
+        imm r21, 320
+        imm r23, 46625
+        call exact_require_argument_push
+        imm r20, 355
+        imm r21, 320
+        imm r23, 46660
+        call exact_require_argument_push
+        imm r20, 356
+        imm r21, 320
+        imm r23, 46775
+        call exact_require_argument_push
+        imm r20, 357
+        imm r21, 321
+        imm r23, 47011
+        call exact_require_argument_push
+        imm r20, 358
+        imm r21, 321
+        imm r23, 47046
+        call exact_require_argument_push
+        imm r1, 548048
+        imm r2, 1                    ; exactly one modular NLBL child
+        store r1, r2
+        imm r1, 548056
+        store r1, r2                 ; WORD_MAX -> 0 retained
+        imm r1, 548240
+        imm r2, 2
+        store r1, r2                 ; same ell passed to two LREF calls
+        imm r1, 548248
+        imm r2, 1
+        store r1, r2                 ; one saved-target STATE label
+
+        ; ALEX fixes five literals at rows528/530/531/533/535 with lengths
+        ; 6,1,4,1,2. ALBL fixes the two LREF children and modular LBL update.
+        imm r1, 548224
+        imm r2, 14
+        store r1, r2                 ; exact guarded fixed-literal bytes
+        imm r1, 548064
+        imm r2, 1
+        store r1, r2                 ; STATE uses saved target, not lookahead
+        imm r1, 548072
+        store r1, r2                 ; exact GEXP/jz/LREF/jmp/STATE/LREF trace
+        imm r1, 548080
+        store r1, r2                 ; quiet return/restored p66 frame
+        ret
+
+statement_gen_to_prove_plain:
+        imm r20, 548016
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548192
+        imm r21, 1
+        call exact_require_cell
+        ; Exact local2 -> row81 proves CUR:=save. The complete memory census
+        ; proves IDOFF/IDLEN are not restored: their lookahead values remain.
+        imm r1, 548088
+        imm r2, 1
+        store r1, r2                   ; exact CUR restoration
+        imm r1, 548096
+        store r1, r2                   ; ID globals retain lookahead identifier
+        imm r1, 548104
+        store r1, r2                   ; STATE uses saved target slots0/1
+        imm r1, 548232
+        imm r2, 5
+        store r1, r2                   ; "jmp " plus newline
+        imm r1, 548112
+        imm r2, 1
+        store r1, r2                   ; exact jmp/STATE/newline trace
+        imm r1, 548120
+        store r1, r2                   ; LBL unchanged, restored p66 frame
+        ret
+
+statement_gen_to_publish:
+        imm r20, 548000
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548008
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548024
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 548032
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548040
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548048
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548056
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548064
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548072
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548080
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548088
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548096
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548104
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548112
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548120
+        imm r21, 1
+        call exact_require_cell
+        imm r20, 548224
+        imm r21, 14
+        call exact_require_cell
+        imm r20, 548232
+        imm r21, 5
+        call exact_require_cell
+        imm r20, 548240
+        imm r21, 2
+        call exact_require_cell
+        imm r20, 548248
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 548128
+        imm r2, 2                    ; guarded and plain relations complete
+        store r1, r2
+        imm r20, 548128
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 548136
+        imm r2, 2                    ; ordinary and numeric252 GEXP suffixes
+        store r1, r2
+        imm r20, 548136
+        imm r21, 2
+        call exact_require_cell
+        imm r1, 548144
+        imm r2, 1
+        store r1, r2
+        imm r20, 548144
+        imm r21, 1
+        call exact_require_cell
+        imm r1, 546188
+        imm r2, 1330922579             ; SDTO conditional p66 implication
+        store r1, r2
+        imm r20, 546188
+        imm r21, 1330922579
+        call exact_require_cell
+        ret

@@ -51,8 +51,28 @@ pub fn validate_terminal_register_homes(
         ) != register_environment
         || plan.functions.len() != legality.plan().functions.len()
         || plan.functions.len() != ranges.plan().functions.len()
+        || plan.structural_unit_functions.len() != legality.plan().structural_unit_functions.len()
+        || plan.structural_unit_functions.len() != ranges.plan().structural_unit_functions.len()
     {
         return Err(TerminalRegisterHomeError::RootMismatch);
+    }
+    for (function_index, ((actual, legality), ranges)) in plan
+        .structural_unit_functions
+        .iter()
+        .zip(&legality.plan().structural_unit_functions)
+        .zip(&ranges.plan().structural_unit_functions)
+        .enumerate()
+    {
+        if actual.machine != legality.machine
+            || actual.machine != ranges.machine
+            || !actual.assignments.is_empty()
+            || !legality.virtual_registers.is_empty()
+            || !ranges.virtual_registers.is_empty()
+        {
+            return Err(TerminalRegisterHomeError::FunctionMismatch {
+                function: function_index,
+            });
+        }
     }
     for (function_index, ((actual, legality), ranges)) in plan
         .functions
@@ -90,6 +110,7 @@ pub fn validate_terminal_register_homes(
         register_environment: plan.register_environment,
         allocator_availability: plan.allocator_availability,
         function_count: plan.functions.len(),
+        structural_unit_function_count: plan.structural_unit_functions.len(),
         assignment_count: plan
             .functions
             .iter()

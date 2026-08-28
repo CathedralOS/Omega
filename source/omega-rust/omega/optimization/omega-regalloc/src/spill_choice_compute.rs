@@ -609,10 +609,9 @@ mod tests {
 
     #[test]
     fn spill_choice_rejects_early_clobber_phase_hazards() {
-        let mut early_ranges = ranges(&[(0, 0), (1, 1)]);
-        early_ranges
-            .early_clobbers
-            .push(TerminalEarlyClobberConstraint {
+        let mut early_ranges = ranges(&[(0, 0), (1, 1), (2, 2)]);
+        early_ranges.early_clobbers.extend([
+            TerminalEarlyClobberConstraint {
                 block: TerminalSelectedBlockId(0),
                 position: TerminalLivenessPosition(0),
                 instruction: TerminalSelectedInstructionId(0),
@@ -626,7 +625,24 @@ mod tests {
                     virtual_register: TerminalVirtualRegisterId(0),
                     class: RegisterClassId(0),
                 }],
-            });
+            },
+            TerminalEarlyClobberConstraint {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(1),
+                instruction: TerminalSelectedInstructionId(1),
+                early_point: TerminalLiveRangePoint(2),
+                def_operand: 1,
+                def_virtual_register: TerminalVirtualRegisterId(2),
+                def_class: RegisterClassId(0),
+                def_point: TerminalLiveRangePoint(3),
+                uses: vec![TerminalEarlyClobberUse {
+                    operand: 0,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    class: RegisterClassId(0),
+                }],
+            },
+        ]);
+        assert_eq!(early_ranges.early_clobbers.len(), 2);
         assert_eq!(
             reject_constraint_topologies(0, &early_ranges),
             Err(TerminalSpillChoiceError::UnsupportedEarlyClobber { function: 0 })
@@ -661,6 +677,55 @@ mod tests {
         ]);
         assert_eq!(
             reject_constraint_topologies(0, &tied),
+            Err(TerminalSpillChoiceError::UnsupportedTiedOperands { function: 0 })
+        );
+
+        let mut composed = ranges(&[(0, 0), (1, 2), (2, 2), (3, 3)]);
+        composed.tied_pairs.extend([
+            crate::TerminalDistinctUseDefTie {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(0),
+                instruction: TerminalSelectedInstructionId(0),
+                use_operand: 0,
+                use_virtual_register: TerminalVirtualRegisterId(0),
+                use_point: TerminalLiveRangePoint(0),
+                def_operand: 1,
+                def_virtual_register: TerminalVirtualRegisterId(1),
+                def_point: TerminalLiveRangePoint(1),
+                class: RegisterClassId(0),
+            },
+            crate::TerminalDistinctUseDefTie {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(1),
+                instruction: TerminalSelectedInstructionId(1),
+                use_operand: 0,
+                use_virtual_register: TerminalVirtualRegisterId(1),
+                use_point: TerminalLiveRangePoint(2),
+                def_operand: 2,
+                def_virtual_register: TerminalVirtualRegisterId(3),
+                def_point: TerminalLiveRangePoint(3),
+                class: RegisterClassId(0),
+            },
+        ]);
+        composed
+            .early_clobbers
+            .push(TerminalEarlyClobberConstraint {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(1),
+                instruction: TerminalSelectedInstructionId(1),
+                early_point: TerminalLiveRangePoint(2),
+                def_operand: 2,
+                def_virtual_register: TerminalVirtualRegisterId(3),
+                def_class: RegisterClassId(0),
+                def_point: TerminalLiveRangePoint(3),
+                uses: vec![TerminalEarlyClobberUse {
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(2),
+                    class: RegisterClassId(0),
+                }],
+            });
+        assert_eq!(
+            reject_constraint_topologies(0, &composed),
             Err(TerminalSpillChoiceError::UnsupportedTiedOperands { function: 0 })
         );
     }

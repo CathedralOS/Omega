@@ -26,4 +26,4 @@ The library lemmas the citation rung leans on — `add_zero_right` (right
 identity, by structural induction) and `add_succ_law` (the successor-shift
 law, an equation between applications) — are proven **in** `core/nat.omg`,
 machine-checked for every importer. Every theorem here is TRUE; the FALSE
-twins live in `tests/canaries/fail/proofs/`.
+twins live in `tests/omega/fail/proofs/`.

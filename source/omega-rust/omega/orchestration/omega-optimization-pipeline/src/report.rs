@@ -2,7 +2,11 @@ use omega_optimization_validation::PrePhysicalOptimizationManifest;
 use omega_regalloc::PostAllocationOptimizationManifest;
 
 use crate::{
-    FunctionRelativeOptimizationRealizationManifest, StagedOptimizedVerifiedPhysicalPipeline,
+    FunctionFragmentEmissionManifest, FunctionFragmentObjectContainerManifest,
+    FunctionFragmentTextSectionManifest, FunctionRelativeOptimizationRealizationManifest,
+    OptimizedTerminalObjectArtifactManifest, OptimizedTerminalOrdinaryCallableEntryManifest,
+    StagedOptimizedVerifiedPhysicalPipeline, StagedValidatedOptimizedTerminalObjectArtifact,
+    StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
 };
 
 /// An auxiliary human projection request. This is deliberately independent of
@@ -29,6 +33,11 @@ pub struct OptimizationPipelineReport {
     pre_physical: PrePhysicalOptimizationManifest,
     post_allocation: PostAllocationOptimizationManifest,
     function_relative: Option<FunctionRelativeOptimizationRealizationManifest>,
+    function_fragment: Option<FunctionFragmentEmissionManifest>,
+    text_section: Option<FunctionFragmentTextSectionManifest>,
+    object_container: Option<FunctionFragmentObjectContainerManifest>,
+    terminal_object_artifact: Option<OptimizedTerminalObjectArtifactManifest>,
+    ordinary_callable_entry: Option<OptimizedTerminalOrdinaryCallableEntryManifest>,
 }
 
 impl OptimizationPipelineReport {
@@ -46,6 +55,30 @@ impl OptimizationPipelineReport {
         self.function_relative.as_ref()
     }
 
+    pub const fn function_fragment(&self) -> Option<&FunctionFragmentEmissionManifest> {
+        self.function_fragment.as_ref()
+    }
+
+    pub const fn text_section(&self) -> Option<&FunctionFragmentTextSectionManifest> {
+        self.text_section.as_ref()
+    }
+
+    pub const fn object_container(&self) -> Option<&FunctionFragmentObjectContainerManifest> {
+        self.object_container.as_ref()
+    }
+
+    pub const fn terminal_object_artifact(
+        &self,
+    ) -> Option<&OptimizedTerminalObjectArtifactManifest> {
+        self.terminal_object_artifact.as_ref()
+    }
+
+    pub const fn ordinary_callable_entry(
+        &self,
+    ) -> Option<&OptimizedTerminalOrdinaryCallableEntryManifest> {
+        self.ordinary_callable_entry.as_ref()
+    }
+
     /// Project optional text after all semantic and physical decisions. The
     /// request cannot alter the structured carrier or the staged realization.
     pub fn render_human_text(&self, request: OptimizationReportRequest) -> Option<String> {
@@ -59,6 +92,32 @@ impl OptimizationPipelineReport {
         if let Some(function_relative) = &self.function_relative {
             report.push_str("\n[function-relative realization]\n");
             report.push_str(&function_relative.render_text());
+        }
+        if let Some(function_fragment) = &self.function_fragment {
+            report.push_str("\n[function-fragment emission]\n");
+            report.push_str(&format!("identity: {:?}\n", function_fragment.identity));
+        }
+        if let Some(text_section) = &self.text_section {
+            report.push_str("\n[relocation-free text section]\n");
+            report.push_str(&format!("identity: {:?}\n", text_section.identity));
+        }
+        if let Some(object_container) = &self.object_container {
+            report.push_str("\n[relocation-free object container]\n");
+            report.push_str(&format!("identity: {:?}\n", object_container.identity));
+        }
+        if let Some(artifact) = &self.terminal_object_artifact {
+            report.push_str("\n[optimized Terminal object artifact]\n");
+            report.push_str(&format!(
+                "identity: {:?}\nexternal entry bridge: unavailable\nexecutable image: unavailable\ninstallation: unavailable\npublication: unavailable\n",
+                artifact.identity
+            ));
+        }
+        if let Some(entry) = &self.ordinary_callable_entry {
+            report.push_str("\n[optimized Terminal ordinary callable entry]\n");
+            report.push_str(&format!(
+                "identity: {:?}\nexternal process entry bridge: required\nwrapper bytes: unavailable\nrelocations: unavailable\nexecutable image: unavailable\ninstallation: unavailable\npublication: unavailable\n",
+                entry.identity
+            ));
         }
         Some(report)
     }
@@ -76,5 +135,39 @@ pub fn optimization_pipeline_report(
         pre_physical,
         post_allocation,
         function_relative,
+        function_fragment: None,
+        text_section: None,
+        object_container: None,
+        terminal_object_artifact: None,
+        ordinary_callable_entry: None,
     }
+}
+
+/// Project cumulative records only from the opaque artifact carrier that owns every nested stage.
+pub fn optimization_pipeline_report_from_terminal_object_artifact(
+    staged: &StagedValidatedOptimizedTerminalObjectArtifact,
+) -> OptimizationPipelineReport {
+    let object_stage = staged.source();
+    let text_stage = object_stage.source();
+    let fragment_stage = text_stage.source();
+    OptimizationPipelineReport {
+        pre_physical: fragment_stage.pre_physical_manifest().record().clone(),
+        post_allocation: fragment_stage.post_allocation_manifest().record().clone(),
+        function_relative: Some(fragment_stage.function_relative_manifest().record().clone()),
+        function_fragment: Some(fragment_stage.manifest().record().clone()),
+        text_section: Some(text_stage.manifest().record().clone()),
+        object_container: Some(object_stage.manifest().record().clone()),
+        terminal_object_artifact: Some(staged.manifest().record().clone()),
+        ordinary_callable_entry: None,
+    }
+}
+
+/// Project the callable-entry record only from its opaque carrier, which owns the complete source.
+pub fn optimization_pipeline_report_from_terminal_ordinary_callable_entry(
+    staged: &StagedValidatedOptimizedTerminalOrdinaryCallableEntry,
+) -> OptimizationPipelineReport {
+    let artifact = staged.source();
+    let mut report = optimization_pipeline_report_from_terminal_object_artifact(artifact);
+    report.ordinary_callable_entry = Some(staged.manifest().record().clone());
+    report
 }

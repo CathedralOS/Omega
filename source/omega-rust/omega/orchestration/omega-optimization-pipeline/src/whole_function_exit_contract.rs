@@ -33,7 +33,7 @@ use crate::{
     validate_optimized_x86_branch_relaxation,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v3\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v4\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalWholeFunctionExitContractIdentity([u8; 32]);
@@ -96,15 +96,23 @@ pub enum TerminalWholeFunctionReturnMechanism {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalWholeFunctionReturnValueEvidence {
+    UnitV1,
+    ScalarI64V1 {
+        virtual_register: TerminalVirtualRegisterId,
+        view: RegisterViewId,
+        units: Vec<RegisterUnitId>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalWholeFunctionReturnEvidence {
     pub block: TerminalSelectedBlockId,
     pub psi_return_edge: EdgeId,
     pub instruction: TerminalSelectedInstructionId,
     pub offset: u64,
     pub bytes: Vec<u8>,
-    pub result_virtual_register: TerminalVirtualRegisterId,
-    pub result_view: RegisterViewId,
-    pub result_units: Vec<RegisterUnitId>,
+    pub value: TerminalWholeFunctionReturnValueEvidence,
     pub trap: TerminalMachineEncodedTrapBehavior,
     pub mechanism: TerminalWholeFunctionReturnMechanism,
 }
@@ -558,7 +566,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
                         target,
                         stack_pointer,
                         link_register,
-                        result_view,
+                        Some(result_view),
                         block.id,
                         psi_return_edge,
                         instruction,
@@ -823,7 +831,7 @@ fn validate_return(
     target: NativeTarget,
     stack_pointer: RegisterViewId,
     link_register: Option<RegisterViewId>,
-    result_view: RegisterViewId,
+    result_view: Option<RegisterViewId>,
     block: TerminalSelectedBlockId,
     psi_return_edge: EdgeId,
     selected: &omega_terminal_selected_instructions::TerminalSelectedInstruction,
@@ -832,21 +840,47 @@ fn validate_return(
     layout_block: &crate::TerminalResolvedSelectedBlockLayout,
     layout: &crate::TerminalResolvedSelectedFormRow,
 ) -> Result<TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionExitContractError> {
-    if !matches!(selected.kind, TerminalSelectedInstructionKind::ReturnI64)
-        || selected.operands.len() != 1
-        || machine.operands.len() != 1
-    {
-        return Err(TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id));
-    }
-    let operand: &TerminalPhysicalOperandFootprint = &machine.operands[0];
-    if operand.operand != 0
-        || operand.access != RegisterOperandAccess::Use
-        || operand.view != result_view
-        || operand.read_units != operand.storage_units
-        || !operand.write_units.is_empty()
-    {
-        return Err(TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id));
-    }
+    let value = match selected.kind {
+        TerminalSelectedInstructionKind::ReturnI64 => {
+            let Some(result_view) = result_view else {
+                return Err(
+                    TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id),
+                );
+            };
+            let [operand]: &[TerminalPhysicalOperandFootprint] = machine.operands.as_slice() else {
+                return Err(
+                    TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id),
+                );
+            };
+            if selected.operands.len() != 1
+                || operand.operand != 0
+                || operand.access != RegisterOperandAccess::Use
+                || operand.view != result_view
+                || operand.read_units != operand.storage_units
+                || !operand.write_units.is_empty()
+            {
+                return Err(
+                    TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id),
+                );
+            }
+            TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+                virtual_register: operand.virtual_register,
+                view: operand.view,
+                units: operand.storage_units.clone(),
+            }
+        }
+        TerminalSelectedInstructionKind::ReturnUnit => {
+            if !selected.operands.is_empty() || !machine.operands.is_empty() {
+                return Err(
+                    TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id),
+                );
+            }
+            TerminalWholeFunctionReturnValueEvidence::UnitV1
+        }
+        _ => {
+            return Err(TerminalWholeFunctionExitContractError::ReturnOperandMismatch(selected.id));
+        }
+    };
     let (bytes, effects): (&[u8], &TerminalMachineEncodedEffects) = match &encoding.state {
         TerminalSelectedFormEncodingState::Encoded { bytes, footprint } => {
             (bytes, &footprint.encoded)
@@ -931,9 +965,7 @@ fn validate_return(
         instruction: selected.id,
         offset: layout.offset,
         bytes: layout.bytes.clone(),
-        result_virtual_register: operand.virtual_register,
-        result_view: operand.view,
-        result_units: operand.storage_units.clone(),
+        value,
         trap: effects.trap,
         mechanism,
     })
@@ -997,9 +1029,19 @@ fn contract_identity(
             hasher.update(returned.offset.to_le_bytes());
             hasher.update((returned.bytes.len() as u64).to_le_bytes());
             hasher.update(&returned.bytes);
-            hasher.update(returned.result_virtual_register.0.to_le_bytes());
-            hasher.update(returned.result_view.0.to_le_bytes());
-            encode_units(&mut hasher, &returned.result_units);
+            match &returned.value {
+                TerminalWholeFunctionReturnValueEvidence::UnitV1 => hasher.update([1]),
+                TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+                    virtual_register,
+                    view,
+                    units,
+                } => {
+                    hasher.update([2]);
+                    hasher.update(virtual_register.0.to_le_bytes());
+                    hasher.update(view.0.to_le_bytes());
+                    encode_units(&mut hasher, units);
+                }
+            }
             hasher.update([1]);
             match returned.mechanism {
                 TerminalWholeFunctionReturnMechanism::X86ActivationStackReturnV1 {

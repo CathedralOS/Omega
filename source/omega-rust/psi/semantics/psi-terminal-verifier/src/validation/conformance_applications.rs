@@ -31,6 +31,7 @@ pub(super) fn validate_closed_conformance_applications(
                 .is_some_and(String::is_empty)
             || application.rows.iter().any(|row| {
                 row.declaring_trait_identity.is_empty()
+                    || row.public_requirement_identity.is_empty()
                     || row.requirement_identity.is_empty()
                     || row.realization_identity.is_empty()
             })

@@ -15,7 +15,7 @@ use omega_terminal_selected_instructions::{
 };
 use psi_core::MachineId;
 
-use crate::TerminalPreAllocationMachineEffectIdentity;
+use crate::{TerminalPreAllocationMachineEffectIdentity, TerminalStructuralUnitCallMachineEffects};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalPostAllocationMachineIdentity([u8; 32]);
@@ -54,6 +54,10 @@ pub struct TerminalPostAllocationMachinePlan {
     pub machine_effect_catalog: TerminalMachineEffectCatalogIdentity,
     pub choice_rule: TerminalMachineAlternativeChoiceRule,
     pub functions: Vec<TerminalPostAllocationMachineFunction>,
+    /// Structural-signature Unit functions remain parallel to the ordinary
+    /// scalar/VReg roster. Their optional call is one atomic machine effect;
+    /// only the ordinary `ReturnUnit` row selects an encoded alternative.
+    pub structural_unit_functions: Vec<TerminalPostAllocationStructuralUnitFunction>,
 }
 
 impl TerminalPostAllocationMachinePlan {
@@ -74,6 +78,18 @@ impl TerminalPostAllocationMachinePlan {
 pub struct TerminalPostAllocationMachineFunction {
     pub machine: MachineId,
     pub blocks: Vec<TerminalPostAllocationMachineBlock>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalPostAllocationStructuralUnitFunction {
+    pub machine: MachineId,
+    pub block: TerminalSelectedBlockId,
+    pub call: Option<TerminalStructuralUnitCallMachineEffects>,
+    pub return_instruction: TerminalPostAllocationMachineInstruction,
+    pub return_provenance:
+        omega_terminal_selected_instructions::TerminalSelectedInstructionProvenance,
+    pub return_effect: omega_optimization_unit::EffectLink,
+    pub return_ownership: Vec<omega_optimization_unit::OwnershipEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -197,6 +213,12 @@ pub enum TerminalPostAllocationMachineError {
     PostAllocationManifestMismatch,
     OptimizationUnitMismatch,
     FuelScheduleMismatch,
+    StructuralFunctionMismatch {
+        machine: MachineId,
+    },
+    StructuralAllocationMismatch {
+        machine: MachineId,
+    },
     FunctionMismatch {
         function: usize,
     },
@@ -249,12 +271,15 @@ impl std::error::Error for TerminalPostAllocationMachineError {}
 pub(crate) fn post_allocation_receipt(
     plan: &TerminalPostAllocationMachinePlan,
 ) -> Result<TerminalPostAllocationMachineReceipt, TerminalPostAllocationMachineError> {
-    let block_count = plan.functions.iter().try_fold(0_usize, |count, function| {
+    let ordinary_block_count = plan.functions.iter().try_fold(0_usize, |count, function| {
         count
             .checked_add(function.blocks.len())
             .ok_or(TerminalPostAllocationMachineError::CountOverflow)
     })?;
-    let (instruction_count, operand_count, unit_action_count) = plan
+    let block_count = ordinary_block_count
+        .checked_add(plan.structural_unit_functions.len())
+        .ok_or(TerminalPostAllocationMachineError::CountOverflow)?;
+    let (ordinary_instruction_count, operand_count, ordinary_unit_action_count) = plan
         .functions
         .iter()
         .flat_map(|function| &function.blocks)
@@ -277,6 +302,35 @@ pub(crate) fn post_allocation_receipt(
                     .ok_or(TerminalPostAllocationMachineError::CountOverflow)?,
             ))
         })?;
+    let structural_instruction_count =
+        plan.structural_unit_functions
+            .iter()
+            .try_fold(0_usize, |count, function| {
+                count
+                    .checked_add(1 + usize::from(function.call.is_some()))
+                    .ok_or(TerminalPostAllocationMachineError::CountOverflow)
+            })?;
+    let structural_unit_action_count =
+        plan.structural_unit_functions
+            .iter()
+            .try_fold(0_usize, |count, function| {
+                let count = count
+                    .checked_add(function.return_instruction.unit_uses.len())
+                    .and_then(|count| {
+                        count.checked_add(function.return_instruction.unit_defs.len())
+                    })
+                    .and_then(|count| {
+                        count.checked_add(function.return_instruction.unit_clobbers.len())
+                    })
+                    .ok_or(TerminalPostAllocationMachineError::CountOverflow)?;
+                function.call.as_ref().map_or(Ok(count), |call| {
+                    count
+                        .checked_add(call.unit_uses.len())
+                        .and_then(|count| count.checked_add(call.unit_defs.len()))
+                        .and_then(|count| count.checked_add(call.unit_clobbers.len()))
+                        .ok_or(TerminalPostAllocationMachineError::CountOverflow)
+                })
+            })?;
     Ok(TerminalPostAllocationMachineReceipt {
         identity: plan.identity,
         selected: plan.selected,
@@ -284,10 +338,18 @@ pub(crate) fn post_allocation_receipt(
         homes: plan.homes,
         post_allocation_manifest: plan.post_allocation_manifest,
         register_environment: plan.register_environment,
-        function_count: plan.functions.len(),
+        function_count: plan
+            .functions
+            .len()
+            .checked_add(plan.structural_unit_functions.len())
+            .ok_or(TerminalPostAllocationMachineError::CountOverflow)?,
         block_count,
-        instruction_count,
+        instruction_count: ordinary_instruction_count
+            .checked_add(structural_instruction_count)
+            .ok_or(TerminalPostAllocationMachineError::CountOverflow)?,
         operand_count,
-        unit_action_count,
+        unit_action_count: ordinary_unit_action_count
+            .checked_add(structural_unit_action_count)
+            .ok_or(TerminalPostAllocationMachineError::CountOverflow)?,
     })
 }

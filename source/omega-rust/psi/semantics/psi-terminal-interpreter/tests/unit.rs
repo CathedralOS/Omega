@@ -191,6 +191,7 @@ fn structural_return_transfers_value_and_claim_atomically_after_edge_charge() {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -1964,6 +1965,7 @@ fn byte_sequence_literal_module(bytes: Vec<u8>) -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2057,6 +2059,7 @@ fn scalar_boundary_effect_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2164,6 +2167,7 @@ fn effect_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -2489,6 +2493,7 @@ fn unit_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![TerminalMachine {
             id: machine_id(1),
             attachment: None,
@@ -2545,6 +2550,7 @@ fn nominal_affine_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![
             TerminalMachine {
                 id: machine_id(1),
@@ -3501,6 +3507,7 @@ fn partial_affine_field_module() -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
 }
@@ -3718,6 +3725,7 @@ fn internal_structural_call_module(crashes: bool) -> TerminalModule {
         evidence_contract_lanes: Vec::new(),
         proof_output_calls: Vec::new(),
         closed_conformance_applications: Vec::new(),
+        quotient_correspondences: Vec::new(),
         machines: vec![caller, callee],
     }
 }

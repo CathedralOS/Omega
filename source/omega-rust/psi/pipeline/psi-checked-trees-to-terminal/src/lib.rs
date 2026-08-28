@@ -75,14 +75,14 @@ use psi_terminal::{
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
     PropositionDeclaration, PropositionEvidence, ProviderCandidateConformance,
     ProviderParameterRefinement, ProviderSignatureParameter, ProviderUnitRefinement,
-    ProviderUnitSignature, ServiceDeclaration, StructuralAccess, StructuralAffineDiscard,
-    StructuralArgument, StructuralCaseDeclaration, StructuralContentProjection,
-    StructuralDomainDeclaration, StructuralDomainRequirement, StructuralFieldDeclaration,
-    StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
-    StructuralPathSegment, StructuralPlaceDeclaration, StructuralResultDeclaration,
-    StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge, TerminalAffineCleanupAction,
-    TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
-    VocabularyMarker, program_local_root_introduction_identity,
+    ProviderUnitSignature, ServiceDeclaration, StaticRequirementDispatch, StructuralAccess,
+    StructuralAffineDiscard, StructuralArgument, StructuralCaseDeclaration,
+    StructuralContentProjection, StructuralDomainDeclaration, StructuralDomainRequirement,
+    StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
+    StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
+    StructuralResultDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+    TerminalAffineCleanupAction, TerminalMachine, TerminalMachineResult, TerminalModule,
+    Terminator, ValueDeclaration, VocabularyMarker, program_local_root_introduction_identity,
 };
 use psi_terminal_codec::{
     DebugFileId, DebugSite, DebugSourceFile, DebugSourceOrigin, DebugSourceSpan, DebugSubject,
@@ -106,6 +106,7 @@ mod nonzero_divisor_certificate;
 mod operation_emission;
 mod payloadless_case_return;
 mod payloadless_guarded_call_return;
+mod quotient_correspondence;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -159,6 +160,7 @@ use operation_emission::{
 };
 use payloadless_case_return::lower_payloadless_case_return_machine;
 use payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
+pub use quotient_correspondence::install_non_executable_quotient_correspondences;
 use scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
@@ -198,6 +200,72 @@ pub struct LoweredTerminalPsi {
     /// this after semantic identities are final; private builders leave it
     /// empty until that finalization step.
     pub debug_map: Option<TerminalDebugMap>,
+}
+
+/// Durable source-to-Terminal join for one checked `ProgramEntry`.
+///
+/// The source-signature identity is computed by the build-owned declaration
+/// checker and supplied here as opaque digest bytes. The remaining fields are
+/// reconstructed by this producer from the exact checked machine and the
+/// canonical Terminal module. This receipt owns no target, calling convention,
+/// runtime roots, image, installation, or publication authority.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedProgramEntryTerminalReceipt {
+    source_signature_identity: [u8; 32],
+    source_machine: psi_symbols::SymbolHandle,
+    source_machine_name: String,
+    terminal_psi_identity: psi_terminal::TerminalPsiIdentity,
+    terminal_entry: MachineId,
+}
+
+impl CheckedProgramEntryTerminalReceipt {
+    pub const fn source_signature_identity(&self) -> [u8; 32] {
+        self.source_signature_identity
+    }
+
+    pub const fn source_machine(&self) -> psi_symbols::SymbolHandle {
+        self.source_machine
+    }
+
+    pub fn source_machine_name(&self) -> &str {
+        &self.source_machine_name
+    }
+
+    pub const fn terminal_psi_identity(&self) -> psi_terminal::TerminalPsiIdentity {
+        self.terminal_psi_identity
+    }
+
+    pub const fn terminal_entry(&self) -> MachineId {
+        self.terminal_entry
+    }
+}
+
+/// Canonical Terminal artifact coupled to the checked-entry receipt produced
+/// from the same lowering result.
+#[derive(Debug, PartialEq, Eq)]
+#[must_use = "ProgramEntry Terminal production retains an entry-custody receipt"]
+pub struct ProducedProgramEntryTerminalArtifact {
+    artifact: psi_terminal_codec::CanonicalTerminalArtifact,
+    receipt: CheckedProgramEntryTerminalReceipt,
+}
+
+impl ProducedProgramEntryTerminalArtifact {
+    pub const fn artifact(&self) -> &psi_terminal_codec::CanonicalTerminalArtifact {
+        &self.artifact
+    }
+
+    pub const fn receipt(&self) -> &CheckedProgramEntryTerminalReceipt {
+        &self.receipt
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        psi_terminal_codec::CanonicalTerminalArtifact,
+        CheckedProgramEntryTerminalReceipt,
+    ) {
+        (self.artifact, self.receipt)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -803,19 +871,7 @@ pub fn lower_machine(
     checked: &CheckedTrees,
     machine_name: &str,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
-    let mut matches = checked
-        .facts
-        .flow
-        .terminal_machines
-        .machines
-        .iter()
-        .filter(|machine| machine.name == machine_name);
-    let selection = matches
-        .next()
-        .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
-    if matches.next().is_some() {
-        return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
-    }
+    let selection = select_terminal_machine(checked, machine_name)?;
     let exact_guarded_payloadless = checked
         .facts
         .flow
@@ -843,6 +899,17 @@ pub fn lower_machine(
     let mut lowered = lower_selected_machine(checked, selection)?;
     let source_machines = if let Some(target_machine) = guarded_payloadless_callee {
         vec![selection.machine, target_machine]
+    } else if checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .any(|(_, invocation)| {
+            invocation.caller_machine_symbol == selection.machine
+                && invocation.static_requirement_dispatch.is_some()
+        })
+    {
+        checked_unit_call_closure_including(checked, selection.machine, &[])?
     } else if let Some(plan) = checked
         .facts
         .flow
@@ -850,6 +917,17 @@ pub fn lower_machine(
         .trait_operator_for_machine(selection.machine)
     {
         vec![plan.machine, plan.realization_machine]
+    } else if selection.signature == CheckedTerminalSignatureEligibility::Attached
+        && lowered.semantic_module.machines.len() > 1
+        && checked
+            .machine_specializations
+            .iter()
+            .any(|specialization| {
+                specialization.instance == selection.machine
+                    && !specialization.conformance_applications.is_empty()
+            })
+    {
+        checked_unit_call_closure_including(checked, selection.machine, &[])?
     } else if selection.signature == CheckedTerminalSignatureEligibility::Eligible {
         checked_scalar_call_closure(checked, selection.machine)?
     } else {
@@ -925,10 +1003,104 @@ pub fn produce_terminal_artifact(
     .map_err(TerminalArtifactProductionError::Artifact)
 }
 
+/// Produce a canonical Terminal artifact while retaining the exact checked
+/// `ProgramEntry` to Terminal-entry association.
+///
+/// `source_signature_identity` is an opaque domain-separated identity
+/// computed while the complete typed `ProgramEntry` declaration is still
+/// available. This stage does not interpret or recreate it. A later Omega
+/// settlement must independently compare it with the retained source
+/// signature before granting native custody.
+pub fn produce_program_entry_terminal_artifact(
+    checked: &CheckedTrees,
+    machine_name: &str,
+    source_signature_identity: [u8; 32],
+) -> Result<ProducedProgramEntryTerminalArtifact, TerminalArtifactProductionError> {
+    let selection = select_terminal_machine(checked, machine_name)
+        .map_err(TerminalArtifactProductionError::Lowering)?;
+    let source_machine = selection.machine;
+    let source_machine_name = selection.name.clone();
+    let lowered =
+        lower_machine(checked, machine_name).map_err(TerminalArtifactProductionError::Lowering)?;
+    let entry_matches = lowered
+        .semantic_module
+        .machines
+        .iter()
+        .filter(|machine| machine.id == lowered.semantic_module.entry)
+        .collect::<Vec<_>>();
+    let [entry] = entry_matches.as_slice() else {
+        return Err(TerminalArtifactProductionError::EntryReceipt(
+            ProgramEntryTerminalReceiptError::TerminalEntryMultiplicity(entry_matches.len()),
+        ));
+    };
+    if entry.result != TerminalMachineResult::Unit {
+        return Err(TerminalArtifactProductionError::EntryReceipt(
+            ProgramEntryTerminalReceiptError::NonUnitEntry,
+        ));
+    }
+    let terminal_psi_identity = terminal_psi_identity(&lowered.semantic_module)
+        .map_err(ProgramEntryTerminalReceiptError::TerminalIdentity)
+        .map_err(TerminalArtifactProductionError::EntryReceipt)?;
+    let terminal_entry = lowered.semantic_module.entry;
+    let artifact = psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+        &lowered.semantic_module,
+        &lowered.proof_bundle,
+        lowered.debug_map.as_ref(),
+    )
+    .map_err(TerminalArtifactProductionError::Artifact)?;
+    if artifact.manifest().semantic() != terminal_psi_identity {
+        return Err(TerminalArtifactProductionError::EntryReceipt(
+            ProgramEntryTerminalReceiptError::ArtifactSemanticIdentityMismatch,
+        ));
+    }
+    Ok(ProducedProgramEntryTerminalArtifact {
+        artifact,
+        receipt: CheckedProgramEntryTerminalReceipt {
+            source_signature_identity,
+            source_machine,
+            source_machine_name,
+            terminal_psi_identity,
+            terminal_entry,
+        },
+    })
+}
+
+fn select_terminal_machine<'checked>(
+    checked: &'checked CheckedTrees,
+    machine_name: &str,
+) -> Result<&'checked CheckedTerminalMachineSelection, LoweringError> {
+    let mut matches = checked
+        .facts
+        .flow
+        .terminal_machines
+        .machines
+        .iter()
+        .filter(|machine| machine.name == machine_name);
+    let selection = matches
+        .next()
+        .ok_or_else(|| LoweringError::MachineNotFound(machine_name.to_owned()))?;
+    if matches.next().is_some() {
+        return Err(LoweringError::AmbiguousMachineName(machine_name.to_owned()));
+    }
+    Ok(selection)
+}
+
 fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if checked
+        .facts
+        .proof
+        .proof_output_calls
+        .iter()
+        .any(|(_, invocation)| {
+            invocation.caller_machine_symbol == selection.machine
+                && invocation.static_requirement_dispatch.is_some()
+        })
+    {
+        return lower_attached_unit_closure(checked, selection.machine);
+    }
     if let Some(plan) = checked
         .facts
         .flow
@@ -1190,6 +1362,7 @@ pub enum LoweringError {
     InvalidDebugMap(psi_terminal_codec::DebugMapError),
     InvalidTerminalModule(psi_terminal_verifier::ModuleError),
     InvalidFloatMeaningProjection(FloatMeaningProjectionLoweringError),
+    InvalidQuotientCorrespondence(Vec<String>),
     OperationProofUnavailable(ObligationId),
     Unsupported(&'static str),
     InvalidPsiIntegerType,
@@ -1258,7 +1431,24 @@ impl std::error::Error for LoweringError {}
 pub enum TerminalArtifactProductionError {
     Lowering(LoweringError),
     Artifact(psi_terminal_codec::CanonicalTerminalArtifactError),
+    EntryReceipt(ProgramEntryTerminalReceiptError),
 }
+
+#[derive(Debug)]
+pub enum ProgramEntryTerminalReceiptError {
+    TerminalEntryMultiplicity(usize),
+    NonUnitEntry,
+    TerminalIdentity(psi_terminal_codec::CodecError),
+    ArtifactSemanticIdentityMismatch,
+}
+
+impl std::fmt::Display for ProgramEntryTerminalReceiptError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "{self:?}")
+    }
+}
+
+impl std::error::Error for ProgramEntryTerminalReceiptError {}
 
 impl std::fmt::Display for TerminalArtifactProductionError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

@@ -14,7 +14,7 @@ Committed native seeds:
 
 | target | artifact | bytes | SHA-256 |
 | --- | --- | ---: | --- |
-| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `110a59187b4ae4564297867670ac94499670babe976a7556f4efb8adb99f65bf` |
+| Darwin arm64 | `source/alpha/alpha_arm64_macos` | 314800 | `5d424055a6c2cbbcd627d011ed971fdc5e5dc0a1181be44bc5586ab37b84d845` |
 | Windows x86-64 | `source/alpha/alpha_x64_windows.exe` | 267264 | `0b8c3bb6d374d5a7a03de1e16be1f7206248acae990c2594a040291c7c866cb2` |
 
 The accepted input is one length-prefixed Alpha tape; the output is the exact
@@ -53,10 +53,12 @@ and emits a 3035-byte tape with SHA-256
 `6d892139f7e4153dbe30cb353e5eb498c7b1d5260a486470616dc684b55cd67f`.
 That checker accepts framing, reachable control-flow, procedure-region, and
 tape-capacity obligations only. The adjacent canonical maximal-observation
-reconstruction emits one 79,003-byte ROOT Alpha tape; its exact digest is
-`33a15b13586df64bcbe714adf517f35cf3e312c1f70c9971a7e5fd3c971ca40a`.
+reconstruction emits one 82,172-byte ROOT Alpha tape; its exact digest is
+`7e3675449da2af21bd43d5374f2f1c8300c87dfaa998fa9491dfd06b1e4c001b`.
 This is strong executable evidence, but it is not yet a derivation in the
-rooted checker calculus. Complete source/artifact admission remains open.
+rooted checker calculus. Complete source/artifact admission is blocked on
+[`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18's guarded-simulation
+judgment.
 
 ## Gamma meaning artifacts
 
@@ -64,7 +66,7 @@ The Beta artifact deterministically compiles the following canonical sources:
 
 | role | source bytes / SHA-256 | output tape bytes / SHA-256 |
 | --- | --- | --- |
-| interpreter | 46718 / `ce523f2546c0d81e6e83b5dc08b887e6e1aafd57414c624866e055aa0feed83b` | 92969 / `a4ab92acf7a21283feaae166fbc0ed1cead263601ffeff37f62c7a5ad67b8264` |
+| interpreter | 47948 / `95f9ef743a587e9bd098a162e97f41b40caad2785db195ed76c4a7399d8cdc74` | 94903 / `47942ec8d6bc161abe313535fbf28df5e832f58da6013fbcdc54e6a386b1c6c5` |
 | type checker | 22059 / `aed69a455d95bae79dfa889aebe842b93765acd1cf59cf6a4d11c0808dc0e1d3` | 45230 / `d580f6b88f077043f12a76b91e7643d0bf62e9046ce667459ce20867358399c5` |
 
 Their exact inputs are `source/gamma/interp.beta` and
@@ -89,7 +91,8 @@ evidence only and cannot admit `bc.tape`.
 ## Delta publication
 
 The canonical source snapshot is
-`source/delta/source-closures/canonical-compiler-v1.json` with closure SHA-256
+`source/delta/compiler/validation/source-closures/canonical-compiler-v1.json`
+with closure SHA-256
 `31324d8342f1e3c2da95553418245e4bd981985558256fcc012eb8e6a804ff32`
 and content-set SHA-256
 `9559bdee641d8dfcb4452d1eb9d9510c0534a031df86737258d370d3e08d3c42`.
@@ -97,6 +100,8 @@ Its canonical LF image is 168560 bytes with SHA-256
 `a0ecad14670247857e300b5539e0058d8f72054f92fabd1645fc4457b0ac53c9`.
 The lower-rung elaboration and publication verifier are present; the two exact
 full Gamma executions and their accepted publication receipt are still open.
+The adjacent artifact-custody verifier now independently replays the literal
+Darwin ARM64 realization command and requires byte identity with its candidate.
 No Delta compiler output is admitted by this manifest.
 
 ## Omega product edges

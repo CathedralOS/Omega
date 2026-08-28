@@ -1,0 +1,3699 @@
+; delta2gamma.beta — the provisional Delta -> Gamma meaning elaborator, written in Beta (Rust-free).
+;
+; This implementation reads Delta source on stdin and prints a Gamma s-expression
+; which the Rust-free reference interpreter (`gamma/interp.beta`) evaluates. It
+; does not select the independent Delta v1 semantic contract against which this
+; elaboration must eventually be validated. It currently also understands
+; Omega-like machine spellings used by the canonical compiler: dotted field paths
+; `self.state.n` (each path = one threaded slot), subjectless `transition { _ -> x() }` (subject := 0),
+; `state name(&mut self)` headers, state-body lets (collected machine-wide, deduped), `use` decls, data
+; attributes, and `in Domain` annotations (tolerated; domains are semantic no-ops while values stay in
+; range) — so real Omega samples run down this route too (see omega/omega-meaning.sh).
+;
+; SUPPORTED SUBSET — an entry machine `Main::main(&mut self)` (i32 locals, scalar i32 self-fields, i32
+; self-arrays) plus zero or more value-returning FREE machines `machine name(p: i32, ...) -> i32 { ... }`
+; it may CALL (a callee has no self / read_byte yet):
+;   <expr> := int arithmetic + - * / %, parens, ints, locals, `self.f` field reads, `self.arr[<expr>]`
+;             array reads, comparisons < > <= >= == != (via interp's eq/lt), and calls `name(<expr>, ...)`.
+;   <stmt> := `x = <expr>;` local assign  |  `self.f = <expr>;` field write  |  `self.arr[<expr>] = <expr>;`.
+;   <terminal> := `transition <subj> { <pat> -> <state>() ... }` (pat = int|true|false|_, last=default)
+;              |  `self.console.exit_process(<expr>)` (entry)  |  `return <expr>;` (free machine).
+; Self-arrays thread as gamma LIST slots a{i} (after locals+fields), zero-init `(Cons 0 .. Nil)` of the
+; length in `data Main { arr: [i32; N]; }`; reads -> `(nth a{i} ix)`, writes -> `(setl a{i} ix v)`; the
+; nth/setl helper defs are prepended when the entry uses arrays.
+; read_byte: stdin threads as carrier `inp` plus byte cursor `ipos`. Historical small inputs remain ordinary
+; `(Cons b0 .. Nil)` lists. Compiler-sized inputs use `(Chunks byte_length tree)`, where depth-17 tree leaves
+; are little-endian packed u32 words (four exact bytes per leaf). `x = read_byte()` lowers through the pure
+; `inhead`/`innext`/`inadvance` helpers. The entry call contains a `STDIN` placeholder followed by cursor zero;
+; the meaning-owned encoder substitutes either carrier without adding Gamma syntax or interpreter effects.
+; FEATURE SET (grown over the 2026-07 producer arc; each lands with meaning-gate + termination-canary
+; coverage): scalars/arrays/record-arrays (Pair-tuple elements), string carriers (+ .len, write_line of
+; fields), case data (integer tags; (Pair tag payload) payloads with by-name field mapping), slices
+; (local .len/[i]/[a..]/[a..b] via nth/drop/take, as_slice + postfix), value calls (whole-RHS and
+; expression-embedded via hoist+source-rewrite), machine tail-call arms, value arms (literal/expression),
+; logical &&/|| layers, standalone decimal shifts in [0,30] as *2^k / /2^k,
+; the compiler profile's nonnegative byte mask `x & 255` as `x % 256`, max/min
+; builtins, normative
+; `terminates by measure -> Profile;` clause skip, dual-channel
+; (Pair exit stdout) output convention. UNSUPPORTED constructs REFUSE with E2G-UNSUPPORTED markers —
+; incl. general single `|`/`^`, nonliteral/expression/out-of-range shifts, and unknown self-field methods
+; (atomics store/fetch_add/compare_exchange, ...): only exit_process /
+; write_byte / write_line / real machine calls are recognized; anything else refuses (never silently
+; treated as exit_process, which used to collapse a whole program to its first argument).
+; stdout: write_byte(e)/write_line("s") accumulate LAST list slot `out` (cons-front): write_byte -> `(Cons e
+; out)`; write_line -> cons the string bytes + a trailing '\n'. In OUTPUT mode the entry terminal returns
+; `(Pair exit (rev out Nil))`; interp prints the exact status and forward byte list together. `rev` is
+; prepended if outputs. Differential gates decode this constructor tree strictly before comparing artifacts.
+; SELF-METHODS: `machine Main::m(&mut self, params)` shares the caller's `self`. Scalar fields are packed in
+; one indexed Gamma list `gs`; arrays, inp, and out retain their independent carriers. The self-state is
+; UNIFIED (union over the entry + all methods) and threaded after each machine's locals. A void method returns
+; its compact self-state BUNDLE: "0" / the sole carrier / a flat SelfState. A call rebinds carriers, never each
+; scalar field: compiler-sized sources therefore grow with call sites, not call-sites times scalar-field count.
+;
+; Emission (matching gamma_emit.rs slices 3-5): EVERY machine becomes mutually-recursive gamma defs
+; `(def m{mi}_me (SIG) <entry>) (def m{mi}_s{k} (SIG) <state k>) ...`, SIG = its locals l0.. (++ the
+; entry's fields g0..). The program ends by calling the entry `(m{entry}_me 0 ..)`. Mutation is
+; SSA-threaded: each write -> `(let t{fresh} <e-under-current-names> <rest>)`. A transition -> nested
+; `(if (eq subj pat) (m{mi}_s{tgt} <current names>) else)`. A free call `f(a,b)` ->
+; `(m{f}_me <a> <b> <zeros for f's non-param locals>)`. A straight-line/single machine falls out.
+;
+; Memory:  2097152 SRC  2097144 CUR  2097136 LEN  2097128 APTR (arena@3145728)
+; Scalars: 6000000 MACHINE_CNT  6000008 ENTRY_IDX  6000016 FRESH  6000024 FIELD_CNT  6000032 CUR_MI
+; Per-machine tables reserve 2,000 bytes each (250 slots; the admitted cap is 128 machines):
+; 6010000 M_NAME 6012000 M_KIND(0 entry/1 free) 6014000 M_BODY 6016000 M_PCNT
+; 6018000 M_LCNT 6020000 M_SCNT 6022000 M_OWNER 6024000 M_PREF
+; Per-machine local names ((mi*128+k)*8): 6100000 M_LNAME
+; Per-machine states use a checked 1,024-state stride across at most 128 machines.
+; The four state-indexed regions are contiguous and non-overlapping:
+;   [16777216,17825792) M_SNAME  ((mi*1024+s)*8)
+;   [17825792,18874368) M_SBODY  ((mi*1024+s)*8)
+;   [18874368,19922944) M_SPCNT  ((mi*1024+s)*8; at most 4 params)
+;   [19922944,24117248) M_SPOFF  ((mi*1024+s)*4*8)
+; Entry fields (g*8): 6800000 FIELD_NAME     SSA scratch (idx*8): 6400000/6410000 local kind/val,
+;                     6420000/6430000 scalar-carrier kind/val (0=param gs, 1=t{val})
+; Transition arms (j*8): 6600000 ARM_PAT  6610000 ARM_TGT
+; AST nodes [tag,f0,f1,f2] (32B): 0 INT(v) 1 LOCAL(i) 2 BIN(op,a,b) 3 FIELD(g) 4 CALL(callee,args) 5 ARG(e,next).
+
+proc slurp() {
+    let n = 0
+    let c = read_byte()
+    state loop { to body when (c >= 0)  to done }
+    state body {
+        byte[2097152 + n] = c
+        n = n + 1
+        c = read_byte()
+        to loop
+    }
+    state done {
+        word[2097136] = n         ; LEN
+        word[2097144] = 0         ; CUR
+        word[2097128] = 3145728   ; APTR (arena base)
+    }
+}
+
+proc cbyte() {
+    let i = word[2097144]
+    state chk { to hit when (i < word[2097136])  return 0 }
+    state hit { return byte[2097152 + i] }
+}
+
+proc adv() { word[2097144] = word[2097144] + 1 }
+
+proc alloc(tag, f0, f1, f2) {
+    let p = word[2097128]
+    word[p] = tag
+    word[p + 8] = f0
+    word[p + 16] = f1
+    word[p + 24] = f2
+    word[2097128] = p + 32
+    return p
+}
+
+proc is_space(c) {
+    state c1 { to yes when (c == ' ')  to c2 }
+    state c2 { to yes when (c == 9)    to c3 }
+    state c3 { to yes when (c == 10)   to c4 }
+    state c4 { to yes when (c == 13)   return 0 }
+    state yes { return 1 }
+}
+
+proc is_digit(c) {
+    state c1 { to no when (c < '0')  to c2 }
+    state c2 { to no when (c > '9')  return 1 }
+    state no { return 0 }
+}
+
+proc is_idchar(c) {
+    state a1 { to a2 when (c < 'a')  to yes when (c <= 'z')  to a2 }
+    state a2 { to a3 when (c < 'A')  to yes when (c <= 'Z')  to a3 }
+    state a3 { to a4 when (c < '0')  to yes when (c <= '9')  to a4 }
+    state a4 { to yes when (c == '_')  return 0 }
+    state yes { return 1 }
+}
+
+proc skip_ws() {
+    state loop {
+        let c = cbyte()
+        to sp when (is_space(c) == 1)
+        to slash when (c == '/')
+        return 0
+    }
+    state sp { adv()  to loop }
+    state slash {
+        to cmt when (byte[2097152 + word[2097144] + 1] == '/')
+        return 0                       ; a lone '/' is the divide operator
+    }
+    state cmt {
+        to loop when (cbyte() == 10)
+        to ceof when (cbyte() == 0)
+        adv()
+        to cmt
+    }
+    state ceof { return 0 }
+}
+
+; Skip one raw quoted source string atomically for the state-declaration brace walk.
+; Without this, `//` or braces inside a literal are mistaken for comments or
+; structure and can hide every later state declaration.
+proc skip_string() {
+    adv()                              ; opening quote
+    state loop {
+        to done when (cbyte() == 0)
+        to close when (cbyte() == 34)  ; closing quote
+        adv()
+        to loop
+    }
+    state close { adv()  return 0 }
+    state done { return 0 }
+}
+
+proc skip_ident() {
+    state loop {
+        to body when (is_idchar(cbyte()) == 1)
+        return 0
+    }
+    state body { adv()  to loop }
+}
+
+proc parse_number() {
+    let v = 0
+    state loop {
+        to body when (is_digit(cbyte()) == 1)
+        return v
+    }
+    state body {
+        v = v * 10 + (cbyte() - '0')
+        adv()
+        to loop
+    }
+}
+
+proc name_eq2(o1, o2) {
+    let i = 0
+    state loop {
+        let c1 = byte[2097152 + o1 + i]
+        let c2 = byte[2097152 + o2 + i]
+        to c1end when (is_idchar(c1) == 0)
+        to mism when (is_idchar(c2) == 0)
+        to mism when (c1 != c2)
+        i = i + 1
+        to loop
+    }
+    state c1end { to mism when (is_idchar(c2) == 1)  return 1 }
+    state mism { return 0 }
+}
+
+; a field-PATH character: an identifier char or the '.' of a nested path (omega: self.state.n).
+proc is_pathchar(c) {
+    state c1 { to yes when (is_idchar(c) == 1)  to c2 }
+    state c2 { to yes when (c == '.')  return 0 }
+    state yes { return 1 }
+}
+
+; advance CUR past a dotted path (idchars and '.'), returning the offset of its LAST segment.
+proc skip_path() {
+    let seg = word[2097144]
+    state loop {
+        let c = cbyte()
+        to isdot when (c == '.')
+        to body when (is_idchar(c) == 1)
+        return seg
+    }
+    state isdot { adv()  seg = word[2097144]  to loop }
+    state body { adv()  to loop }
+}
+
+; the k-th character of the LOGICAL path `pref + "." + name` (pref may be 0 = no prefix), or 0 past
+; the end. Lets slots keyed from different vantage points unify: Main's `clamper.values` (pref 0)
+; equals Clamper's `values` under instance prefix `clamper`.
+proc lp_char(pref, name, k) {
+    state haspref { to nopref when (pref == 0)  to plen }
+    state nopref {
+        let c = byte[2097152 + name + k]
+        to nend when (is_pathchar(c) == 0)
+        return c
+    }
+    state nend { return 0 }
+    state plen {                       ; length of the prefix path
+        let n = 0
+        to plenloop
+    }
+    state plenloop {
+        to pdone when (is_pathchar(byte[2097152 + pref + n]) == 0)
+        n = n + 1
+        to plenloop
+    }
+    state pdone {
+        to inpref when (k < n)
+        to isdot when (k == n)
+        let c2 = byte[2097152 + name + (k - n - 1)]
+        to nend2 when (is_pathchar(c2) == 0)
+        return c2
+    }
+    state nend2 { return 0 }
+    state inpref { return byte[2097152 + pref + k] }
+    state isdot { return '.' }
+}
+
+; do two (prefix, name) logical paths match?
+proc path2_eq(p1, x1, p2, x2) {
+    let k = 0
+    state loop {
+        let c1 = lp_char(p1, x1, k)
+        let c2 = lp_char(p2, x2, k)
+        to mism when (c1 != c2)
+        to same when (c1 == 0)
+        k = k + 1
+        to loop
+    }
+    state same { return 1 }
+    state mism { return 0 }
+}
+
+; is the identifier at `off` the name of a user machine?
+proc machine_exists(off) {
+    let mi = 0
+    state loop {
+        to no when (mi == word[6000000])                ; MACHINE_CNT
+        to yes when (name_eq2(off, word[6010000 + mi * 8]) == 1)
+        mi = mi + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+; ---- lookups (locals/states are per-machine, indexed by CUR_MI) ----
+
+proc lookup_local(off) {
+    let mi = word[6000032]
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6018000 + mi * 8])       ; M_LCNT[mi]
+        to hit when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
+proc state_exists(off) {
+    let mi = word[6000032]
+    let k = 0
+    state loop {
+        to no when (k == word[6020000 + mi * 8])
+        to yes when (name_eq2(off, word[16777216 + (mi * 1024 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+proc lookup_state(off) {
+    let mi = word[6000032]
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6020000 + mi * 8])       ; M_SCNT[mi]
+        to hit when (name_eq2(off, word[16777216 + (mi * 1024 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
+; fields key on the LOGICAL path: the machine's instance prefix (0 for Main-owned) + the dotted ref.
+proc field_lookup(pref, off) {
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6000024])                ; FIELD_CNT
+        to hit when (path2_eq(pref, off, word[6810000 + k * 8], word[6800000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
+; the current machine's instance prefix (M_PREF[CUR_MI]).
+proc cur_pref() {
+    return word[6024000 + word[6000032] * 8]
+}
+
+proc lookup_machine(off) {
+    let mi = 0
+    state loop {
+        to nomatch when (mi == word[6000000])               ; MACHINE_CNT
+        to hit when (name_eq2(off, word[6010000 + mi * 8]) == 1)
+        mi = mi + 1
+        to loop
+    }
+    state hit { return mi }
+    state nomatch { return 0 }
+}
+
+proc array_lookup(pref, off) {
+    let k = 0
+    state loop {
+        to nomatch when (k == word[6000040])                ; ARRAY_CNT
+        to hit when (path2_eq(pref, off, word[6830000 + k * 8], word[6820000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state nomatch { return 0 }
+}
+
+proc array_exists(pref, off) {         ; distinct from array_lookup (which returns 0 on both miss and hit-0)
+    let k = 0
+    state loop {
+        to no when (k == word[6000040])
+        to yes when (path2_eq(pref, off, word[6830000 + k * 8], word[6820000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return 1 }
+    state no { return 0 }
+}
+
+; the single instance path in `data Main` for type `off` (0 if none).
+proc inst_for_type(off) {
+    let t = 0
+    state loop {
+        to none when (t == word[6000064])                   ; DT_CNT
+        to hit when (name_eq2(off, word[6870000 + t * 8]) == 1)
+        t = t + 1
+        to loop
+    }
+    state hit { return word[6880000 + t * 8] }
+    state none { return 0 }
+}
+
+; ---- expression parser: precedence-climbing, builds a left-associative AST ----
+
+; call arguments -> a chain of ARG(expr, next) nodes (0 if none). Preserves order.
+proc parse_args() {
+    skip_ws()
+    state chk { to none when (cbyte() == ')')  to one }
+    state one {
+        let e = parse_cmp()
+        skip_ws()
+        to more when (cbyte() == ',')
+        return alloc(5, e, 0, 0)
+    }
+    state more { adv()  let rest = parse_args()  return alloc(5, e, rest, 0) }
+    state none { return 0 }
+}
+
+proc is_tvar(o) {                      ; `t<digits>` and nothing else — the hoister's rewrite names
+    state a { to b when (byte[2097152 + o] == 't')  return 0 }
+    state b { to c when (is_digit(byte[2097152 + o + 1]) == 1)  return 0 }
+    state c { let k = o + 1  to d }
+    state d {
+        to d2 when (is_digit(byte[2097152 + k]) == 1)
+        to no when (is_idchar(byte[2097152 + k]) == 1)
+        return 1
+    }
+    state d2 { k = k + 1  to d }
+    state no { return 0 }
+}
+
+proc tvar_num(o) {
+    let v = 0
+    let k = o + 1
+    state loop {
+        to done when (is_digit(byte[2097152 + k]) == 0)
+        v = v * 10 + byte[2097152 + k] - 48
+        k = k + 1
+        to loop
+    }
+    state done { return v }
+}
+
+proc is_terminates_at(o) {
+    state a { to b when (byte[2097152 + o] == 't')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'r')  return 0 }
+    state d { to e when (byte[2097152 + o + 3] == 'm')  return 0 }
+    state e { to f when (byte[2097152 + o + 4] == 'i')  return 0 }
+    state f { to g when (byte[2097152 + o + 5] == 'n')  return 0 }
+    state g { to h when (byte[2097152 + o + 6] == 'a')  return 0 }
+    state h { to i when (byte[2097152 + o + 7] == 't')  return 0 }
+    state i { to j when (byte[2097152 + o + 8] == 'e')  return 0 }
+    state j { to k when (byte[2097152 + o + 9] == 's')  return 0 }
+    state k { to no when (is_idchar(byte[2097152 + o + 10]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_by_at(o) {
+    state a { to b when (byte[2097152 + o] == 'b')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'y')  return 0 }
+    state c { to no when (is_idchar(byte[2097152 + o + 2]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_max_at(o) {                    ; the builtin `max` (3 chars)
+    state a { to b when (byte[2097152 + o] == 'm')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'x')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_min_at(o) {                    ; the builtin `min` (3 chars)
+    state a { to b when (byte[2097152 + o] == 'm')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'i')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'n')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc dotlen_here() {                   ; CUR at '.', followed by exactly `len`
+    state a { to b when (cbyte() == '.')  return 0 }
+    state b { return is_len_at(word[2097144] + 1) }
+}
+
+proc is_as_slice_at(o) {               ; `as_slice` (8 chars)
+    state a { to b when (byte[2097152 + o] == 'a')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 's')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == '_')  return 0 }
+    state d { to e when (byte[2097152 + o + 3] == 's')  return 0 }
+    state e { to f when (byte[2097152 + o + 4] == 'l')  return 0 }
+    state f { to g when (byte[2097152 + o + 5] == 'i')  return 0 }
+    state g { to h when (byte[2097152 + o + 6] == 'c')  return 0 }
+    state h { to i when (byte[2097152 + o + 7] == 'e')  return 0 }
+    state i { to no when (is_idchar(byte[2097152 + o + 8]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc is_len_at(o) {                    ; is the identifier at o exactly `len`?
+    state a { to b when (byte[2097152 + o] == 'l')  return 0 }
+    state b { to c when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c { to d when (byte[2097152 + o + 2] == 'n')  return 0 }
+    state d { to no when (is_idchar(byte[2097152 + o + 3]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+proc lenpath(f, s) {                   ; multi-segment path whose LAST segment is `len`
+    state a { to b when (s > f)  return 0 }
+    state b { return is_len_at(s) }
+}
+
+proc is_strnode(node) {
+    state a { to yes when (word[node] == 19)  to b }
+    state b { to yes when (word[node] == 20)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_listnode(node) {               ; a list-valued operand: strlit, bare array field, or a listcat
+    state a { to yes when (word[node] == 19)  to b }
+    state b { to yes when (word[node] == 20)  to c }
+    state c { to yes when (word[node] == 15)  to d }
+    state d { to e when (word[node] == 2)  return 0 }
+    state e { to yes when (word[node + 8] == 67)  return 0 }   ; BIN with op 'C' (listcat)
+    state yes { return 1 }
+}
+
+proc parse_term() {
+    skip_ws()
+    let c = cbyte()
+    state disp {
+        to paren when (c == '(')
+        to strlit when (c == 34)               ; a string literal value -> a (Cons b .. Nil) list node
+        to lit when (is_digit(c) == 1)
+        to ident
+    }
+    state strlit {
+        adv()                                  ; consume opening quote
+        let sn = 0
+        to slrd
+    }
+    state slrd {
+        to slend when (cbyte() == 34)
+        to slend when (word[2097144] >= word[2097136])
+        byte[6900000 + sn] = cbyte()
+        sn = sn + 1
+        adv()
+        to slrd
+    }
+    state slend {
+        adv()                                  ; consume closing quote
+        let snode = alloc(20, 0, 0, 0)         ; strnil
+        to slbuild
+    }
+    state slbuild {
+        to sldone when (sn == 0)
+        sn = sn - 1
+        snode = alloc(19, byte[6900000 + sn], snode, 0)   ; strcons byte-first (innermost = last byte)
+        to slbuild
+    }
+    state sldone { return snode }
+    state ident {
+        to selffield when (is_self() == 1)
+        let off = word[2097144]
+        to tvar when (is_tvar(off) == 1)    ; a hoisted call's bound t-variable
+        skip_ident()
+        to dcolon when (cbyte() == ':')     ; Type::Case — a case-constructor VALUE
+        skip_ws()
+        to iscall when (cbyte() == '(')
+        to lidx when (cbyte() == '[')
+        to llen when (dotlen_here() == 1)
+        to cbind when (casebind_slot(off) < word[6000080])   ; an arm's payload binder: an inline
+        return alloc(1, lookup_local(off), 0, 0)              ; extraction from `pl` (tag 8)
+    }
+    state cbind {
+        let bs = casebind_slot(off)
+        return alloc(8, word[7000000 + bs * 8], word[7010000 + bs * 8], 0)
+    }
+    state tvar {
+        skip_ident()
+        return alloc(11, tvar_num(off), 0, 0)
+    }
+    state lidx {                       ; LOCAL[ix] / LOCAL[k..] — slice index or subslice on a local
+        adv()                          ; consume '['
+        let lx = parse_cmp()
+        skip_ws()
+        to lsub when (cbyte() == '.')
+        adv()                          ; consume ']'
+        to lfield when (cbyte() == '.')          ; LOCAL[ix].field — struct-slice element field access
+        return alloc(12, lookup_local(off), lx, 0)
+    }
+    state lfield {                     ; s[ix].field: extract `field` from the slice element (nth s ix)
+        adv()                          ; consume '.'
+        let lfo = word[2097144]
+        skip_ident()                   ; past the field name
+        to lftyped when (word[6200000 + (word[6000032] * 128 + lookup_local(off)) * 8] > 0)
+        return alloc(12, lookup_local(off), lx, 0)   ; untracked local (type unknown): 1-field identity, as before
+    }
+    state lftyped {                    ; param slice `&[Tname]`: resolve Tname now (dtypes are collected by render)
+        let ldt = dt2_idx(word[6200000 + (word[6000032] * 128 + lookup_local(off)) * 8])
+        return alloc(21, lookup_local(off), lx, case_like_pack(dt2_fidx(ldt, lfo), word[7030000 + ldt * 8]))
+    }
+    state lsub {
+        adv()  adv()                   ; consume '..'
+        skip_ws()
+        to lsubend when (cbyte() == ']')
+        let le = parse_cmp()           ; bounded x[a..b] -> (take (drop x a) (- b a))
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(18, alloc(13, lookup_local(off), lx, 0), alloc(2, '-', le, lx), 0)
+    }
+    state lsubend {
+        adv()                          ; consume ']'
+        return alloc(13, lookup_local(off), lx, 0)
+    }
+    state llen {                       ; LOCAL.len
+        adv()                          ; consume '.'
+        skip_ident()                   ; past `len`
+        return alloc(14, lookup_local(off), 0, 0)
+    }
+    state dcolon {
+        to dcolon2 when (byte[2097152 + word[2097144] + 1] == ':')
+        emit("E2G-UNSUPPORTED-single-colon ")            ; not a '::' — outside the fragment
+        return alloc(0, 0, 0, 0)
+    }
+    state dcolon2 {
+        adv()  adv()                   ; consume '::'
+        let coff2 = word[2097144]
+        skip_ident()
+        skip_ws()
+        to cnamed when (cbyte() == '{')
+        to cpos when (cbyte() == '(')
+        to cpay when (case_payload(coff2) == 1)          ; a payload case built with NO payload: refuse
+        return alloc(9, alloc(0, case_tag(coff2), 0, 0), alloc(0, 0, 0, 0), 0)   ; (Pair TAG 0)
+    }
+    state cpay { emit("E2G-UNSUPPORTED-payload-case-construction ")  return alloc(0, 0, 0, 0) }
+    state cnamed {                     ; { f: e, g: e } — exprs stored BY DECL FIELD INDEX (order-safe)
+        adv()
+        let ck = case_idx(coff2)
+        let e0 = 0
+        let e1 = 0
+        let e2 = 0
+        to cbig when (word[6960000 + ck * 8] > 3)
+        to cnloop
+    }
+    state cbig { emit("E2G-UNSUPPORTED-case-arity ")  return alloc(0, 0, 0, 0) }
+    state cnloop {
+        skip_ws()
+        to cdone when (cbyte() == '}')
+        to cdone when (word[2097144] >= word[2097136])
+        to cncomma when (cbyte() == ',')
+        let fo = word[2097144]
+        skip_ident()
+        skip_ws()
+        adv()                          ; consume ':'
+        skip_ws()
+        let fx = case_fidx(ck, fo)
+        let fe = parse_cmp()
+        to cn0 when (fx == 0)
+        to cn1 when (fx == 1)
+        e2 = fe
+        to cnloop
+    }
+    state cn0 { e0 = fe  to cnloop }
+    state cn1 { e1 = fe  to cnloop }
+    state cncomma { adv()  to cnloop }
+    state cpos {                       ; ( e, e ) — positional, decl order
+        adv()
+        let ck2 = case_idx(coff2)
+        let p0 = 0
+        let pe0 = 0
+        let pe1 = 0
+        let pe2 = 0
+        to cbig when (word[6960000 + ck2 * 8] > 3)
+        to cploop
+    }
+    state cploop {
+        skip_ws()
+        to cpdone when (cbyte() == ')')
+        to cpdone when (word[2097144] >= word[2097136])
+        to cpcomma when (cbyte() == ',')
+        let pe = parse_cmp()
+        to cp0 when (p0 == 0)
+        to cp1 when (p0 == 1)
+        pe2 = pe
+        p0 = p0 + 1
+        to cploop
+    }
+    state cp0 { pe0 = pe  p0 = p0 + 1  to cploop }
+    state cp1 { pe1 = pe  p0 = p0 + 1  to cploop }
+    state cpcomma { adv()  to cploop }
+    state cpdone {
+        adv()
+        e0 = pe0
+        e1 = pe1
+        e2 = pe2
+        ck = ck2
+        to cbuild
+    }
+    state cdone { adv()  to cbuild }
+    state cbuild {                     ; (Pair TAG payload): 1 field -> e0; 2 -> (Pair e0 e1); 3 nested
+        let tagn = alloc(0, word[6950000 + ck * 8], 0, 0)
+        to cb1 when (word[6960000 + ck * 8] == 1)
+        to cb2 when (word[6960000 + ck * 8] == 2)
+        to cb3 when (word[6960000 + ck * 8] == 3)
+        return alloc(9, tagn, alloc(0, 0, 0, 0), 0)
+    }
+    state cb1 { return alloc(9, tagn, e0, 0) }
+    state cb2 { return alloc(9, tagn, alloc(9, e0, e1, 0), 0) }
+    state cb3 { return alloc(9, tagn, alloc(9, e0, alloc(9, e1, e2, 0), 0), 0) }
+    state iscall {                     ; name( args ) -> a free-machine call, or the max/min builtins
+        adv()                          ; consume '('
+        to bmax when (is_max_at(off) == 1)
+        to bmin when (is_min_at(off) == 1)
+        let ch = parse_args()
+        skip_ws()
+        adv()                          ; consume ')'
+        return alloc(4, lookup_machine(off), ch, 0)
+    }
+    state bmax {
+        let ba = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ','
+        let bb = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ')'
+        return alloc(2, 'X', ba, bb)
+    }
+    state bmin {
+        let na2 = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ','
+        let nb2 = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ')'
+        return alloc(2, 'Y', na2, nb2)
+    }
+    state selffield {                  ; self.PATH -> a field read (dotted paths ok), or self.arr[ix],
+        skip_ident()                   ; past "self"                  or self.carrier.len (tag 7)
+        adv()                          ; past '.'
+        let foff = word[2097144]
+        let lseg = skip_path()         ; past the dotted path; lseg = its LAST segment
+        skip_ws()
+        to arrread when (cbyte() == '[')
+        to dolen when (lenpath(foff, lseg) == 1)
+        to doslice when (is_as_slice_at(lseg) == 1)
+        to barearr when (array_exists(cur_pref(), foff) == 1)   ; bare `self.carrier` -> its list value
+        return alloc(3, field_lookup(cur_pref(), foff), 0, 0)
+    }
+    state barearr { return alloc(15, array_lookup(cur_pref(), foff), 0, 0) }
+    state doslice {                    ; self.arr.as_slice() — the whole array slot as a list value
+        byte[2097152 + lseg - 1] = ' '                 ; blank `.as_slice` so the carrier path resolves
+        byte[2097152 + lseg] = ' '
+        byte[2097152 + lseg + 1] = ' '
+        byte[2097152 + lseg + 2] = ' '
+        byte[2097152 + lseg + 3] = ' '
+        byte[2097152 + lseg + 4] = ' '
+        byte[2097152 + lseg + 5] = ' '
+        byte[2097152 + lseg + 6] = ' '
+        byte[2097152 + lseg + 7] = ' '
+        skip_ws()
+        adv()  adv()                   ; consume '()'
+        skip_ws()
+        to slpost when (cbyte() == '[')
+        to sllen when (dotlen_here() == 1)
+        return alloc(15, array_lookup(cur_pref(), foff), 0, 0)
+    }
+    state slpost {                     ; as_slice()[ix] / as_slice()[k..] — postfix over the slot value
+        adv()                          ; consume '['
+        let px = parse_cmp()
+        skip_ws()
+        to slsub when (cbyte() == '.')
+        adv()                          ; consume ']'
+        return alloc(16, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0)
+    }
+    state slsub {
+        adv()  adv()                   ; consume '..'
+        skip_ws()
+        to slsubend when (cbyte() == ']')
+        let se = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ']'
+        return alloc(18, alloc(17, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0), alloc(2, '-', se, px), 0)
+    }
+    state slsubend {
+        adv()                          ; consume ']'
+        return alloc(17, alloc(15, array_lookup(cur_pref(), foff), 0, 0), px, 0)
+    }
+    state sllen {
+        adv()
+        skip_ident()                   ; past `len`
+        return alloc(7, array_lookup(cur_pref(), foff), 0, 0)
+    }
+    state dolen {                      ; blank the `.len` so the carrier's path terminates for lookup
+        byte[2097152 + lseg - 1] = ' '
+        byte[2097152 + lseg] = ' '
+        byte[2097152 + lseg + 1] = ' '
+        byte[2097152 + lseg + 2] = ' '
+        return alloc(7, array_lookup(cur_pref(), foff), 0, 0)
+    }
+    state arrread {
+        adv()                          ; consume '['
+        let ix = parse_cmp()
+        skip_ws()
+        adv()                          ; consume ']'
+        to sfield when (cbyte() == '.')
+        return alloc(6, array_lookup(cur_pref(), foff), ix, 0)
+    }
+    state sfield {                     ; self.arr[ix].field — extract the field from the element tuple
+        adv()                          ; consume '.'
+        let sfo = word[2097144]
+        skip_ident()
+        let sarr = array_lookup(cur_pref(), foff)
+        let sdt = word[7050000 + sarr * 8]
+        to sbad when (sdt == 0)
+        return alloc(10, sarr, ix, case_like_pack(dt2_fidx(sdt - 1, sfo), word[7030000 + (sdt - 1) * 8]))
+    }
+    state sbad { emit("E2G-UNSUPPORTED-field-of-scalar-array ")  return alloc(0, 0, 0, 0) }
+    state paren {
+        adv()
+        let e = parse_cmp()
+        skip_ws()
+        adv()
+        return e
+    }
+    state lit {
+        let iv = parse_number()
+        to litdot when (cbyte() == '.')
+        return alloc(0, iv, 0, 0)
+    }
+    state litdot {                     ; a '.' after digits: a FLOAT literal (1.8) — floats are outside the
+        to litfloat when (is_digit(byte[2097152 + word[2097144] + 1]) == 1)   ; integer/structural fragment
+        return alloc(0, iv, 0, 0)      ; a bare '.' with no digit (unreachable in valid Omega) -> the int
+    }
+    state litfloat {                   ; REFUSE LOUDLY: the meaning route covers integer/structural Omega;
+        emit("E2G-UNSUPPORTED-float-literal ")   ; IEEE float semantics belong to the native producer
+        adv()                          ; consume '.'
+        to fskip
+    }
+    state fskip {
+        to fdone when (is_digit(cbyte()) == 0)   ; consume the fractional digits so scanning stays sane
+        adv()
+        to fskip
+    }
+    state fdone { return alloc(0, 0, 0, 0) }
+}
+
+proc parse_product() {
+    let a = parse_term()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to mul when (c == '*')
+        to divd when (c == '/')
+        to modo when (c == '%')
+        return a
+    }
+    state mul  { adv()  let bm = parse_term()  a = alloc(2, '*', a, bm)  to loop }
+    state divd { adv()  let bd = parse_term()  a = alloc(2, '/', a, bd)  to loop }
+    state modo { adv()  let bo = parse_term()  a = alloc(2, '%', a, bo)  to loop }
+}
+
+proc parse_sum() {
+    let a = parse_product()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to add when (c == '+')
+        to sub when (c == '-')
+        return a
+    }
+    state add {
+        adv()
+        let bp = parse_product()
+        to addlist when (is_listnode(a) == 1)
+        to addlist when (is_listnode(bp) == 1)
+        a = alloc(2, '+', a, bp)
+        to loop
+    }
+    state addlist { a = alloc(2, 'C', a, bp)  to loop }   ; string/list concatenation
+    state sub { adv()  let bs = parse_product()  a = alloc(2, '-', a, bs)  to loop }
+}
+
+; The lower-rung shift meaning is deliberately narrower than Delta's general
+; bit-operator grammar: only one standalone decimal count in [0,30] is lowered
+; to multiplication/division by 2^k.  Keep this allowlist explicit so an
+; expression such as `x << 2 + 1` cannot be truncated to `x << 2`.
+proc shift_tail_ok() {
+    skip_ws()
+    let c = cbyte()
+    state c0 { to yes when (c == 0)    to c1 }
+    state c1 { to yes when (c == ')')  to c2 }
+    state c2 { to yes when (c == ']')  to c3 }
+    state c3 { to yes when (c == ';')  to c4 }
+    state c4 { to yes when (c == ',')  to c5 }
+    state c5 { to yes when (c == '}')  to c6 }
+    state c6 { to yes when (c == '{')  to c7 }
+    state c7 { to yes when (c == '&')  to c8 }
+    state c8 { to yes when (c == '|')  return 0 }
+    state yes { return 1 }
+}
+
+proc parse_cmp0() {
+    let a = parse_sum()
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to lt when (c == '<')
+        to gt when (c == '>')
+        to eqx when (c == '=')
+        to nex when (c == '!')
+        return a
+    }
+    state lt {
+        adv()
+        to le when (cbyte() == '=')
+        to shl when (cbyte() == '<')
+        let bl = parse_sum()
+        a = alloc(2, '<', a, bl)
+        to loop
+    }
+    state shl {                        ; a << k -> a * 2^k for the admitted standalone literal k
+        adv()
+        skip_ws()
+        let shstart = word[2097144]
+        to shbad when (is_digit(cbyte()) == 0)
+        let sk = parse_number()
+        to shbad when (sk > 30)
+        to shbad when (shift_tail_ok() == 0)
+        let sp = 1
+        to shle
+    }
+    state shbad {
+        word[2097144] = shstart
+        emit("E2G-UNSUPPORTED-shift ")
+        let she = parse_sum()          ; consume the complete rejected RHS so translation still terminates
+        a = alloc(0, 0, 0, 0)
+        to loop
+    }
+    state shle {
+        to shld when (sk == 0)
+        sp = sp * 2
+        sk = sk - 1
+        to shle
+    }
+    state shld { a = alloc(2, '*', a, alloc(0, sp, 0, 0))  to loop }
+    state le  { adv()  let ble = parse_sum()  a = alloc(2, 'L', a, ble)  to loop }
+    state gt {
+        adv()
+        to ge when (cbyte() == '=')
+        to shr when (cbyte() == '>')
+        let bg = parse_sum()
+        a = alloc(2, '>', a, bg)
+        to loop
+    }
+    state shr {                        ; a >> k -> a / 2^k for the admitted standalone literal k
+        adv()
+        skip_ws()
+        shstart = word[2097144]
+        to shbad when (is_digit(cbyte()) == 0)
+        let rk = parse_number()
+        to shbad when (rk > 30)
+        to shbad when (shift_tail_ok() == 0)
+        let rp = 1
+        to shre
+    }
+    state shre {
+        to shrd when (rk == 0)
+        rp = rp * 2
+        rk = rk - 1
+        to shre
+    }
+    state shrd { a = alloc(2, '/', a, alloc(0, rp, 0, 0))  to loop }
+    state ge  { adv()  let bge = parse_sum()  a = alloc(2, 'G', a, bge)  to loop }
+    state eqx {
+        adv()  adv()
+        let beq = parse_sum()
+        to eqlist when (is_strnode(a) == 1)
+        to eqlist when (is_strnode(beq) == 1)
+        a = alloc(2, '=', a, beq)
+        to loop
+    }
+    state eqlist { a = alloc(2, 'Q', a, beq)  to loop }
+    state nex {
+        adv()  adv()
+        let bne = parse_sum()
+        to nelist when (is_strnode(a) == 1)
+        to nelist when (is_strnode(bne) == 1)
+        a = alloc(2, 'N', a, bne)
+        to loop
+    }
+    state nelist { a = alloc(2, 'R', a, bne)  to loop }
+}
+
+; logical layers over 0/1 comparison results: `&&` -> multiplication, `||` -> (lt 0 (+ a b)).
+; parse_cmp keeps its name as the public expression entry, so every call site gets logic for free.
+proc parse_and() {
+    let a = parse_cmp0()
+    state loop {
+        skip_ws()
+        to amp when (cbyte() == '&')
+        return a
+    }
+    state amp {
+        to aa when (byte[2097152 + word[2097144] + 1] == '&')
+        adv()
+        let bb = parse_cmp0()
+        a = alloc(2, 'B', a, bb)
+        to loop
+    }
+    state aa { adv()  adv()  let b = parse_cmp0()  a = alloc(2, 'A', a, b)  to loop }
+}
+
+proc parse_or() {
+    let a = parse_and()
+    state loop {
+        skip_ws()
+        to bar when (cbyte() == '|')
+        to xor when (cbyte() == '^')
+        return a
+    }
+    state bar {
+        to oo when (byte[2097152 + word[2097144] + 1] == '|')
+        adv()
+        emit("E2G-UNSUPPORTED-bitwise-or ")
+        let bo = parse_and()           ; consume the rejected RHS; the marker poisons the Gamma output
+        a = alloc(0, 0, 0, 0)
+        to loop
+    }
+    state xor {
+        adv()
+        emit("E2G-UNSUPPORTED-bitwise-xor ")
+        let bx = parse_and()
+        a = alloc(0, 0, 0, 0)
+        to loop
+    }
+    state oo { adv()  adv()  let b = parse_and()  a = alloc(2, 'O', a, b)  to loop }
+}
+
+proc parse_cmp() { return parse_or() }
+
+; ---- keyword detectors (bytes at CUR spell WORD, then a non-idchar boundary) ----
+
+proc is_let() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'l')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 't')  return 0 }
+    state c4 { to yes when (is_idchar(byte[2097152 + o + 3]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_state() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 's')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 't')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'a')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to yes when (is_idchar(byte[2097152 + o + 5]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_transition() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 't')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'a')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'n')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 's')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'i')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 't')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'i')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'o')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'n')  return 0 }
+    state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_self() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 's')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'l')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'f')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + o + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_true() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 't')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'u')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'e')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + o + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_false() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'f')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'l')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 's')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to yes when (is_idchar(byte[2097152 + o + 5]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_machine() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'm')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'c')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'h')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'i')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'n')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'e')  return 0 }
+    state c8 { to yes when (is_idchar(byte[2097152 + o + 7]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_return() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'r')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 't')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'u')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'r')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'n')  return 0 }
+    state c7 { to yes when (is_idchar(byte[2097152 + o + 6]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_read_byte() {                  ; the boundary call `read_byte` (9 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'r')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'e')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'a')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'd')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == '_')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'b')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'y')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 't')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'e')  return 0 }
+    state c10 { to yes when (is_idchar(byte[2097152 + o + 9]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_write_byte() {                 ; the boundary call `write_byte` (10 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'w')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == '_')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'b')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'y')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 't')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_digit_at() {
+    let c = cbyte()
+    state lo { to hi when (c > 47)  return 0 }
+    state hi { to yes when (c < 58)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_write_line() {                 ; the boundary call `write_line` (10 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'w')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'r')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == 'e')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == '_')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'l')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'i')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'n')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to yes when (is_idchar(byte[2097152 + o + 10]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc is_exit_process() {               ; the boundary call `exit_process` (12 chars)
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'e')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'x')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 't')  return 0 }
+    state c5 { to c6 when (byte[2097152 + o + 4] == '_')  return 0 }
+    state c6 { to c7 when (byte[2097152 + o + 5] == 'p')  return 0 }
+    state c7 { to c8 when (byte[2097152 + o + 6] == 'r')  return 0 }
+    state c8 { to c9 when (byte[2097152 + o + 7] == 'o')  return 0 }
+    state c9 { to c10 when (byte[2097152 + o + 8] == 'c')  return 0 }
+    state c10 { to c11 when (byte[2097152 + o + 9] == 'e')  return 0 }
+    state c11 { to c12 when (byte[2097152 + o + 10] == 's')  return 0 }
+    state c12 { to c13 when (byte[2097152 + o + 11] == 's')  return 0 }
+    state c13 { to yes when (is_idchar(byte[2097152 + o + 12]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; classify a self-field method name at off: 1=store, 2=fetch_add, 3=compare_exchange, else 0.
+; single-threaded atomic ops desugar to plain field read/modify/write (memory orderings are no-ops here).
+proc atomic_method(off) {
+    state d {
+        to a_s when (byte[2097152 + off] == 's')
+        to a_f when (byte[2097152 + off] == 'f')
+        to a_c when (byte[2097152 + off] == 'c')
+        return 0
+    }
+    state a_s { to a_s2 when (byte[2097152 + off + 1] == 't')  return 0 }
+    state a_s2 { to a_s3 when (byte[2097152 + off + 2] == 'o')  return 0 }
+    state a_s3 { to a_s4 when (byte[2097152 + off + 3] == 'r')  return 0 }
+    state a_s4 { to a_s5 when (byte[2097152 + off + 4] == 'e')  return 0 }
+    state a_s5 { to a_syes when (is_idchar(byte[2097152 + off + 5]) == 0)  return 0 }
+    state a_syes { return 1 }
+    state a_f { to a_f2 when (byte[2097152 + off + 1] == 'e')  return 0 }
+    state a_f2 { to a_f3 when (byte[2097152 + off + 2] == 't')  return 0 }
+    state a_f3 { to a_f4 when (byte[2097152 + off + 3] == 'c')  return 0 }
+    state a_f4 { to a_f5 when (byte[2097152 + off + 4] == 'h')  return 0 }
+    state a_f5 { to a_f6 when (byte[2097152 + off + 5] == '_')  return 0 }
+    state a_f6 { to a_f7 when (byte[2097152 + off + 6] == 'a')  return 0 }
+    state a_f7 { to a_f8 when (byte[2097152 + off + 7] == 'd')  return 0 }
+    state a_f8 { to a_f9 when (byte[2097152 + off + 8] == 'd')  return 0 }
+    state a_f9 { to a_fyes when (is_idchar(byte[2097152 + off + 9]) == 0)  return 0 }
+    state a_fyes { return 2 }
+    state a_c { to a_c2 when (byte[2097152 + off + 1] == 'o')  return 0 }
+    state a_c2 { to a_c3 when (byte[2097152 + off + 2] == 'm')  return 0 }
+    state a_c3 { to a_c4 when (byte[2097152 + off + 3] == 'p')  return 0 }
+    state a_c4 { to a_c5 when (byte[2097152 + off + 4] == 'a')  return 0 }
+    state a_c5 { to a_c6 when (byte[2097152 + off + 5] == 'r')  return 0 }
+    state a_c6 { to a_c7 when (byte[2097152 + off + 6] == 'e')  return 0 }
+    state a_c7 { to a_c8 when (byte[2097152 + off + 7] == '_')  return 0 }
+    state a_c8 { to a_c9 when (byte[2097152 + off + 8] == 'e')  return 0 }
+    state a_c9 { to a_c10 when (byte[2097152 + off + 9] == 'x')  return 0 }
+    state a_c10 { to a_c11 when (byte[2097152 + off + 10] == 'c')  return 0 }
+    state a_c11 { to a_c12 when (byte[2097152 + off + 11] == 'h')  return 0 }
+    state a_c12 { to a_c13 when (byte[2097152 + off + 12] == 'a')  return 0 }
+    state a_c13 { to a_c14 when (byte[2097152 + off + 13] == 'n')  return 0 }
+    state a_c14 { to a_c15 when (byte[2097152 + off + 14] == 'g')  return 0 }
+    state a_c15 { to a_c16 when (byte[2097152 + off + 15] == 'e')  return 0 }
+    state a_c16 { to a_cyes when (is_idchar(byte[2097152 + off + 16]) == 0)  return 0 }
+    state a_cyes { return 3 }
+}
+
+; ---- printing ----
+
+proc emit_dec(n) {
+    state neg { to do_neg when (n < 0)  to big }
+    state do_neg { write_byte('-')  emit_dec(0 - n)  return 0 }
+    state big { to rec when (n >= 10)  to digit }
+    state rec { emit_dec(n / 10)  to digit }
+    state digit { write_byte(n % 10 + '0')  return 0 }
+}
+
+proc print_curname(i) {
+    state k { to isL when (word[6400000 + i * 8] == 0)  to isT }
+    state isL { write_byte('l')  emit_dec(i)  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6410000 + i * 8])  return 0 }
+}
+
+; Scalar receiver fields share one persistent indexed carrier. Reads select one lane; writes replace the
+; carrier with setl. The two scratch words track the carrier's SSA name, rather than one name per field.
+proc print_field_carrier() {
+    state k { to isG when (word[6420000] == 0)  to isT }
+    state isG { emit("gs")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6430000])  return 0 }
+}
+
+proc set_field_carrier(fv) {
+    word[6420000] = 1
+    word[6430000] = fv
+    return 0
+}
+
+proc field_carrier_count() {
+    state d { to none when (word[6000024] == 0)  return 1 }
+    state none { return 0 }
+}
+
+proc print_fcurname(g) {
+    emit("(nth ")
+    print_field_carrier()
+    write_byte(' ')
+    emit_dec(g)
+    write_byte(')')
+    return 0
+}
+
+proc print_acurname(a) {
+    state k { to isA when (word[6440000 + a * 8] == 0)  to isT }
+    state isA { write_byte('a')  emit_dec(a)  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6450000 + a * 8])  return 0 }
+}
+
+; the input stream slot's current gamma name: `inp` (the param) until a read rebinds it to t{val}.
+proc print_inpname() {
+    state k { to isI when (word[6460000] == 0)  to isT }         ; INP_KIND
+    state isI { emit("inp")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6470000])  return 0 }   ; INP_VAL
+}
+
+; the packed-input cursor's current gamma name: `ipos` until a read rebinds it to t{val}.
+proc print_inpposname() {
+    state k { to isI when (word[6500000] == 0)  to isT }         ; INPPOS_KIND
+    state isI { emit("ipos")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6510000])  return 0 }   ; INPPOS_VAL
+}
+
+; the stdout accumulator slot's current gamma name: `out` until a write rebinds it to t{val}.
+proc print_outname() {
+    state k { to isO when (word[6480000] == 0)  to isT }         ; OUT_KIND
+    state isO { emit("out")  return 0 }
+    state isT { write_byte('t')  emit_dec(word[6490000])  return 0 }   ; OUT_VAL
+}
+
+; write_byte(<expr>) -> `(let t{f} (Cons <expr> <out>) `; rebind out. CUR at the `write_byte` token. -> 1 let.
+proc emit_write_byte() {
+    skip_ident()                       ; past "write_byte"
+    skip_ws()  adv()                   ; consume '('
+    skip_ws()
+    let e = parse_cmp()
+    emit("(let t")  emit_dec(word[6000016])  emit(" (Cons ")  print_expr(e)  write_byte(' ')  print_outname()  emit(") ")
+    word[6480000] = 1                  ; OUT_KIND = t
+    word[6490000] = word[6000016]      ; out = t{fresh}
+    word[6000016] = word[6000016] + 1
+    state tcl { to eatcl when (cbyte() == ')')  adv()  to tcl }
+    state eatcl { adv()  to tsemi }    ; consume ')'
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi { adv()  return 1 }
+}
+
+; write_line("STR") -> cons STR's bytes + a trailing '\n' onto out (last byte outermost). CUR at the token.
+proc emit_write_line() {
+    skip_ident()                       ; past "write_line"
+    skip_ws()  adv()                   ; consume '('
+    skip_ws()
+    let n = 0
+    state wlck {                       ; string-literal or bare self-path carrier args; anything else
+        to wlstr when (cbyte() == '"')                    ; must REFUSE LOUDLY, not scan forever (the
+        to wlfld when (is_self() == 1)                    ; old code spun at EOF on write_line(self.f))
+        to wlbad
+    }
+    state wlfld {                      ; write_line(self.PATH): out' = (Cons 10 (rev CARRIER out)) —
+        skip_ident()                   ; rev peels the head first, so byte 0 lands deepest (written
+        adv()                          ; first) and the newline rides outermost (written last)
+        let wf = word[2097144]
+        skip_path()
+        skip_ws()
+        to wlemit when (cbyte() == ')')
+        to wlbad
+    }
+    state wlemit {
+        emit("(let t")  emit_dec(word[6000016])  emit(" (Cons 10 (rev ")
+        print_acurname(array_lookup(cur_pref(), wf))
+        write_byte(' ')  print_outname()  emit(")) ")
+        word[6480000] = 1              ; OUT_KIND = t
+        word[6490000] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tcl
+    }
+    state wlbad {
+        emit("E2G-UNSUPPORTED-write-line-arg ")           ; unparseable marker poisons the output: every
+        to wlskip                                         ; downstream consumer fails, never silently
+    }
+    state wlskip {                     ; consume through the call's ')', EOF-guarded
+        to wlseof when (word[2097144] >= word[2097136])
+        to wlsrp when (cbyte() == ')')
+        adv()
+        to wlskip
+    }
+    state wlsrp { adv()  to wlsemi }
+    state wlsemi {                     ; ...and through the statement's ';' (the body scanner has no
+        to wlseof when (word[2097144] >= word[2097136])   ; stray-';' case and would spin on it)
+        to wlsemieat when (cbyte() == ';')
+        adv()
+        to wlsemi
+    }
+    state wlsemieat { adv()  return 0 }
+    state wlseof { return 0 }
+    state wlstr { adv()  to rd }       ; consume opening '"'
+    state rd {
+        to enddq when (cbyte() == '"')
+        to wlrdeof when (word[2097144] >= word[2097136])
+        byte[6900000 + n] = cbyte()
+        n = n + 1
+        adv()
+        to rd
+    }
+    state wlrdeof { emit("E2G-UNSUPPORTED-write-line-arg ")  return 0 }
+    state enddq {
+        adv()                          ; consume closing '"'
+        byte[6900000 + n] = 10         ; write_line appends a newline
+        n = n + 1
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        let k = n
+        to consloop
+    }
+    state consloop {                   ; emit (Cons b{n-1} (Cons b{n-2} ... — last byte outermost
+        to consend when (k == 0)
+        k = k - 1
+        emit("(Cons ")  emit_dec(byte[6900000 + k])  write_byte(' ')
+        to consloop
+    }
+    state consend {
+        print_outname()
+        let j = 0
+        to closes
+    }
+    state closes { to closed when (j == n)  write_byte(')')  j = j + 1  to closes }
+    state closed {
+        write_byte(' ')
+        word[6480000] = 1              ; OUT_KIND = t
+        word[6490000] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tcl
+    }
+    state tcl {
+        to teof when (word[2097144] >= word[2097136])
+        to eatcl when (cbyte() == ')')
+        adv()
+        to tcl
+    }
+    state eatcl { adv()  to tsemi }
+    state tsemi {
+        to teof when (word[2097144] >= word[2097136])
+        to teof when (cbyte() == '}')
+        to eatsemi when (cbyte() == ';')
+        adv()
+        to tsemi
+    }
+    state eatsemi { adv()  return 1 }
+    state teof { return 1 }
+}
+
+; the entry's terminal. Output mode returns BOTH observables: `(Pair <exit> (rev out Nil))` — the exit
+; code AND the accumulated stdout — so gates verify the two channels together (exit parsed from the
+; printed pair, stdout pinned byte-exact by the render check). Exit-only programs return the bare value.
+proc emit_exit_om() {
+    state d { to omexit when (word[6000056] == 1)  to normal }   ; HAS_OUTPUT
+    state normal { emit_exit()  return 0 }
+    state omexit {
+        emit("(Pair ")
+        emit_exit()
+        emit(" (rev ")  print_outname()  emit(" Nil))")
+        return 0
+    }
+}
+
+; ---- self-methods: the program-wide UNIFIED self-state {scalar carrier, arrays, inp, ipos, out} ----
+
+; the number of unified self-slots (shared by every &mut self machine).
+proc self_slot_count() {
+    return field_carrier_count() + word[6000040] + word[6000048] * 2 + word[6000056]
+}
+
+; print the current gamma name of self-slot i (order: scalar carrier, arrays, inp, ipos, out).
+proc print_self_slot(i) {
+    let nf = field_carrier_count()
+    let na = word[6000040]
+    state d {
+        to fld when (i < nf)
+        to arr when (i < nf + na)
+        to inq when (i < nf + na + word[6000048])
+        to inpq when (i < nf + na + word[6000048] * 2)
+        to ouq
+    }
+    state fld { print_field_carrier()  return 0 }
+    state arr { print_acurname(i - nf)  return 0 }
+    state inq { print_inpname()  return 0 }
+    state inpq { print_inpposname()  return 0 }
+    state ouq { print_outname()  return 0 }
+}
+
+; rebind self-slot i's current name to t{fv}.
+proc set_self_slot(i, fv) {
+    let nf = field_carrier_count()
+    let na = word[6000040]
+    state d {
+        to fld when (i < nf)
+        to arr when (i < nf + na)
+        to inq when (i < nf + na + word[6000048])
+        to inpq when (i < nf + na + word[6000048] * 2)
+        to ouq
+    }
+    state fld { set_field_carrier(fv)  return 0 }
+    state arr { word[6440000 + (i - nf) * 8] = 1  word[6450000 + (i - nf) * 8] = fv  return 0 }
+    state inq { word[6460000] = 1  word[6470000] = fv  return 0 }
+    state inpq { word[6500000] = 1  word[6510000] = fv  return 0 }
+    state ouq { word[6480000] = 1  word[6490000] = fv  return 0 }
+}
+
+; emit the current self-slots space-prefixed (the self-state passed into a call / tail-call).
+proc emit_self_args() {
+    let n = self_slot_count()
+    let i = 0
+    state loop {
+        to done when (i == n)
+        write_byte(' ')
+        print_self_slot(i)
+        i = i + 1
+        to loop
+    }
+    state done { return 0 }
+}
+
+; `(m{callee}_me <args> <body-local zeros> <current self slots>)`.
+proc emit_call_expr(callee, ch) {
+    emit("(m")  emit_dec(callee)  emit("_me")
+    print_args(ch)
+    emit_zeros(word[6018000 + callee * 8] - word[6016000 + callee * 8])   ; LCNT - PCNT
+    emit_self_args()
+    write_byte(')')
+    return 0
+}
+
+; a method's return value = its self-state bundle: "0" (empty), the sole slot (1), or a flat
+; `SelfState` constructor. This keeps call-result reconstruction independent of the number of slots.
+proc emit_bundle() {
+    let n = self_slot_count()
+    state d {
+        to zero when (n == 0)
+        to one when (n == 1)
+        to many
+    }
+    state zero { emit("0")  return 0 }
+    state one { print_self_slot(0)  return 0 }
+    state many { emit("(SelfState")  let i = 0  to oloop }
+    state oloop {
+        to lastp when (i == n)
+        write_byte(' ')  print_self_slot(i)
+        i = i + 1
+        to oloop
+    }
+    state lastp { write_byte(')')  return 0 }
+}
+
+; self.m(args); (a void method call for effect) -> call + unbundle the returned self-state, rebinding the
+; self-slots to fresh names. Returns the number of `let`/`match` groups opened (closed by the block).
+;   1 slot:  (let nss0 <call> <rest>)                                        -> 1
+;   N slots: (match <call> ((SelfState a0 ... aN) <rest>))       -> 2
+proc emit_scall(callee) {
+    adv()                              ; consume '('
+    let ch = parse_args()
+    skip_ws()
+    adv()                              ; consume ')'
+    state tsemi { to eatsemi when (cbyte() == ';')  adv()  to tsemi }
+    state eatsemi {
+        adv()                          ; consume ';'
+        let ns = self_slot_count()
+        to smany when (ns > 1)
+        to sone
+    }
+    state sone {
+        let f0 = word[6000016]
+        word[6000016] = word[6000016] + 1
+        emit("(let t")  emit_dec(f0)  write_byte(' ')
+        emit_call_expr(callee, ch)
+        write_byte(' ')
+        set_self_slot(0, f0)
+        return 1
+    }
+    state smany {                      ; `ns` is the single declaration from `eatsemi` (reused, not re-let)
+        let abase = word[6000016]
+        word[6000016] = word[6000016] + ns
+        emit("(match ")
+        emit_call_expr(callee, ch)
+        emit(" ((SelfState")
+        let i = 0
+        to marm
+    }
+    state marm {
+        to mlast when (i == ns)
+        emit(" t")  emit_dec(abase + i)
+        set_self_slot(i, abase + i)
+        i = i + 1
+        to marm
+    }
+    state mlast { emit(") ")  return 2 }
+}
+
+; <target> = self.m(args);  — a VALUE-RETURNING method call. The method returns (Pair result <selfbundle>);
+; unbundle it, binding the target slot (kindb/valb/idx) to the result and rebinding the self-slots to fresh
+; names. CUR at '('. Returns the number of let/match groups opened (closed by the block).
+proc emit_vcall(callee, kindb, valb, idx) {
+    adv()                              ; consume '('
+    let ch = parse_args()
+    skip_ws()
+    adv()                              ; consume ')'
+    state tsemi {
+        to postsemi when (kindb == 0)  ; HOIST mode: the call sits mid-expression — no ';' to consume
+        to eatsemi when (cbyte() == ';')
+        adv()
+        to tsemi
+    }
+    state eatsemi { adv()  to postsemi }
+    state postsemi {
+        let ns = self_slot_count()
+        to vmany when (ns > 0)
+        to vone
+    }
+    state vone {                       ; no self-state threaded: the method returns just the value
+        let f0 = word[6000016]
+        word[6000016] = word[6000016] + 1
+        emit("(let t")  emit_dec(f0)  write_byte(' ')
+        emit_call_expr(callee, ch)
+        write_byte(' ')
+        to vone_h when (kindb == 0)
+        word[kindb + idx * 8] = 1
+        word[valb + idx * 8] = f0
+        return 1
+    }
+    state vone_h { word[6000112] = f0  return 1 }
+    state vmany {                      ; tuple = (Pair result <selfbundle>): flat SelfState when ns > 1
+        let rr = word[6000016]         ; component 0: the result -> the target slot
+        let sbase = word[6000016] + 1  ; components 1..ns: the self slots
+        word[6000016] = word[6000016] + 1 + ns
+        let qbase = word[6000016]      ; the flat self-bundle temporary
+        word[6000016] = word[6000016] + 1
+        emit("(match ")
+        emit_call_expr(callee, ch)
+        emit(" ((Pair t")  emit_dec(rr)  write_byte(' ')
+        to vsingle when (ns == 1)
+        emit("t")  emit_dec(qbase)  emit(") (match t")  emit_dec(qbase)  emit(" ((SelfState")
+        let i = 0
+        to vmarm
+    }
+    state vsingle {                    ; ns==1: (match <call> ((Pair r s0) rest))
+        emit("t")  emit_dec(sbase)  emit(") ")
+        set_self_slot(0, sbase)
+        to vbind
+    }
+    state vmarm {
+        to vmlast when (i == ns)
+        emit(" t")  emit_dec(sbase + i)
+        set_self_slot(i, sbase + i)
+        i = i + 1
+        to vmarm
+    }
+    state vmlast { emit(") ")  to vbind }
+    state vbind {                      ; bind the TARGET slot to the result LAST — if the target is itself
+        to vbind_h when (kindb == 0)   ; a self-field (self.w = self.m(...)), the self-slot rebinds above
+        to vbind_f when (kindb == 6420000)
+        word[kindb + idx * 8] = 1      ; would otherwise CLOBBER the result with the threaded-through slot.
+        word[valb + idx * 8] = rr
+        to vfin when (ns == 1)
+        return 4
+    }
+    state vbind_f {
+        let fw = word[6000016]
+        word[6000016] = fw + 1
+        emit("(let t")  emit_dec(fw)  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(idx)  emit(" t")  emit_dec(rr)  emit(") ")
+        set_field_carrier(fw)
+        to vfin_f when (ns == 1)
+        return 5
+    }
+    state vfin_f { return 3 }
+    state vbind_h {
+        word[6000112] = rr             ; HOIST mode: hand the result index back, no slot bind
+        to vfin when (ns == 1)
+        return 4
+    }
+    state vfin { return 2 }
+}
+
+proc emit_zeros(n) {
+    let k = 0
+    state loop { to done when (k == n)  emit(" 0")  k = k + 1  to loop }
+    state done { return 0 }
+}
+
+proc print_args(arg) {
+    state loop {
+        to done when (arg == 0)
+        write_byte(' ')
+        print_expr(word[arg + 8])
+        arg = word[arg + 16]
+        to loop
+    }
+    state done { return 0 }
+}
+
+proc print_expr(node) {
+    state s {
+        to isint when (word[node] == 0)
+        to islocal when (word[node] == 1)
+        to isfield when (word[node] == 3)
+        to iscall when (word[node] == 4)
+        to isaread when (word[node] == 6)
+        to islen when (word[node] == 7)
+        to isbind when (word[node] == 8)
+        to ispair when (word[node] == 9)
+        to iselemf when (word[node] == 10)
+        to istvar when (word[node] == 11)
+        to islnth when (word[node] == 12)
+        to isldrop when (word[node] == 13)
+        to isllen when (word[node] == 14)
+        to isaslice when (word[node] == 15)
+        to isstrc when (word[node] == 19)
+        to isstrn when (word[node] == 20)
+        to isnnth when (word[node] == 16)
+        to isndrop when (word[node] == 17)
+        to isntake when (word[node] == 18)
+        to iselemfl when (word[node] == 21)
+        to isbin
+    }
+    state islen { emit("(len ")  print_acurname(word[node + 8])  write_byte(')')  return 0 }
+    state istvar { emit("t")  emit_dec(word[node + 8])  return 0 }
+    state islnth { emit("(nth ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isldrop { emit("(drop ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isllen { emit("(len ")  print_curname(word[node + 8])  write_byte(')')  return 0 }
+    state isaslice { print_acurname(word[node + 8])  return 0 }
+    state isnnth { emit("(nth ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isndrop { emit("(drop ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isntake { emit("(take ")  print_expr(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state iselemf {                    ; field of a struct-array element: extract from (nth aK ix)
+        let efk = word[node + 24] / 8
+        let efn = word[node + 24] - efk * 8
+        to ef_solo when (efn == 1)
+        emit("(match (nth ")  print_acurname(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  emit(") ((Pair ea eb) ")
+        to ef_f0 when (efk == 0)
+        to ef_f1x when (efn == 2)
+        to ef_f1 when (efk == 1)
+        emit("(match eb ((Pair ec ed) ed))))")
+        return 0
+    }
+    state ef_solo { emit("(nth ")  print_acurname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state ef_f0 { emit("ea))")  return 0 }
+    state ef_f1x { emit("eb))")  return 0 }
+    state ef_f1 { emit("(match eb ((Pair ec ed) ec))))")  return 0 }
+    state iselemfl {                   ; field of a LOCAL/param struct-slice element: extract from (nth lK ix)
+        let elk = word[node + 24] / 8
+        let eln = word[node + 24] - elk * 8
+        to efl_solo when (eln == 1)
+        emit("(match (nth ")  print_curname(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  emit(") ((Pair ea eb) ")
+        to efl_f0 when (elk == 0)
+        to efl_f1x when (eln == 2)
+        to efl_f1 when (elk == 1)
+        emit("(match eb ((Pair ec ed) ed))))")
+        return 0
+    }
+    state efl_solo { emit("(nth ")  print_curname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state efl_f0 { emit("ea))")  return 0 }
+    state efl_f1x { emit("eb))")  return 0 }
+    state efl_f1 { emit("(match eb ((Pair ec ed) ec))))")  return 0 }
+    state ispair {
+        emit("(Pair ")  print_expr(word[node + 8])  write_byte(' ')
+        print_expr(word[node + 16])  write_byte(')')
+        return 0
+    }
+    state isbind {                     ; case binder: field k of an n-field payload, extracted from pl
+        let bk = word[node + 8]
+        let bn = word[node + 16]
+        to b_solo when (bn == 1)
+        to b_f0 when (bk == 0)
+        to b_f1x when (bn == 2)
+        to b_f1 when (bk == 1)
+        emit("(match pl ((Pair ca cb) (match cb ((Pair cc cd) cd))))")   ; k=2 of 3
+        return 0
+    }
+    state b_solo { emit("pl")  return 0 }
+    state b_f0 { emit("(match pl ((Pair ca cb) ca))")  return 0 }
+    state b_f1x { emit("(match pl ((Pair ca cb) cb))")  return 0 }
+    state b_f1 { emit("(match pl ((Pair ca cb) (match cb ((Pair cc cd) cc))))")  return 0 }
+    state isstrc { emit("(Cons ")  emit_dec(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state isstrn { emit("Nil")  return 0 }
+    state isint { emit_dec(word[node + 8])  return 0 }
+    state islocal { print_curname(word[node + 8])  return 0 }
+    state isfield { print_fcurname(word[node + 8])  return 0 }
+    state isaread { emit("(nth ")  print_acurname(word[node + 8])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state iscall {                     ; (m{callee}_me <args> <zeros for non-param locals>)
+        let callee = word[node + 8]
+        emit("(m")  emit_dec(callee)  emit("_me")
+        print_args(word[node + 16])
+        emit_zeros(word[6018000 + callee * 8] - word[6016000 + callee * 8])   ; LCNT - PCNT
+        write_byte(')')
+        return 0
+    }
+    state isbin {
+        let op = word[node + 8]
+        to c_lt when (op == '<')
+        to c_gt when (op == '>')
+        to c_eq when (op == '=')
+        to c_le when (op == 'L')
+        to c_ge when (op == 'G')
+        to c_ne when (op == 'N')
+        to c_band when (op == 'B')
+        to c_and when (op == 'A')
+        to c_or when (op == 'O')
+        to c_max when (op == 'X')
+        to c_min when (op == 'Y')
+        to c_leq when (op == 'Q')
+        to c_lne when (op == 'R')
+        to c_cat when (op == 'C')
+        write_byte('(')
+        write_byte(op)
+        write_byte(' ')
+        print_expr(word[node + 16])
+        write_byte(' ')
+        print_expr(word[node + 24])
+        write_byte(')')
+        return 0
+    }
+    state c_lt { emit("(lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_gt { emit("(lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')  return 0 }
+    state c_eq { emit("(eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_cat { emit("(listcat ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_leq { emit("(listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_lne { emit("(- 1 (listeq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_le {
+        emit("(+ (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") (eq ")   print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit("))")  return 0
+    }
+    state c_ge {
+        emit("(+ (lt ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])
+        emit(") (eq ")   print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit("))")  return 0
+    }
+    state c_ne { emit("(- 1 (eq ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_band {
+        to c_band_int when (word[word[node + 24]] == 0)
+        emit("E2G-UNSUPPORTED-bitwise-and")
+        return 0
+    }
+    state c_band_int {
+        to c_band_byte when (word[word[node + 24] + 8] == 255)
+        emit("E2G-UNSUPPORTED-bitwise-and")
+        return 0
+    }
+    state c_band_byte { emit("(% ")  print_expr(word[node + 16])  emit(" 256)")  return 0 }
+    state c_and { emit("(* ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')  return 0 }
+    state c_or { emit("(lt 0 (+ ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  emit("))")  return 0 }
+    state c_max {
+        emit("(if (eq (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") 1) ")  print_expr(word[node + 24])  write_byte(' ')  print_expr(word[node + 16])  write_byte(')')
+        return 0
+    }
+    state c_min {
+        emit("(if (eq (lt ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])
+        emit(") 1) ")  print_expr(word[node + 16])  write_byte(' ')  print_expr(word[node + 24])  write_byte(')')
+        return 0
+    }
+}
+
+; does transition arm `arm` pass an argument for local slot `i` of target state `tgt`? -> the arg's
+; AST node, or 0. (State params are machine locals; arm args map to them positionally via M_SPOFF.)
+proc arm_arg_for(tgt, arm, i) {
+    let mi = word[6000032]
+    let si = mi * 1024 + tgt
+    let j = 0
+    state loop {
+        to none when (j == word[6630000 + arm * 8])        ; ARM_ARGC
+        to none when (j == word[18874368 + si * 8])         ; M_SPCNT
+        to hit when (lookup_local(word[19922944 + (si * 4 + j) * 8]) == i)
+        j = j + 1
+        to loop
+    }
+    state hit { return word[6620000 + (arm * 4 + j) * 8] } ; ARM_ARG[arm][j]
+    state none { return 0 }
+}
+
+; a tail-call to state `tgt` of the current machine from transition arm `arm`: every slot's current
+; name, except slots that are the target's params with an arm argument — those get the arg expression.
+proc emit_call_state(tgt, arm) {
+    let mi = word[6000032]
+    state vchk { to visval when (word[6660000 + arm * 8] > 0)  to vcall }
+    state visval {                     ; a value arm: return the literal/expression, method-paired
+        to vtail when (word[6660000 + arm * 8] == 3)
+        to vpm when (word[6012000 + mi * 8] == 2)
+        to vlit
+    }
+    state vtail {                      ; a machine tail call: the callee's own return IS this arm's value
+        let tc = word[6680000 + arm * 8]
+        emit("(m")  emit_dec(tc)  emit("_me")
+        print_args(word[6670000 + arm * 8])
+        emit_zeros(word[6018000 + tc * 8] - word[6016000 + tc * 8])   ; LCNT - PCNT
+        emit_selfslots(tc)
+        write_byte(')')
+        return 0
+    }
+    state vpm {
+        to vpb when (self_slot_count() > 0)
+        to vlit
+    }
+    state vlit {
+        to vex when (word[6660000 + arm * 8] == 2)
+        emit_dec(word[6670000 + arm * 8])
+        return 0
+    }
+    state vex { print_expr(word[6670000 + arm * 8])  return 0 }
+    state vpb {
+        emit("(Pair ")
+        to vpbe when (word[6660000 + arm * 8] == 2)
+        emit_dec(word[6670000 + arm * 8])
+        to vpbtail
+    }
+    state vpbe { print_expr(word[6670000 + arm * 8])  to vpbtail }
+    state vpbtail {
+        write_byte(' ')
+        emit_bundle()  write_byte(')')
+        return 0
+    }
+    state vcall { to vgo }
+    state vgo { emit("(m")  emit_dec(mi)  emit("_s")  emit_dec(tgt)  to vrest }
+    state vrest { let i = 0  to lloop }
+    state lloop {
+        to fields when (i == word[6018000 + mi * 8])       ; M_LCNT[mi]
+        write_byte(' ')
+        let an = arm_arg_for(tgt, arm, i)
+        to isarg when (an != 0)
+        print_curname(i)
+        i = i + 1
+        to lloop
+    }
+    state isarg { print_expr(an)  i = i + 1  to lloop }
+    state fields { emit_selfslots(mi)  to done }
+    state done { write_byte(')')  return 0 }
+}
+
+; the unified self-state carriers (scalar list, arrays, input, output) appended to a call — shared by state
+; calls, machine tail-call arms, and anything else that invokes a has_self def.
+proc emit_selfslots(mi) {
+    state fields {
+        to dofields when (word[6012000 + mi * 8] != 1)
+        return 0
+    }
+    state dofields { emit_self_args()  to sdone }
+    state sdone { return 0 }
+}
+
+; ---- block translation (SSA name threading) ----
+
+proc reset_curname(mi) {
+    let i = 0
+    state loop {
+        to fields when (i == word[6018000 + mi * 8])       ; M_LCNT[mi]
+        word[6400000 + i * 8] = 0
+        word[6410000 + i * 8] = i
+        i = i + 1
+        to loop
+    }
+    state fields {
+        to dofields when (word[6012000 + mi * 8] != 1)     ; has_self -> reset self-slots too
+        return 0
+    }
+    state dofields { word[6420000] = 0  word[6430000] = 0  to arrs }
+    state arrs { let ai = 0  to aloop }
+    state aloop {
+        to inp when (ai == word[6000040])
+        word[6440000 + ai * 8] = 0
+        word[6450000 + ai * 8] = ai
+        ai = ai + 1
+        to aloop
+    }
+    state inp { word[6460000] = 0  word[6500000] = 0  word[6480000] = 0  return 0 }   ; input/cursor/output params
+}
+
+; emit `(let t{fresh} <rhs-under-current-names> ` and rebind slot idx (in the kind/val arrays at kindb/
+; valb) to t{fresh}. Leaves the let open; the block closes it after the terminal. CUR is before the '='.
+; returns the number of `let`s opened (1 normally, 2 for a read_byte, which also rebinds the input slot).
+proc do_list_write(arr) {              ; CUR at '='; bind the array slot to a general LIST expression
+    state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
+    state eat {
+        adv()                          ; consume '='
+        skip_ws()
+        let node = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        print_expr(node)  write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
+    state esemi { adv()  return 1 }
+}
+
+proc hoist_calls() {
+    let dep = 0
+    let rst = word[2097144]            ; the RHS start: rescan from here after every hoist
+    state scan {
+        word[2097144] = rst
+        let cs = 0
+        to find
+    }
+    state find {                       ; find a self.PATH( whose args contain NO nested self-call
+        to hdone when (cbyte() == ';')
+        to hdone when (word[2097144] >= word[2097136])
+        to atself when (is_self() == 1)
+        adv()
+        to find
+    }
+    state atself {
+        cs = word[2097144]             ; call start (the `self`)
+        skip_ident()
+        to notcall when (cbyte() != '.')
+        adv()
+        let sg = skip_path()
+        skip_ws()
+        to notcall when (cbyte() != '(')
+        to notcall when (machine_exists(sg) == 0)
+        adv()                          ; consume '(' — scan the args for nested self-calls
+        let dpt = 1
+        let inner = 0
+        to argscan
+    }
+    state notcall { to find }
+    state argscan {
+        to hdone when (word[2097144] >= word[2097136])
+        to aclose when (cbyte() == ')')
+        to aopen when (cbyte() == '(')
+        to ainner when (is_self() == 1)
+        adv()
+        to argscan
+    }
+    state aopen { dpt = dpt + 1  adv()  to argscan }
+    state aclose {
+        dpt = dpt - 1
+        adv()
+        to argscan when (dpt > 0)
+        to clean when (inner == 0)
+        to find                        ; args contained a nested call: keep scanning (it comes first)
+    }
+    state ainner { inner = 1  skip_ident()  to argscan }
+    state clean {                      ; hoist THIS call: re-run from its '(' via emit_vcall hoist mode
+        word[2097144] = cs
+        skip_ident()                   ; past `self`
+        adv()                          ; past '.'
+        let sg2 = skip_path()
+        skip_ws()
+        dep = dep + emit_vcall(lookup_machine(sg2), 0, 0, 0)
+        to rewrite
+    }
+    state rewrite {                    ; overwrite [cs, CUR) with `t<K>` + spaces — the expression then
+        let ce = word[2097144]         ; parses the bound variable where the call stood
+        byte[2097152 + cs] = 't'
+        cs = cs + 1
+        let kv = word[6000112]
+        let dv = 10000
+        to rwd
+    }
+    state rwd {                        ; decimal digits of kv (leading zeros harmless: t00042 != ident? —
+        to rwsp when (dv == 0)         ; digits only, fine as an ident tail)
+        byte[2097152 + cs] = 48 + (kv / dv) - ((kv / dv) / 10) * 10
+        cs = cs + 1
+        dv = dv / 10
+        to rwd
+    }
+    state rwsp {
+        to scan when (cs >= ce)
+        byte[2097152 + cs] = ' '
+        cs = cs + 1
+        to rwsp
+    }
+    state hdone { word[2097144] = rst  return dep }
+}
+
+; a value-position atomic read-modify-write: `<target> = self.f.OP(args, orderings);`. Single-threaded
+; desugar (memory orderings are no-ops): fetch_add(v) -> old=f; f=f+v.  compare_exchange(e,n) -> old=f;
+; f = old + (old==e)*(n-old) (branchless swap). Binds the target to old and persistently updates the compact
+; scalar carrier. A scalar-field target adds one further carrier update. CUR is at '('.
+proc emit_atomic_rmw(op, kindb, idx, fld) {   ; VAL table is KIND table + 10000 (the Beta calling profile admits four value args)
+    adv()                              ; consume '('
+    let a0 = parse_cmp()               ; fetch_add: addend; compare_exchange: expected
+    let a1 = 0
+    to cxarg when (op == 3)
+    to skiptoclose
+    state cxarg {                      ; compare_exchange: advance to ',' then parse `new`
+        to cxc when (cbyte() == ',')
+        to cxc when (word[2097144] >= word[2097136])
+        adv()
+        to cxarg
+    }
+    state cxc {
+        adv()                          ; consume ','
+        skip_ws()
+        a1 = parse_cmp()               ; new
+        to skiptoclose
+    }
+    state skiptoclose {                ; skip the remaining ordering args to ')'
+        to atclose when (cbyte() == ')')
+        to atclose when (word[2097144] >= word[2097136])
+        adv()
+        to skiptoclose
+    }
+    state atclose {
+        adv()                          ; consume ')'
+        let slot = field_lookup(cur_pref(), fld)
+        let f0 = word[6000016]         ; old = current f
+        let f1 = f0 + 1                ; new scalar carrier
+        word[6000016] = f0 + 2
+        emit("(let t")  emit_dec(f0)  write_byte(' ')  print_fcurname(slot)  write_byte(' ')
+        to emitfa when (op == 2)
+        emit("(let t")  emit_dec(f1)  emit(" (setl ")  print_field_carrier()  write_byte(' ')  emit_dec(slot)
+        emit(" (+ t")  emit_dec(f0)  emit(" (* (eq t")  emit_dec(f0)  write_byte(' ')  print_expr(a0)  emit(") (- ")  print_expr(a1)  emit(" t")  emit_dec(f0)  emit(")))) ")
+        to rebind
+    }
+    state emitfa {                     ; fetch_add: f' = f + v
+        emit("(let t")  emit_dec(f1)  emit(" (setl ")  print_field_carrier()  write_byte(' ')  emit_dec(slot)
+        emit(" (+ ")  print_fcurname(slot)  write_byte(' ')  print_expr(a0)  emit(")) ")
+        to rebind
+    }
+    state rebind {
+        set_field_carrier(f1)
+        to rebind_field when (kindb == 6420000)
+        word[kindb + idx * 8] = 1      ; target = t{f0} (the prior value)
+        word[kindb + 10000 + idx * 8] = f0   ; VAL table = KIND table + 10000 (avoids a fifth value arg)
+        to eatsemi
+    }
+    state rebind_field {
+        let f2 = word[6000016]
+        word[6000016] = f2 + 1
+        emit("(let t")  emit_dec(f2)  emit(" (setl t")  emit_dec(f1)  write_byte(' ')
+        emit_dec(idx)  emit(" t")  emit_dec(f0)  emit(") ")
+        set_field_carrier(f2)
+        to eatsemi_field
+    }
+    state eatsemi {                    ; consume the trailing ';'
+        to done when (cbyte() == ';')
+        to done when (word[2097144] >= word[2097136])
+        adv()
+        to eatsemi
+    }
+    state done { adv()  return 2 }
+    state eatsemi_field {
+        to done_field when (cbyte() == ';')
+        to done_field when (word[2097144] >= word[2097136])
+        adv()
+        to eatsemi_field
+    }
+    state done_field { adv()  return 3 }
+}
+
+proc do_write_slot(kindb, valb, idx) {
+    state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
+    state eat {
+        adv()
+        skip_ws()
+        to rbyte when (is_read_byte() == 1)
+        to vself when (is_self() == 1)
+        to normal
+    }
+    state vself {                      ; `self.PATH(` -> a value-returning method call (single-segment
+        let sav = word[2097144]        ; or cross-data); else an ordinary expression -> rewind + parse
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let fld = word[2097144]        ; the field name (first segment) — the atomic ops' place (single-field)
+        let moff = skip_path()         ; past the dotted path; moff = its LAST segment
+        skip_ws()
+        to vchk when (cbyte() == '(')
+        word[2097144] = sav
+        to normal
+    }
+    state vchk {
+        to vcall when (machine_exists(moff) == 1)
+        to vatomic when (atomic_method(moff) >= 2)     ; let x = self.f.fetch_add/compare_exchange(...)
+        word[2097144] = sav            ; e.g. a boundary value call -> not modeled; parse normally
+        to normal
+    }
+    state vcall { return emit_vcall(lookup_machine(moff), kindb, valb, idx) }
+    state vatomic { return emit_atomic_rmw(atomic_method(moff), kindb, idx, fld) }
+    state normal {
+        let hd = hoist_calls()         ; embedded value calls bind first; their spans now read as t-vars
+        let node = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        to normal_field when (kindb == 6420000)
+        print_expr(node)
+        write_byte(' ')
+        word[kindb + idx * 8] = 1
+        word[valb + idx * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state normal_field {
+        emit("(setl ")  print_field_carrier()  write_byte(' ')  emit_dec(idx)  write_byte(' ')
+        print_expr(node)  emit(") ")
+        set_field_carrier(word[6000016])
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state rbyte {                      ; x = read_byte() -> bind byte, next carrier, and next packed cursor
+        skip_ident()  skip_ws()  adv()  skip_ws()  adv()   ; consume `read_byte` `(` `)`
+        let f0 = word[6000016]
+        let f1 = word[6000016] + 1
+        let f2 = word[6000016] + 2
+        word[6000016] = word[6000016] + 3
+        emit("(let t")  emit_dec(f0)  emit(" (inhead ")  print_inpname()  write_byte(' ')  print_inpposname()  emit(") ")
+        emit("(let t")  emit_dec(f1)  emit(" (innext ")  print_inpname()  emit(") ")
+        emit("(let t")  emit_dec(f2)  emit(" (inadvance ")  print_inpname()  write_byte(' ')  print_inpposname()  emit(") ")
+        to rtarget_field when (kindb == 6420000)
+        word[kindb + idx * 8] = 1      ; target = t{f0} (the byte, or -1 at EOF)
+        word[valb + idx * 8] = f0
+        word[6460000] = 1              ; INP_KIND = t
+        word[6470000] = f1             ; input = t{f1} (the tail)
+        word[6500000] = 1              ; INPPOS_KIND = t
+        word[6510000] = f2             ; packed cursor = t{f2}
+        to rbsemi
+    }
+    state rtarget_field {
+        word[6460000] = 1
+        word[6470000] = f1
+        word[6500000] = 1
+        word[6510000] = f2
+        to rbfield
+    }
+    state rbfield {
+        let f3 = word[6000016]
+        word[6000016] = f3 + 1
+        emit("(let t")  emit_dec(f3)  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(idx)  emit(" t")  emit_dec(f0)  emit(") ")
+        set_field_carrier(f3)
+        to rbsemi_field
+    }
+    state rbsemi_field { to rbeat_field when (cbyte() == ';')  adv()  to rbsemi_field }
+    state rbeat_field { adv()  return 4 }
+    state rbsemi { to rbeat when (cbyte() == ';')  adv()  to rbsemi }
+    state rbeat { adv()  return 3 }
+    state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
+    state esemi { adv()  return 1 + hd }
+}
+
+proc do_let() {
+    adv()  adv()  adv()                ; past "let"
+    skip_ws()
+    let off = word[2097144]
+    skip_ident()
+    return do_write_slot(6400000, 6410000, lookup_local(off))
+}
+
+proc do_assign() {
+    let off = word[2097144]
+    skip_ident()
+    return do_write_slot(6400000, 6410000, lookup_local(off))
+}
+
+proc parse_arm_pat() {
+    skip_ws()
+    word[6000080] = 0                  ; CASEBIND_CNT: binders scope to this arm's args
+    state d {
+        to p_true when (is_true() == 1)
+        to p_false when (is_false() == 1)
+        to p_wild when (cbyte() == '_')
+        to p_case when (is_upper(cbyte()) == 1)
+        to p_int
+    }
+    state p_true { skip_ident()  return 1 }
+    state p_false { skip_ident()  return 0 }
+    state p_wild { adv()  return 0 }
+    state p_int { return parse_number() }
+    state p_case {                     ; Type::Case (or a bare Case) pattern -> the case's integer tag
+        let coff = word[2097144]
+        skip_ident()
+        to p_qual when (cbyte() == ':')
+        to p_pay
+    }
+    state p_qual {
+        to p_qual2 when (byte[2097152 + word[2097144] + 1] == ':')
+        to p_pay                       ; a single ':' — treat the name read so far as the case
+    }
+    state p_qual2 {
+        adv()  adv()                   ; consume '::'
+        coff = word[2097144]
+        skip_ident()
+        to p_pay
+    }
+    state p_pay {
+        word[6000088] = 1              ; CASEMODE: this transition dispatches on a case value
+        skip_ws()
+        to p_bind when (cbyte() == '{')
+        to p_bind when (cbyte() == '(')
+        return case_tag(coff)
+    }
+    state p_bind { adv()  to p_bloop }
+    state p_bloop {                    ; payload binders: name -> the case's FIELD index (by name),
+        skip_ws()                      ; extracted inline from `pl` at use sites
+        to p_bend when (cbyte() == '}')
+        to p_bend when (cbyte() == ')')
+        to p_bend when (word[2097144] >= word[2097136])
+        to p_bcomma when (cbyte() == ',')
+        word[6970000 + word[6000080] * 8] = word[2097144]
+        word[7000000 + word[6000080] * 8] = case_fidx(case_idx(coff), word[2097144])
+        word[7010000 + word[6000080] * 8] = word[6960000 + case_idx(coff) * 8]
+        word[6000080] = word[6000080] + 1
+        skip_ident()
+        to p_bloop
+    }
+    state p_bcomma { adv()  to p_bloop }
+    state p_bend { adv()  return case_tag(coff) }
+}
+
+proc emit_ifchain(subj, ac) {
+    let last = ac - 1
+    let j = 0
+    state cm {                         ; case dispatch: destructure ONCE, test the tag, extract payload
+        to loop when (word[6000088] == 0)                 ; binders from pl at their use sites
+        emit("(match (match ")         ; NORMALIZE: a zero-init case field is scalar 0, not (Pair ..);
+        print_expr(subj)               ; coerce it to the zero case (Pair 0 0) so the destructure fits
+        emit(" ((Pair cza czb) ")
+        print_expr(subj)
+        emit(") (czj (Pair 0 0))) ((Pair tg pl) ")
+        to loop
+    }
+    state loop {
+        to tail when (j == last)
+        to ctest when (word[6000088] == 1)
+        emit("(if (eq ")
+        print_expr(subj)
+        to test2
+    }
+    state ctest { emit("(if (eq tg")  to test2 }
+    state test2 {
+        write_byte(' ')
+        emit_dec(word[6600000 + j * 8])
+        emit(") ")
+        emit_call_state(word[6610000 + j * 8], j)
+        write_byte(' ')
+        j = j + 1
+        to loop
+    }
+    state tail {
+        emit_call_state(word[6610000 + last * 8], last)
+        let k = 0
+        to closed
+    }
+    state closed { to done when (k == last)  write_byte(')')  k = k + 1  to closed }
+    state done {
+        to cmclose when (word[6000088] == 1)
+        return 0
+    }
+    state cmclose { emit("))")  return 0 }   ; close the case-mode (match <normalized> ((Pair tg pl) ..)) wrapper
+}
+
+proc emit_transition() {
+    skip_ident()                       ; past "transition"
+    skip_ws()
+    word[6000088] = 0                  ; CASEMODE: set by any case arm pattern
+    let subj = 0
+    let ac = 0
+    state chksubj {
+        to nosubj when (cbyte() == '{')    ; omega: a subjectless `transition { _ -> x() }`
+        subj = parse_cmp()
+        to atbrace
+    }
+    state nosubj { subj = alloc(0, 0, 0, 0)  to atbrace }   ; subject := the literal 0
+    state atbrace { skip_ws()  adv()  to armloop }          ; consume '{'
+    state armloop {
+        skip_ws()
+        to armend when (cbyte() == '}')
+        word[6600000 + ac * 8] = parse_arm_pat()
+        skip_ws()
+        adv()  adv()                   ; consume '->'
+        skip_ws()
+        word[6660000 + ac * 8] = 0     ; ARM_ISVAL = 0
+        to armval when (is_digit_at() == 1)
+        to armvexpr when (cbyte() == '(')
+        let toff = word[2097144]
+        to armfree when (state_exists(toff) == 0)
+        skip_ident()
+        word[6610000 + ac * 8] = lookup_state(toff)
+        word[6630000 + ac * 8] = 0     ; ARM_ARGC = 0
+        skip_ws()
+        adv()                          ; consume '('
+        skip_ws()
+        to armnoargs when (cbyte() == ')')
+        to armargs
+    }
+    state armfree {                    ; not a state name: a machine TAIL CALL (`-> sum(args)`) or a
+        skip_ident()                   ; bare VALUE expression (`-> acc`)
+        skip_ws()
+        to armtail when (cbyte() == '(')
+        word[2097144] = toff           ; rewind: the whole arm target is a value expression
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armtail {
+        to armtc when (machine_exists(toff) == 1)
+        word[2097144] = toff           ; unknown callee: parse as an expression (fails loudly downstream)
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armtc {                      ; tail call to a machine: (m<idx>_me <args> <zeros> <selfslots>)
+        adv()                          ; consume '('
+        word[6660000 + ac * 8] = 3
+        word[6680000 + ac * 8] = lookup_machine(toff)
+        word[6670000 + ac * 8] = parse_args()
+        skip_ws()
+        adv()                          ; consume ')'
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armval {                     ; `_ -> 75`: the arm RETURNS the literal (a value-returning state)
+        word[6660000 + ac * 8] = 1
+        word[6670000 + ac * 8] = parse_number()
+        word[6630000 + ac * 8] = 0
+        ac = ac + 1
+        to armloop
+    }
+    state armvexpr {                   ; `_ -> (expr)`: the arm RETURNS the expression's value
+        adv()                          ; consume '('
+        word[6660000 + ac * 8] = 2
+        word[6670000 + ac * 8] = parse_cmp()
+        word[6630000 + ac * 8] = 0
+        skip_ws()
+        adv()                          ; consume ')'
+        ac = ac + 1
+        to armloop
+    }
+    state armargs {                    ; `target(e0, e1, ...)` — parse each arg expression
+        word[6620000 + (ac * 4 + word[6630000 + ac * 8]) * 8] = parse_cmp()   ; ARM_ARG[ac][k]
+        word[6630000 + ac * 8] = word[6630000 + ac * 8] + 1                   ; ARM_ARGC++
+        skip_ws()
+        to armargnext when (cbyte() == ',')
+        to armnoargs                   ; at ')'
+    }
+    state armargnext { adv()  skip_ws()  to armargs }
+    state armnoargs {
+        adv()                          ; consume ')'
+        ac = ac + 1
+        to armloop
+    }
+    state armend {
+        adv()                          ; consume '}'
+        emit_ifchain(subj, ac)
+        return 0
+    }
+}
+
+proc emit_exit() {
+    state toopen {                     ; a self-path with NO call ('}' / EOF before '(') is outside the
+        to nocall when (word[2097144] >= word[2097136])  ; fragment: refuse loudly instead of spinning
+        to nocall when (cbyte() == '}')
+        to open when (cbyte() == '(')
+        adv()
+        to toopen
+    }
+    state nocall { emit("E2G-UNSUPPORTED-bare-self-path ")  return 0 }
+    state open {
+        adv()
+        let e = parse_cmp()
+        print_expr(e)
+        return 0
+    }
+}
+
+; translate one block (entry or a state body) of machine `mi` from `off`.
+proc translate_block(mi, off) {
+    word[6000032] = mi                 ; CUR_MI
+    word[2097144] = off
+    reset_curname(mi)
+    let depth = 0
+    state loop {
+        skip_ws()
+        to t_end when (cbyte() == '}')                  ; block ends with no terminal -> a void method
+        to t_let when (is_let() == 1)
+        to t_trans when (is_transition() == 1)
+        to t_return when (is_return() == 1)
+        to t_self when (is_self() == 1)
+        to t_bwbyte when (is_write_byte() == 1)         ; bare write_byte(...)
+        to t_bwline when (is_write_line() == 1)         ; bare write_line("...")
+        to t_bexpr when (is_digit_at() == 1)            ; a bare terminal VALUE (`{ 0 }`): the block result
+        depth = depth + do_assign()
+        to loop
+    }
+    state t_bexpr { let bx = parse_cmp()  print_expr(bx)  to close }
+    state t_end {                      ; a &mut self METHOD falls off the end -> return its self-bundle
+        to t_endm when (word[6012000 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
+        to close
+    }
+    state t_endm { emit_bundle()  to close }
+    state t_let { depth = depth + do_let()  to loop }
+    state t_trans { emit_transition()  to close }
+    state t_bwbyte { depth = depth + emit_write_byte()  to loop }
+    state t_bwline { depth = depth + emit_write_line()  to loop }
+    state t_return {                   ; `return <expr>;` -> the value (a METHOD pairs it with its self-state)
+        skip_ident()                   ; past "return"
+        skip_ws()
+        let e = parse_cmp()
+        to t_retm when (word[6012000 + word[6000032] * 8] == 2)   ; M_KIND[CUR_MI] == 2 (method)
+        print_expr(e)
+        to close
+    }
+    state t_retm {                     ; a value-returning METHOD: (Pair <result> <self bundle>)
+        to t_retmb when (self_slot_count() > 0)
+        print_expr(e)                  ; no self-state to thread -> just the value
+        to close
+    }
+    state t_retmb {
+        emit("(Pair ")
+        print_expr(e)
+        write_byte(' ')
+        emit_bundle()
+        write_byte(')')
+        to close
+    }
+    state t_self {                     ; self.PATH... — dispatch on the path's terminator:
+        skip_ident()                   ; past "self"
+        adv()                          ; past '.'
+        let foff = word[2097144]
+        let segoff = skip_path()       ; past the dotted path; segoff = its LAST segment
+        skip_ws()
+        to t_awrite when (cbyte() == '[')   ; self.arr[ix] = ... (single-segment arrays)
+        to t_fstore when (cbyte() == '=')   ; self.PATH = ...    (dotted scalar field)
+        to t_call                           ; self.PATH(...)     (a call)
+    }
+    state t_call {
+        to t_scall when (segoff == foff)    ; single segment -> a self-METHOD call self.m(args)
+        word[2097144] = segoff              ; dotted -> dispatch from the last segment
+        to t_wbyte when (is_write_byte() == 1)
+        to t_wline when (is_write_line() == 1)
+        to t_xcall when (machine_exists(segoff) == 1)   ; self.inst.m(args) -> a cross-data method call
+        to t_exit when (is_exit_process() == 1)          ; self.console.exit_process(<expr>) -> the entry terminal
+        to t_store when (atomic_method(segoff) == 1)     ; self.f.store(v, ord); -> the atomic store = plain field write
+        emit("E2G-UNSUPPORTED-method ")     ; an unknown self-field method (atomics fetch_add/compare_exchange, ...): refuse LOUDLY
+        to close                            ; (was silently treated as exit_process, collapsing the program to its 1st arg)
+    }
+    state t_exit { emit_exit_om()  to close }
+    state t_store {                    ; self.f.store(v, ord); -> f = v  (single-threaded: memory ordering is a no-op)
+        skip_ident()                   ; past "store"
+        adv()                          ; consume '('
+        let sv = parse_cmp()           ; the stored value v (first arg)
+        to t_store2
+    }
+    state t_store2 {                   ; skip the ordering argument(s) to the closing ')'
+        to t_store3 when (cbyte() == ')')
+        to t_store3 when (word[2097144] >= word[2097136])
+        adv()
+        to t_store2
+    }
+    state t_store3 {
+        adv()                          ; consume ')'
+        emit("(let t")  emit_dec(word[6000016])  emit(" (setl ")  print_field_carrier()
+        write_byte(' ')  emit_dec(field_lookup(cur_pref(), foff))  write_byte(' ')  print_expr(sv)  emit(") ")
+        set_field_carrier(word[6000016])
+        word[6000016] = word[6000016] + 1
+        depth = depth + 1
+        to t_ssemi
+    }
+    state t_ssemi {                    ; consume the trailing ';'
+        to t_sdone when (cbyte() == ';')
+        to t_sdone when (word[2097144] >= word[2097136])
+        adv()
+        to t_ssemi
+    }
+    state t_sdone { adv()  to loop }
+    state t_xcall { skip_ident()  depth = depth + emit_scall(lookup_machine(segoff))  to loop }
+    state t_scall { depth = depth + emit_scall(lookup_machine(foff))  to loop }   ; CUR is at '('
+    state t_wbyte { depth = depth + emit_write_byte()  to loop }
+    state t_wline { depth = depth + emit_write_line()  to loop }
+    state t_awrite { depth = depth + 1 + do_array_write(array_lookup(cur_pref(), foff))  to loop }
+    state t_fstore {                   ; self.PATH = ... : an ARRAY field takes a list expression;
+        to t_fstr when (array_exists(cur_pref(), foff) == 1)   ; a scalar field takes a scalar expression
+        to t_fnorm
+    }
+    state t_fstr { depth = depth + do_list_write(array_lookup(cur_pref(), foff))  to loop }
+    state t_fnorm { depth = depth + do_write_slot(6420000, 6430000, field_lookup(cur_pref(), foff))  to loop }
+    state close { let j = 0  to closed }
+    state closed { to fin when (j == depth)  write_byte(')')  j = j + 1  to closed }
+    state fin { return 0 }
+}
+
+; ---- top-level scan + assembly ----
+
+; parse `machine NAME(<params or &mut self>) [-> ret] {` — records name/kind/body + param locals; consumes '{'.
+proc parse_machine_header() {
+    skip_ident()                       ; past "machine"
+    skip_ws()
+    let mc = word[6000000]
+    word[6010000 + mc * 8] = word[2097144]     ; M_NAME = first name segment (updated on '::')
+    word[6016000 + mc * 8] = 0                 ; M_PCNT = 0
+    word[6022000 + mc * 8] = 0                 ; M_OWNER = 0 (unqualified / free)
+    skip_ident()                       ; first name segment
+    state colon {                      ; a qualified name `Type::method` -> M_NAME is the LAST segment,
+        to hascolon when (cbyte() == ':')      ; M_OWNER the type before the first '::'
+        to toparen
+    }
+    state hascolon {
+        adv()  adv()                   ; consume '::'
+        word[6022000 + mc * 8] = word[6010000 + mc * 8]   ; owner = the segment before '::'
+        word[6010000 + mc * 8] = word[2097144]            ; M_NAME = segment after '::'
+        skip_ident()
+        to colon
+    }
+    state toparen { to atparen when (cbyte() == '(')  adv()  to toparen }
+    state atparen {
+        adv()                          ; consume '('
+        skip_ws()
+        to hasself when (cbyte() == '&')
+        to freeparams
+    }
+    state hasself {                    ; `&mut self` -> the entry (name is "main") or a method
+        to entry when (name_is_main(word[6010000 + mc * 8]) == 1)
+        word[6012000 + mc * 8] = 2     ; M_KIND = method
+        to methodself
+    }
+    state entry {
+        word[6012000 + mc * 8] = 0     ; M_KIND = entry
+        word[6000008] = mc             ; ENTRY_IDX = mc
+        to toclose
+    }
+    state methodself {                 ; skip `&mut self`; params (if any) follow a ','
+        to methodparm when (cbyte() == ',')
+        to toclose when (cbyte() == ')')
+        adv()
+        to methodself
+    }
+    state methodparm { adv()  to parmloop }        ; consume ',', parse the method's value params
+    state freeparams {
+        word[6012000 + mc * 8] = 1     ; M_KIND = free
+        to parmloop
+    }
+    state parmloop {
+        skip_ws()
+        to toclose when (cbyte() == ')')
+        word[6100000 + (mc * 128 + word[6016000 + mc * 8]) * 8] = word[2097144]   ; M_LNAME[mc][PCNT] = name
+        word[6200000 + (mc * 128 + word[6016000 + mc * 8]) * 8] = 0               ; PARM_STYPE[mc][PCNT] = 0 (not a struct slice)
+        word[6016000 + mc * 8] = word[6016000 + mc * 8] + 1                      ; M_PCNT++
+        skip_ident()
+        to parmskip
+    }
+    state parmskip {                   ; skip this param's type; a `&[Tname]` struct-slice records Tname's offset
+        to parmnext when (cbyte() == ',')
+        to toclose when (cbyte() == ')')
+        to parmarr when (cbyte() == '[')
+        adv()
+        to parmskip
+    }
+    state parmarr {
+        adv()                          ; consume '['
+        skip_ws()
+        to parmstruct when (is_upper(cbyte()) == 1)
+        to parmskip                    ; scalar-element slice `&[i32 ..]` -> leave PARM_STYPE 0
+    }
+    state parmstruct {                 ; `&[Tname]` -> record the element type name's source offset for this param
+        word[6200000 + (mc * 128 + (word[6016000 + mc * 8] - 1)) * 8] = word[2097144]
+        to parmskip
+    }
+    state parmnext { adv()  to parmloop }
+    state toclose { to atclose when (cbyte() == ')')  adv()  to toclose }
+    state atclose { adv()  to tobrace }        ; consume ')'
+    state tobrace {
+        to atbrace when (cbyte() == '{')
+        to skipterm when (is_terminates_at(word[2097144]) == 1)
+        adv()
+        to tobrace
+    }
+    state skipterm {                   ; skip normative `terminates by measure -> Profile;`
+        skip_ident()
+        skip_ws()
+        to termby when (is_by_at(word[2097144]) == 1)
+        to badterm
+    }
+    state termby {
+        skip_ident()
+        to termsemi
+    }
+    state termsemi {
+        to termdone when (cbyte() == ';')
+        to badterm when (cbyte() == '{')
+        to badterm when (word[2097144] >= word[2097136])
+        adv()
+        to termsemi
+    }
+    state termdone { adv()  to tobrace }
+    state badterm {
+        emit("E2G-UNSUPPORTED-terminates-clause")
+        return 0
+    }
+    state atbrace {
+        adv()                          ; consume '{'
+        word[6014000 + mc * 8] = word[2097144]     ; M_BODY = after '{'
+        word[6000000] = word[6000000] + 1          ; MACHINE_CNT++
+        return 0
+    }
+}
+
+; find every top-level `machine ...` in the file (brace-depth walk; machines are at file depth 0).
+proc find_machines() {
+    word[6000000] = 0                  ; MACHINE_CNT
+    word[2097144] = 0                  ; CUR = 0
+    let depth = 0
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to eof when (c == 0)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to maybe when (depth == 0)
+        adv()
+        to loop
+    }
+    state closeb { depth = depth - 1  adv()  to loop }
+    state openb { depth = depth + 1  adv()  to loop }
+    state maybe {
+        to idtok when (is_idchar(cbyte()) == 1)
+        adv()
+        to loop
+    }
+    state idtok {
+        to ismach when (is_machine() == 1)
+        skip_ident()
+        to loop
+    }
+    state ismach {
+        parse_machine_header()         ; consumes through the machine's '{'
+        depth = depth + 1              ; now inside the machine body
+        to loop
+    }
+    state eof { return 0 }
+}
+
+; collect machine mi's `let`-declared body locals (appended after its params).
+; register local `off` for machine mi if not already present (dedup by name — a `let` in two states
+; shares one slot; SSA-per-block keeps them independent).
+proc add_local(mi, off) {
+    let k = 0
+    state loop {
+        to full when (k == 128)
+        to add when (k == word[6018000 + mi * 8])       ; M_LCNT
+        to dup when (name_eq2(off, word[6100000 + (mi * 128 + k) * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state full { emit("E2G-UNSUPPORTED-machine-local-capacity ")  return 0 }
+    state add {
+        word[6100000 + (mi * 128 + word[6018000 + mi * 8]) * 8] = off
+        word[6018000 + mi * 8] = word[6018000 + mi * 8] + 1
+        return 0
+    }
+    state dup { return 0 }
+}
+
+; collect machine mi's `let`-declared locals from its WHOLE body (entry prefix AND state bodies — omega
+; puts lets inside states), appended after its params, deduplicated by name. A brace-depth walk bounded
+; by the machine's closing '}'.
+proc collect_locals(mi) {
+    word[6018000 + mi * 8] = word[6016000 + mi * 8]     ; M_LCNT = M_PCNT
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY
+    let depth = 0
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to done when (c == 0)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to islet when (is_let() == 1)
+        to skiptok when (is_idchar(c) == 1)
+        adv()
+        to loop
+    }
+    state closeb {
+        to done when (depth == 0)      ; the machine's own close
+        depth = depth - 1
+        adv()
+        to loop
+    }
+    state openb { depth = depth + 1  adv()  to loop }
+    state skiptok { skip_ident()  to loop }
+    state islet {
+        adv()  adv()  adv()            ; past "let"
+        skip_ws()
+        add_local(mi, word[2097144])
+        skip_ident()
+        to loop
+    }
+    state done { return 0 }
+}
+
+; scan machine mi's body for its top-level `state NAME() {` blocks.
+proc scan_states(mi) {
+    word[6020000 + mi * 8] = 0         ; M_SCNT
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY
+    let depth = 0
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to eof when (c == 0)
+        to string when (c == 34)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to maybe when (depth == 0)
+        adv()
+        to loop
+    }
+    state string { skip_string()  to loop }
+    state closeb {
+        to eof when (depth == 0)       ; machine close
+        depth = depth - 1
+        adv()
+        to loop
+    }
+    state openb { depth = depth + 1  adv()  to loop }
+    state maybe {
+        to idtok when (is_idchar(cbyte()) == 1)
+        adv()
+        to loop
+    }
+    state idtok {
+        to is_st when (is_state() == 1)
+        skip_ident()
+        to loop
+    }
+    state is_st {
+        skip_ident()                   ; past "state"
+        skip_ws()
+        to not_st when (is_idchar(cbyte()) == 0)   ; `self.state.a` / `state = ..`: a FIELD named
+        to state_full when (word[6020000 + mi * 8] == 1024)
+        word[16777216 + (mi * 1024 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; state, not a decl
+        skip_ident()                   ; past state name
+        to hdclose
+    }
+    state state_full { emit("E2G-UNSUPPORTED-machine-state-capacity ")  return 0 }
+    state not_st { to loop }
+    ; the state header `( [&mut self][, NAME: TYPE]* )` — value params register as machine locals
+    ; (zero-init slots; a transition arm's args write them) and in the state's M_SP tables.
+    state hdclose {
+        skip_ws()
+        let si = mi * 1024 + word[6020000 + mi * 8]        ; this state's table index
+        word[18874368 + si * 8] = 0                        ; M_SPCNT = 0
+        adv()                                            ; consume '('
+        to hdparm
+    }
+    state hdparm {
+        skip_ws()
+        to hdbrace when (cbyte() == ')')
+        to hdself when (cbyte() == '&')                  ; `&mut self`
+        to hdcomma when (cbyte() == ',')
+        to state_params_full when (word[18874368 + si * 8] == 4)
+        word[19922944 + (si * 4 + word[18874368 + si * 8]) * 8] = word[2097144]   ; M_SPOFF[si][k] = name
+        word[18874368 + si * 8] = word[18874368 + si * 8] + 1                     ; M_SPCNT++
+        add_local(mi, word[2097144])                     ; the param is a machine local slot
+        skip_ident()
+        to hdtype
+    }
+    state state_params_full { emit("E2G-UNSUPPORTED-state-parameter-capacity ")  return 0 }
+    state hdself { adv()  to hdselfskip }                ; skip `&mut self` to ',' or ')'
+    state hdselfskip {
+        to hdbrace when (cbyte() == ')')
+        to hdcomma when (cbyte() == ',')
+        adv()
+        to hdselfskip
+    }
+    state hdcomma { adv()  to hdparm }
+    state hdtype {                                       ; skip `: TYPE` to ',' or ')'
+        to hdbrace when (cbyte() == ')')
+        to hdcomma when (cbyte() == ',')
+        adv()
+        to hdtype
+    }
+    state hdbrace { adv()  to hdopen }
+    state hdopen { to hdin when (cbyte() == '{')  adv()  to hdopen }
+    state hdin {
+        adv()                          ; consume '{'
+        depth = depth + 1
+        word[17825792 + (mi * 1024 + word[6020000 + mi * 8]) * 8] = word[2097144]   ; M_SBODY (after '{')
+        word[6020000 + mi * 8] = word[6020000 + mi * 8] + 1                      ; M_SCNT++
+        to loop
+    }
+    state eof { return 0 }
+}
+
+proc name_is_main(off) {               ; does the name at `off` spell "main"?
+    state c1 { to c2 when (byte[2097152 + off] == 'm')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'n')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + off + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; scan one &mut self machine's body (brace-bounded) for the UNIFIED self-state: distinct scalar fields
+; (add_field), plus HAS_INPUT (read_byte) / HAS_OUTPUT (write_byte/write_line). Called for each has_self
+; machine so the shared self-state is the union over the entry and all its methods. self.NAME followed by
+; `.` (boundary) / `[` (array) / `(` (self-method call) is NOT a scalar field.
+proc collect_self(mi) {
+    word[2097144] = word[6014000 + mi * 8]              ; CUR = M_BODY[mi]
+    let depth = 0
+    state loop {
+        skip_ws()
+        let c = cbyte()
+        to done when (c == 0)
+        to closeb when (c == '}')
+        to openb when (c == '{')
+        to c_rb when (is_read_byte() == 1)
+        to c_wb when (is_write_byte() == 1)
+        to c_wl when (is_write_line() == 1)
+        to c_self when (is_self() == 1)
+        to c_skip when (is_idchar(c) == 1)
+        adv()
+        to loop
+    }
+    state closeb {
+        to done when (depth == 0)      ; machine close
+        depth = depth - 1
+        adv()
+        to loop
+    }
+    state openb { depth = depth + 1  adv()  to loop }
+    state c_skip { skip_ident()  to loop }
+    state c_rb { word[6000048] = 1  skip_ident()  to loop }   ; HAS_INPUT
+    state c_wb { word[6000056] = 1  skip_ident()  to loop }   ; HAS_OUTPUT
+    state c_wl { word[6000056] = 1  skip_ident()  to loop }
+    state c_self {
+        skip_ident()                   ; self
+        to c_selfd when (cbyte() == '.')   ; a real self.field access; `&mut self` / bare self -> skip (no field)
+        to loop
+    }
+    state c_selfd {
+        adv()                          ; .
+        let foff = word[2097144]
+        let soff = skip_path()         ; the DOTTED path (self.state.n -> "state.n"); soff = last segment
+        skip_ws()
+        to c_sk when (cbyte() == '[')  ; self.arr[ -> array
+        to c_redo when (cbyte() == '(')  ; a call -> re-scan from the LAST segment so that
+        add_field(word[6024000 + mi * 8], foff)   ; keyed (M_PREF[mi], path)
+        to loop
+    }
+    state c_redo { word[2097144] = soff  to loop }
+    state c_sk { to loop }
+    state done { return 0 }
+}
+
+proc is_data() {
+    let o = word[2097144]
+    state c1 { to c2 when (byte[2097152 + o] == 'd')  return 0 }
+    state c2 { to c3 when (byte[2097152 + o + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + o + 2] == 't')  return 0 }
+    state c4 { to c5 when (byte[2097152 + o + 3] == 'a')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + o + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+proc name_is_Main(off) {               ; does the name at `off` spell "Main" (the root data type)?
+    state c1 { to c2 when (byte[2097152 + off] == 'M')  return 0 }
+    state c2 { to c3 when (byte[2097152 + off + 1] == 'a')  return 0 }
+    state c3 { to c4 when (byte[2097152 + off + 2] == 'i')  return 0 }
+    state c4 { to c5 when (byte[2097152 + off + 3] == 'n')  return 0 }
+    state c5 { to yes when (is_idchar(byte[2097152 + off + 4]) == 0)  return 0 }
+    state yes { return 1 }
+}
+
+; scan `data Main { ... }` for nested-data INSTANCES: each field `F: T;` with an uppercase type T
+; records (T -> F) in DATA_TYPE/DATA_PATH — the single-instance map that lets a T-owned method's
+; `self.X` resolve to the unified slot `F.X`. (One instance per type; Console is just another entry,
+; harmless since nothing is owned by Console.)
+; ---- case data (sum types), v0: NO-PAYLOAD case VALUES lower to integer TAGS (per-data decl order).
+; Payload-case CONSTRUCTION refuses loudly (marker), so arm payload binders — which read as literal 0 —
+; can never observe real payload data: reachable-wrong is impossible, the fragment is merely small.
+; Tables: CASE_NAME[6940000] CASE_TAG[6950000] CASE_PAY[6960000], CASE_CNT[6000072];
+; per-arm payload binders: CASEBIND[6970000], CASEBIND_CNT[6000080].
+proc is_case_kw() {
+    let i = word[2097144]
+    state a { to b when (byte[2097152 + i] == 'c')  return 0 }
+    state b { to c when (byte[2097152 + i + 1] == 'a')  return 0 }
+    state c { to d when (byte[2097152 + i + 2] == 's')  return 0 }
+    state d { to e when (byte[2097152 + i + 3] == 'e')  return 0 }
+    state e { to no when (is_idchar(byte[2097152 + i + 4]) == 1)  return 1 }
+    state no { return 0 }
+}
+
+; ---- plain-data field tables (structs-in-arrays v0): scalar field names per data TYPE, decl order,
+; cap 3 (DT2_NAME 7020000, DT2_FCNT 7030000, DT2_FN 7040000, DT2_CNT 6000104). Array elements of such a
+; type are right-nested Pair tuples — (f0), (Pair f0 f1), (Pair f0 (Pair f1 f2)) — reusing the case-
+; payload representation; reads extract inline, writes rebuild via setl.
+proc collect_dtypes() {
+    word[6000104] = 0
+    word[2097144] = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata {
+        skip_ident()                   ; past "data"
+        skip_ws()
+        word[7020000 + word[6000104] * 8] = word[2097144]
+        word[7030000 + word[6000104] * 8] = 0
+        skip_ident()
+        to tobrace
+    }
+    state tobrace {                    ; skip any data-property bracket
+        to atbrace2 when (cbyte() == '{')
+        to done when (cbyte() == 0)
+        adv()
+        to tobrace
+    }
+    state atbrace2 { adv()  to dfloop }
+    state dfloop {
+        skip_ws()
+        to dblkend when (cbyte() == '}')
+        to done when (cbyte() == 0)
+        to dcase when (is_case_kw() == 1)
+        let fno = word[2097144]
+        skip_ident()
+        skip_ws()
+        to dfname when (cbyte() == ':')
+        to dfskip
+    }
+    state dcase { to dfskip }          ; case lines: tags handled by collect_cases, not fields
+    state dfname {
+        to dfrec when (word[7030000 + word[6000104] * 8] < 4)
+        to dfskip
+    }
+    state dfrec {
+        word[7040000 + (word[6000104] * 4 + word[7030000 + word[6000104] * 8]) * 8] = fno
+        word[7030000 + word[6000104] * 8] = word[7030000 + word[6000104] * 8] + 1
+        to dfskip
+    }
+    state dfskip {
+        to dfsemi when (cbyte() == ';')
+        to dblkend when (cbyte() == '}')
+        to done when (cbyte() == 0)
+        adv()
+        to dfskip
+    }
+    state dfsemi { adv()  to dfloop }
+    state dblkend { adv()  word[6000104] = word[6000104] + 1  to find }
+    state done { return 0 }
+}
+
+proc dt2_fidx(t, off) {                ; field index of the name at off within data type t
+    let j = 0
+    state loop {
+        to miss when (j == word[7030000 + t * 8])
+        to hit when (name_eq2(off, word[7040000 + (t * 4 + j) * 8]) == 1)
+        j = j + 1
+        to loop
+    }
+    state hit { return j }
+    state miss { return word[7030000 + t * 8] }
+}
+
+proc case_like_pack(fidx, fcnt) { return fidx * 8 + fcnt }
+
+proc dt2_idx(off) {                    ; data-type index by name, or DT2_CNT on miss
+    let k = 0
+    state loop {
+        to miss when (k == word[6000104])
+        to hit when (name_eq2(off, word[7020000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state miss { return word[6000104] }
+}
+
+proc collect_cases() {
+    word[6000072] = 0                  ; CASE_CNT
+    word[2097144] = 0
+    let tag = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata { skip_ident()  tag = 0  to inblock }
+    state inblock {                    ; scan this data block's body for `case NAME[( / {]`
+        skip_ws()
+        to done when (cbyte() == 0)
+        to blockend when (cbyte() == '}')
+        to atcase when (is_case_kw() == 1)
+        to intok when (is_idchar(cbyte()) == 1)
+        adv()
+        to inblock
+    }
+    state intok { skip_ident()  to inblock }
+    state blockend { adv()  to find }
+    state atcase {
+        skip_ident()                   ; past "case"
+        skip_ws()
+        word[6940000 + word[6000072] * 8] = word[2097144]
+        word[6950000 + word[6000072] * 8] = tag
+        skip_ident()
+        skip_ws()
+        word[6960000 + word[6000072] * 8] = 0
+        to haspay when (cbyte() == '(')
+        to nopay
+    }
+    state haspay {                     ; payload decl `(f0: T, f1: T, ..)` — record field NAMES (cap 3;
+        adv()                          ; a 4th makes construction/patterns refuse via the count)
+        to fnloop
+    }
+    state fnloop {
+        skip_ws()
+        to fdone2 when (cbyte() == ')')
+        to fdone2 when (word[2097144] >= word[2097136])
+        to fname when (word[6960000 + word[6000072] * 8] < 4)
+        to fskip2
+    }
+    state fname {
+        word[6980000 + (word[6000072] * 4 + word[6960000 + word[6000072] * 8]) * 8] = word[2097144]
+        word[6960000 + word[6000072] * 8] = word[6960000 + word[6000072] * 8] + 1
+        skip_ident()
+        to fskip2
+    }
+    state fskip2 {                     ; consume the field's type up to ',' or ')'
+        to fdone2 when (cbyte() == ')')
+        to fcomma when (cbyte() == ',')
+        to fdone2 when (word[2097144] >= word[2097136])
+        adv()
+        to fskip2
+    }
+    state fcomma { adv()  to fnloop }
+    state fdone2 { adv()  to nopay }
+    state nopay {
+        word[6000072] = word[6000072] + 1
+        tag = tag + 1
+        to inblock
+    }
+    state done { return 0 }
+}
+
+proc case_idx(off) {                   ; index of the case named at off, or CASE_CNT on miss
+    let k = 0
+    state loop {
+        to miss when (k == word[6000072])
+        to hit when (name_eq2(off, word[6940000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state hit { return k }
+    state miss { return word[6000072] }
+}
+
+proc case_tag(off) {
+    let k = case_idx(off)
+    state a { to miss when (k == word[6000072])  return word[6950000 + k * 8] }
+    state miss { return 0 }
+}
+
+proc case_payload(off) {
+    let k = case_idx(off)
+    state a { to miss when (k == word[6000072])  return word[6960000 + k * 8] }
+    state miss { return 0 }
+}
+
+proc case_fidx(k, off) {               ; field index of the name at off within case k, or count on miss
+    let j = 0
+    state loop {
+        to miss when (j == word[6960000 + k * 8])
+        to hit when (name_eq2(off, word[6980000 + (k * 4 + j) * 8]) == 1)
+        j = j + 1
+        to loop
+    }
+    state hit { return j }
+    state miss { return word[6960000 + k * 8] }
+}
+
+proc casebind_slot(off) {              ; the current arm's binder slot for the ident at off, or CNT
+    let k = 0
+    state loop {
+        to no when (k == word[6000080])
+        to yes when (name_eq2(off, word[6970000 + k * 8]) == 1)
+        k = k + 1
+        to loop
+    }
+    state yes { return k }
+    state no { return word[6000080] }
+}
+
+proc collect_instances() {
+    word[6000064] = 0                  ; DT_CNT
+    word[2097144] = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to atdata when (is_data() == 1)
+        to skiptok when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skiptok { skip_ident()  to find }
+    state atdata {
+        skip_ident()                   ; past "data"
+        skip_ws()
+        let noff = word[2097144]       ; the block's type name
+        skip_ident()
+        to inmain when (name_is_Main(noff) == 1)
+        to find                        ; not Main -> keep scanning (its body tokens are skipped by find)
+    }
+    state inmain { to atbrace }
+    state atbrace { to fieldloop when (cbyte() == '{')  adv()  to atbrace }
+    state fieldloop {
+        adv()                          ; consume '{' (first) / ';' (subsequent, via fsemi)
+        skip_ws()
+        to done when (cbyte() == '}')
+        let foff = word[2097144]       ; field name F
+        skip_ident()
+        to tocolon
+    }
+    state tocolon {
+        to done when (cbyte() == 0)
+        to atcolon when (cbyte() == ':')
+        adv()
+        to tocolon
+    }
+    state atcolon {
+        adv()                          ; consume ':'
+        skip_ws()
+        to fskip when (is_upper(cbyte()) == 0)          ; not an uppercase type (e.g. an array/scalar)
+        word[6870000 + word[6000064] * 8] = word[2097144]   ; DATA_TYPE[t] = type-name offset
+        word[6880000 + word[6000064] * 8] = foff            ; DATA_PATH[t] = instance field name
+        word[6000064] = word[6000064] + 1                   ; DT_CNT++
+        to fskip
+    }
+    state fskip {                      ; skip to the field's terminating ';' — an ARRAY type carries an
+        to done when (cbyte() == 0)    ; INNER ';' inside `[i32; 5]`, so skip bracketed regions whole
+        to fbrk when (cbyte() == '[')
+        to fieldloop when (cbyte() == ';')
+        adv()
+        to fskip
+    }
+    state fbrk {
+        to done when (cbyte() == 0)
+        to fbrkend when (cbyte() == ']')
+        adv()
+        to fbrk
+    }
+    state fbrkend { adv()  to fskip }
+    state done { return 0 }
+}
+
+proc is_upper(c) {
+    state c1 { to no when (c < 'A')  to c2 }
+    state c2 { to no when (c > 'Z')  return 1 }
+    state no { return 0 }
+}
+
+; the instance-path prefix for machine mi: 0 for Main-owned / unqualified machines, else the field
+; path of its owner type's single instance in `data Main`.
+proc compute_pref(mi) {
+    let ow = word[6022000 + mi * 8]    ; M_OWNER
+    state d {
+        to zero when (ow == 0)
+        to zero when (name_is_Main(ow) == 1)
+        word[6024000 + mi * 8] = inst_for_type(ow)      ; 0 if no instance -> behaves as Main-owned
+        return 0
+    }
+    state zero { word[6024000 + mi * 8] = 0  return 0 }
+}
+
+; parse the `data Main { ... }` declaration for array fields `NAME: [i32; N];` -> ARRAY_NAME/ACOUNT.
+; (scalar fields are discovered by the body scan; arrays need their length from the declaration.)
+proc collect_arrays() {
+    word[6000040] = 0                  ; ARRAY_CNT
+    word[2097144] = 0                  ; CUR = 0
+    let pref = 0
+    let usable = 0
+    state find {
+        skip_ws()
+        to done when (cbyte() == 0)
+        to found when (is_data() == 1)
+        to skip when (is_idchar(cbyte()) == 1)
+        adv()
+        to find
+    }
+    state skip { skip_ident()  to find }
+    state found {                      ; a data block: its arrays key on the block's instance prefix
+        skip_ident()                   ; past "data"
+        skip_ws()
+        let tnoff = word[2097144]      ; the block's type name
+        skip_ident()
+        to blkmain when (name_is_Main(tnoff) == 1)
+        pref = inst_for_type(tnoff)
+        usable = 1
+        to chkinst
+    }
+    state chkinst {
+        to tobrace when (pref != 0)
+        usable = 0                     ; a type with no instance in Main -> its arrays are unreachable
+        to tobrace
+    }
+    state blkmain { pref = 0  usable = 1  to tobrace }
+    state tobrace { to atbrace when (cbyte() == '{')  adv()  to tobrace }
+    state atbrace { adv()  to floop }               ; consume '{'
+    state floop {
+        skip_ws()
+        to blkend when (cbyte() == '}')
+        let noff = word[2097144]
+        skip_ident()                   ; field NAME
+        skip_ws()
+        adv()                          ; consume ':'
+        skip_ws()
+        to isarr when (cbyte() == '[')
+        to fskip                       ; a scalar field -> skip to ';'
+    }
+    state blkend { adv()  to find }    ; block done -> continue to the NEXT data block
+    state isarr {
+        to isarr2 when (usable == 1)
+        to fskip                       ; an unreachable block: skip without recording
+    }
+    state isarr2 {
+        word[6820000 + word[6000040] * 8] = noff    ; ARRAY_NAME[ac] = noff
+        word[6830000 + word[6000040] * 8] = pref    ; ARRAY_PREF[ac] = the block's instance path (0 = Main)
+        word[7050000 + word[6000040] * 8] = 0       ; A_STYPE = 0 (scalar elements)
+        adv()                          ; consume '['
+        skip_ws()
+        to selem when (is_upper(cbyte()) == 1)
+        to arrsemi
+    }
+    state selem {                      ; [Tname; N] — a STRUCT element type: record its dtype index + 1
+        word[7050000 + word[6000040] * 8] = dt2_idx(word[2097144]) + 1
+        skip_ident()
+        to arrsemi
+    }
+    state arrsemi { to atsemi when (cbyte() == ';')  adv()  to arrsemi }   ; skip "i32" to the inner ';'
+    state atsemi {
+        adv()                          ; consume inner ';'
+        skip_ws()
+        word[6840000 + word[6000040] * 8] = parse_number()    ; ACOUNT[ac] = length
+        word[6000040] = word[6000040] + 1                     ; ARRAY_CNT++
+        to fskip
+    }
+    state fskip { to fsemi when (cbyte() == ';')  adv()  to fskip }        ; skip to the field's ';'
+    state fsemi { adv()  to floop }
+    state done { return 0 }
+}
+
+; self.arr[ix] = val;  ->  emit `(let t{fresh} (setl <arr> <ix> <val>) ` and rebind the array slot.
+; Hoist value-returning self calls before the array update, just as scalar and
+; local writes do: a call can advance input or mutate another self carrier.
+; Reusing the block-entry carrier here rereads adjacent wire-row fields.
+proc do_array_write(arr) {
+    adv()                              ; consume '['
+    let ix = parse_cmp()
+    skip_ws()
+    adv()                              ; consume ']'
+    state fchk { to fstore when (cbyte() == '.')  to toeq }
+    state fstore {                     ; self.arr[ix].field = e — rebuild the element tuple via setl
+        adv()
+        let wfo = word[2097144]
+        skip_ident()
+        let wdt = word[7050000 + arr * 8]
+        to wbad when (wdt == 0)
+        let wfk = dt2_fidx(wdt - 1, wfo)
+        let wfn = word[7030000 + (wdt - 1) * 8]
+        to weq
+    }
+    state wbad { emit("E2G-UNSUPPORTED-field-of-scalar-array ")  to weq0 }
+    state weq0 {
+        to wskip when (cbyte() == ';')
+        to wend0 when (cbyte() == '}')
+        to wend0 when (word[2097144] >= word[2097136])
+        adv()
+        to weq0
+    }
+    state wskip { adv()  return 0 }
+    state wend0 { return 0 }
+    state weq { to weat when (cbyte() == '=')  adv()  to weq }
+    state weat {
+        adv()
+        skip_ws()
+        let whd = hoist_calls()
+        let wval = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')
+        to w1 when (wfn == 1)
+        emit("(match (nth ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  emit(") ((Pair ea eb) ")
+        to w2 when (wfn == 2)
+        to w3f0 when (wfk == 0)
+        to w3f1 when (wfk == 1)
+        emit("(Pair ea (match eb ((Pair ec ed) (Pair ec ")  print_expr(wval)  emit(")))))")
+        to wclose
+    }
+    state w1 { print_expr(wval)  to wfin }
+    state w2 {
+        to w2f0 when (wfk == 0)
+        emit("(Pair ea ")  print_expr(wval)  emit("))")
+        to wclose
+    }
+    state w2f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
+    state w3f0 { emit("(Pair ")  print_expr(wval)  emit(" eb))")  to wclose }
+    state w3f1 { emit("(Pair ea (match eb ((Pair ec ed) (Pair ")  print_expr(wval)  emit(" ed)))))")  to wclose }
+    state wclose { write_byte(')')  to wfin }
+    state wfin {
+        write_byte(')')
+        write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to wsemi
+    }
+    state wsemi { to wsemi2 when (cbyte() == ';')  to wend when (word[2097144] >= word[2097136])  adv()  to wsemi }
+    state wsemi2 { adv()  return whd }
+    state wend { return whd }
+    state toeq { to eat when (cbyte() == '=')  adv()  to toeq }
+    state eat {
+        adv()                          ; consume '='
+        skip_ws()
+        let hd = hoist_calls()
+        let val = parse_cmp()
+        emit("(let t")  emit_dec(word[6000016])  write_byte(' ')
+        emit("(setl ")  print_acurname(arr)  write_byte(' ')  print_expr(ix)  write_byte(' ')  print_expr(val)  write_byte(')')
+        write_byte(' ')
+        word[6440000 + arr * 8] = 1
+        word[6450000 + arr * 8] = word[6000016]
+        word[6000016] = word[6000016] + 1
+        to tosemi
+    }
+    state tosemi { to esemi when (cbyte() == ';')  adv()  to tosemi }
+    state esemi { adv()  return hd }
+}
+
+proc add_field(pref, off) {
+    let g = 0
+    state loop {
+        to add when (g == word[6000024])
+        to dup when (path2_eq(pref, off, word[6810000 + g * 8], word[6800000 + g * 8]) == 1)
+        g = g + 1
+        to loop
+    }
+    state add {
+        word[6800000 + word[6000024] * 8] = off
+        word[6810000 + word[6000024] * 8] = pref
+        word[6000024] = word[6000024] + 1
+        return 0
+    }
+    state dup { return 0 }
+}
+
+; machine mi's shared def signature: l0 .. l{lcnt-1}, then optional `gs`, arrays, input/cursor, output.
+proc emit_sig(mi) {
+    let nl = word[6018000 + mi * 8]
+    let nf = 0
+    let na = 0
+    let ni = 0
+    let no = 0
+    state chkf {
+        to withf when (word[6012000 + mi * 8] != 1)     ; has_self (entry or method) -> self-slots in sig
+        to go
+    }
+    state withf { nf = field_carrier_count()  na = word[6000040]  ni = word[6000048] * 2  no = word[6000056]  to go }
+    state go { let tot = nl + nf + na + ni + no  let x = 0  to loop }
+    state loop {
+        to done when (x == tot)
+        to sep when (x > 0)
+        to name
+    }
+    state sep { write_byte(' ')  to name }
+    state name {
+        to fld when (x >= nl)
+        write_byte('l')  emit_dec(x)  to next
+    }
+    state fld {
+        to arr when (x >= nl + nf)
+        emit("gs")  to next
+    }
+    state arr {
+        to inp when (x >= nl + nf + na)
+        write_byte('a')  emit_dec(x - nl - nf)  to next
+    }
+    state inp {
+        to outp when (x >= nl + nf + na + ni)
+        to inppos when (x == nl + nf + na + 1)
+        emit("inp")  to next            ; stdin carrier (present iff HAS_INPUT)
+    }
+    state inppos { emit("ipos")  to next } ; packed-carrier byte cursor
+    state outp { emit("out")  to next }  ; the stdout accumulator slot (present iff HAS_OUTPUT)
+    state next { x = x + 1  to loop }
+    state done { return 0 }
+}
+
+proc render_machine(mi) {
+    emit("(def m")  emit_dec(mi)  emit("_me (")
+    emit_sig(mi)
+    emit(") ")
+    translate_block(mi, word[6014000 + mi * 8])         ; M_BODY (entry block)
+    emit(") ")
+    let s = 0
+    state sloop {
+        to sdone when (s == word[6020000 + mi * 8])     ; M_SCNT
+        emit("(def m")  emit_dec(mi)  emit("_s")  emit_dec(s)  emit(" (")
+        emit_sig(mi)
+        emit(") ")
+        translate_block(mi, word[17825792 + (mi * 1024 + s) * 8])   ; M_SBODY
+        emit(") ")
+        s = s + 1
+        to sloop
+    }
+    state sdone { return 0 }
+}
+
+; emit ` (Cons z (Cons z ... Nil))` of `count` zero elements — scalar arrays fill with 0, struct arrays
+; with the element type's ZERO TUPLE ((Pair 0 0) / (Pair 0 (Pair 0 0))), so field extraction always
+; matches the element type's derived zero representation.
+proc emit_array_zeros(ai, count) {
+    write_byte(' ')
+    let fc = 0
+    state styp {
+        to sc when (word[7050000 + ai * 8] == 0)
+        fc = word[7030000 + (word[7050000 + ai * 8] - 1) * 8]
+        to sc
+    }
+    state sc {
+        ; Compiler-sized scalar arrays use a private fixed-depth tree. Small arrays and every structured
+        ; array retain the historical flat-list representation, so slice/string behavior is unchanged.
+        to tree_full when (count > 524288)
+        to chunks when (count >= 1024)
+        let k = 0
+        to opens
+    }
+    state tree_full { emit("E2G-UNSUPPORTED-array-capacity ")  return 0 }
+    state chunks {
+        to chunk_flat when (fc != 0)
+        emit("(Chunks ")  emit_dec(count)  emit(" ZeroTree)")
+        return 0
+    }
+    state chunk_flat { let k = 0  to opens }
+    state opens {
+        to closes when (k == count)
+        emit("(Cons ")
+        to z1 when (fc < 2)
+        to z2 when (fc == 2)
+        emit("(Pair 0 (Pair 0 0))")
+        to zdone
+    }
+    state z1 { emit("0")  to zdone }
+    state z2 { emit("(Pair 0 0)")  to zdone }
+    state zdone { write_byte(' ')  k = k + 1  to opens }
+    state closes { emit("Nil")  let j = 0  to cl }
+    state cl { to done when (j == count)  write_byte(')')  j = j + 1  to cl }
+    state done { return 0 }
+}
+
+; One zero-filled list initializes every scalar receiver field. Unlike the old ABI this is one argument,
+; irrespective of FIELD_CNT; subsequent writes persistently replace only the indexed lane.
+proc emit_field_zeros(count) {
+    state empty { to done when (count == 0)  write_byte(' ')  let k = 0  to opens }
+    state opens {
+        to tail when (k == count)
+        emit("(Cons 0 ")
+        k = k + 1
+        to opens
+    }
+    state tail { emit("Nil")  let j = 0  to closes }
+    state closes { to done when (j == count)  write_byte(')')  j = j + 1  to closes }
+    state done { return 0 }
+}
+
+proc render() {
+    state h { to inphelp when (word[6000048] == 1)  to arrtest }
+    state inphelp {
+        ; Input is an ordinary Gamma value. Lists preserve the historical small-fixture path. A Chunks
+        ; carrier stores four little-endian bytes in every depth-17 u32 leaf and carries its exact byte
+        ; length; padding is therefore unobservable and EOF remains -1.
+        emit("(def inntht (t d k) (if (eq d 0) (match t (ZeroTree 0) (v v)) (match t (ZeroTree 0) ((Node l r) (if (eq (% k 2) 0) (inntht l (- d 1) (/ k 2)) (inntht r (- d 1) (/ k 2))))))) ")
+        emit("(def inbyte (w lane) (if (eq lane 0) (% w 256) (if (eq lane 1) (% (/ w 256) 256) (if (eq lane 2) (% (/ w 65536) 256) (% (/ w 16777216) 256))))) ")
+        emit("(def inhead (xs k) (match xs (Nil (- 0 1)) ((Cons h t) h) ((Chunks n t) (if (lt k n) (inbyte (inntht t 17 (/ k 4)) (% k 4)) (- 0 1))))) ")
+        emit("(def innext (xs) (match xs (Nil Nil) ((Cons h t) t) ((Chunks n t) xs))) ")
+        emit("(def inadvance (xs k) (match xs (Nil k) ((Cons h t) k) ((Chunks n t) (if (lt k n) (+ k 1) k)))) ")
+        to arrtest
+    }
+    state arrtest {
+        to arrhelp when (word[6000040] > 0)             ; arrays use nth/setl (+ listeq/listcat)
+        to arrhelp when (word[6000024] > 0)             ; compact scalar carrier also uses nth/setl
+        to strhelp0                                     ; no arrays -> maybe just the string helpers
+    }
+    state arrhelp {
+        ; Flat lists remain canonical for small arrays and list-valued operations. Compiler-sized scalar
+        ; arrays are a private `(Chunks length tree)` carrier. A depth-19 persistent binary tree covers
+        ; the admitted 262,144-byte backing extent: `ZeroTree` represents an all-zero subtree, and each
+        ; write copies only one 19-node path. Scalar indexing and persistent updates stay exact without
+        ; allocating or scanning O(capacity) cells.
+        emit("(def nthf (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))))) ")
+        emit("(def pow2 (n) (if (eq n 0) 1 (* 2 (pow2 (- n 1))))) ")
+        emit("(def ntht (t d k) (if (eq d 0) (match t (ZeroTree 0) (v v)) (match t (ZeroTree 0) ((Node l r) (let h (pow2 (- d 1)) (if (lt k h) (ntht l (- d 1) k) (ntht r (- d 1) (- k h)))))))) ")
+        emit("(def nth (xs k) (match xs (Nil 0) ((Cons h t) (if (eq k 0) h (nthf t (- k 1)))) ((Chunks n t) (ntht t 19 k)))) ")
+        emit("(def setlf (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))))) ")
+        emit("(def sett (t d k v) (if (eq d 0) v (let h (pow2 (- d 1)) (match t (ZeroTree (if (lt k h) (Node (sett ZeroTree (- d 1) k v) ZeroTree) (Node ZeroTree (sett ZeroTree (- d 1) (- k h) v)))) ((Node l r) (if (lt k h) (Node (sett l (- d 1) k v) r) (Node l (sett r (- d 1) (- k h) v)))))))) ")
+        emit("(def setl (xs k v) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) (Cons v t) (Cons h (setlf t (- k 1) v)))) ((Chunks n t) (Chunks n (sett t 19 k v))))) ")
+        emit("(def lenf (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))))) ")
+        emit("(def len (xs) (match xs (Nil 0) ((Cons h t) (+ 1 (lenf t))) ((Chunks n bs) n))) ")
+        emit("(def drop (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) xs (drop t (- k 1)))))) ")
+        emit("(def take (xs k) (match xs (Nil Nil) ((Cons h t) (if (eq k 0) Nil (Cons h (take t (- k 1))))))) ")
+        emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
+        emit("(def listcat (a b) (match a (Nil b) ((Cons h t) (Cons h (listcat t b))))) ")
+        to outhelp
+    }
+    state strhelp0 {                                    ; no arrays: string ops still need listeq/listcat (String fields are lists, not arrays)
+        to strhelp when (word[6000120] == 1)            ; STR_FLAG -> the program uses string literals
+        to outhelp
+    }
+    state strhelp {
+        emit("(def listeq (a b) (match a (Nil (match b (Nil 1) ((Cons bh bt) 0))) ((Cons ah at) (match b (Nil 0) ((Cons bh bt) (if (eq ah bh) (listeq at bt) 0)))))) ")
+        emit("(def listcat (a b) (match a (Nil b) ((Cons h t) (Cons h (listcat t b))))) ")
+        to outhelp
+    }
+    state outhelp {
+        to revhelp when (word[6000056] == 1)            ; entry writes stdout -> prepend rev
+        to machines
+    }
+    state revhelp {
+        emit("(def rev (xs acc) (match xs (Nil acc) ((Cons h t) (rev t (Cons h acc))))) ")
+        to machines
+    }
+    state machines { let mi = 0  to mloop }
+    state mloop {
+        to mdone when (mi == word[6000000])             ; MACHINE_CNT
+        render_machine(mi)
+        mi = mi + 1
+        to mloop
+    }
+    state mdone {
+        emit("(m")  emit_dec(word[6000008])  emit("_me")   ; call the entry with all slots 0
+        emit_zeros(word[6018000 + word[6000008] * 8])        ; entry locals
+        emit_field_zeros(word[6000024])                       ; one compact scalar carrier, if nonempty
+        let ai = 0
+        to ainit
+    }
+    state ainit {
+        to adone when (ai == word[6000040])             ; ARRAY_CNT
+        emit_array_zeros(ai, word[6840000 + ai * 8])        ; the array's zero-list of its declared length
+        ai = ai + 1
+        to ainit
+    }
+    state adone {
+        to inpinit when (word[6000048] == 1)            ; HAS_INPUT -> the runner injects the stream here
+        to outinit
+    }
+    state inpinit { emit(" STDIN 0")  to outinit }      ; exact carrier plus initial byte cursor
+    state outinit {
+        to fin when (word[6000056] == 0)                ; HAS_OUTPUT -> stdout accumulator starts empty
+        emit(" Nil")
+        to fin
+    }
+    state fin { write_byte(')')  write_byte(10)  return 0 }
+}
+
+proc scan_strings() {                  ; STR_FLAG=1 if the source contains a `"` (string literal -> needs listeq/listcat)
+    word[6000120] = 0
+    let k = 0
+    state loop {
+        to done when (k == word[2097136])          ; LEN
+        to hit when (byte[2097152 + k] == 34)      ; a double-quote -> the program uses strings
+        k = k + 1
+        to loop
+    }
+    state hit { word[6000120] = 1  return 0 }
+    state done { return 0 }
+}
+
+proc main() {
+    slurp()
+    word[6000016] = 0                  ; FRESH
+    scan_strings()                     ; STR_FLAG (6000120): does the source use string literals? (gates listeq/listcat when no arrays)
+    find_machines()
+    let mi = 0
+    state ploop {
+        to pdone when (mi == word[6000000])
+        collect_locals(mi)
+        scan_states(mi)
+        mi = mi + 1
+        to ploop
+    }
+    state pdone {                      ; the UNIFIED self-state: union of fields/input/output over ALL
+        collect_cases()                ; case decls -> integer tags (sum types v0)
+        collect_dtypes()               ; plain-data field names (structs-in-arrays v0)
+        collect_instances()            ; data Main's nested-data instances (type -> field path)
+        word[6000024] = 0              ; &mut self machines (entry + methods), plus arrays from the decl.
+        word[6000048] = 0
+        word[6000056] = 0
+        let mp = 0
+        to prefloop
+    }
+    state prefloop {                   ; each machine's instance-path prefix (its owner's field in Main)
+        to prefdone when (mp == word[6000000])
+        compute_pref(mp)
+        mp = mp + 1
+        to prefloop
+    }
+    state prefdone { let mj = 0  to sloop }
+    state sloop {
+        to sdone when (mj == word[6000000])
+        to do_cs when (word[6012000 + mj * 8] != 1)   ; has_self -> fold into the unified self-state
+        mj = mj + 1
+        to sloop
+    }
+    state do_cs { collect_self(mj)  mj = mj + 1  to sloop }
+    state sdone {
+        collect_arrays()
+        render()
+        return 0
+    }
+}

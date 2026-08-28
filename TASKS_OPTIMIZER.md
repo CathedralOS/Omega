@@ -1,6 +1,6 @@
 # Optimizer Tasks
 
-Last audited: 2026-08-27.
+Last audited: 2026-08-28.
 
 This file is the execution queue for Omega optimization. The durable semantic
 model, pass architecture, folder ownership, build hook, verification boundary,
@@ -44,12 +44,30 @@ These facts constrain the work below.
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
   for bounded liveness, ranges, candidate legality, the first strict
   transition-free physical-home assignment, arbitrary transitive components
-  of distinct earlier-Use-to-later-Def ties, one exact single-Def-against-Uses
-  early-clobber form, and a separately validated local pressure-victim
+  of distinct earlier-Use-to-later-Def ties, any number of exact
+  single-Def-against-Uses early-clobber rows, and the exact composition whose
+  early Def is tied to one earlier source inside a larger ordinary transitive
+  component while clobbering unrelated untied Uses. Each such component owns
+  exactly one early row; multiple larger compositions must be disjoint. A
+  separately validated local pressure-victim
   decision. It is not yet a
   general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
   spill, reload, rematerialize, allocate a frame, or emit instructions.
+  Separate exact pressure-rematerialization policies now consume a classified
+  active-resident immediate-u64 victim with one local unconnected range and no
+  later fixed use. The single-use policy reconstructs only its sole future
+  flexible use; the multi-use policy inserts one reconstruction before the
+  first of at least two future flexible uses and rewrites the complete canonical
+  suffix. Both retain the authored materialization and fuel, add only one fresh
+  zero-fuel/value-lineage reconstruction, and require full replay plus fresh
+  liveness/range/legality/home evidence. They are bounded transformations, not
+  general spill, frame, or loop authority. The multi-use policy is now
+  production-reachable from one closed exact-add-chain selection recipe on both
+  supported ISAs. An opaque one-step carrier pins the complete schedule and
+  shared budget, requires a real action, discards all pre-mutation analyses,
+  independently rebuilds homes, and records a distinct typed
+  pressure-rematerialization row in post-allocation manifest v5.
   A separate validated allocator-availability artifact now narrows only
   unconstrained allocator candidates under either the named
   `AllEnvironmentAllocatableViewsV1` baseline or an explicit canonical view
@@ -163,6 +181,28 @@ These facts constrain the work below.
   currently rejects composition with other physical phases until their order
   and custody contract are admitted.
 
+  The second exact `AllocationRecovery` selection is the default-off
+  `ActiveResidentImmediateU64MultiUseRematerializationV1`. It admits only the
+  production exact-add-chain slice, derives the target-owned two-view pressure
+  set (`rax`/`rcx` or `x0`/`x1`), and runs the closed farthest-end victim,
+  immediate-u64 eligibility, and multi-use active-resident rematerialization
+  policies under one shared budget. Exactly one sweep and at least one action
+  are required. The route then rebuilds liveness, ranges, legality, and homes
+  and retains its machine, encoding, resolved-layout, and function-relative
+  custody. It now continues through relocation-free fragments and text,
+  private-symbol object serialization, the canonical Terminal semantic/proof-
+  to-object artifact, ordinary-callable ABI classification, and the cumulative
+  opaque report on all four supported target/format combinations. The fresh
+  rematerialization span, transformed selected root and homes, sole typed
+  post-allocation row, and exact singleton selection survive every join. The
+  selection codec/identity is v7. The function-relative v6 manifest records the
+  exact allocation-recovery phase projection; the downstream object/artifact/
+  callable schemas remain v1 because their generic parent-root vocabularies did
+  not change. The two
+  allocation-recovery selections cannot be combined, and neither composes with
+  another unfinished physical phase. Ordinary and dependency builds remain
+  empty and do not enter this route; compiler publication remains unavailable.
+
   The first post-allocation combine is also present as the exact build-visible,
   default-off
   `Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1` transformation. A new closed
@@ -186,9 +226,132 @@ These facts constrain the work below.
   owned plan now gives every placed function one private `MachineId`-rooted
   symbol, binds the semantic entry to one object-local symbol, serializes a
   strict relocation-free Omega object container, and independently replays the
-  exact zero-relocation conclusion. External/process entry bridging, native
-  image construction, installation, and publication remain closed and install
-  no output.
+  exact zero-relocation conclusion. A following canonical Terminal artifact
+  now owns the verified semantic/proof input and clean object by value, binds
+  every retained lowering/layout/object manifest and rebuild root, and exposes
+  strict `OMGOTA`/`OMGOTM` v1 records through the cumulative report. A following
+  ordinary-callable classifier consumes that artifact by value, rejoins the
+  target-native calling plan, semantic parameters, selected fixed live-ins,
+  pseudo-result declaration, per-return-edge result bindings, physical homes,
+  private entry symbol, and whole-function exit evidence, and exposes strict
+  `OMGOER`/`OMGOEM` v1 records through the same opaque reporting lane. Its
+  disposition remains `ExternalProcessEntryBridgeRequiredV1`; process-entry
+  bridging, native image construction, installation, and publication remain
+  closed and install no output.
+
+  The first Unit backend vocabulary is now admitted without claiming an entry
+  bridge. Independent legalization replay accepts exactly one receiver-free,
+  zero-VReg, one-block function ending in `ReturnUnit`; selection produces the
+  distinct `ReturnUnit` semantic, constraint, and alternative identities.
+  Target-owned encoders and effect validators require canonical x86-64 `C3` or
+  AArch64 `RET X30`, with no scalar result custody. The schema expansion is
+  explicit rather than backward-compatible guesswork: the original Unit
+  selection route landed with legalized-plan and legalization-replay v5,
+  while the structural Unit roster below advances both to v6; structural-call
+  selection advances selected-plan to v9, register-environment to v6,
+  liveness to v8, live ranges to v8, allocation legality to v5, register homes
+  and their codec to v6, postallocation manifest and codec to v6,
+  effect-catalog to v4, preallocation-effect to v5/codec v6, and
+  postallocation-machine to v4/codec v3. Fixed-copy codec v4,
+  selected-form encoding v5, resolved-layout v4,
+  whole-function exit v4, function-relative manifest v6, fragment/text
+  manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
+  reject older detached vocabulary. A dedicated baseline carrier now proves
+  the exact one-function Unit shape through zero-VReg liveness, ranges,
+  legality, empty homes, post-allocation machine replay, single-entry-block
+  layout, Unit exit evidence, relocation-free fragments/text, private-symbol
+  object serialization, and the canonical Terminal semantic/proof-to-object
+  artifact on x86-64 and AArch64. It grants no ProgramStorage wrapper,
+  process-entry, image, installation, or publication authority.
+
+  Checked compilation now retains the complete
+  `SelectedCompilerProgramEntry`, not merely its machine name. The exact
+  target-owned source signature and optional paired semantic/physical calling
+  plans stay together through Terminal native-realization input validation.
+  `ProgramEntrySourceSignatureIdentity` provides a canonical SHA-256 join over
+  the complete normalized callable, target slot, receiver, ordered parameter
+  roles/types/layouts/modes, and Unit result while excluding compilation-local
+  arena handles. Source-package provenance also recognizes both the current
+  direct `source/library/{core,std,alloc}` roots and the legacy nested layout,
+  so a moved toolchain entry cannot be misclassified under a shallower package.
+  This retained declaration custody owns no runtime roots, wrapper bytes,
+  bootstrap, image, installation, or publication authority.
+
+  Checked-to-Terminal production now also offers a receipt-coupled path for
+  that selected entry. The owned receipt binds the opaque source-signature
+  identity and checked source symbol/name to the canonical Terminal-Psi
+  identity and its unique Unit entry `MachineId`. Native orchestration
+  independently decodes and validates the artifact, rejoins the complete
+  retained source signature and paired calling plans, and rejects source,
+  target, Terminal-Psi, or entry substitution before returning an owned
+  settlement. This is association custody only; optimized publication still
+  fails closed.
+
+  `omega-program-storage` now owns a separate data-only optimized semantic
+  entry contract. It admits only the receiver-free UEFI x86-64 slot, ordered
+  Image then InitialStorage `Extent in Granted` roots, Unit/no-result semantics,
+  the exact Microsoft x64 semantic plan and fingerprint, and a separately
+  replayed paired physical plan retained as `PlannedNotInvokedV1`. It owns no
+  `MachineId`, wrapper bytes, runtime root values, bootstrap, image,
+  installation, or publication authority.
+
+  A following pure semantic wrapper plan is now concrete. Derived only from
+  that validated contract, it independently replays the exact Microsoft-x64
+  Image/InitialStorage forwarding recipe: preserve the incoming indirect
+  `RCX`/`RDX` roots, reserve and release one balanced 72-byte outgoing frame,
+  copy the four Extent words into the ABI copy area, bind the two copied
+  addresses back to `RCX`/`RDX`, and call one unresolved compiler-private
+  continuation. Its function-relative `rel32` requirement is symbolic and its
+  physical disposition remains `PlannedNotInvokedV1`; it owns no `MachineId`,
+  symbol, emitted bytes, runtime values, bootstrap, image, installation, or
+  publication authority.
+
+  Legalized-plan and independent-replay v6 now add a distinct structural Unit
+  roster without weakening the zero-VReg Unit record. The admitted forms are
+  exactly a structural `ReturnUnit`, or one whole-root `CallUnit` followed by
+  `ReturnUnit`. The carrier retains structural declarations, paired semantic
+  and target parameters/arguments, caller and callee native call plans,
+  declared places, ordered entry claims, published-service ceiling,
+  provenance, fuel, effects, claim transfers, and cleanup ownership events.
+  Independent replay recomputes both call plans, resolves the roster by unique
+  `MachineId`, and rejects placement, plan, ordering, effect, ownership,
+  cleanup, and roster corruption. Static attachment identity remains retained
+  without inventing receiver custody.
+
+  Selection now consumes that roster only when the target register environment
+  explicitly supplies the Microsoft-x64 COFF structural-call constraint key.
+  Selected-plan v9 represents the call as one atomic zero-VReg pseudo plus the
+  existing `ReturnUnit`, retaining the exact indirect `RCX`/`RDX` inputs,
+  32/48-byte copy slots, balanced 72-byte frame, direct internal callee,
+  caller-saved clobbers, claim transfers, effects, ownership, and provenance.
+  Effect-catalog v4 declares the structural call separately from ordinary
+  encoded alternatives. Preallocation-effect v5/codec v6 and liveness v8 carry
+  the parallel structural roster through independent replay; the latter records
+  architectural unit flow without inventing VRegs. Live-range v8 retains the
+  exact block domains and architectural actions while proving zero virtual
+  ranges, ties, early clobbers, and interference. Allocation-legality v5 and
+  register-home v6 carry exact empty structural rows; postallocation-manifest
+  v6 reports them separately from ordinary functions. Postallocation-machine
+  v4/codec v3 rejoins the call effects and selected `ReturnUnit` alternative,
+  requiring exact MachineId custody and empty assignments.
+
+  The target-owned x86 encoder now also produces and independently decodes the
+  canonical 89-byte structural-call template. Its `E8` displacement remains an
+  explicit typed internal-Machine fixup (opcode 80, field 81, next-IP 85,
+  signed width four, addend zero), so zero placeholder bytes are not executable
+  authority. Layout-independent selected-form encoding v5 now retains a
+  parallel structural-function roster with the exact template, decoded
+  footprint, typed fixup, separate canonical `C3` return row, and independently
+  replayed ordinary/structural counts. It grants no layout or relocation
+  authority. The next backend milestone is to carry the unresolved fixup through
+  resolved and function-relative layout, then resolve it only at whole-text
+  placement where caller and callee section offsets are both known. Only then
+  can an applicable object and MachineId-rooted private continuation symbol be
+  joined to the settlement, semantic contract, and wrapper plan. The compiler-
+  private wrapper itself receives no fabricated Terminal `MachineId`. The
+  checked-source ProgramStorage fixture currently lowers its generic two-root
+  handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
+  is receipt evidence rather than a positive wrapper fixture.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -653,14 +816,17 @@ These facts constrain the work below.
   state that spills were not required for that validated home plan, but marks
   frame, emission, and publication unavailable. Its human renderer is again a
   projection of the content-identified record. The transformation ledger
-  distinguishes fixed-view-copy and literal-fold identities in application
-  order and rejects exact duplicates. A separate optional selected-lowering
-  completion identity proves named-suite execution without pretending a
-  zero-change result transformed the CFG. The v4 canonical codec round-trips
+  distinguishes fixed-view-copy, literal-fold, and pressure-rematerialization
+  identities in application order and rejects exact duplicates. A separate
+  optional selected-lowering completion identity proves named-suite execution
+  without pretending a
+  zero-change result transformed the CFG. The v5 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
-  Decoding remains non-authoritative. The function-relative v4 realization
-  manifest joins the exact full suite and both phase subsets, optional
+  Decoding remains non-authoritative. The function-relative v6 realization
+  manifest joins the exact full suite and the selected-lowering, allocation-
+  recovery, post-allocation-machine, and function-relative-layout phase
+  subsets, optional
   selected-lowering completion, pre-physical/post-allocation manifests, final
   selected CFG, pre-/post-allocation machine roots, pre-layout encoding,
   baseline and final layouts, optional layout-transformation receipt, target,
@@ -668,7 +834,8 @@ These facts constrain the work below.
   statistics. Its strict codec recomputes identity, closed-vocabulary
   corruption fails, and custody replay reconstructs every joined artifact. It
   also binds an independently replayed frameless whole-function exit contract,
-  whose v2 baseline/rel8 or v3 CBNZ identity names its exact layout custody. The
+  whose v4 identity names its exact baseline, rel8, CBNZ, or Unit layout
+  custody. The
   contract selects the exact
   System V AMD64, Microsoft x64, AAPCS64, or Darwin AAPCS64 convention; proves
   canonical RSP-pop or X30 return behavior for every Psi exit; retains RAX/X0
@@ -833,20 +1000,30 @@ dependency.
   Current closure boundary: pre-physical, post-allocation, and selected-
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
-  code-size statistics; its v4 form binds the v3 validated frameless-leaf exit
-  contract. A separate strict v1 function-fragment manifest now joins either
-  the completed x86 rel8 or AArch64 CBNZ realization to relocation-free bytes
-  and a strict v1 text-section manifest binds deterministic placement and a
-  closed no-relocation proof. A strict v1 object-container manifest then binds
-  private symbols, the object-local semantic entry, canonical container bytes,
+  code-size statistics; its v6 form binds the allocation-recovery projection
+  and the v4 validated frameless-leaf/Unit exit contract. A separate strict v3
+  function-fragment manifest now joins completed x86 rel8, AArch64 CBNZ, or
+  active-resident rematerialization or Unit-baseline realization to relocation-
+  free bytes, and a strict v3 text-section manifest binds deterministic
+  placement and a closed no-relocation proof for all four source kinds. A
+  strict v1 object-container
+  manifest then binds private symbols, the object-local semantic entry,
+  canonical container bytes,
   and the independently replayed absence of relocation records while declaring
   the external entry bridge, image, installation, and publication unavailable.
-  This task
-  now also includes an explicit suppressible root-build human-report request
-  and a pipeline-owned cumulative carrier over all currently available
-  records. This task remains open for general frame/call/save-restore data,
-  emission and relocation custody, final artifact/rebuild metadata, and
-  materializing the retained request on successful native publication.
+  `ValidatedOptimizedTerminalObjectArtifactV1` now joins that clean object to
+  the exact decoded Terminal module and proof bundle, optimization selection,
+  target, semantic entry, every pre-physical through object manifest, canonical
+  object roots, and zero-relocation statistics. Its strict `OMGOTA`/`OMGOTM`
+  v1 codecs provide canonical artifact/rebuild records; independent replay
+  reconstructs the join from the source carrier and leaves entry bridging,
+  image, installation, and publication explicitly unavailable. This task now
+  also includes an explicit suppressible root-build human-report request and a
+  pipeline-owned cumulative carrier over all currently available records,
+  including the artifact manifest only when projected from that opaque carrier.
+  It remains open for general frame/call/save-restore data, ordinary-callable
+  and process-entry custody, native image/publication records, and materializing
+  the retained request on successful native publication.
 
 ## P1 — Optimization representation and rule engine
 
@@ -1097,11 +1274,21 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns six
+  Current slice: the exact named `GlobalValueNumbering` selection owns nine
   rules in canonical order: obligation-free same-block CSE, proof-certified
   same-block CSE, obligation-free dominator GVN, and proof-certified dominator
-  GVN, followed by obligation-free and proof-certified phi-translated GVN. The
-  obligation-free rules cover literals, Boolean operations, integer
+  GVN, followed by obligation-free and proof-certified phi-translated GVN, then
+  proof-certified compatible-policy same-block CSE and dominator GVN, and
+  proof-certified compatible-policy phi-translated GVN. The seventh and eighth
+  rules allow a redundant exact add/subtract/multiply to reuse an earlier
+  obligation-free wrapping or saturating operation of the same integer family,
+  domain, and operands, and a redundant exact shift to reuse the matching
+  wrapping shift. They deliberately exclude division and remainder, and do not
+  reverse the relation by replacing an obligation-free operation with an exact
+  leader. The exact redundant operation still requires its own active
+  verifier-accepted obligation; the rewrite consumes only that active reference
+  while retaining the accepted-fact catalog. The obligation-free rules cover
+  literals, Boolean operations, integer
   comparisons/bitwise/widening, wrapping shifts, and wrapping or saturating
   add/subtract/multiply. The proof-certified rules add exact integer casts,
   shifts, add/subtract/multiply/divide/remainder, plus wrapping or saturating
@@ -1124,9 +1311,9 @@ dependency.
   definitions, uses, dense effects, fact/place indexes, substitution, and
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
-  reference disappears with the node. Candidate encoding v21,
-  optimization-unit identity v10, the named v5 pass, prephysical manifest v14,
-  and projection v15 bind this meaning; ledger v4 already represents the
+  reference disappears with the node. Candidate encoding v24,
+  optimization-unit identity v10, the named v7 pass, prephysical manifest v23,
+  and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
   The fifth and sixth rules admit a join expression only when it references at
@@ -1150,6 +1337,24 @@ dependency.
   rejects foreign redundant evidence or any detached leader fact. Partial
   redundancy elimination and cyclic-CFG GVN remain outside these rules;
   current admitted optimization units reject control cycles.
+
+  The ninth rule combines compatible-policy equality with phi translation at
+  an acyclic join. The redundant join computation must be a proof-certified
+  exact add, subtract, multiply, left shift, or right shift that references at
+  least one typed join parameter. Translating it through every incoming binding
+  must find the canonical available obligation-free compatible leader before the source
+  terminator or in a strict dominator: wrapping or saturating for arithmetic,
+  and wrapping for the same shift direction. Different arms may use wrapping
+  and saturating leaders because the redundant exact operation's accepted fact
+  proves their common exact value on the authored inputs. Add/multiply commute;
+  subtraction and shifts retain order. The rewrite appends the redundant
+  `ValueId` as one new join parameter and appends every leader binding, removes
+  the computation without global substitution, moves its provenance/fuel
+  forward, and removes only its active obligation reference. Independent replay
+  reconstructs the compatible relation, all translated arms, canonical
+  dominance choice, proof fact, edge custody, and immutable accepted catalog.
+  Division/remainder and the reverse obligation-free-to-exact relation remain
+  excluded.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
@@ -1235,11 +1440,59 @@ dependency.
   exact fixed-width signed/unsigned `0 << count` or `0 >> count` to the existing
   direct typed zero operand. The count need not be literal, but the operation
   must retain the exact verifier-accepted obligation proving its authored shift
-  is defined; wrapping shifts remain outside this proof-bearing family.
+  is defined; wrapping shifts remain outside this proof-bearing family. The
+  seventh rule,
+  `live-proof-certified-exact-integer-self-subtract-elimination.v1`, replaces a
+  live signed/unsigned exact `x - x` node in place with a typed zero while
+  preserving its result `ValueId`, location, operation/provenance/fuel custody,
+  and empty substitution set. The eighth rule,
+  `live-proof-certified-integer-self-remainder-elimination.v1`, applies that
+  same in-place typed-zero contract to signed/unsigned `x % x` for exact,
+  wrapping, and saturating remainder. In both rules, the exact accepted
+  obligation is what proves the authored operation defined; the active
+  operation reference disappears, the accepted catalog remains immutable, and
+  independent replay reconstructs the literal-zero fact and rejects mismatched
+  operands, policy, type, proof, or custody.
+  The ninth rule,
+  `live-proof-certified-integer-self-divide-elimination.v1`, replaces a live
+  fixed-width signed/unsigned `x / x` node in place with typed one for exact,
+  wrapping, and saturating division. The accepted obligation proves the
+  authored divisor is nonzero; signed one-bit and address carriers decline
+  because positive one is not a valid result in those domains. The rule keeps
+  the result `ValueId`, location, operation/provenance/fuel custody, and empty
+  substitution set. Independent replay reconstructs the operands, policy,
+  representable-one domain, accepted fact, constant, accounting, and output;
+  only the active operation reference leaves while the accepted catalog stays
+  byte-identical.
+  The tenth rule,
+  `live-proof-certified-integer-remainder-by-one-elimination.v1`, replaces a
+  live fixed-width signed/unsigned `x % 1` node in place with typed zero for
+  exact, wrapping, and saturating remainder. The right operand must be a direct
+  typed literal-one definition; a propagated constant fact is deliberately not
+  enough. The candidate consumes that literal fact and the exact accepted
+  operation obligation, preserves result identity, location, provenance, fuel,
+  and the immutable accepted catalog, and rebuilds the literal-zero fact under
+  the original operation. It explicitly declines `left == right`, leaving the
+  overlapping `1 % 1` shape to the earlier self-remainder rule so registry
+  extension does not change established candidate ownership. Independent
+  replay reconstructs the operator policy, direct literal support, both fact
+  identities, live/observation boundary, constant, accounting, and output;
+  missing or foreign evidence declines or rejects fail-closed. Verified
+  projection and both native lowering targets retain the zero realization.
+  The eleventh rule,
+  `live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1`,
+  replaces live fixed-width signed exact, wrapping, or saturating `x % -1`
+  with typed zero. It requires the right operand's direct typed negative-one
+  fact and the exact active verifier-accepted obligation, excludes unsigned
+  and address carriers, and declines `left == right` so the established
+  self-remainder rule keeps ownership of `-1 % -1`. Independent replay
+  reconstructs type, policy, operands, both facts, observation/liveness,
+  provenance, fuel, accounting, and output; both native lowering targets
+  retain the typed-zero realization.
   Candidate schema remains v24 so adding the new closed identity tags cannot
   rehash or retie-break existing candidates; optimization-unit identity remains
-  v10. The named v6 pass, prephysical manifest v19, and projection validator
-  v20 bind the expanded rule schedule;
+  v10. The named v11 pass, prephysical manifest identity v26, and projection
+  validator v27 bind the expanded eleven-rule schedule;
   ledger v4 already
   represents the relocations. Runtime policy events, other live proof-bearing
   identities, and physical check recognition remain open.
@@ -1359,7 +1612,7 @@ dependency.
   freely recombine raw target operations, an abstract plan, and an optimization
   unit. The separate
   `omega-terminal-target-operations-to-selected-instructions` stage produces
-  and validates six deliberately bounded production shapes
+  and validates seven deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
   leaf-local constants followed by one proof-bearing exact add or exact
@@ -1367,7 +1620,13 @@ dependency.
   overflow-proven unsigned-u8 exact addition or underflow-proven unsigned-u8
   exact subtraction followed by u8-to-u64 widening into the existing i64
   materialize/add/subtract vocabulary, with explicit legalization-temporary
-  origins and ordered arithmetic/widen custody. Both exact selected kinds
+  origins and ordered arithmetic/widen custody. The seventh shape makes the
+  existing active-resident recovery policy production-reachable: one leaf
+  materializes three u64 literals, computes a three-add proof-bearing dependency
+  chain in which the first literal has two later uses, and returns the result;
+  the sibling leaf returns one immediate. It adds no selected instruction kind
+  or target constraint; selected-plan identity advances to v7 for the new
+  closed recipe. Both exact selected kinds
   retain their obligation and verifier-owned accepted-fact identity. Addition
   consumes the target-owned flag-transparent `add_i64` row. AArch64 subtraction
   consumes a flag-transparent three-address `SUB` row; x86-64 subtraction
@@ -1392,13 +1651,14 @@ dependency.
 
   Current slice: `omega-terminal-legalized-operations` is a data-only,
   target-bound representation below target operations and above instruction
-  selection. Its V3 identity commits to Terminal-Psi, optimization-unit and
+  selection. Its V5 identity commits to Terminal-Psi, optimization-unit and
   fuel-schedule identities, exact `NativeTarget`, entry/function roster,
   attachments, target provenance, one closed legality recipe per function,
   source blocks/values/definition sites, branch/return edges and bindings,
   accepted exact-operation facts, and every operation/edge fuel settlement.
-  A mandatory checked canonicalizer admits six bounded
-  cleanup-free unsigned-u64 three-block conditional families: constants,
+  A mandatory checked canonicalizer admits seven bounded cleanup-free
+  unsigned-u64 three-block conditional families plus the separate exact
+  zero-VReg Unit-return recipe. The conditional families are: constants,
   one shared entry parameter, two-immediate exact add, and two-immediate exact
   subtract, plus overflow-proven unsigned-u8 exact add or underflow-proven
   unsigned-u8 exact subtract followed by u8-to-u64 widening. The last two
@@ -1409,11 +1669,13 @@ dependency.
   authored operand order because it is not commutative. Their selected i64
   operations retain arithmetic-then-widen operation and fuel custody;
   selected virtual registers distinguish legalization temporaries from Psi
-  values rather than pretending the u8 definitions changed type. Both x86-64
+  values rather than pretending the u8 definitions changed type. The seventh
+  identity recipe retains the heterogeneous active-resident exact-add chain
+  described above without decomposition. Both x86-64
   and AArch64 reach effects, liveness, allocation, deterministic homes, and
   post-allocation custody through this boundary. Non-u64 returns and general
   shapes fail there rather than later in selection. A separately implemented,
-  plan-driven validator now replays every admitted V3 field directly from the
+  plan-driven validator now replays every admitted V4 field directly from the
   raw target, abstract-plan, and verified optimization-unit custody without
   calling the canonicalizer or constructing an expected legal plan. Its
   domain-separated validator identity is retained by the legal receipt,
@@ -1520,18 +1782,25 @@ dependency.
   validator reconstructs CFG order, effects, transfers, canonical sets, and a
   domain-separated content identity. Opt-in orchestration retains this result
   only in a nested custody carrier that grants no interval, allocation,
-  emission, or publication authority. The v4 analysis admits any canonical set
+  emission, or publication authority. The v7 analysis admits any canonical set
   of distinct earlier-Use-to-later-Def ties within the selected SSA vocabulary.
   Multiple Defs may
   target one Use, and a VReg may join later ties, so chains and forks form one
   transitive same-home component while preserving every ordered tie-edge row.
-  It also admits
-  `SingleDistinctDefAgainstUsesEarlyClobberV1`: at most one instruction per
-  function with exactly one early-clobber Def and one or more distinct Uses,
-  with no UseDef, tie, additional Def, or repeated participant. Other
-  UseDef, overlapping tie/early-clobber participants, and other early-clobber
-  topologies reject rather than pretending their phase semantics are complete.
-  Disjoint tied components and the one admitted early-clobber row may coexist.
+  It also admits any number of disjoint
+  `MultipleSingleDistinctDefAgainstUsesEarlyClobberV1` rows. Each instruction
+  has exactly one early-clobber Def and one or more distinct Uses, with no
+  UseDef, additional Def, or repeated participant. The separately closed
+  `SingleEarlyDefTiedComponentAgainstUntiedUsesV1` composition permits that Def
+  to be tied directly to exactly one earlier distinct same-class Use while the
+  source/Def edge participates in an arbitrary ordinary transitive tie chain or
+  fork. The complete component may contain earlier or later ordinary members
+  but exactly one tied early Def/row. At least one unrelated same-instruction
+  Use remains outside every tied component and is the only member of the
+  before-phase early-clobber hazard. Multiple early rows remain valid only in
+  disjoint tied components. A second early row in one component, a tied hazard
+  Use, UseDef, additional Def, repeated participant, cross-class tie, or other
+  composition rejects rather than inventing phase semantics.
   A second independently validated artifact converts
   the facts into maximal half-open fragments within each block, exact
   polarity/edge connectors across blocks, ordered occurrence and fixed-view
@@ -1570,7 +1839,11 @@ dependency.
   unordered member pair must be noninterfering. Component interference,
   disjoint candidates, unresolved transitions, and pressure requiring a spill
   reject. Spill-choice also fails closed while any tied component is present.
-  Liveness/live-range identity is v4 and the strict home identity/codec is v5.
+  The tied source and early Def receive the same home while that complete write
+  footprint remains disjoint from every unrelated Use home. Spill choice stays
+  fail-closed for every tied or early-clobber topology. Liveness and live-range
+  identities are v7; the strict home identity/codec remains v5 because its
+  schema did not change.
   This does not authorize
   physical emission. Home production and independent replay separately require
   the early Def view's complete write footprint to be disjoint from every Use
@@ -1585,8 +1858,9 @@ dependency.
   Both direct and post-copy home carriers now retain an independently
   reconstructed post-allocation manifest identity. The record binds the final
   selected-plan identity plus an ordered typed transformation ledger; fixed-
-  view-copy and literal-fold identities cannot masquerade as each other or as
-  an untransformed home plan.
+  view-copy, literal-fold, and pressure-rematerialization identities cannot
+  masquerade as each other or as an untransformed home plan. Its canonical
+  identity and codec are v5 after adding the distinct rematerialization tag.
   The record exposes exact assignment/view/interference statistics and marks
   frame, emission, and publication unavailable rather than inventing them.
   The exact named `LeafLocalBeforeFixedUseV1` artifact now closes the admitted
@@ -1609,7 +1883,8 @@ dependency.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, UseDef representation,
-  and early-clobber/tie composition beyond the disjoint exact admitted forms.
+  and early-clobber/tie composition beyond the exact one-early-row-per-component
+  admitted form.
   General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
@@ -1692,9 +1967,31 @@ dependency.
   one zero-fuel value-lineage reconstruction before its sole future flexible
   use, rewrites only that operand, and reaches fresh independently replayed
   two-view homes. It grants no implicit loop, storage, frame, emission, or
-  publication authority. The separately validated allocator-availability
-  boundary now supplies that production pressure vertical without misusing
-  reservation overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
+  publication authority. Its multi-use sibling,
+  `SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1`,
+  admits at least two ordered future flexible uses, places one equivalent
+  reconstruction before the first future-use instruction, and rewrites the
+  entire classified suffix to one fresh VReg. Both policies share a v2 ordered
+  rewrite-row recipe and remain independently replayed. A seventh closed
+  legalization/selection recipe now supplies a real active-resident case: one
+  leaf materializes `resident`, `left`, and `right`, computes exact `inner`,
+  `middle`, and `result` additions so `resident` has two later flexible uses,
+  and returns the result. With exactly two validated flexible views, pressure
+  occurs as `right` enters and the farther-ending resident is the canonical
+  victim on both x86-64 and AArch64.
+
+  The opaque `StagedOptimizedActiveResidentRematerialization` carrier performs
+  exactly one such multi-use sweep. It fixes all three named policies, requires
+  one shared work budget and at least one action, and independently replays
+  source custody, choice, classification, rewrite, wholly fresh liveness,
+  ranges, interference, availability-bound legality, homes, and its typed
+  post-allocation manifest row. Its dedicated receipt binds every identity,
+  policy, usage, final root, and count. No stale source analysis crosses the
+  selected-CFG mutation; the carrier grants no implicit loop or build hook.
+
+  The separately validated allocator-availability boundary also supplies the
+  incoming-literal production pressure vertical without misusing reservation
+  overlays: retaining only `rax` on x86-64 or `x0` on AArch64 makes a leaf RHS
   literal the deterministic incoming victim on both targets, while fixed views
   outside the flexible allowlist remain exact and legal. The separate add and
   subtract policies consume only matching incoming, single-use, immediately
@@ -1737,7 +2034,10 @@ dependency.
   by the exact, default-off
   `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` build choice in the
   `AllocationRecovery` phase. Neither closes general fixed-use, call, pressure,
-  rematerialization, or address-stability splitting.
+  or address-stability splitting. The two active-resident immediate-u64
+  pressure-rematerialization policies separately close single-use and
+  multiple-future-use local suffix cases, but do not split connected ranges,
+  cross blocks, calls, loops, or address-stable values.
 
 - **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
   constants/addresses.
@@ -1765,11 +2065,35 @@ dependency.
   provenance/fuel remain unchanged for the already-executed segment. One fresh
   VReg and zero-logical-fuel `MaterializeI64` carrying only the source-value
   lineage are inserted immediately before that sole future use, and only that
-  operand is rewritten. A strict v1 codec and structurally independent
-  validator replay the complete rooted recipe; fresh liveness, range,
-  interference, legality, and homes evidence proves that the admitted two-view
+  operand is rewritten.
+
+  `SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1`
+  extends that closed case to a canonical suffix of at least two later
+  same-block flexible uses and still rejects every later fixed use. It inserts
+  one fresh zero-fuel/value-lineage-only `MaterializeI64` immediately before
+  the first classified future-use instruction, then rewrites every classified
+  future use to that one fresh VReg in canonical instruction/operand order.
+  Earlier and unrelated uses remain unchanged. Both policies now use an ordered
+  rewrite-row action; the pressure-rematerialization identity and strict codec
+  are v2 while the liveness, range, legality, and home identities remain
+  unchanged. A structurally independent validator replays the complete rooted
+  recipe; fresh liveness, range, interference, legality, and homes evidence
+  proves that the admitted two-view
   pressure point closes. This policy grants no memory spill, frame, loop,
   emission, or general rematerialization authority.
+
+  The exact root-build family
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` now chooses that
+  multi-use schedule and no companions. The compiler route derives only the
+  target-owned caller-saved two-view availability, requires one sweep with at
+  least one action, rebuilds every invalidated allocation fact, and retains the
+  result through function-relative realization and the existing generic
+  fragment, text, object, canonical Terminal artifact, ordinary-callable, and
+  opaque-report boundaries. A no-candidate source shape, missing required view,
+  second allocation-recovery family, or another unfinished physical phase
+  rejects rather than falling back. This closes the explicit opt-in and current
+  relocation-free scalar-callable custody hook, not general spilling, framing,
+  process-entry bridging, image construction, installation, or publication.
 
   `SelectedIncomingU12ExactAddImmediateV1` and
   `SelectedIncomingU12ExactSubtractImmediateV1` each close one physical-form
@@ -1846,7 +2170,8 @@ dependency.
   register-environment/catalog roots, complete ordered rows, and counts. Opt-in
   orchestration can stage the sidecar by borrow over original selection,
   fixed-view-copy output, the final output of an explicit literal-fold
-  sequence, or a completed named selected-lowering suite. Each route
+  sequence, the production active-resident multi-use rematerialization output,
+  or a completed named selected-lowering suite. Each route
   independently revalidates its exact source custody and binds the transformed
   selected identity; the named-suite path retains positive completion evidence
   even when its ordered change ledger is empty. No pre-transformation analysis
@@ -1870,8 +2195,17 @@ dependency.
   introducing a hidden cost policy. Independent reconstruction rejects root,
   chosen-alternative, physical-view, and unit-footprint corruption. Borrowed
   orchestration covers ordinary homes, fixed-view-copy homes, literal-fold
-  homes, and named selected-lowering completion homes without transferring
-  emission authority.
+  homes, active-resident rematerialization homes, and named selected-lowering
+  completion homes without transferring emission authority. The
+  rematerialization route first replays its complete one-step policy custody,
+  analyzes the transformed selected CFG, and joins only its freshly rebuilt
+  ranges, legality, homes, and typed v5 manifest. Its machine-effect and post-
+  allocation source receipts retain the exact rematerialization receipt, so a
+  same-shaped generic home plan cannot detach the optimization history. Both
+  supported ISAs reject corrupted upstream custody, detached original-selected
+  effects, and cross-source machine plans. Existing machine-effect v4 and post-
+  allocation-machine v1 identities/codecs require no bump because they already
+  bind every transformed input row and root.
 
   The post-allocation sidecar now has its own strict v1 self-authenticating
   codec. Its framed content binds every joined root, the exact choice rule,
@@ -1901,7 +2235,7 @@ dependency.
   immediate boundary.
 
   Opt-in orchestration joins those fragments to the exact selected plan and
-  post-allocation sidecar. Its immutable v2 identity binds both roots, every
+  post-allocation sidecar. Its immutable v3 identity binds both roots, every
   instruction ID and chosen alternative, the canonical bytes, the decoded
   physical footprint, and the complete encoded-realization effects. It compares
   byte counts with each target size declaration and requires the target decoder
@@ -1914,7 +2248,56 @@ dependency.
   conditional branches remain explicit deferred rows in this pre-layout
   artifact because they require resolved layout.
 
-  A sibling immutable v1 function-relative layout artifact now resolves that
+  A rematerialization-specific owning carrier now advances that production
+  vertical through this pre-layout boundary without weakening the generic
+  encoder. It consumes the complete active-resident carrier and its source-
+  specific post-allocation machine plan by value, independently replays both,
+  derives the transformed selected plan and physical model only through that
+  retained custody, and then validates every generic encoding row. Its
+  dedicated receipt binds both upstream receipts, transformed selected root,
+  unchanged v3 encoding identity, and exact encoded/deferred row counts. Both
+  targets prove the fresh zero-fuel `MaterializeI64` has a real encoded row;
+  upstream corruption, cross-source machine substitution, and encoded-byte
+  mutation reject. It grants no resolved layout, frame, emission, or
+  publication authority and requires no new wire schema.
+
+  A second owning carrier now advances only that route through required branch
+  layout. It first replays the complete rematerialization pre-layout carrier,
+  derives the transformed selected plan, source-specific machine plan, and
+  physical model from retained custody, then invokes and independently replays
+  the generic `EntryThenZeroFallthroughThenNonzeroV1` layout. Its receipt binds
+  the upstream receipt, selected/machine/pre-layout/physical/layout identities,
+  target, named policy, and exact function/block/instruction/byte/resolved-
+  branch counts. Both targets retain the fresh rematerialization row and resolve
+  exactly one branch; pre-layout byte, resolved-layout byte, and receipt
+  corruption fail at their respective layers. Generic resolved-layout identity
+  remains v2 and no durable schema changes. The carrier still grants no branch
+  relaxation, exit contract, function-relative manifest, frame, emission,
+  section, object, image, installation, or publication authority.
+
+  An explicit-staging-only function-relative carrier now owns that resolved
+  route together with a validated `BaselineNearLayoutV1` frameless exit and an
+  independently rebuilt v5 realization manifest. When staged directly without
+  a compiler build selection, the original source-visible selection identity
+  remains unchanged and every unexecuted phase projection is empty. Through the
+  compiler physical pipeline, the exact
+  `ActiveResidentImmediateU64MultiUseRematerializationV1` root-build selection
+  instead occupies the allocation-recovery projection; selected-lowering
+  completion and the post-allocation-machine and function-relative-layout
+  projections remain absent. The v5
+  post-allocation manifest instead supplies the sole typed
+  `PressureRematerialization` row and transformed selected root. The carrier
+  replays the complete resolved-layout custody before deriving any exit or
+  manifest field, binds the caller-saved physical path (`rax`/`rcx` or
+  `x0`/`x1`), and rejects detached roots, later-phase selections, exit/manifest/
+  receipt corruption, and cross-source substitution. Whole-function exit v3
+  remains unchanged; realization manifest v5 makes the allocation-recovery
+  execution claim independently replayable. The route is wired only for the
+  exact singleton named selection and fails closed on physical-phase
+  composition. It still grants no frame, emission, section, object, image,
+  installation, or publication authority.
+
+  A sibling immutable v2 function-relative layout artifact now resolves that
   deferral under the exact named required-stage policy
   `EntryThenZeroFallthroughThenNonzeroV1`. It independently reorders the
   admitted three-block diamond as entry, zero successor, nonzero successor;
@@ -1933,10 +2316,12 @@ dependency.
   publication authority.
 
   Function-relative realization now has distinct custody routes for ordinary
-  homes and selected-lowering completion. Both own the validated required
-  layout together with strict homes, post-allocation machine, and pre-layout
-  encoding. The immutable v4 manifest binds the complete named suite, exact
-  selected-lowering and function-relative-layout projections, optional
+  homes, selected-lowering completion, and active-resident rematerialization.
+  Each owns the validated required layout together with strict homes,
+  post-allocation machine, and pre-layout encoding. The immutable v5 manifest
+  binds the complete named suite, exact
+  selected-lowering, allocation-recovery, post-allocation-machine, and
+  function-relative-layout projections, optional
   selected-lowering completion, pre-physical and post-allocation manifests,
   final selected CFG, pre-/post-allocation machine roots, baseline and final
   layout roots, optional layout transformation receipt, target, and named
@@ -1972,8 +2357,8 @@ dependency.
   Physical orchestration now routes that exact phase independently of selected
   lowering. A branch-only suite uses frameless legality and ordinary homes and
   truthfully records no selected-lowering completion; a combined suite retains
-  both completions. The strict v4 realization manifest binds the full suite,
-  both exact phase projections, optional selected-lowering completion,
+  both completions. The strict v5 realization manifest binds the full suite,
+  all exact phase projections, optional selected-lowering completion,
   required near-layout root, final layout root, optional rel8 receipt, final-
   byte statistics, and final-layout exit contract. Whole-function exit custody
   is v2 and distinguishes the required near layout from a final layout admitted
@@ -1981,12 +2366,18 @@ dependency.
   branch-only and combined routing, detached final-layout corruption, and
   non-x86 rejection.
 
-  A subsequent relocation-free emission boundary consumes only those completed
-  x86 rel8 or AArch64 CBNZ realization carriers. Its immutable function-fragment
-  plan concatenates dense bytes independently per function, retains every
-  block/instruction span (including a zero-byte elided CBNZ compare), complete
-  provenance, successor bindings, branch evidence, and path-specific fuel. A
-  separate strict `OMGFFE` v1 manifest binds the source realization, selections,
+  A subsequent relocation-free emission boundary consumes completed x86 rel8,
+  AArch64 CBNZ, or active-resident rematerialization realization carriers. Its
+  immutable function-fragment plan concatenates dense bytes independently per
+  function and retains every block/instruction span (including a zero-byte
+  elided CBNZ compare and the rematerializer's fresh nonempty `MaterializeI64`),
+  complete provenance, successor bindings, branch evidence, and path-specific
+  fuel. The architecture-neutral rematerialization source kind replays its
+  complete owning carrier and requires the exact singleton allocation-recovery
+  projection. It retains baseline `JNE rel32` or `B.NE imm19` branch evidence;
+  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v3 manifest binds
+  the closed four-kind source vocabulary, including the Unit baseline, source
+  realization, selections,
   selected/post-allocation/layout/exit roots, target, fragment identity, and
   exact statistics. Independent replay reconstructs source custody, offsets,
   rows, aggregate bytes, statistics, receipt, and manifest. This boundary owns
@@ -2002,8 +2393,9 @@ dependency.
   without inventing an object/process entry symbol. An exhaustive current-
   alternative check proves that fallthrough/scalar/return forms embed no target
   and every relative conditional branch is already resolved within its owned
-  function. The strict `OMGTSP` v1 manifest and independent replay bind every
-  source/layout/exit/fragment root, aggregate byte, statistic, placement
+  function. The strict `OMGTSP` v3 manifest includes the rematerialization and
+  Unit-baseline source-kind tags, and independent replay binds every source,
+  layout, exit, and fragment root, aggregate byte, statistic, placement
   coordinate, and the closed no-relocation conclusion. Symbols, object
   container/serialization, external entry bridge, executable image,
   installation, and publication remain unavailable.
@@ -2021,9 +2413,99 @@ dependency.
   count. External/process entry bridging, native image construction,
   installation, and publication remain unavailable.
 
-  Remaining for the named rel8 rule: replace the current compiler execution
-  gate with an end-to-end selected-build path that carries the validated object
-  container through external entry, native artifact, and publication custody.
+  A canonical semantic/proof-to-object boundary now consumes both the verified
+  Terminal artifact and clean object carrier by value.
+  `ValidatedOptimizedTerminalObjectArtifactV1` requires exact decoded module
+  and proof-bundle equality, then binds the Terminal artifact, Psi and proof
+  roots, optional debug fingerprint, selection set, target, semantic entry,
+  every pre-physical through object manifest, canonical object/container roots,
+  byte and symbol statistics, and zero relocations. Production and an
+  independently coded replay traverse the retained custody through different
+  access paths. The strict `OMGOTA` and `OMGOTM` v1 codecs are canonical
+  artifact/rebuild metadata records, and the cumulative report can gain its
+  fragment, text, object, and artifact records only from this opaque carrier.
+  Entry bridging, image construction, installation, and publication remain
+  explicitly unavailable.
+
+  The following ordinary-callable boundary consumes that artifact by value.
+  `ValidatedOptimizedTerminalOrdinaryCallableEntryV1` admits the current exact
+  unattached, frameless scalar callable shape and classifies its private
+  semantic-entry symbol under the target-native calling policy. It binds each
+  semantic scalar parameter and ABI shape to its selected VReg, fixed assigned
+  view, canonical storage units, and ABI register. Because Terminal scalar
+  results are pseudo-result declarations rather than one globally selected
+  value, it separately binds the semantic result declaration and an ordered row
+  for every return edge's actual returned ValueId, selected VReg, view, and
+  units. It also binds the selected plan, homes, physical model, whole-function
+  exit, exact exit policy and hardening, stack alignment, red-zone facts,
+  caller-created return-state assumption, object/container roots, and private
+  entry-symbol span. Production and an independently coded replay recompute the
+  complete native call plan and all joins. Strict `OMGOER`/`OMGOEM` v1 records
+  remain metadata only; the disposition is
+  `ExternalProcessEntryBridgeRequiredV1`, and wrapper bytes, relocations, native
+  image, installation, and publication are explicitly unavailable. Reports can
+  gain this record only from the new opaque carrier.
+
+  The exact compiler-selected active-resident route now exercises those three
+  generic downstream boundaries on System V AMD64, Microsoft x64, Linux
+  AAPCS64, and Darwin AAPCS64. Replay retains the fresh nonempty
+  `MaterializeI64` section span, transformed selected root and homes, sole
+  `PressureRematerialization` ledger row, exact Terminal semantic/proof roots,
+  private entry symbol, both return-edge result rows, and target ABI parameter/
+  result registers. `OMGOTA`/`OMGOTM` and `OMGOER`/`OMGOEM` remain v1: the v3
+  fragment/text manifests already authenticate the route-specific source kind,
+  while these later records bind generic child identities. The artifact report
+  still cannot expose callable metadata, and only the opaque callable carrier
+  adds it. This is current scalar-callable custody, not process-entry authority.
+
+  The next entry boundary has one settled semantic layer and one genuinely
+  unsettled physical layer. The exact Unit legalization, selection, encoding,
+  and effect vocabulary is present, and checked/native staging retains the
+  target-owned `ProgramEntry` source signature and paired calling plans. The
+  dedicated Unit realization now carries that zero-VReg one-block form through
+  liveness, ranges, legality, empty homes, post-allocation replay, an explicit
+  `SingleEntryBlockV1` layout, typed Unit exit evidence, relocation-free
+  fragment/text/object custody, and the canonical optimized artifact on both
+  supported architectures. The source-signature-to-`MachineId` association is
+  now retained through receipt-coupled Terminal production and independently
+  replayed native settlement. A separate declaration-only ProgramStorage
+  contract validates the exact two roots, semantic calling plan, and retained
+  non-invoked physical plan. A pure address-free wrapper plan now fixes the
+  exact root-copy sequence, balanced 72-byte frame, private-continuation call
+  slot, and function-relative `rel32` requirement without claiming symbols or
+  bytes. A distinct structural Unit legalized roster now retains one whole-root
+  `CallUnit` plus `ReturnUnit`, including exact paired ABI projections, call
+  plans, places, claims, service, provenance, fuel, effects, and ownership;
+  independent replay reconstructs both sides. The target-applicable Microsoft-
+  x64 COFF route now selects the call as one atomic zero-VReg pseudo, retains
+  its exact register constraint, frame/copy layout, effects, ownership, and
+  provenance through selected-plan replay, and carries its architectural unit
+  flow through preallocation machine effects, liveness, live ranges, zero-row
+  allocation legality, empty homes, an explicit allocation-manifest statistic,
+  and post-allocation machine replay. The target-owned encoder produces an
+  independently decoded canonical 89-byte template with one typed unresolved
+  internal-Machine rel32 fixup; selected-form encoding v5 retains it, its full
+  footprint, the separate return byte, and exact structural counts without
+  misclassifying the zero field as a resolved call. The next boundary must carry
+  and resolve that fixup through function-relative and whole-section layout,
+  encoding, and an applicable object/private continuation
+  symbol, join those facts with the settlement, contract, and wrapper plan,
+  then construct the semantic
+  `ProgramStorageEntry` wrapper object. The scalar-
+  result conditional fixture used by the callable classifier remains
+  intentionally ineligible. The current UEFI surface explicitly calls its
+  physical shell planned and non-invoked: no authoritative contract maps
+  `(EfiImageHandle, &EfiSystemTable)` to the semantic Image and InitialStorage
+  extents or maps Unit completion/failure to `EfiStatus`. Hosted targets do not
+  yet publish a physical entry contract at all. `OWNER_QUESTIONS.md` Q17 owns
+  that target/runtime design decision. Until it is settled, the semantic
+  wrapper cannot be called an authoritative firmware/process-entry bridge.
+
+  Remaining for selected native output: replace the current compiler execution
+  gate only after an applicable validated Unit object artifact reaches the
+  semantic ProgramStorage wrapper, Q17 supplies an authoritative physical
+  process-entry contract, and native image plus publication custody are
+  independently validated.
   Until those downstream authorities exist, a build that explicitly selects
   the rule is parsed and identified but still fails without installing output.
 
@@ -2069,7 +2551,7 @@ dependency.
   complete an owning function-relative realization: they retain homes,
   selected machine, symbolic fusion, baseline and fused encoding/layout roots,
   and CBNZ-aware whole-function exit custody. Function-relative manifest/codec
-  v4 and whole-function exit identity v3 independently replay the zero-byte
+  v6 and whole-function exit identity v4 independently replay the zero-byte
   compare row, four-byte shrink, canonical CBNZ bytes/effects, and exact post-
   allocation selection. The root build vocabulary remains explicit and
   default-off, and the compiler still rejects selected native output because

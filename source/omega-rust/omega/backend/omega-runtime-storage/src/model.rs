@@ -2,16 +2,19 @@ use omega_control_flow::StateKey;
 use omega_layout::TypeLayoutDescriptor;
 use omega_state_calls::StateCallRole;
 use omega_state_storage::{StateMutationKind, StateMutationLowering};
-use psi_arena::Arena;
+use psi_arena::{Arena, Handle};
 use psi_checked_trees::expression::{ExpressionHandle, ExpressionTable, ExpressionTableCapacity};
 use psi_checked_trees::name::Identifier;
 use psi_symbols::SymbolHandle;
+use std::collections::HashMap;
+use std::fmt;
 use std::sync::Arc;
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct RuntimeStoragePlan {
     pub expressions: ExpressionTable,
     pub frame_slots: Arena<RuntimeFrameSlot>,
+    pub(crate) frame_slot_index: RuntimeFrameSlotIndex,
     pub writes: Arena<RuntimeStorageWrite>,
     /// Byte offset of a reserved frame SCRATCH region used to stage transition
     /// arguments when a same-call-context transition's source and target slots
@@ -65,6 +68,7 @@ impl RuntimeStoragePlan {
         Self {
             expressions: ExpressionTable::with_capacities(expression_capacity),
             frame_slots: Arena::with_capacity(frame_slot_capacity),
+            frame_slot_index: RuntimeFrameSlotIndex::default(),
             writes: Arena::with_capacity(write_capacity),
             frame_scratch_base: 0,
             frame_scratch_size: 0,
@@ -83,6 +87,38 @@ impl RuntimeStoragePlan {
 
     pub(crate) fn source_matches(expected: StateKey, actual: StateKey) -> bool {
         expected == actual || (expected.machine == actual.machine && expected.state == actual.state)
+    }
+
+    /// Rebuild the immutable root-identity lookup after frame-slot planning.
+    ///
+    /// Planning owns all slot insertion. Later backend phases may adjust byte
+    /// offsets, but do not change the symbol/name identities indexed here.
+    pub fn rebuild_frame_slot_index(&mut self) {
+        self.frame_slot_index = RuntimeFrameSlotIndex::from_slots(&self.frame_slots);
+    }
+
+    /// Frame slots whose root identity can match one resolved storage path.
+    /// Candidate order is the arena's insertion order so callers can preserve
+    /// the existing first/last-match fallback behavior exactly.
+    pub fn frame_slots_matching_root(
+        &self,
+        root_symbol: SymbolHandle,
+        root_name: Option<&str>,
+    ) -> impl Clone + Iterator<Item = &RuntimeFrameSlot> {
+        let handles = if root_symbol.is_valid() {
+            self.frame_slot_index
+                .by_symbol
+                .get(&(root_symbol.arena_index(), root_symbol.generation()))
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+        } else {
+            root_name
+                .and_then(|name| self.frame_slot_index.by_name.get(name))
+                .map(Vec::as_slice)
+                .unwrap_or_default()
+        };
+
+        handles.iter().map(|handle| self.frame_slots.get(*handle))
     }
 
     pub fn call_result_slot(
@@ -334,6 +370,45 @@ impl RuntimeStoragePlan {
             statement_index,
             StateCallRole::TransitionGuard,
         )
+    }
+}
+
+#[derive(Clone, Default, PartialEq, Eq)]
+pub(crate) struct RuntimeFrameSlotIndex {
+    by_symbol: HashMap<(u32, u32), Vec<Handle<RuntimeFrameSlot>>>,
+    by_name: HashMap<Arc<str>, Vec<Handle<RuntimeFrameSlot>>>,
+}
+
+impl RuntimeFrameSlotIndex {
+    fn from_slots(slots: &Arena<RuntimeFrameSlot>) -> Self {
+        let mut index = Self::default();
+        for (handle, slot) in slots.iter() {
+            if slot.symbol.is_valid() {
+                index
+                    .by_symbol
+                    .entry((slot.symbol.arena_index(), slot.symbol.generation()))
+                    .or_default()
+                    .push(handle);
+            }
+            // Unresolved source paths match by spelling even when the planned
+            // slot itself has a valid symbol, so every slot participates here.
+            index
+                .by_name
+                .entry(Arc::from(slot.name.as_str()))
+                .or_default()
+                .push(handle);
+        }
+        index
+    }
+}
+
+impl fmt::Debug for RuntimeFrameSlotIndex {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("RuntimeFrameSlotIndex")
+            .field("symbol_roots", &self.by_symbol.len())
+            .field("name_roots", &self.by_name.len())
+            .finish()
     }
 }
 

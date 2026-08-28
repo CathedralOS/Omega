@@ -5,20 +5,20 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
-. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
-cd "$OMEGA_PATH_PROOF_KERNEL"
+. "$OMEGA_PATH_ALPHA_CHECKER/artifact_env.sh" || exit $?
+cd "$OMEGA_PATH_ALPHA_CHECKER"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
@@ -295,7 +295,7 @@ chk "fun mult commutes" "$MUL (def 0 (All (All (-> (= (v 1) (v 0)) (= (v 0) (v 1
 # machinery). The exists-INTRODUCTION fragment proves the order is reflexive, has Z as a
 # least element, and a<=a+b. (Transitivity needs exists-ELIMINATION under an open hypothesis,
 # which the checker currently rejects via a conservative eigenvariable condition on gen --
-# a known first-order incompleteness, documented in proof-kernel/ORDER.md.)
+# a known first-order incompleteness, documented in source/alpha/checker/ORDER.md.)
 chk "le refl"  "(def 0 (All (= (p (v 0) z) (v 0))) (natind (= (p (v 0) z) (v 0)) (refl z) (gen (lam (= (p (v 0) z) (v 0)) (eqelim (= (s (p (v 1) z)) (s (v 0))) (hyp 0) (refl (s (p (v 0) z)))))))) (All (Exists (= (p (v 1) (v 0)) (v 1)))) (gen (wit (= (p (v 1) (v 0)) (v 1)) z (inst (use 0) (v 0))))" accept
 chk "z le"     "(All (Exists (= (p z (v 0)) (v 1)))) (gen (wit (= (p z (v 0)) (v 1)) (v 0) (refl (v 0))))" accept
 chk "le add"   "(All (All (Exists (= (p (v 2) (v 0)) (p (v 2) (v 1)))))) (gen (gen (wit (= (p (v 2) (v 0)) (p (v 2) (v 1))) (v 0) (refl (p (v 1) (v 0))))))" accept

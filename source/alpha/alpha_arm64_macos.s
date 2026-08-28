@@ -61,71 +61,80 @@ Lcopied:
     movz x22, #0x0400, lsl #16
 next:
     ldrb w23, [x21], #1
-    cmp  w23, #0
-    b.eq h_halt
     cmp  w23, #1
     b.eq h_imm
-    cmp  w23, #2
-    b.eq h_mov
-    cmp  w23, #3
-    b.eq h_add
     cmp  w23, #4
     b.eq h_sub
-    cmp  w23, #5
-    b.eq h_mul
-    cmp  w23, #6
-    b.eq h_div
-    cmp  w23, #7
-    b.eq h_mod
-    cmp  w23, #8
-    b.eq h_loadb
-    cmp  w23, #9
-    b.eq h_storeb
     cmp  w23, #10
     b.eq h_load
+    cmp  w23, #2
+    b.eq h_mov
     cmp  w23, #11
     b.eq h_store
+    cmp  w23, #3
+    b.eq h_add
     cmp  w23, #12
     b.eq h_jmp
     cmp  w23, #13
     b.eq h_jz
-    cmp  w23, #14
-    b.eq h_jnz
-    cmp  w23, #15
-    b.eq h_jlt
     cmp  w23, #16
     b.eq h_jeq
-    cmp  w23, #17
-    b.eq h_read
-    cmp  w23, #18
-    b.eq h_write
     cmp  w23, #19
     b.eq h_call
     cmp  w23, #20
     b.eq h_ret
+    cmp  w23, #15
+    b.eq h_jlt
+    cmp  w23, #5
+    b.eq h_mul
+    cmp  w23, #8
+    b.eq h_loadb
+    cmp  w23, #6
+    b.eq h_div
+    cmp  w23, #9
+    b.eq h_storeb
+    cmp  w23, #7
+    b.eq h_mod
+    cmp  w23, #17
+    b.eq h_read
+    cmp  w23, #0
+    b.eq h_halt
+    cmp  w23, #14
+    b.eq h_jnz
+    cmp  w23, #18
+    b.eq h_write
     udf  #0
 h_imm:
-    ldrb w9,  [x21], #1
-    ldr  x10, [x21], #8
+    // Decode the adjacent destination byte and unaligned immediate without a
+    // program-counter writeback dependency, then advance by the exact 9 bytes.
+    ldrb w9,  [x21]
+    ldr  x10, [x21, #1]
+    add  x21, x21, #9
     str  x10, [x19, w9, uxtw #3]
     b    next
+// Hot two-register handlers read the adjacent operand bytes independently,
+// then advance pc once.  This is the same d,s decode and pc+2 transition as
+// two serial post-index loads, without a load-to-load writeback dependency.
 h_mov:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w10, uxtw #3]
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_add:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     add  x11, x11, x12
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_sub:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     sub  x11, x11, x12
@@ -187,15 +196,17 @@ h_storeb:
     strb w12, [x20, x11]
     b    next
 h_load:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x12, [x19, w10, uxtw #3]
     ldr  x11, [x20, x12]
     str  x11, [x19, w9,  uxtw #3]
     b    next
 h_store:
-    ldrb w9,  [x21], #1
-    ldrb w10, [x21], #1
+    ldrb w9,  [x21]
+    ldrb w10, [x21, #1]
+    add  x21, x21, #2
     ldr  x11, [x19, w9,  uxtw #3]
     ldr  x12, [x19, w10, uxtw #3]
     str  x12, [x20, x11]

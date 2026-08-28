@@ -1,0 +1,139 @@
+; Semantic relation for the quiet p68 entry prefix [48993,49368).
+;
+; The grammar is deliberately permissive: the first identifier is not checked
+; against "proc", the second may be empty, and expect('(') has an ignored
+; match result.  The prefix emits no bytes and reaches PLOP with D=0.
+
+parse_proc_entry_semantics_init:
+        call parse_proc_entry_require_imports
+        call parse_proc_entry_build_relation
+        call parse_proc_entry_require_relation
+        imm r1, 606024
+        imm r2, 1414415696             ; PENT
+        store r1, r2
+        jmp parse_proc_outcomes_init
+
+parse_proc_entry_require_imports:
+        imm r20, 606008
+        imm r21, 1312903248             ; PPAN
+        call exact_require_cell
+        imm r20, 606016
+        imm r21, 1213416784             ; PESH
+        call exact_require_cell
+        ret
+
+; Relation cells at608000 name, in order, the exact state/trace obligations.
+parse_proc_entry_build_relation:
+        imm r20, 608000
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
+        call parse_proc_entry_store_cell ; exact entry PC48993
+        imm r21, 1
+        call parse_proc_entry_store_cell ; arbitrary prior ordered stdout
+        imm r21, 1
+        call parse_proc_entry_store_cell ; SOURCE/LEN preserved
+        imm r21, 1
+        call parse_proc_entry_store_cell ; initial CUR<=LEN+2
+        imm r21, 1
+        call parse_proc_entry_store_cell ; caller frame is live
+        imm r21, 0
+        call parse_proc_entry_store_cell ; exact entry BLOCKDEPTH D=0
+        imm r21, 1
+        call parse_proc_entry_store_cell ; p68 frame48 established
+        imm r21, 0
+        call parse_proc_entry_store_cell ; NLOC reset to zero
+        imm r21, 3
+        call parse_proc_entry_store_cell ; three ordered terminating SWSQ calls
+        imm r21, 2
+        call parse_proc_entry_store_cell ; two ordered terminating RIDS calls
+        imm r21, 1
+        call parse_proc_entry_store_cell ; first identifier result ignored
+        imm r21, 1
+        call parse_proc_entry_store_cell ; second exact slice saved
+        imm r21, 1
+        call parse_proc_entry_store_cell ; saved slice copied to CURPROC
+        imm r21, 1
+        call parse_proc_entry_store_cell ; one terminating EXPS call
+        imm r21, 40
+        call parse_proc_entry_store_cell ; exact expect delimiter byte
+        imm r21, 1
+        call parse_proc_entry_store_cell ; expect match/mismatch result ignored
+        imm r21, 1                     ; no keyword equality premise
+        call parse_proc_entry_store_cell ; no keyword equality premise
+        imm r21, 1
+        call parse_proc_entry_store_cell ; empty procedure name admitted
+        imm r21, 0
+        call parse_proc_entry_store_cell ; emitted suffix is epsilon
+        imm r21, 49368
+        call parse_proc_entry_store_cell ; exact PLOP cutpoint
+        imm r21, 1
+        call parse_proc_entry_store_cell ; final CUR<=LEN+2
+        imm r21, 1
+        call parse_proc_entry_store_cell ; caller/depth custody retained
+        imm r21, 23
+        call parse_proc_entry_store_cell ; exact relation-cell count
+        ret
+
+; Store expected r21 then advance r20 by one cell.
+parse_proc_entry_store_cell:
+        store r20, r21
+        imm r1, 8
+        add r20, r1
+        ret
+
+parse_proc_entry_require_relation:
+        imm r20, 608000
+        imm r21, 68                    ; parse_proc procedure identity
+        call exact_proc_entry_r21
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 0
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 0
+        call parse_proc_entry_require_next
+        imm r21, 3
+        call parse_proc_entry_require_next
+        imm r21, 2
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 40
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 0
+        call parse_proc_entry_require_next
+        imm r21, 49368
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 1
+        call parse_proc_entry_require_next
+        imm r21, 23
+        call parse_proc_entry_require_next
+        ret
+
+parse_proc_entry_require_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret

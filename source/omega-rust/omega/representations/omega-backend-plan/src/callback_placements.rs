@@ -24,6 +24,10 @@ pub struct BoundNominalCallbackPlacement {
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
     pub boundary_calling_plan_fingerprint: u64,
+    /// Exact checked per-entry resource anchor selected by semantic callback
+    /// admission. It remains a derivation receipt only; later resource
+    /// realizations must independently join it before admission.
+    pub resource_receipt: psi_checked_trees::CheckedCallbackResourceReceipt,
     pub boundary_entry_plan: BoundaryEntryPlan,
     /// Exact target-closed outbound binder/destination row selected by this
     /// nominal callback use. `None` retains the established non-materializing
@@ -65,6 +69,7 @@ pub struct CallbackPlacementBindingIdentity {
     pub satisfaction_requirement: SymbolHandle,
     pub canonical_requirement_overload: String,
     pub boundary_calling_plan_fingerprint: u64,
+    pub resource_receipt: psi_checked_trees::CheckedCallbackResourceReceipt,
     pub private_materialization: Option<BoundCallbackPrivateMaterialization>,
 }
 
@@ -93,7 +98,7 @@ pub struct CallbackThunkPlan {
 /// structural receipt with its placement row before this summary can be used.
 pub fn callback_thunk_placement_identity_fingerprint(thunks: &[CallbackThunkPlan]) -> u64 {
     let mut fingerprint = 0xcbf2_9ce4_8422_2325u64;
-    fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v1");
+    fingerprint_into(&mut fingerprint, b"omega.callback-placement-identity.v2");
     fingerprint_into(&mut fingerprint, &(thunks.len() as u64).to_le_bytes());
     for thunk in thunks {
         fingerprint_placement_identity(
@@ -154,7 +159,27 @@ fn fingerprint_placement_identity(
         fingerprint,
         &identity.boundary_calling_plan_fingerprint.to_le_bytes(),
     );
+    fingerprint_callback_resource_receipt(fingerprint, identity.resource_receipt);
     fingerprint_private_materialization(fingerprint, identity.private_materialization.as_ref());
+}
+
+fn fingerprint_callback_resource_receipt(
+    fingerprint: &mut u64,
+    receipt: psi_checked_trees::CheckedCallbackResourceReceipt,
+) {
+    fingerprint_symbol(fingerprint, receipt.machine());
+    fingerprint_symbol(fingerprint, receipt.entry());
+    fingerprint_into(fingerprint, &receipt.contract_fingerprint().to_le_bytes());
+    fingerprint_into(fingerprint, &receipt.stack_fingerprint().to_le_bytes());
+    fingerprint_into(
+        fingerprint,
+        &receipt.logical_structural_work_fingerprint().to_le_bytes(),
+    );
+    fingerprint_into(
+        fingerprint,
+        &receipt.machine_state_fingerprint().to_le_bytes(),
+    );
+    fingerprint_into(fingerprint, &receipt.envelope_fingerprint().to_le_bytes());
 }
 
 fn fingerprint_private_materialization(
@@ -244,6 +269,7 @@ pub fn callback_placement_binding_identity(
         satisfaction_requirement: placement.satisfaction_requirement,
         canonical_requirement_overload: placement.canonical_requirement_overload.clone(),
         boundary_calling_plan_fingerprint: placement.boundary_calling_plan_fingerprint,
+        resource_receipt: placement.resource_receipt,
         private_materialization: placement.private_materialization.clone(),
     }
 }
@@ -261,6 +287,19 @@ pub fn validate_bound_nominal_callback_placement(
     omega_calling_conventions::ValidatedBoundaryEntryPlan,
     omega_calling_conventions::PlanDiagnostic,
 > {
+    placement.resource_receipt.validate().map_err(|error| {
+        omega_calling_conventions::PlanDiagnostic(format!(
+            "callback placement retained an invalid checked resource receipt: {error}"
+        ))
+    })?;
+    if placement.resource_receipt.machine() != placement.selected_machine
+        || placement.resource_receipt.entry() != placement.selected_entry
+    {
+        return Err(omega_calling_conventions::PlanDiagnostic(
+            "callback placement resource receipt does not bind its selected machine entry"
+                .to_owned(),
+        ));
+    }
     let signature = omega_calling_conventions::CallSignature {
         parameters: placement
             .boundary_entry_plan
@@ -396,24 +435,42 @@ mod tests {
     use super::*;
     use omega_calling_conventions::{CallSignature, CallingPolicy};
 
+    fn resource_receipt(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+        contract_fingerprint: u64,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine,
+                entry,
+                contract_fingerprint,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn placement() -> BoundNominalCallbackPlacement {
         let validated = omega_calling_conventions::evaluate_ordinary_boundary_entry_plan(
             CallingPolicy::MicrosoftX64,
             &CallSignature::default(),
         )
         .expect("empty callback entry plan");
+        let selected_machine = SymbolHandle::from_parts(4, 2);
+        let selected_entry = SymbolHandle::from_parts(5, 3);
         BoundNominalCallbackPlacement {
             site: NominalMachineUseSite::Expression(
                 psi_checked_trees::expression::ExpressionHandle::from_parts(9, 1),
             ),
             registration_operation: SymbolHandle::from_arena_index(3),
             static_machine_ordinal: 7,
-            selected_machine: SymbolHandle::from_parts(4, 2),
-            selected_entry: SymbolHandle::from_parts(5, 3),
+            selected_machine,
+            selected_entry,
             satisfaction_trait: SymbolHandle::from_arena_index(6),
             satisfaction_requirement: SymbolHandle::from_arena_index(8),
             canonical_requirement_overload: "Handler::call".to_owned(),
             boundary_calling_plan_fingerprint: validated.contract_fingerprint(),
+            resource_receipt: resource_receipt(selected_machine, selected_entry, 0xfeed),
             boundary_entry_plan: validated.plan().clone(),
             private_materialization: None,
         }
@@ -462,6 +519,20 @@ mod tests {
             .expect_err("changed callback plan must not retain the old fingerprint");
         assert!(error.0.contains("drifted from its retained fingerprint"));
 
+        let mut resource_drift = placement();
+        resource_drift.resource_receipt = resource_receipt(
+            resource_drift.selected_machine,
+            SymbolHandle::from_parts(5, 4),
+            0xfeed,
+        );
+        let error = validate_bound_nominal_callback_placement(&resource_drift)
+            .expect_err("another checked resource entry cannot authorize the callback placement");
+        assert!(
+            error
+                .0
+                .contains("resource receipt does not bind its selected machine entry")
+        );
+
         let mut fingerprint_drift = baseline;
         fingerprint_drift.boundary_calling_plan_fingerprint ^= 1;
         let error = validate_bound_nominal_callback_placement(&fingerprint_drift)
@@ -492,6 +563,17 @@ mod tests {
         overload_drift.canonical_requirement_overload = "Handler::other".to_owned();
         assert_ne!(
             callback_placement_binding_identity(&overload_drift),
+            identity
+        );
+
+        let mut resource_drift = placement();
+        resource_drift.resource_receipt = resource_receipt(
+            resource_drift.selected_machine,
+            resource_drift.selected_entry,
+            0xbeef,
+        );
+        assert_ne!(
+            callback_placement_binding_identity(&resource_drift),
             identity
         );
     }
@@ -533,6 +615,17 @@ mod tests {
         drifted.placement_identity.satisfaction_requirement = SymbolHandle::from_parts(8, 2);
         assert_ne!(
             callback_thunk_placement_identity_fingerprint(&[drifted]),
+            fingerprint
+        );
+
+        let mut resource_drifted = thunk.clone();
+        resource_drifted.placement_identity.resource_receipt = resource_receipt(
+            resource_drifted.placement_identity.selected_machine,
+            resource_drifted.placement_identity.selected_entry,
+            0xbeef,
+        );
+        assert_ne!(
+            callback_thunk_placement_identity_fingerprint(&[resource_drifted]),
             fingerprint
         );
 

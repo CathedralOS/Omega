@@ -532,11 +532,11 @@ fn callback_entry_id(
 ) -> Result<EntryStubId, PlanDiagnostic> {
     let synthetic_thunk_fingerprint = {
         let mut hash = 0xcbf2_9ce4_8422_2325u64;
-        fingerprint_into(&mut hash, b"omega.callback-installed-entry.v1");
+        fingerprint_into(&mut hash, b"omega.callback-installed-entry.v2");
         fingerprint_into(
             &mut hash,
             &crate::callback_placements::callback_placement_identity_row_fingerprint(
-                b"omega.callback-installed-entry-placement.v1",
+                b"omega.callback-installed-entry-placement.v2",
                 placement_index,
                 placement_identity,
             )
@@ -614,6 +614,18 @@ pub mod test_support {
         }
     }
 
+    fn resource_receipt(
+        machine: SymbolHandle,
+        entry: SymbolHandle,
+    ) -> psi_checked_trees::CheckedCallbackResourceReceipt {
+        psi_checked_trees::CheckedCallbackResourceReceipt::try_from_entry_envelope(
+            &psi_checked_trees::CheckedEntryResourceEnvelope::from_checked_contract(
+                machine, entry, 0xfeed,
+            ),
+        )
+        .expect("canonical checked callback resource receipt")
+    }
+
     fn placement_identity() -> CallbackPlacementBindingIdentity {
         let requirement_name = "Registrar::callback";
         let boundary = evaluate_ordinary_boundary_entry_plan(
@@ -628,18 +640,21 @@ pub mod test_support {
             layout,
             field_path: vec![callback_layout_slot_id(layout, "handler")],
         };
+        let selected_machine = SymbolHandle::from_arena_index(9);
+        let selected_entry = SymbolHandle::from_arena_index(10);
         CallbackPlacementBindingIdentity {
             site: NominalMachineUseSite::Expression(
                 psi_checked_trees::expression::ExpressionHandle::from_arena_index(7),
             ),
             registration_operation: SymbolHandle::from_arena_index(8),
             static_machine_ordinal: 0,
-            selected_machine: SymbolHandle::from_arena_index(9),
-            selected_entry: SymbolHandle::from_arena_index(10),
+            selected_machine,
+            selected_entry,
             satisfaction_trait: SymbolHandle::from_arena_index(11),
             satisfaction_requirement: SymbolHandle::from_arena_index(12),
             canonical_requirement_overload: requirement_name.into(),
             boundary_calling_plan_fingerprint: boundary.contract_fingerprint(),
+            resource_receipt: resource_receipt(selected_machine, selected_entry),
             private_materialization: Some(BoundCallbackPrivateMaterialization {
                 binder: StaticMachineBinderId::new(13).unwrap(),
                 destination,

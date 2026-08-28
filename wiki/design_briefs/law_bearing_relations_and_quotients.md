@@ -736,6 +736,23 @@ lifetimes, subject, trait application, and normalized row map. Expected
 subject/trait shape validates this closed selection but does not infer its
 non-lifetime arguments; visibility and ambient uniqueness never participate.
 
+The first executable static requirement-call carrier is intentionally smaller
+than that general model. An attached caller's explicit proof-static binder may
+be specialized to one concrete named conformance whose direct requirement and realization are
+non-generic one-state Unit callables. The requirement owns exactly one
+subjectless named input and one subjectless unconditional named output.
+Specialization retains the exact closed application and row before rewriting
+the executable target. Checked call composition imports only requirement-owned
+facts, and proof-output selection uses the requirement's proposition,
+interface, lane, and public selector. The caller receives a fresh opaque term;
+the satisfier's local alias, appended strengthening, forwarded term, and
+producer provenance remain private. Terminal retains the normalized public
+requirement separately from the owner-scoped application and concrete runtime
+callee, and verification rejoins all three without adding evidence arguments,
+storage, operations, or fuel. Free callers, defaults, inherited requirement
+rows, generic public surfaces, subject-bearing or wider named lanes, direct
+conformance-name calls, scalar results, and dynamic dispatch remain closed.
+
 Proof-only evaluation, when a transparent body is actually
 needed, uses the ordinary gated build-time evaluator: semantic eligibility
 requires the complete checked invocation contract and ordinary termination.
@@ -904,8 +921,8 @@ transport/weakening application, and canonical theorem identity and replay
 evidence. Ambient domain linking, visibility search, or an opaque solver
 verdict cannot supply that authority.
 
-A standalone proof-only Terminal preparation seam now covers only the total
-direct faithful `define` shape. Its all-or-nothing validation API produces one
+A proof-only Terminal preparation seam now covers only the total direct
+faithful `define` shape. Its all-or-nothing validation API produces one
 source-handle-free aggregate containing package-qualified callable and type
 identities, parameter ordinals, exact positional relations, theorem
 parameters/premises/applications/conclusion, contract-fact coordinates,
@@ -913,15 +930,18 @@ purity/termination/crash eligibility, and the direct result edge. The seam
 requires monomorphic one-state public, representative, and theorem machines;
 empty static telescopes and public/representative preconditions; no theorem
 legality premises; immutable non-attached parameters; complete eligibility;
-and unchanged direct result flow. Standalone Terminal-Psi retention binds the
-aggregate with an exact length-delimited canonical identity, while the
-independent verifier reconstructs its structural theorem and correspondence
-shape and re-encodes that identity. It is deliberately absent from
-`TerminalModule`, checked facts, codecs, and executable lowering. Normal
-validation continues to reject every quotient operation, and a batch with one
-unsupported request yields no partial rows. This is a source-erasure and replay
-prerequisite, not stage-4 admission; Q9 and executable Terminal lowering remain
-open.
+and unchanged direct result flow. `TerminalModule` now retains those proof rows
+in strict canonical-identity order, and its canonical codec includes each
+aggregate and rederives its length-delimited identity on decode. Normal
+representation validation independently reconstructs the structural theorem
+and correspondence shape, re-encodes each identity, and rejects invalid,
+duplicate, or reordered rows. The explicit proof-only Terminal producer
+attachment consumes the extractor's complete batch transactionally and is not
+an ordinary machine-lowering path. The rows still own no Terminal machine or
+operation, normal validation continues to reject every quotient operation, and
+a batch with one unsupported request yields no partial rows. This is a
+source-erasure, module-retention, and replay prerequisite, not executable
+stage-4 admission; Q9 and checked operation/result lowering remain open.
 
 The representation-observer fence is explicit at resolved-to-typed lowering.
 A quotient cannot declare `Equatable`, participate as a field in synthesized

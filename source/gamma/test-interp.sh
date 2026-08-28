@@ -5,17 +5,17 @@
 OMEGA_GATE_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd -P)
 if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   OMEGA_REPO_ROOT=$OMEGA_GATE_DIR
-  while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
+  while [ ! -f "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" ]; do
     OMEGA_PATH_PARENT=$(dirname -- "$OMEGA_REPO_ROOT")
     if [ "$OMEGA_PATH_PARENT" = "$OMEGA_REPO_ROOT" ]; then
-      echo "bootstrap paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
+      echo "lattice paths: cannot find repository root from $OMEGA_GATE_DIR" >&2
       exit 2
     fi
     OMEGA_REPO_ROOT=$OMEGA_PATH_PARENT
   done
   unset OMEGA_PATH_PARENT
 fi
-. "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
+. "$OMEGA_REPO_ROOT/tools/lattice/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
@@ -50,6 +50,11 @@ ev '(if (lt 3 5) 42 0)' 42
 ev '(if (eq 3 5) 1 0)' 0
 ev '(def sq (x) (* x x)) (sq 9)' 81
 ev '(def add (a b) (+ a b)) (add 10 20)' 30
+# Variable ASTs are resolved once to frame-local slots. Reusing the same body
+# across calls, recursive re-entry, lets, shadowing, and match bindings must
+# still observe the current invocation's values rather than cached values.
+ev '(def choose (x) (let y (+ x 1) (match (Pair y x) ((Pair a b) (+ a b))))) (+ (choose 10) (choose 0))' 22
+ev '(def shadow (x) (let y x (let x (+ y 1) (+ x y)))) (+ (shadow 10) (shadow 1))' 24
 ev '(def fac (n) (if (eq n 0) 1 (* n (fac (- n 1))))) (fac 5)' 120
 ev '(def fib (n) (if (lt n 2) n (+ (fib (- n 1)) (fib (- n 2))))) (fib 10)' 55
 ev '(def gcd (a b) (if (eq b 0) a (gcd b (% a b)))) (gcd 48 36)' 12

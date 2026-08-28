@@ -29,12 +29,14 @@ pub use identities::{
     OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkloadProfileIdentity, OptimizedAbstractPlanProjectionIdentity,
-    OwnershipFrontierFactIdentity, PostAllocationOptimizationManifestIdentity,
-    PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
-    SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
-    TerminalFunctionFragmentEmissionIdentity, TerminalRelocationFreeObjectContainerIdentity,
-    TerminalRelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
-    TransformationLedgerIdentity,
+    OptimizedTerminalObjectArtifactIdentity, OptimizedTerminalObjectArtifactManifestIdentity,
+    OptimizedTerminalOrdinaryCallableEntryIdentity,
+    OptimizedTerminalOrdinaryCallableEntryManifestIdentity, OwnershipFrontierFactIdentity,
+    PostAllocationOptimizationManifestIdentity, PrePhysicalOptimizationManifestIdentity,
+    ScalarConstantFactIdentity, SelectedLoweringOptimizationCompletionIdentity,
+    TargetCostModelIdentity, TerminalFunctionFragmentEmissionIdentity,
+    TerminalRelocationFreeObjectContainerIdentity, TerminalRelocationFreeObjectPlanIdentity,
+    TerminalRelocationFreeTextSectionIdentity, TransformationLedgerIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
@@ -42,8 +44,8 @@ pub use manifest::{
 };
 
 const SELECTION_ENCODING_MAGIC: &[u8; 8] = b"OMGOPT\0\0";
-const SELECTION_ENCODING_VERSION: u32 = 6;
-const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v6\0";
+const SELECTION_ENCODING_VERSION: u32 = 7;
+const SELECTION_IDENTITY_DOMAIN: &[u8] = b"omega.optimization-selections.v7\0";
 
 /// Closed execution phase for one explicitly named optimization. Phase
 /// projection routes a complete source-visible suite; it never replaces that
@@ -76,10 +78,11 @@ pub enum Optimization {
     SelectedIncomingU12ExactSubtractImmediate = 9,
     Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 = 10,
     SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 = 11,
+    ActiveResidentImmediateU64MultiUseRematerializationV1 = 12,
 }
 
 impl Optimization {
-    pub const ALL: [Self; 11] = [
+    pub const ALL: [Self; 12] = [
         Self::ControlFlowCleanup,
         Self::SparseConditionalConstantPropagation,
         Self::CopyPropagation,
@@ -91,6 +94,7 @@ impl Optimization {
         Self::SelectedIncomingU12ExactSubtractImmediate,
         Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
         Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+        Self::ActiveResidentImmediateU64MultiUseRematerializationV1,
     ];
 
     pub const fn build_case_name(self) -> &'static str {
@@ -111,6 +115,9 @@ impl Optimization {
             }
             Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
                 "SharedEntryFixedViewCopyAfterCompareBeforeBranchV1"
+            }
+            Self::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
+                "ActiveResidentImmediateU64MultiUseRematerializationV1"
             }
         }
     }
@@ -138,6 +145,9 @@ impl Optimization {
             Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
                 "shared_entry_fixed_view_copy_after_compare_before_branch_v1"
             }
+            Self::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
+                "active_resident_immediate_u64_multi_use_rematerialization_v1"
+            }
         }
     }
 
@@ -159,7 +169,8 @@ impl Optimization {
             Self::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 => {
                 OptimizationExecutionPhase::PostAllocationMachine
             }
-            Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1 => {
+            Self::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1
+            | Self::ActiveResidentImmediateU64MultiUseRematerializationV1 => {
                 OptimizationExecutionPhase::AllocationRecovery
             }
         }
@@ -365,6 +376,7 @@ mod tests {
     fn selections_are_sorted_and_round_trip_canonically() {
         let selections = OptimizationSelections::new([
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::ProofCheckElision,
@@ -381,6 +393,7 @@ mod tests {
                 Optimization::X86RelaxConditionalBranchesToRel8V1,
                 Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
                 Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             ]
         );
         let encoded = selections.encode();
@@ -428,10 +441,10 @@ mod tests {
         );
 
         let mut old_version = selections.encode();
-        old_version[8..12].copy_from_slice(&5_u32.to_le_bytes());
+        old_version[8..12].copy_from_slice(&6_u32.to_le_bytes());
         assert_eq!(
             OptimizationSelections::decode(&old_version),
-            Err(SelectionDecodeError::UnsupportedVersion(5))
+            Err(SelectionDecodeError::UnsupportedVersion(6))
         );
     }
 
@@ -449,6 +462,7 @@ mod tests {
     fn phase_projection_is_canonical_without_replacing_the_full_identity() {
         let selections = OptimizationSelections::new([
             Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+            Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
             Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
             Optimization::X86RelaxConditionalBranchesToRel8V1,
             Optimization::SelectedIncomingU12ExactAddImmediate,
@@ -462,7 +476,10 @@ mod tests {
             selections
                 .for_phase(OptimizationExecutionPhase::AllocationRecovery)
                 .as_slice(),
-            &[Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1]
+            &[
+                Optimization::SharedEntryFixedViewCopyAfterCompareBeforeBranchV1,
+                Optimization::ActiveResidentImmediateU64MultiUseRematerializationV1,
+            ]
         );
         assert_eq!(
             selections

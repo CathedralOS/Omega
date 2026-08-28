@@ -40,7 +40,7 @@
 //! BARE borrow of a differently-typed scalar place (`let v: &f32 =
 //! &self.x` over an i64) used to compile unjudged and DIVERGE (native
 //! bit-punned, the interpreter delivered the semantic value; pinned by
-//! tests/canaries/fail/recast/reference_let_pun_requires_recast). Re-viewing is
+//! tests/omega/fail/recast/reference_let_pun_requires_recast). Re-viewing is
 //! spelled `as`; the bare mismatch refuses.
 
 use psi_diagnostics::Diagnostic;

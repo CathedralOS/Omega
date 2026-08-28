@@ -14,11 +14,57 @@ pub fn terminal_machine_effect_catalog_identity(
     catalog: &TerminalMachineEffectCatalog,
 ) -> TerminalMachineEffectCatalogIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-machine-effect-catalog.v4\0");
     encode_target(&mut bytes, catalog.target);
     bytes.extend_from_slice(&catalog.register_constraints.bytes());
-    for key in catalog.selected_keys.in_identity_order() {
+    let selected_keys = catalog.selected_keys.in_identity_order();
+    encode_len(&mut bytes, selected_keys.len());
+    for key in selected_keys {
         encode_constraint_key(&mut bytes, key);
+    }
+    match catalog.structural_unit_call {
+        None => bytes.push(0),
+        Some(declaration) => {
+            bytes.push(1);
+            encode_constraint_key(&mut bytes, declaration.constraint);
+            match declaration.memory {
+                crate::TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                    root_byte_count,
+                    copy_stack_byte_offsets,
+                } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&root_byte_count.to_le_bytes());
+                    for offset in copy_stack_byte_offsets {
+                        bytes.extend_from_slice(&offset.to_le_bytes());
+                    }
+                }
+            }
+            match declaration.frame {
+                crate::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                    frame_byte_count,
+                    shadow_byte_count,
+                    pre_call_stack_alignment,
+                } => {
+                    bytes.push(0);
+                    bytes.extend_from_slice(&frame_byte_count.to_le_bytes());
+                    bytes.extend_from_slice(&shadow_byte_count.to_le_bytes());
+                    bytes.extend_from_slice(&pre_call_stack_alignment.to_le_bytes());
+                }
+            }
+            bytes.push(match declaration.trap {
+                crate::TerminalMachineTrapBehavior::NeverV1 => 0,
+                crate::TerminalMachineTrapBehavior::MayArchitecturalFaultV1 => 1,
+            });
+            bytes.push(match declaration.barrier {
+                crate::TerminalStructuralUnitCallBarrier::CallV1 => 0,
+            });
+            bytes.push(match declaration.call {
+                crate::TerminalStructuralUnitCallEffect::DirectInternalUnitV1 => 0,
+            });
+            bytes.push(match declaration.cleanup {
+                crate::TerminalMachineCleanupEffect::NoneV1 => 0,
+            });
+        }
     }
     encode_len(&mut bytes, catalog.declarations.len());
     for declaration in &catalog.declarations {
@@ -33,6 +79,7 @@ pub fn terminal_machine_effect_catalog_identity(
         });
         bytes.push(match declaration.trap {
             crate::TerminalMachineTrapBehavior::NeverV1 => 0,
+            crate::TerminalMachineTrapBehavior::MayArchitecturalFaultV1 => 1,
         });
         bytes.push(match declaration.barrier {
             TerminalMachineBarrier::None => 0,
@@ -229,6 +276,7 @@ pub(crate) const fn semantic_kind_tag(kind: TerminalMachineSemanticKind) -> u8 {
         TerminalMachineSemanticKind::ConditionalBranchNonZero => 6,
         TerminalMachineSemanticKind::ReturnI64 => 7,
         TerminalMachineSemanticKind::ExactSubtractI64Immediate => 8,
+        TerminalMachineSemanticKind::ReturnUnit => 9,
     }
 }
 
@@ -243,6 +291,7 @@ pub(crate) const fn alternative_family_tag(family: TerminalMachineAlternativeFam
         TerminalMachineAlternativeFamily::ConditionalBranchNonZero => 6,
         TerminalMachineAlternativeFamily::ReturnI64 => 7,
         TerminalMachineAlternativeFamily::ExactSubtractI64Immediate => 8,
+        TerminalMachineAlternativeFamily::ReturnUnit => 9,
     }
 }
 
@@ -278,6 +327,10 @@ mod tests {
 
     fn keys() -> TerminalSelectedConstraintKeys {
         TerminalSelectedConstraintKeys {
+            structural_unit_call: Some(RegisterConstraintKey {
+                family: RegisterConstraintFamily::Call,
+                variant: 2,
+            }),
             materialize_i64: instruction(0),
             copy_i64: instruction(1),
             add_i64: instruction(2),
@@ -289,6 +342,10 @@ mod tests {
             return_i64: RegisterConstraintKey {
                 family: RegisterConstraintFamily::Return,
                 variant: 0,
+            },
+            return_unit: RegisterConstraintKey {
+                family: RegisterConstraintFamily::Return,
+                variant: 1,
             },
         }
     }
@@ -305,6 +362,7 @@ mod tests {
                 semantic,
                 TerminalMachineSemanticKind::ConditionalBranchNonZero
                     | TerminalMachineSemanticKind::ReturnI64
+                    | TerminalMachineSemanticKind::ReturnUnit
             ) {
                 TerminalMachineBarrier::ControlFlow
             } else {
@@ -330,6 +388,22 @@ mod tests {
             target: NativeTarget::linux_x64(),
             register_constraints: RegisterConstraintCatalogIdentity::from_bytes([1; 32]),
             selected_keys: keys(),
+            structural_unit_call: Some(crate::TerminalStructuralUnitCallEffectDeclaration {
+                constraint: keys().structural_unit_call.unwrap(),
+                memory: crate::TerminalStructuralUnitCallMemoryEffect::ReadOwnedIndirectPairWriteCallerCopiesV1 {
+                    root_byte_count: 16,
+                    copy_stack_byte_offsets: [32, 48],
+                },
+                frame: crate::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+                    frame_byte_count: 72,
+                    shadow_byte_count: 32,
+                    pre_call_stack_alignment: 16,
+                },
+                trap: TerminalMachineTrapBehavior::MayArchitecturalFaultV1,
+                barrier: crate::TerminalStructuralUnitCallBarrier::CallV1,
+                call: crate::TerminalStructuralUnitCallEffect::DirectInternalUnitV1,
+                cleanup: TerminalMachineCleanupEffect::NoneV1,
+            }),
             declarations: TerminalMachineSemanticKind::ALL
                 .into_iter()
                 .map(declaration)
@@ -338,7 +412,7 @@ mod tests {
     }
 
     #[test]
-    fn identity_is_deterministic_and_binds_subtraction_alternatives() {
+    fn identity_binds_structural_call_and_subtraction_alternatives() {
         let source = catalog();
         let baseline = terminal_machine_effect_catalog_identity(&source);
         assert_eq!(baseline, terminal_machine_effect_catalog_identity(&source));
@@ -351,6 +425,19 @@ mod tests {
         assert_ne!(baseline, terminal_machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
         changed.selected_keys.subtract_i64 = instruction(99);
+        assert_ne!(baseline, terminal_machine_effect_catalog_identity(&changed));
+        let mut changed = source.clone();
+        changed.selected_keys.structural_unit_call = None;
+        assert_ne!(baseline, terminal_machine_effect_catalog_identity(&changed));
+        let mut changed = source.clone();
+        let Some(structural) = changed.structural_unit_call.as_mut() else {
+            panic!("fixture owns the structural call declaration");
+        };
+        let crate::TerminalStructuralUnitCallFrameEffect::BalancedCallerFrameV1 {
+            frame_byte_count,
+            ..
+        } = &mut structural.frame;
+        *frame_byte_count = 64;
         assert_ne!(baseline, terminal_machine_effect_catalog_identity(&changed));
         let mut changed = source.clone();
         let subtract = changed

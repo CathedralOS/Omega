@@ -1,4 +1,4 @@
-//! Differential oracle test: over every RUN canary (a `tests/canaries/pass/**` program the
+//! Differential oracle test: over every RUN canary (a `tests/omega/pass/**` program the
 //! canary suite compiles, executes, and asserts a known exit code for), run the reference
 //! interpreter and -- when it SUPPORTS the program -- compile + run the NATIVE binary and
 //! assert their exit code and stdout MATCH.
@@ -103,7 +103,7 @@ fn authored_host_entries_select_the_production_root() {
     assert!(!has_authored_host_program_entry(&legacy));
 }
 
-/// The RUN canaries: `(relative path under tests/canaries/pass, exit code the suite asserts)`.
+/// The RUN canaries: `(relative path under tests/omega/pass, exit code the suite asserts)`.
 /// Extracted from `canary_suite.rs` (every test that runs `executable_name()` and asserts
 /// `output.status.code() == Some(N)`).
 const RUN_CANARIES: &[(&str, i32)] = &[
@@ -1314,7 +1314,7 @@ const AUTHORED_ROOT_GUI_EXCLUSIONS: &[&str] = &[
 fn run_canary_authored_root_inventory_is_pinned() {
     use std::collections::BTreeSet;
 
-    let pass_root = repo_root().join("tests/canaries/pass");
+    let pass_root = repo_root().join("tests/omega/pass");
     let run_canaries = RUN_CANARIES
         .iter()
         .map(|(canary, _)| *canary)
@@ -1361,7 +1361,7 @@ fn run_canary_authored_root_inventory_is_pinned() {
 /// suite asserts an exit code for appears in exactly one of the two lists, so an
 /// exclusion can never be silent (and a stale exclusion fails the guard too).
 ///
-/// `(relative path under tests/canaries/pass, reason for exclusion)`.
+/// `(relative path under tests/omega/pass, reason for exclusion)`.
 const EXCLUDED_RUN_CANARIES: &[(&str, &str)] = &[
     (
         "providers/runtime_import_call_argument_exit",
@@ -3015,7 +3015,7 @@ fn cli_sample(path: &str) -> PathBuf {
 }
 
 fn pass_canary(path: &str) -> PathBuf {
-    repo_root().join("tests/canaries/pass").join(path)
+    repo_root().join("tests/omega/pass").join(path)
 }
 
 /// What the INTERPRETER leg of a parked divergence is documented to do.
@@ -3030,7 +3030,7 @@ enum PendingInterpOutcome {
 /// covers compile accepts-vs-rejects; THIS covers the runtime legs, so a fix
 /// landing on either side (a const-fold repair, a design call implemented)
 /// fails loudly with a promote signal instead of waiting for a manual
-/// `omega run` sweep. Entries mirror tests/canaries/pending/*/ headers -- update BOTH
+/// `omega run` sweep. Entries mirror tests/omega/pending/*/ headers -- update BOTH
 /// when a divergence's documented behavior changes.
 const PENDING_RUNTIME_DIVERGENCES: &[(&str, i32, PendingInterpOutcome)] = &[
     // Host-correct legs (this gate runs native on the HOST), ARCH-AWARE:
@@ -3065,7 +3065,7 @@ fn pending_runtime_divergences_hold() {
 
     for (name, expected_native, expected_interp) in PENDING_RUNTIME_DIVERGENCES {
         let main_path = repo_root()
-            .join("tests/canaries/pending")
+            .join("tests/omega/pending")
             .join(name)
             .join("main.omg");
 
@@ -3141,7 +3141,7 @@ fn pending_runtime_divergences_hold() {
 #[test]
 fn interpreter_traps_on_trapping_guard_overflow() {
     let main_path = repo_root()
-        .join("tests/canaries/pass/arithmetic/runtime_trapping_guard_overflow_traps")
+        .join("tests/omega/pass/arithmetic/runtime_trapping_guard_overflow_traps")
         .join("main.omg");
     let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
@@ -3163,7 +3163,7 @@ fn interpreter_traps_on_trapping_guard_overflow() {
 #[test]
 fn interpreter_traps_on_out_of_range_shift_count() {
     let main_path = repo_root()
-        .join("tests/canaries/pass/arithmetic/runtime_trapping_shift_count_traps")
+        .join("tests/omega/pass/arithmetic/runtime_trapping_shift_count_traps")
         .join("main.omg");
     let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(
@@ -3185,7 +3185,7 @@ fn interpreter_traps_on_out_of_range_shift_count() {
 #[test]
 fn interpreter_traps_on_constant_shifted_value_overflow() {
     let main_path = repo_root()
-        .join("tests/canaries/pass/arithmetic/constant_trapping_shift_value_overflow_traps")
+        .join("tests/omega/pass/arithmetic/constant_trapping_shift_value_overflow_traps")
         .join("main.omg");
     let checked = compile_differential_to_checked(&main_path).unwrap_or_else(|diagnostics| {
         panic!(

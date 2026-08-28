@@ -735,7 +735,7 @@ fn runtime_duration_core_exit_canary_runs() {
     // through the FIRST field of its type (the known same-type
     // receiver-aliasing bug, value-call flavor) and time.omg keeps payload
     // field values cascade-safe (bare `param % literal`) -- both documented
-    // in tests/canaries/pending/time/value_machine_receiver_field_postentry.
+    // in tests/omega/pending/time/value_machine_receiver_field_postentry.
     let canary = pass_canary("time/runtime_duration_core_exit");
     let checked = omega_compiler::compile_to_checked(&canary.join("main.omg"), None)
         .expect("duration core canary should compile to checked trees");

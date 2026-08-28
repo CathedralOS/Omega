@@ -1,7 +1,7 @@
-//! Standalone proof-only retention for canonical quotient correspondence.
+//! Proof-only retention for canonical quotient correspondence.
 //!
-//! This row is intentionally absent from [`crate::TerminalModule`]. It grants
-//! no machine, operation, codec, or executable authority.
+//! [`crate::TerminalModule`] owns these rows and its canonical codec retains
+//! them. A row still grants no machine, operation, or executable authority.
 
 use psi_language_semantics::quotient_correspondence::{
     CanonicalQuotientCorrespondence, QuotientContractFactCoordinate, QuotientContractOwner,

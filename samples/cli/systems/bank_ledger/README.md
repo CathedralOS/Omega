@@ -26,7 +26,7 @@ omega --target windows_x64 --build-dir build samples/bank_ledger/main.omg
 (e.g. `let slot = count`) is passed as an argument to a nested dispatch state
 in repeated calls. The deposit machine therefore guards on `self.ledger.count`
 directly (post-increment) rather than forwarding a captured local. The bug is
-tracked at `tests/canaries/pending/calls/let_local_passed_to_nested_state_arg_wrong`.
+tracked at `tests/omega/pending/calls/let_local_passed_to_nested_state_arg_wrong`.
 
 Exercises: `[i32; 8]` fixed array, const-indexed reads/writes in arithmetic
 sum, machine-to-machine call chaining (`withdraw` calls `deposit`),

@@ -152,7 +152,7 @@ fn terminal_source_canary(name: &str) -> PathBuf {
         .ancestors()
         .nth(5)
         .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
-        .join("tests/canaries/pass/terminal_psi")
+        .join("tests/omega/pass/terminal_psi")
         .join(name)
         .join("main.omg")
 }
@@ -166,7 +166,7 @@ fn progress_source_canary() -> PathBuf {
         .ancestors()
         .nth(5)
         .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
-        .join("tests/canaries/pass/progress/provider_receiver_progress_installation/main.omg")
+        .join("tests/omega/pass/progress/provider_receiver_progress_installation/main.omg")
 }
 
 fn progress_free_selected_source_canary() -> PathBuf {
@@ -198,11 +198,12 @@ fn stage_terminal_component(
             "terminal component staging target {target:?} does not match checked target {selected_target:?}"
         ))]);
     }
-    let entry_machine = checked.selected_program_entry_machine().ok_or_else(|| {
+    let selected_program_entry = checked.selected_program_entry().ok_or_else(|| {
         vec![psi_diagnostics::Diagnostic::error(
             "terminal component staging requires one exact selected program entry",
         )]
     })?;
+    let entry_machine = selected_program_entry.machine_name();
     let artifact = psi_checked_trees_to_terminal::produce_terminal_artifact(checked, entry_machine)
         .map_err(|error| {
             vec![psi_diagnostics::Diagnostic::error(format!(
@@ -211,12 +212,21 @@ fn stage_terminal_component(
         })?;
     let native_artifact = realize_terminal_native_artifact(
         artifact,
-        target,
-        subsystem,
-        profile,
-        checked.optimization_selections(),
-        checked.selected_provider_plans(),
-        settlements,
+        omega_terminal_native_realization::TerminalNativeRealizationRequest {
+            target,
+            subsystem,
+            profile,
+            program_entry:
+                omega_terminal_native_realization::TerminalNativeProgramEntrySettlement::new(
+                    selected_program_entry.source_signature(),
+                    selected_program_entry
+                        .calling_plans()
+                        .map(|plans| (&plans.semantic_boundary_entry_plan, &plans.storage_entry)),
+                ),
+            optimization_selections: checked.optimization_selections(),
+            selected_provider_plans: checked.selected_provider_plans(),
+            settlements,
+        },
     )?;
     let stack_demand = omega_terminal_image_emission::derive_terminal_stack_demand(
         native_artifact.object(),
