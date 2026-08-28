@@ -47,7 +47,10 @@ accepted Omega programs retain their exact Omega meaning.
   experiment.
 - `source/delta/meaning/delta2gamma.beta` and its encoding tools provide the
   Rust-free lower-rung meaning route used to publish Delta artifacts.
-- `source/delta/build/` contains checked-in artifacts produced by this work.
+- `source/delta/compiler/artifacts/` is reserved for exact artifacts admitted
+  by the lower-rung producer edge; it remains absent until publication closes.
+- `source/delta/compiler/validation/` owns publication verification and custody
+  once the current live evidence attempt is complete.
 - `source/delta/FEATURE_LEDGER.md` records candidate Delta facilities and the
   evidence still needed to retain them.
 

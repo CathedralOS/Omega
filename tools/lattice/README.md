@@ -15,6 +15,10 @@ differential, mutation, fuzz, proof-corpus, and developer-tool campaigns remain
 independently executable diagnostics under their owning rung; there is no
 repository-wide stress orchestration layer.
 
+Reusable Gamma program suites such as canonical-byte decoding remain locally
+testable, but are not compiler edges and therefore are not default lattice
+steps.
+
 `paths.sh` only maps semantic-owner roles to repository locations. Shell and
 Python helpers may coordinate or test commands, but no lattice claim depends
 on this runner, its working directory, or transformations performed by it.

@@ -1,4 +1,4 @@
-// Bootstrap compiler storage canary.
+// Fixed-storage allocator language case.
 //
 // A fixed backing field is provisioned as zeroed storage by the executable
 // loader.  The allocator exposes integer offsets into that field, never host

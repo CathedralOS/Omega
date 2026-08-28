@@ -43,8 +43,8 @@ structured language compiled by `bc`.
 
 No algebraic data types, pattern matching, safe type hierarchy, ownership,
 regions, effects, generics, or proofs. Gamma and Omega own the facilities they
-specify; provisional Delta retains only the independent facilities its bridge
-source justifies.
+specify; provisional Delta retains only the independent facilities its compiler
+source and direct product edge justify.
 Beta remains a small compiler-construction substrate with raw memory.
 
 ## Current repository reality

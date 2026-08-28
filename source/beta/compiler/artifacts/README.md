@@ -6,14 +6,14 @@ compiler. Its only construction lineage is:
 ```text
 Alpha seed + Alpha-written assembler
   -> cold-start/bc-alpha.alpha
-  -> compile bc.beta once (bootstrap compiler)
+  -> compile bc.beta once (initial bc)
   -> compile bc.beta again (persisted fixed-point bc.tape)
 ```
 
 `cold-start/full-source.sh` reconstructs that tape, compares it byte-for-byte,
 checks another self-build generation, and runs the complete Beta corpus through
 the persisted artifact. `artifact_env.sh` stamps it into the host's audited
-Alpha seed for downstream bootstrap gates. The historical Rust producer is
+Alpha seed for downstream lattice gates. The historical Rust producer is
 retired and was never in this artifact's lineage.
 
 Regenerate deliberately with `cold-start/rebuild-artifact.sh`; commit a changed

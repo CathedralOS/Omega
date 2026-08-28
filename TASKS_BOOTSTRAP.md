@@ -71,11 +71,15 @@ bootstrap. The durable source owners are therefore the language directories;
 | Alpha | audited seed, VM, assembler, below-Beta checker artifact, implementations, and gates | preserve the explicit checker reconstruction and disclosed machine/host admissions |
 | Beta | compiler source/artifact under `source/beta/compiler`, Alpha-rooted cold start, self-host tests, and adjacent validation | consolidate the exact source/artifact admission into one comprehensible validator |
 | Gamma | Beta-written canonical interpreter and type checker; an alternate Gamma-hosted checker remains owned by Alpha | retain bounded canonical execution; do not invent a Gamma compiler artifact where canonical evaluation is the actual edge |
-| Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, provisional artifacts, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
+| Delta | compiler corpus, lower-rung meaning under `source/delta/meaning`, source-closure and publication checks | publish the exact Delta-produced compiler from Gamma and extend it to accept all of `C` |
 | Omega source | one permanent product tree under `source/omega`, with target-neutral phases in `source/omega/psi` | finish the product compiler and freeze the exact surface actually used by `C` |
 | Rust comparator | working implementation under `source/omega-rust` | remain optional and non-authoritative |
 
-## Execution queue
+## Artifact-edge queue
+
+The headings below follow the actual producer edges. A validation task lives
+with the artifact it admits; reusable language tests and developer diagnostics
+do not become additional lattice steps.
 
 ### 0. Close and simplify the trust floor
 
@@ -137,8 +141,10 @@ and are not blocked on this ruling.
 - [ ] **BLOCKED — OWNER Q16:** bind the independently ratified Delta
   semantics/resources and complete direct lower-rooted source-to-artifact
   refinement.
-- [ ] Replace provisional checked-in artifacts with publication receipts rooted
-  in that execution.
+- [x] Remove the unconsumed `source/delta/build/delta{0,1,2}.exe` residue. None
+  was referenced by a gate or included in the canonical source closure.
+- [ ] Install the published compiler under `source/delta/compiler/artifacts/`
+  with receipts rooted in that exact execution.
 - [x] Keep [`source/delta/lower-rooted-assembly-publication-v1.sh`](source/delta/lower-rooted-assembly-publication-v1.sh)
   a verifier for already observed data, not a hidden producer. Its only command
   calls `verify` over sixteen caller-supplied evidence paths; it neither invokes

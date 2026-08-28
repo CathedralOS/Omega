@@ -30,8 +30,8 @@ machine Main::emit_nat(&mut self, v: i32) {
     state uc2()  { write_byte(41); self.uv = self.uv - 1; transition 0 { _ -> uc() } }
     state ud()   {}
 }
-// the proposition body  (= (p (p (m I N) J) (s (v 0))) (m M N))  -- reads nums[] (the
-// on-ramp ABI caps a call at 3 args, so the four indices are taken from the field).
+// the proposition body  (= (p (p (m I N) J) (s (v 0))) (m M N))  -- reads nums[]
+// because the current Delta ABI caps a call at 3 args.
 machine Main::emit_body(&mut self) {
     write_byte(40); write_byte(61); write_byte(32); write_byte(40); write_byte(112); write_byte(32);
     write_byte(40); write_byte(112); write_byte(32); write_byte(40); write_byte(109); write_byte(32); // "(= (p (p (m "
