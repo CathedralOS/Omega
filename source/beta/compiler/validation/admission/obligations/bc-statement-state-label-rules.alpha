@@ -52,62 +52,41 @@ statement_state_label_require_antecedents:
 
 statement_state_label_require_current_slice:
         ; Fixed CURPROC_OFF/LEN words, then argument pushes off followed by len.
-        imm r20, 727
-        imm r21, 316
-        imm r22, 1
-        imm r23, 2097096
-        imm r24, 45474
-        call transfer_require_primitive
         imm r20, 74
         imm r21, 316
-        imm r22, 1
-        imm r23, 8
-        imm r24, 45484
-        call transfer_require_memory
-        imm r20, 728
-        imm r21, 316
-        imm r22, 1
-        imm r23, 2097088
-        imm r24, 45503
-        call transfer_require_primitive
+        imm r25, 727
+        imm r26, 2097096
+        call exact_memory_load_pc
         imm r20, 75
         imm r21, 316
-        imm r22, 1
-        imm r23, 8
-        imm r24, 45513
-        call transfer_require_memory
+        imm r25, 728
+        imm r26, 2097088
+        call exact_memory_load_pc
         imm r20, 347
         imm r21, 316
-        imm r23, 45487
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 348
         imm r21, 316
-        imm r23, 45516
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r1, 549648
         imm r2, 1                     ; exact current-procedure slice
         store r1, r2
         ret
 
-; r20=event,r21=pc,r22=continuation.
+; r20=occurrence. Both calls share the proc/block/arity/target identity.
 statement_state_label_require_ident_call:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r20, r30
+        mov r25, r20
+        imm r26, 2                   ; exact cardinality
+        imm r20, 64                  ; emit_state_label owner
         imm r21, 316
-        mov r22, r31
-        imm r23, 2
-        imm r24, 0
-        imm r25, 31465                 ; emit_ident_at
-        mov r26, r32
-        call summary_require_call_site
+        imm r22, 2
+        imm r23, 0
+        imm r24, 45                  ; emit_ident_at target
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 statement_state_label_require_trace:
-        imm r20, 511
-        imm r21, 45564
-        imm r22, 45573
+        imm r20, 0
         call statement_state_label_require_ident_call
         imm r20, 512
         call write_str_require_emit_event_core
@@ -115,9 +94,7 @@ statement_state_label_require_trace:
         jeq r1, r2, statement_state_label_separator_ok
         jmp reject
 statement_state_label_separator_ok:
-        imm r20, 513
-        imm r21, 45715
-        imm r22, 45724
+        imm r20, 1
         call statement_state_label_require_ident_call
         imm r1, 549656
         imm r2, 3                     ; current, separator, target
@@ -133,22 +110,18 @@ statement_state_label_require_target_slice:
         imm r21, 316
         imm r22, 1
         imm r23, 0
-        imm r24, 45613
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 202
         imm r21, 316
         imm r22, 1
         imm r23, 1
-        imm r24, 45648
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 349
         imm r21, 316
-        imm r23, 45632
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 350
         imm r21, 316
-        imm r23, 45667
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r1, 549672
         imm r2, 1                     ; exact target parameter slice
         store r1, r2
@@ -160,8 +133,7 @@ statement_state_label_require_result:
         imm r21, 316
         imm r22, 1
         imm r23, 0
-        imm r24, 45724
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r1, 549680
         imm r2, 1                     ; finite return is numeric zero
         store r1, r2

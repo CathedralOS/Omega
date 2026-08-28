@@ -51,15 +51,17 @@ label_core_require_proc_meta:
 
 label_core_require_blocks:
         imm r20, 5
-        imm r21, 1131
-        call exact_require_block_pc
+        imm r21, 1
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 5
         imm r21, 5
         imm r22, 1
         call exact_require_proc_blocks
         imm r20, 6
-        imm r21, 1366
-        call exact_require_block_pc
+        imm r21, 2
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 6
         imm r21, 6
         imm r22, 2
@@ -68,18 +70,12 @@ label_core_require_blocks:
 
 label_core_require_events:
         ; new_label's only source effect is its explicit return.
-        imm r20, 4
+        imm r20, 1
         imm r21, 5
-        imm r22, 5
-        imm r23, 1345
-        call exact_require_event
-        imm r20, 1326
-        imm r21, 1345
-        call exact_require_epilogue
+        call exact_require_event_epilogue
         ; The compiler also emits the unreachable canonical fallthrough return.
-        imm r20, 1346
-        imm r21, 1365
-        call exact_require_epilogue
+        imm r20, 2
+        call exact_require_preentry_epilogue
 
         ; Resolve emit_lref's inline literal and helper call from its source
         ; emit row. The WSTR owner supplies the relative lowering layout.
@@ -99,22 +95,15 @@ label_core_emit_lref_literal:
         imm r21, 76                   ; 'L'
         call require_tape_byte
 
-        ; emit_dec remains row-identified; derive its fallthrough from the
-        ; canonical nine-byte ordinary-call layout.
-        imm r20, 6
+        ; emit_dec is selected from the complete call identity.
+        imm r20, 2                    ; emit_lref owner
         imm r21, 6
-        imm r22, 1508
-        imm r23, 1
-        imm r24, 0
-        imm r25, 40                    ; emit_dec procedure identity
-        call exact_proc_entry_r25
-        mov r26, r22
-        imm r1, 9
-        add r26, r1
-        call summary_require_call_site
-        imm r20, 1517
-        imm r21, 1536
-        call exact_require_epilogue
+        imm r22, 1
+        imm r23, 0
+        imm r24, 40                   ; emit_dec procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 3                    ; next procedure owns synthetic epilogue
+        call exact_require_preentry_epilogue
         ret
 
 label_core_require_locals:
@@ -123,20 +112,17 @@ label_core_require_locals:
         imm r21, 5
         imm r22, 2
         imm r23, 0
-        imm r24, 1176
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 11
         imm r21, 5
         imm r22, 1
         imm r23, 0
-        imm r24, 1221
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 12
         imm r21, 5
         imm r22, 1
         imm r23, 0
-        imm r24, 1307
-        call transfer_require_local
+        call exact_local_identity_pc
         ; emit_lref's n is loaded unchanged for its sole ordinary argument.
         imm r20, 13
         imm r21, 6
@@ -148,56 +134,42 @@ label_core_require_locals:
 label_core_require_memory:
         imm r20, 8
         imm r21, 5
-        imm r22, 1                    ; word load LBL
-        imm r23, 8
-        imm r24, 1173
-        call transfer_require_memory
+        imm r25, 24
+        imm r26, 2097104              ; word load LBL address
+        call exact_memory_load_pc
         imm r20, 9
         imm r21, 5
-        imm r22, 2                    ; word store LBL
-        imm r23, 8
-        imm r24, 1304
-        call transfer_require_memory
+        call exact_memory_store_pc    ; word store LBL
         ret
 
 label_core_require_primitives:
-        imm r20, 24
-        imm r21, 5
-        imm r22, 1
-        imm r23, 2097104              ; load address
-        imm r24, 1163
-        call transfer_require_primitive
+        ; Load-address row24 is rejoined to memory row8 above.
         imm r20, 25
         imm r21, 5
         imm r22, 1
         imm r23, 2097104              ; store address
-        imm r24, 1195
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ; Lexical rows put the operator before its right literal; PCs expose
         ; the exact lowering order n, push, 1, add.
         imm r20, 26
         imm r21, 5
         imm r22, 2
         imm r23, 3                    ; wrapping add
-        imm r24, 1266
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 27
         imm r21, 5
         imm r22, 1
         imm r23, 1
-        imm r24, 1256
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 label_core_require_pushes:
         imm r20, 4
         imm r21, 5
-        imm r23, 1240
-        call exact_require_binary_push    ; n binary-left push
+        call exact_require_binary_push_identity ; n binary-left push
         imm r20, 379
         imm r21, 5
-        imm r23, 1205
-        call exact_require_store_push    ; fixed LBL store-address push
+        call exact_require_store_push_identity  ; fixed LBL store-address push
         imm r20, 237
         imm r21, 6
         call exact_require_argument_push_identity ; emit_dec argument push
@@ -258,16 +230,26 @@ label_core_require_censuses:
 label_core_require_decoded:
         ; The five stores are saved-fp/local/two temporaries/LBL.  Both returns
         ; are real decoded instructions even though the second is unreachable.
-        imm r20, 1131
-        imm r21, 1366
+        imm r0, 1
+        call exact_proc_entry_pc
+        mov r30, r0
+        imm r0, 2
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 0                    ; ordinary/helper calls
         imm r23, 2                    ; explicit + synthetic returns
         imm r24, 5                    ; all decoded word stores
         call exact_quiet_scan_region
         ; The three stores are saved-fp/parameter/argument staging.  Output is
         ; inside the checked helper, not a direct write in this region.
-        imm r20, 1366
-        imm r21, 1537
+        imm r0, 2
+        call exact_proc_entry_pc
+        mov r30, r0
+        imm r0, 3
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 2                    ; helper + emit_dec
         imm r23, 1                    ; fallthrough return
         imm r24, 3

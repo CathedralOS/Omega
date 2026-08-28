@@ -63,32 +63,21 @@ root_resource_join_require_imports:
 ; Reconstruct the zero-output cleanup rather than naming it with a Boolean.
 root_resource_join_build_cleanup:
         imm r20, 354
-        imm r21, 51549                  ; exact main.resource start PC
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc    ; exact main.resource start
         imm r20, 3145728
         imm r21, 354
         imm r22, 69                     ; exact owner procedure main
         call transfer_require_cell
         imm r20, 94
         imm r21, 354
-        imm r22, 1
-        imm r23, 8
-        imm r24, 51559                  ; exact RESOURCE_FAIL word load
-        call transfer_require_memory
-        imm r20, 815
+        imm r25, 815
+        imm r26, 2097072                ; exact RESOURCE_FAIL address
+        call exact_memory_load_pc
+        imm r20, 69
         imm r21, 354
-        imm r22, 1
-        imm r23, 2097072
-        imm r24, 51549                  ; exact RESOURCE_FAIL address
-        call transfer_require_primitive
-        imm r20, 612
-        imm r21, 354
-        imm r22, 5
-        imm r23, 51581                  ; exact explicit return event
-        call exact_require_event
-        imm r20, 51562
-        imm r21, 51581                  ; exact main.resource epilogue
-        call exact_require_epilogue
+        call exact_require_event_epilogue ; exact explicit return/epilogue
         imm r20, 51549
         imm r21, 51602
         imm r22, 0                      ; no calls

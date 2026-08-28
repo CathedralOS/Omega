@@ -23,17 +23,21 @@ read_ident_require_shape:
 
 read_ident_shape_blocks:
         imm r20, 43
-        imm r21, 5217
-        call exact_require_block_pc
+        imm r21, 12
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 44
-        imm r21, 5294
-        call exact_require_block_pc
+        imm r21, 12
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 45
-        imm r21, 5457
-        call exact_require_block_pc
+        imm r21, 12
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 46
-        imm r21, 5475
-        call exact_require_block_pc
+        imm r21, 12
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 43
         imm r21, 46
         imm r22, 12
@@ -52,61 +56,48 @@ read_ident_require_transitions:
         imm r21, 44
         imm r22, 1
         imm r23, 45
-        imm r24, 5429               ; checked alnum-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked alnum-true guard
         imm r20, 34
         imm r21, 44
         imm r22, 0
         imm r23, 46
-        imm r24, 5448
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 35
         imm r21, 45
         imm r22, 0
         imm r23, 44
-        imm r24, 5466
-        call exact_require_transition
+        call exact_transition_identity_pc
+        ret
+
+; Source block/arity/target procedure in r21..r23.
+read_ident_require_call:
+        mov r24, r23
+        imm r23, 0
+        imm r20, 12                    ; read_ident owning procedure identity
+        call summary_require_call_fallthrough_identity
         ret
 
 read_ident_require_events:
         ; Lexical rows 33/34 are inverted in PC order: source nesting records
         ; is_alnum before its cbyte argument.
-        imm r20, 34
         imm r21, 44
-        imm r22, 5294
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1609
-        imm r26, 5303               ; checked read_ident cbyte continuation
-        call summary_require_call_site
-        imm r20, 33
+        imm r22, 0
+        imm r23, 4                     ; cbyte procedure identity
+        call read_ident_require_call
         imm r21, 44
-        imm r22, 5335
-        imm r23, 1
-        imm r24, 0
-        imm r25, 3282
-        imm r26, 5344               ; checked read_ident alnum continuation
-        call summary_require_call_site
-        imm r20, 35
+        imm r22, 1
+        imm r23, 8                     ; is_alnum procedure identity
+        call read_ident_require_call
         imm r21, 45
-        imm r22, 5457
-        imm r23, 0
-        imm r24, 0
-        imm r25, 1939
-        imm r26, 5466               ; checked read_ident adv continuation
-        call summary_require_call_site
+        imm r22, 0
+        imm r23, 5                     ; adv procedure identity
+        call read_ident_require_call
 
-        imm r20, 36
+        imm r20, 12
         imm r21, 46
-        imm r22, 5
-        imm r23, 5613
-        call exact_require_event
-        imm r20, 5594
-        imm r21, 5613
-        call exact_require_epilogue
-        imm r20, 5614
-        imm r21, 5633
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 13                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 read_ident_require_memory:
@@ -114,115 +105,92 @@ read_ident_require_memory:
         ; lexical source ownership rather than emitted PC order.
         imm r20, 16
         imm r21, 43
-        imm r22, 2
-        imm r23, 8
-        imm r24, 5291
-        call transfer_require_memory
+        call exact_memory_store_pc    ; IDOFF = CUR
         imm r20, 17
         imm r21, 43
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5272
-        call transfer_require_memory
+        imm r25, 87
+        imm r26, 2097144             ; CUR
+        call exact_memory_load_pc
         imm r20, 18
         imm r21, 46
-        imm r22, 2
-        imm r23, 8
-        imm r24, 5581
-        call transfer_require_memory
+        call exact_memory_store_pc    ; IDLEN = CUR - IDOFF
         imm r20, 19
         imm r21, 46
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5511
-        call transfer_require_memory
+        imm r25, 91
+        imm r26, 2097144             ; CUR
+        call exact_memory_load_pc
         imm r20, 20
         imm r21, 46
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5540
-        call transfer_require_memory
+        imm r25, 93
+        imm r26, 2097120             ; IDOFF
+        call exact_memory_load_pc
         ret
 
 read_ident_require_primitives:
-        ; row/block/kind/value-or-opcode/PC.
+        ; Stable row/block/kind/value-or-opcode identities.
         imm r20, 86
         imm r21, 43
         imm r22, 1
         imm r23, 2097120             ; checked IDOFF address
-        imm r24, 5236
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 87
         imm r21, 43
         imm r22, 1
         imm r23, 2097144             ; CUR address
-        imm r24, 5262
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 88
         imm r21, 44
         imm r22, 3
         imm r23, 10                  ; alnum result == 1
-        imm r24, 5370
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 89
         imm r21, 44
         imm r22, 1
         imm r23, 1
-        imm r24, 5360
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 90
         imm r21, 46
         imm r22, 1
         imm r23, 2097112             ; checked IDLEN address
-        imm r24, 5475
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 91
         imm r21, 46
         imm r22, 1
         imm r23, 2097144
-        imm r24, 5501
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 92
         imm r21, 46
         imm r22, 2
         imm r23, 4                   ; checked CUR-IDOFF subtraction
-        imm r24, 5543
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 93
         imm r21, 46
         imm r22, 1
         imm r23, 2097120
-        imm r24, 5530
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 94
         imm r21, 46
         imm r22, 1
         imm r23, 0                   ; return zero
-        imm r24, 5584
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 read_ident_require_pushes:
         imm r20, 25
         imm r21, 44
-        imm r23, 5344
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 26
         imm r21, 46
-        imm r23, 5514
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 241
         imm r21, 44
-        imm r23, 5303               ; checked cbyte-to-alnum argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity               ; checked cbyte-to-alnum argument
         imm r20, 381
         imm r21, 43
-        imm r23, 5246
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 382
         imm r21, 46
-        imm r23, 5485
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 read_ident_require_censuses:
@@ -251,8 +219,10 @@ read_ident_require_censuses:
         imm r29, 383
         call summary_require_expr_census
 
-        imm r20, 5217
-        imm r21, 5634
+        imm r20, 12                    ; read_ident procedure identity
+        call exact_proc_entry_r20
+        imm r21, 13                    ; id_char procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 3
         imm r23, 2
         call skip_scan_call_region

@@ -59,175 +59,161 @@ slurp_summary_require_shape:
         ; Exact cutpoints [entry,loop,body,full,done].
         imm r20, 0
         imm r21, 0                    ; slurp procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 1
-        imm r21, 165
-        call exact_require_block_pc
+        imm r21, 0
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 2
-        imm r21, 297
-        call exact_require_block_pc
+        imm r21, 0
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3
-        imm r21, 657
-        call exact_require_block_pc
+        imm r21, 0
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 4
-        imm r21, 687
-        call exact_require_block_pc
+        imm r21, 0
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 5
         imm r21, 1                    ; new_label procedure identity / end
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
 
         ; Exact source transitions and their Alpha control roots/targets.
         imm r20, 0
         imm r21, 1
         imm r22, 1
         imm r23, 2
-        imm r24, 269
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 1
         imm r21, 1
         imm r22, 0
         imm r23, 4
-        imm r24, 288
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 2
         imm r21, 2
         imm r22, 1
         imm r23, 3
-        imm r24, 401
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 3
         imm r21, 2
         imm r22, 0
         imm r23, 1
-        imm r24, 648
-        call exact_require_transition
+        call exact_transition_identity_pc
 
         ; All ten source local actions in the selected procedure.
         imm r20, 0
         imm r21, 0
         imm r22, 2
         imm r23, 0
-        imm r24, 125
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 1
         imm r21, 0
         imm r22, 2
         imm r23, 1
-        imm r24, 146
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 2
         imm r21, 1
         imm r22, 1
         imm r23, 1
-        imm r24, 165
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 3
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 297
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 4
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 446
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 5
         imm r21, 2
         imm r22, 1
         imm r23, 1
-        imm r24, 503
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 6
         imm r21, 2
         imm r22, 2
         imm r23, 0
-        imm r24, 608
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 7
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 541
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 8
         imm r21, 2
         imm r22, 2
         imm r23, 1
-        imm r24, 629
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 9
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 713
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; The endpoint byte store plus LEN and all six success resets.
         imm r20, 0
         imm r21, 2
         imm r22, 2
         imm r23, 1
-        imm r24, 538
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r39, r0                   ; checked endpoint byte store
+        mov r20, r39
+        imm r21, 1
+        call exact_require_pop_before ; exact value pop into r1
         imm r20, 1
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 748
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 2
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 803
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 3
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 858
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 4
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 913
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 5
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 968
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 6
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 1023
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 7
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 1078
-        call transfer_require_memory
+        call exact_memory_store_pc
 
         ; Both intrinsic reads. Return identities and their epilogues are
         ; reconstructed together after the decoded-region effect census.
-        imm r20, 0
+        imm r20, 0                    ; slurp procedure identity
         imm r21, 0
-        imm r22, 2
-        imm r23, 144
-        call exact_require_event
-        imm r20, 1
+        imm r22, 2                    ; intrinsic read
+        imm r23, 0
+        imm r24, 0
+        imm r25, 0
+        imm r26, 0
+        imm r27, 0
+        call exact_unique_event_pc_by_key
+        mov r20, r0
+        imm r21, 17                   ; Alpha read opcode
+        call require_tape_byte
+        imm r20, 0
         imm r21, 2
         imm r22, 2
-        imm r23, 627
-        call exact_require_event
+        imm r23, 0
+        imm r24, 0
+        imm r25, 0
+        imm r26, 0
+        imm r27, 0
+        call exact_unique_event_pc_by_key
+        mov r20, r0
+        imm r21, 17
+        call require_tape_byte
 
         ; Semantic roots: n/c guards, endpoint address/payload, increment,
         ; success footprint, and both result values. Earlier phases already
@@ -236,196 +222,170 @@ slurp_summary_require_shape:
         imm r21, 0
         imm r22, 1
         imm r23, 0
-        imm r24, 115
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 1
         imm r21, 1
         imm r22, 3
         imm r23, 13
-        imm r24, 210
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 2
         imm r21, 1
         imm r22, 1
         imm r23, 0
-        imm r24, 200
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 3
         imm r21, 2
         imm r22, 3
         imm r23, 10
-        imm r24, 342
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 4
         imm r21, 2
         imm r22, 1
         imm r23, 1048576
-        imm r24, 332
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 5
         imm r21, 2
         imm r22, 1
         imm r23, 2097152
-        imm r24, 420
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 6
         imm r21, 2
         imm r22, 2
         imm r23, 3
-        imm r24, 465
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
+        mov r38, r0
+        imm r20, 6
+        call exact_expr_primitive_extent
+        jeq r0, r38, slurp_endpoint_address_extent
+        jmp reject
+slurp_endpoint_address_extent:
+        mov r39, r1
+        imm r20, 371
+        imm r21, 2
+        call exact_require_store_push_identity
+        jeq r0, r39, slurp_endpoint_address_rejoined
+        jmp reject
+slurp_endpoint_address_rejoined:
         imm r20, 7
         imm r21, 2
         imm r22, 2
         imm r23, 3
-        imm r24, 586
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 8
         imm r21, 2
         imm r22, 1
         imm r23, 1
-        imm r24, 576
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 9
         imm r21, 3
         imm r22, 1
         imm r23, 0
-        imm r24, 657
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 10
         imm r21, 4
         imm r22, 1
         imm r23, 2097136
-        imm r24, 687
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 11
         imm r21, 4
         imm r22, 1
         imm r23, 2097144
-        imm r24, 751
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 12
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 777
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 13
         imm r21, 4
         imm r22, 1
         imm r23, 2097128
-        imm r24, 806
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 14
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 832
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 15
         imm r21, 4
         imm r22, 1
         imm r23, 2097104
-        imm r24, 861
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 16
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 887
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 17
         imm r21, 4
         imm r22, 1
         imm r23, 2097080
-        imm r24, 916
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 18
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 942
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 19
         imm r21, 4
         imm r22, 1
         imm r23, 2097072
-        imm r24, 971
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 20
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 997
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 21
         imm r21, 4
         imm r22, 1
         imm r23, 2097064
-        imm r24, 1026
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 22
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 1052
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 23
         imm r21, 4
         imm r22, 1
         imm r23, 1
-        imm r24, 1081
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         ; All selected temporary/address staging roots used by the induction.
         imm r20, 0
         imm r21, 1
-        imm r23, 184
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 1
         imm r21, 2
-        imm r23, 316
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 2
         imm r21, 2
-        imm r23, 430
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 3
         imm r21, 2
-        imm r23, 560
-        call exact_require_binary_push
-        imm r20, 371
-        imm r21, 2
-        imm r23, 487
-        call exact_require_store_push
+        call exact_require_binary_push_identity
         imm r20, 372
         imm r21, 4
-        imm r23, 697
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 373
         imm r21, 4
-        imm r23, 761
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 374
         imm r21, 4
-        imm r23, 816
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 375
         imm r21, 4
-        imm r23, 871
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 376
         imm r21, 4
-        imm r23, 926
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 377
         imm r21, 4
-        imm r23, 981
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 378
         imm r21, 4
-        imm r23, 1036
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 ; The selected region is intrinsic-read-only.  Exhaustively scanning decoded

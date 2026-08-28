@@ -13,130 +13,109 @@ lookup_require_locals:
         imm r21, 179
         imm r22, 2
         imm r23, 0
-        imm r24, 26159                ; n snapshot store
-        call transfer_require_local
+        call exact_local_identity_pc                ; n snapshot store
         imm r20, 91
         imm r21, 179
         imm r22, 2
         imm r23, 1
-        imm r24, 26188                ; i=0 store
-        call transfer_require_local
+        call exact_local_identity_pc                ; i=0 store
         imm r20, 92
         imm r21, 180
         imm r22, 1
         imm r23, 1
-        imm r24, 26207                ; loop i load
-        call transfer_require_local
+        call exact_local_identity_pc                ; loop i load
         imm r20, 93
         imm r21, 180
         imm r22, 1
         imm r23, 0
-        imm r24, 26242                ; loop snapshot n load
-        call transfer_require_local
+        call exact_local_identity_pc                ; loop snapshot n load
         imm r20, 94
         imm r21, 181
         imm r22, 1
         imm r23, 1
-        imm r24, 26369                ; name_eq argument i
-        call transfer_require_local
+        call exact_local_identity_pc                ; name_eq argument i
         imm r20, 95
         imm r21, 181
         imm r22, 2
         imm r23, 1
-        imm r24, 26600                ; i=i+1 store
-        call transfer_require_local
+        call exact_local_identity_pc                ; i=i+1 store
         imm r20, 96
         imm r21, 181
         imm r22, 1
         imm r23, 1
-        imm r24, 26533                ; increment i load
-        call transfer_require_local
+        call exact_local_identity_pc                ; increment i load
         imm r20, 97
         imm r21, 182
         imm r22, 1
         imm r23, 1
-        imm r24, 26628                ; hit result i load
-        call transfer_require_local
+        call exact_local_identity_pc                ; hit result i load
         ret
 
 lookup_require_memory:
         imm r20, 51
         imm r21, 179
-        imm r22, 1
-        imm r23, 8
-        imm r24, 26156                ; exact NLOC snapshot load
-        call transfer_require_memory
+        imm r25, 477
+        imm r26, 2097128             ; exact NLOC snapshot load
+        call exact_memory_load_pc
         ret
 
-; row/block/kind/value-or-opcode/PC
+; Stable row/block/kind/value-or-opcode identities.
 lookup_require_primitives:
         imm r20, 477
         imm r21, 179
         imm r22, 1
         imm r23, 2097128
-        imm r24, 26146
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 478
         imm r21, 179
         imm r22, 1
         imm r23, 0
-        imm r24, 26178
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 479
         imm r21, 180
         imm r22, 3
         imm r23, 8                    ; signed i<n
-        imm r24, 26261
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 480
         imm r21, 180
         imm r22, 1
         imm r23, 0
-        imm r24, 26339
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 481
         imm r21, 181
         imm r22, 3
         imm r23, 10                   ; name_eq result == 1
-        imm r24, 26455
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 482
         imm r21, 181
         imm r22, 1
         imm r23, 1
-        imm r24, 26445
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 483
         imm r21, 181
         imm r22, 2
         imm r23, 3                    ; i+1
-        imm r24, 26578
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 484
         imm r21, 181
         imm r22, 1
         imm r23, 1
-        imm r24, 26568
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 lookup_require_pushes:
         imm r20, 130
         imm r21, 180
-        imm r23, 26226
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 131
         imm r21, 181
-        imm r23, 26429
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 132
         imm r21, 181
-        imm r23, 26552
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 315
         imm r21, 181
-        imm r23, 26388                ; exact name_eq argument push
-        call exact_require_argument_push
+        call exact_require_argument_push_identity                ; exact name_eq argument push
         imm r20, 179
         imm r21, 182
         imm r22, 477

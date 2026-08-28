@@ -39,11 +39,13 @@ root_observation_require_main_shape:
         jmp reject
 root_observation_require_body_blocks:
         imm r20, 353
-        imm r21, 51405
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 354
-        imm r21, 51549
-        call exact_require_block_pc
+        imm r21, 69
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 3145728
         imm r21, 353
         imm r22, 69
@@ -64,78 +66,54 @@ root_observation_require_body_blocks:
 
 root_observation_require_body_events:
         ; parse_proc(), zero arguments, empty ambient expression stack.
-        imm r20, 610
+        imm r20, 69
         imm r21, 353
-        imm r22, 51405
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 68                    ; parse_proc procedure identity
-        call exact_proc_entry_r25
-        imm r26, 51414
-        call summary_require_call_site
+        imm r24, 68                    ; parse_proc procedure identity
+        call summary_require_call_fallthrough_identity
 
         ; The whitespace call exists only on the RESOURCE_FAIL==0 suffix.
-        imm r20, 611
+        imm r20, 69
         imm r21, 353
-        imm r22, 51531
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 4277
-        imm r26, 51540
-        call summary_require_call_site
+        imm r24, 10                    ; skip_ws procedure identity
+        call summary_require_call_fallthrough_identity
 
         ; Explicit resource return after the exact load expression.
-        imm r20, 612
+        imm r20, 69
         imm r21, 354
-        imm r22, 5
-        imm r23, 51581
-        call exact_require_event
+        call exact_require_event_epilogue
         ret
 
 root_observation_require_body_data:
         ; main.body reads RESOURCE_FAIL for the exact !=0 guard.
         imm r20, 93
         imm r21, 353
-        imm r22, 1
-        imm r23, 8
-        imm r24, 51424
-        call transfer_require_memory
-        imm r20, 812
-        imm r21, 353
-        imm r22, 1
-        imm r23, 2097072
-        imm r24, 51414
-        call transfer_require_primitive
+        imm r25, 812
+        imm r26, 2097072
+        call exact_memory_load_pc
         imm r20, 814
         imm r21, 353
         imm r22, 1
         imm r23, 0
-        imm r24, 51443
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 813
         imm r21, 353
         imm r22, 3
         imm r23, 11                   ; exact != comparison
-        imm r24, 51453
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 234
         imm r21, 353
-        imm r23, 51427
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         ; main.resource returns the loaded word, not a newly invented 252.
         imm r20, 94
         imm r21, 354
-        imm r22, 1
-        imm r23, 8
-        imm r24, 51559
-        call transfer_require_memory
-        imm r20, 815
-        imm r21, 354
-        imm r22, 1
-        imm r23, 2097072
-        imm r24, 51549
-        call transfer_require_primitive
+        imm r25, 815
+        imm r26, 2097072
+        call exact_memory_load_pc
         ret
 
 root_observation_require_body_edges:
@@ -144,45 +122,18 @@ root_observation_require_body_edges:
         imm r21, 353
         imm r22, 1
         imm r23, 354                   ; exact resource block target
-        imm r24, 51512
-        call exact_require_transition
-        imm r20, 51512
-        imm r21, 13                   ; jz
-        call require_tape_byte
-        imm r20, 51513
-        imm r21, 0
-        call require_tape_byte
-        imm r20, 51514
-        imm r21, 51531                ; zero -> success-only skip_ws
-        call require_tape_word
-        imm r20, 51522
-        imm r21, 12                   ; jmp
-        call require_tape_byte
-        imm r20, 51523
-        imm r21, 51549                ; nonzero -> resource
-        call require_tape_word
+        call exact_transition_identity_pc
 
         ; Exact unconditional success backedge to main.loop.
         imm r20, 290
         imm r21, 353
         imm r22, 0
         imm r23, 352
-        imm r24, 51540
-        call exact_require_transition
-        imm r20, 51540
-        imm r21, 12
-        call require_tape_byte
-        imm r20, 51541
-        imm r21, 51262                 ; exact success backedge target
-        call require_tape_word
+        call exact_transition_identity_pc
 
         ; Exact resource epilogue and synthetic fallthrough epilogue.
-        imm r20, 51562
-        imm r21, 51581
-        call exact_require_epilogue
-        imm r20, 51582
-        imm r21, 51601
-        call exact_require_epilogue
+        imm r20, 70                    ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 root_observation_require_body_censuses:

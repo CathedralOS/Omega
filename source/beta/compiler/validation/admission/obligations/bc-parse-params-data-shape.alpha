@@ -23,236 +23,192 @@ parse_params_require_locals:
         imm r21, 344
         imm r22, 2
         imm r23, 2
-        imm r24, 50037              ; nparams = NLOC
-        call transfer_require_local
+        call exact_local_identity_pc              ; nparams = NLOC
         imm r20, 228
         imm r21, 344
         imm r22, 2
         imm r23, 3
-        imm r24, 50173              ; nslots = nparams+count
-        call transfer_require_local
+        call exact_local_identity_pc              ; nslots = nparams+count
         imm r20, 229
         imm r21, 344
         imm r22, 1
         imm r23, 2
-        imm r24, 50107              ; checked nparams payload
-        call transfer_require_local
+        call exact_local_identity_pc              ; checked nparams payload
         imm r20, 230
         imm r21, 344
         imm r22, 1
         imm r23, 3
-        imm r24, 50192              ; checked nslots guard payload
-        call transfer_require_local
+        call exact_local_identity_pc              ; checked nslots guard payload
         ret
 
 parse_params_require_memory:
         imm r20, 88
         imm r21, 340
-        imm r22, 1
-        imm r23, 8
-        imm r24, 49500              ; parameter-room NLOC
-        call transfer_require_memory
+        imm r25, 781
+        imm r26, 2097128             ; parameter-room NLOC
+        call exact_memory_load_pc
         imm r20, 89
         imm r21, 340
-        imm r22, 2
-        imm r23, 8
-        imm r24, 49659              ; fifth-parameter status 252
-        call transfer_require_memory
+        call exact_memory_store_pc    ; fifth-parameter status 252
         imm r20, 90
         imm r21, 341
-        imm r22, 1
-        imm r23, 8
-        imm r24, 49720              ; declare status test
-        call transfer_require_memory
+        imm r25, 787
+        imm r26, 2097072             ; declare status test
+        call exact_memory_load_pc
         imm r20, 91
         imm r21, 344
-        imm r22, 1
-        imm r23, 8
-        imm r24, 50034              ; nparams NLOC snapshot
-        call transfer_require_memory
+        imm r25, 793
+        imm r26, 2097128             ; nparams NLOC snapshot
+        call exact_memory_load_pc
         imm r20, 92
         imm r21, 344
-        imm r22, 2
-        imm r23, 8
-        imm r24, 50367              ; slot-capacity status 252
-        call transfer_require_memory
+        call exact_memory_store_pc    ; slot-capacity status 252
         ret
 
 parse_params_require_primitives:
-        ; row/block/kind/value-or-opcode/PC.
+        ; Stable row/block/kind/value-or-opcode identities.
         imm r20, 779
         imm r21, 339
         imm r22, 3
         imm r23, 11                  ; cbyte != ')'
-        imm r24, 49403
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 780
         imm r21, 339
         imm r22, 1
         imm r23, 41                  ; checked close parenthesis
-        imm r24, 49393
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 781
         imm r21, 340
         imm r22, 1
         imm r23, 2097128             ; NLOC
-        imm r24, 49490
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 782
         imm r21, 340
         imm r22, 3
         imm r23, 8                   ; signed NLOC<4
-        imm r24, 49529
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 783
         imm r21, 340
         imm r22, 1
         imm r23, 4                   ; checked parameter limit
-        imm r24, 49519
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 784
         imm r21, 340
         imm r22, 1
         imm r23, 2097072             ; RESOURCE_FAIL
-        imm r24, 49607
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 785
         imm r21, 340
         imm r22, 1
         imm r23, 252                 ; checked fifth-parameter status
-        imm r24, 49633
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 786
         imm r21, 340
         imm r22, 1
         imm r23, 0
-        imm r24, 49662
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 787
         imm r21, 341
         imm r22, 1
         imm r23, 2097072
-        imm r24, 49710
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 788
         imm r21, 341
         imm r22, 3
         imm r23, 11                  ; status != 0
-        imm r24, 49749
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 789
         imm r21, 341
         imm r22, 1
         imm r23, 0
-        imm r24, 49739
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 790
         imm r21, 341
         imm r22, 3
         imm r23, 10                  ; cbyte == ','
-        imm r24, 49871
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 791
         imm r21, 341
         imm r22, 1
         imm r23, 44                  ; checked comma byte
-        imm r24, 49861
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 792
         imm r21, 342
         imm r22, 1
         imm r23, 0
-        imm r24, 49958
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 793
         imm r21, 344
         imm r22, 1
         imm r23, 2097128
-        imm r24, 50024
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 794
         imm r21, 344
         imm r22, 1
         imm r23, 123                 ; checked expect-open argument
-        imm r24, 50056
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 795
         imm r21, 344
         imm r22, 2
         imm r23, 3                   ; nparams + count_lets
-        imm r24, 50151
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 796
         imm r21, 344
         imm r22, 3
         imm r23, 12                  ; nslots <= 1024
-        imm r24, 50237
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 797
         imm r21, 344
         imm r22, 1
         imm r23, 1024                ; checked total slot limit
-        imm r24, 50227
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 798
         imm r21, 344
         imm r22, 1
         imm r23, 2097072
-        imm r24, 50315
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 799
         imm r21, 344
         imm r22, 1
         imm r23, 252                 ; checked slot-capacity status
-        imm r24, 50341
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 800
         imm r21, 344
         imm r22, 1
         imm r23, 0
-        imm r24, 50370
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 parse_params_require_pushes:
         imm r20, 224
         imm r21, 339
-        imm r23, 49377
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 225
         imm r21, 340
-        imm r23, 49503
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 226
         imm r21, 341
-        imm r23, 49723
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 227
         imm r21, 341
-        imm r23, 49845
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 228
         imm r21, 344
-        imm r23, 50126              ; nparams held across count_lets call
-        call exact_require_binary_push
+        call exact_require_binary_push_identity              ; nparams held across count_lets call
         imm r20, 229
         imm r21, 344
-        imm r23, 50211
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 366
         imm r21, 344
-        imm r23, 50066              ; checked '{' argument push
-        call exact_require_argument_push
+        call exact_require_argument_push_identity              ; checked '{' argument push
         imm r20, 403
         imm r21, 340
-        imm r23, 49617
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 404
         imm r21, 344
-        imm r23, 50325
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 parse_params_require_expr_census:

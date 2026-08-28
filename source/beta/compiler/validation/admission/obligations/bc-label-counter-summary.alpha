@@ -65,18 +65,16 @@ label_counter_require_root:
 
 ; Bind the exact fixed-global load to the value deposited in local slot zero.
 label_counter_prove_load:
+        imm r20, 8
+        imm r21, 5
+        imm r25, 24
+        imm r26, 2097104
+        call exact_memory_load_pc
         imm r20, 24
         imm r21, 5
         imm r22, 1
         imm r23, 2097104
-        imm r24, 1163
-        call transfer_require_primitive
-        imm r20, 8
-        imm r21, 5
-        imm r22, 1
-        imm r23, 8
-        imm r24, 1173
-        call transfer_require_memory
+        call exact_primitive_identity_pc
         imm r1, 535160
         imm r2, 1                    ; symbolic entry ell
         store r1, r2
@@ -84,8 +82,7 @@ label_counter_prove_load:
         imm r21, 5
         imm r22, 2
         imm r23, 0
-        imm r24, 1176
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 535160
         imm r21, 1
         call exact_require_cell
@@ -117,24 +114,20 @@ label_counter_prove_successor:
         imm r21, 5
         imm r22, 1
         imm r23, 0
-        imm r24, 1221
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 4
         imm r21, 5
-        imm r23, 1240
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 27
         imm r21, 5
         imm r22, 1
         imm r23, 1
-        imm r24, 1256
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 26
         imm r21, 5
         imm r22, 2
         imm r23, 3                    ; Word add
-        imm r24, 1266
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 535168
         imm r21, 1
         call exact_require_cell
@@ -167,12 +160,10 @@ label_counter_prove_update:
         imm r21, 5
         imm r22, 1
         imm r23, 2097104
-        imm r24, 1195
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 379
         imm r21, 5
-        imm r23, 1205
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r1, 535176
         imm r2, 1                    ; load/store select identical LBL word
         store r1, r2
@@ -181,10 +172,7 @@ label_counter_prove_update:
         call exact_require_cell
         imm r20, 9
         imm r21, 5
-        imm r22, 2
-        imm r23, 8
-        imm r24, 1304
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r1, 535200
         imm r2, 1                    ; post LBL is succ64(ell)
         store r1, r2
@@ -195,13 +183,10 @@ label_counter_prove_return:
         imm r21, 5
         imm r22, 1
         imm r23, 0
-        imm r24, 1307
-        call transfer_require_local
-        imm r20, 4
+        call exact_local_identity_pc
+        imm r20, 1                    ; new_label procedure identity
         imm r21, 5
-        imm r22, 5
-        imm r23, 1345
-        call exact_require_event
+        call exact_require_event_epilogue
         imm r20, 535168
         imm r21, 1
         call exact_require_cell
@@ -213,8 +198,10 @@ label_counter_prove_return:
 label_counter_prove_terminal:
         ; The exact region has no call, I/O, division, remainder, byte memory,
         ; or halt.  Its explicit path takes the first checked epilogue.
-        imm r20, 1131
-        imm r21, 1366
+        imm r20, 1                    ; new_label procedure identity
+        call exact_proc_entry_r20
+        imm r21, 2                    ; emit_lref procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 0
         imm r23, 2
         imm r24, 5

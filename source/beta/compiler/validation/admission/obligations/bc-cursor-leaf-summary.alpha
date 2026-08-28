@@ -47,18 +47,20 @@ cursor_require_cbyte_shape:
         call transfer_require_cell
         imm r20, 8
         imm r21, 4                    ; cbyte procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 9
-        imm r21, 1673
-        call exact_require_block_pc
+        imm r21, 4
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 10
-        imm r21, 1829
-        call exact_require_block_pc
+        imm r21, 4
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 11
         imm r21, 5                    ; adv procedure identity / end
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 8
         imm r21, 10
         imm r22, 4
@@ -68,91 +70,76 @@ cursor_require_cbyte_shape:
         imm r21, 9
         imm r22, 1
         imm r23, 10
-        imm r24, 1780
-        call exact_require_transition
+        call exact_transition_identity_pc
 
         imm r20, 14
         imm r21, 8
         imm r22, 2
         imm r23, 0
-        imm r24, 1654
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 15
         imm r21, 9
         imm r22, 1
         imm r23, 0
-        imm r24, 1673
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 16
         imm r21, 10
         imm r22, 1
         imm r23, 0
-        imm r24, 1855
-        call transfer_require_local
+        call exact_local_identity_pc
 
         imm r20, 11
         imm r21, 8
-        imm r22, 1
-        imm r23, 8
-        imm r24, 1651
-        call transfer_require_memory
+        imm r25, 29
+        imm r26, 2097144
+        call exact_memory_load_pc
         imm r20, 12
         imm r21, 9
-        imm r22, 1
-        imm r23, 8
-        imm r24, 1718
-        call transfer_require_memory
+        imm r25, 31
+        imm r26, 2097136
+        call exact_memory_load_pc
         imm r20, 13
         imm r21, 10
         imm r22, 1
         imm r23, 1
-        imm r24, 1896
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r39, r0                   ; checked byte-load successor target
 
-        imm r20, 29
-        imm r21, 8
-        imm r22, 1
-        imm r23, 2097144
-        imm r24, 1641
-        call transfer_require_primitive
         imm r20, 30
         imm r21, 9
         imm r22, 3
         imm r23, 8
-        imm r24, 1721
-        call transfer_require_primitive
-        imm r20, 31
-        imm r21, 9
-        imm r22, 1
-        imm r23, 2097136
-        imm r24, 1708
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 32
         imm r21, 9
         imm r22, 1
         imm r23, 0
-        imm r24, 1799
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 33
         imm r21, 10
         imm r22, 1
         imm r23, 2097152
-        imm r24, 1829
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 34
         imm r21, 10
         imm r22, 2
         imm r23, 3
-        imm r24, 1874
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
+        mov r38, r0
+        imm r20, 34
+        call exact_expr_primitive_extent
+        jeq r0, r38, cursor_cbyte_byte_load_start
+        jmp reject
+cursor_cbyte_byte_load_start:
+        jeq r1, r39, cursor_cbyte_byte_load_rejoined
+        jmp reject
+cursor_cbyte_byte_load_rejoined:
         imm r20, 5
         imm r21, 9
-        imm r23, 1692
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 6
         imm r21, 10
-        imm r23, 1839
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         imm r20, 4                    ; cbyte procedure identity
         imm r21, 9
@@ -308,12 +295,12 @@ cursor_require_adv_shape:
         call transfer_require_cell
         imm r20, 11
         imm r21, 5                    ; adv procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 12
         imm r21, 6                    ; is_digit procedure identity / end
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 11
         imm r21, 11
         imm r22, 5
@@ -321,48 +308,38 @@ cursor_require_adv_shape:
 
         imm r20, 14
         imm r21, 11
-        imm r22, 2
-        imm r23, 8
-        imm r24, 2061
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 15
         imm r21, 11
-        imm r22, 1
-        imm r23, 8
-        imm r24, 1994
-        call transfer_require_memory
+        imm r25, 36
+        imm r26, 2097144
+        call exact_memory_load_pc
         imm r20, 35
         imm r21, 11
         imm r22, 1
         imm r23, 2097144
-        imm r24, 1958
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 36
         imm r21, 11
         imm r22, 1
         imm r23, 2097144
-        imm r24, 1984
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 37
         imm r21, 11
         imm r22, 2
         imm r23, 3
-        imm r24, 2023
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 38
         imm r21, 11
         imm r22, 1
         imm r23, 1
-        imm r24, 2013
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 7
         imm r21, 11
-        imm r23, 1997
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 380
         imm r21, 11
-        imm r23, 1968
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 6                    ; is_digit identifies synthetic return
         call exact_require_preentry_epilogue
         imm r20, 5                    ; adv procedure identity / region start
@@ -445,27 +422,32 @@ cursor_require_space_shape:
         call transfer_require_cell
         imm r20, 27
         imm r21, 9                    ; is_space procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 28
-        imm r21, 3678
-        call exact_require_block_pc
+        imm r21, 9
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 29
-        imm r21, 3810
-        call exact_require_block_pc
+        imm r21, 9
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 30
-        imm r21, 3942
-        call exact_require_block_pc
+        imm r21, 9
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 31
-        imm r21, 4074
-        call exact_require_block_pc
+        imm r21, 9
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 32
-        imm r21, 4227
-        call exact_require_block_pc
+        imm r21, 9
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 33
         imm r21, 10                   ; skip_ws procedure identity / end
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 27
         imm r21, 32
         imm r22, 9
@@ -475,147 +457,122 @@ cursor_require_space_shape:
         imm r21, 28
         imm r22, 1
         imm r23, 32
-        imm r24, 3782
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 19
         imm r21, 28
         imm r22, 0
         imm r23, 29
-        imm r24, 3801
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 20
         imm r21, 29
         imm r22, 1
         imm r23, 32
-        imm r24, 3914
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 21
         imm r21, 29
         imm r22, 0
         imm r23, 30
-        imm r24, 3933
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 22
         imm r21, 30
         imm r22, 1
         imm r23, 32
-        imm r24, 4046
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 23
         imm r21, 30
         imm r22, 0
         imm r23, 31
-        imm r24, 4065
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 24
         imm r21, 31
         imm r22, 1
         imm r23, 32
-        imm r24, 4178
-        call exact_require_transition
+        call exact_transition_identity_pc
 
         imm r20, 26
         imm r21, 28
         imm r22, 1
         imm r23, 0
-        imm r24, 3678
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 27
         imm r21, 29
         imm r22, 1
         imm r23, 0
-        imm r24, 3810
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 28
         imm r21, 30
         imm r22, 1
         imm r23, 0
-        imm r24, 3942
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 29
         imm r21, 31
         imm r22, 1
         imm r23, 0
-        imm r24, 4074
-        call transfer_require_local
+        call exact_local_identity_pc
 
         imm r20, 61
         imm r21, 28
         imm r22, 3
         imm r23, 10
-        imm r24, 3723
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 62
         imm r21, 28
         imm r22, 1
         imm r23, 32
-        imm r24, 3713
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 63
         imm r21, 29
         imm r22, 3
         imm r23, 10
-        imm r24, 3855
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 64
         imm r21, 29
         imm r22, 1
         imm r23, 9
-        imm r24, 3845
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 65
         imm r21, 30
         imm r22, 3
         imm r23, 10
-        imm r24, 3987
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 66
         imm r21, 30
         imm r22, 1
         imm r23, 10
-        imm r24, 3977
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 67
         imm r21, 31
         imm r22, 3
         imm r23, 10
-        imm r24, 4119
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 68
         imm r21, 31
         imm r22, 1
         imm r23, 13
-        imm r24, 4109
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 69
         imm r21, 31
         imm r22, 1
         imm r23, 0
-        imm r24, 4197
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 70
         imm r21, 32
         imm r22, 1
         imm r23, 1
-        imm r24, 4227
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 16
         imm r21, 28
-        imm r23, 3697
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 17
         imm r21, 29
-        imm r23, 3829
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 18
         imm r21, 30
-        imm r23, 3961
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 19
         imm r21, 31
-        imm r23, 4093
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         imm r20, 9                    ; is_space procedure identity
         imm r21, 31
