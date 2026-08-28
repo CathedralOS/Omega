@@ -1,4 +1,15 @@
 use super::*;
+use omega_optimization_core::{
+    AcceptedObligationFactIdentity, AnalysisKind, OptimizationUnitIdentity,
+};
+use omega_optimization_unit::{
+    ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
+};
+use omega_optimization_validation::{
+    OptimizationUnitValidationError, validate_current_value_range_fact,
+    validate_current_value_range_fact_at,
+};
+use omega_psi_optimizer::{AnalysisProduct, compute_analysis};
 
 #[test]
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {
@@ -188,6 +199,187 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         Err(psi_terminal_verifier::VerificationError::MissingEvidence(obligation))
             if obligation == shift_obligation
     ));
+
+    let optimizer_input =
+        omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+        )
+        .expect("exact shift verifies for optimizer admission");
+    let verified = omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("exact shift retains proof custody in the optimization unit");
+    let AnalysisProduct::ValueRanges(ranges) =
+        compute_analysis(verified.unit(), AnalysisKind::ValueRanges).unwrap()
+    else {
+        unreachable!()
+    };
+    let range = ranges
+        .facts
+        .iter()
+        .find(|fact| {
+            fact.value == count
+                && matches!(
+                    fact.support,
+                    ValueRangeSupport::AcceptedOperationProof {
+                        operation,
+                        ..
+                    } if operation == shift_operation.id
+                )
+        })
+        .expect("accepted exact-shift proof derives a current count interval");
+    assert_eq!(range.scalar_type, u64_type);
+    assert_eq!(range.minimum, IntegerValue::Unsigned(0));
+    assert_eq!(range.maximum, IntegerValue::Unsigned(63));
+    validate_current_value_range_fact(verified.unit(), range)
+        .expect("independent validation reconstructs the proof-derived interval");
+    let ValueRangeScope::DominatedOperationEntry {
+        block: owner_block,
+        node: owner_node,
+        operation,
+    } = range.valid_in.scope
+    else {
+        panic!("proof-derived range has an operation-entry scope")
+    };
+    assert_eq!(operation, shift_operation.id);
+    validate_current_value_range_fact_at(
+        verified.unit(),
+        range,
+        range.valid_in.machine,
+        owner_block,
+        owner_node,
+    )
+    .expect("the proof-derived interval applies at its operation entry");
+    assert!(ranges.fact_applies_at(
+        range,
+        verified.unit(),
+        range.valid_in.machine,
+        owner_block,
+        owner_node,
+    ));
+    if owner_node > 0 {
+        assert!(matches!(
+            validate_current_value_range_fact_at(
+                verified.unit(),
+                range,
+                range.valid_in.machine,
+                owner_block,
+                owner_node - 1,
+            ),
+            Err(OptimizationUnitValidationError::CurrentValueRangeFactNotApplicable { .. })
+        ));
+        assert!(!ranges.fact_applies_at(
+            range,
+            verified.unit(),
+            range.valid_in.machine,
+            owner_block,
+            owner_node - 1,
+        ));
+    }
+    let function = verified
+        .unit()
+        .functions
+        .iter()
+        .find(|function| function.machine == range.valid_in.machine)
+        .expect("range owner machine remains current");
+    for block in &function.blocks {
+        if block.id == owner_block || block.nodes.is_empty() {
+            continue;
+        }
+        assert_eq!(
+            ranges.fact_applies_at(range, verified.unit(), function.machine, block.id, 0,),
+            range
+                .valid_in
+                .dominated_blocks
+                .binary_search(&block.id)
+                .is_ok(),
+            "range applicability follows its exact current dominated-block roster"
+        );
+        let independently_applies = validate_current_value_range_fact_at(
+            verified.unit(),
+            range,
+            function.machine,
+            block.id,
+            0,
+        )
+        .is_ok();
+        assert_eq!(
+            independently_applies,
+            range
+                .valid_in
+                .dominated_blocks
+                .binary_search(&block.id)
+                .is_ok(),
+            "independent validation reconstructs the same current dominance region"
+        );
+    }
+
+    let refresh_range_identity = |fact: &mut ValueRangeFact| {
+        fact.identity = value_range_fact_identity(
+            fact.value,
+            fact.scalar_type,
+            fact.minimum,
+            fact.maximum,
+            &fact.support,
+            &fact.valid_in,
+        )
+        .expect("self-consistent corruption remains structurally encodable");
+    };
+    let rejects = |fact: &ValueRangeFact, axis| {
+        assert_eq!(
+            validate_current_value_range_fact(verified.unit(), fact),
+            Err(OptimizationUnitValidationError::CurrentValueRangeFactMismatch),
+            "independent reconstruction rejects self-consistent {axis} corruption"
+        );
+    };
+
+    let mut corrupted = range.clone();
+    corrupted.maximum = IntegerValue::Unsigned(62);
+    refresh_range_identity(&mut corrupted);
+    rejects(&corrupted, "bound");
+
+    let mut corrupted = range.clone();
+    corrupted.scalar_type = IntegerType::new(IntegerSign::Unsigned, 32).expect("u32");
+    refresh_range_identity(&mut corrupted);
+    rejects(&corrupted, "type");
+
+    let mut corrupted = range.clone();
+    corrupted.valid_in.revision =
+        OptimizationUnitIdentity::from_canonical_bytes(b"stale range revision");
+    refresh_range_identity(&mut corrupted);
+    rejects(&corrupted, "revision");
+
+    let mut corrupted = range.clone();
+    let ValueRangeSupport::AcceptedOperationProof { accepted, .. } = &mut corrupted.support else {
+        unreachable!()
+    };
+    *accepted = AcceptedObligationFactIdentity::from_canonical_bytes(b"forged range support");
+    refresh_range_identity(&mut corrupted);
+    rejects(&corrupted, "support");
+
+    let mut corrupted = range.clone();
+    let ValueRangeScope::DominatedOperationEntry { node, .. } = &mut corrupted.valid_in.scope
+    else {
+        unreachable!()
+    };
+    *node = node.saturating_add(1);
+    refresh_range_identity(&mut corrupted);
+    rejects(&corrupted, "anchor");
+
+    if let Some(position) = range
+        .valid_in
+        .dominated_blocks
+        .iter()
+        .position(|block| *block != owner_block)
+    {
+        let mut corrupted = range.clone();
+        corrupted.valid_in.dominated_blocks.remove(position);
+        refresh_range_identity(&mut corrupted);
+        rejects(&corrupted, "dominance-roster");
+    }
 
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u64_type,

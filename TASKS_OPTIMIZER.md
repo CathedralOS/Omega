@@ -643,9 +643,8 @@ These facts constrain the work below.
   independently checks normalized scalar, Unit, structural, residual, and
   nominal cleanup/return forms. Source-derived partial, fully consumed, and
   nominal affine programs cross this boundary. `OPT-UNIT-BUILDER` and
-  `OPT-UNIT-VALIDATOR` remain open until proof-derived current-region range
-  evidence plus the crash/requirement and remaining effect vocabulary survive
-  the Terminal-Psi lowering boundary.
+  `OPT-UNIT-VALIDATOR` remain open until the crash/requirement and remaining
+  effect vocabulary survive the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -659,8 +658,8 @@ These facts constrain the work below.
   no accepted facts. The complete proof-question catalog now preserves every
   verifier question, including call, cleanup, and contract owners plus ordered
   premises and axioms, independently of this narrower operation-rule index.
-  The unit tasks remain open for proof-derived current-region range facts and
-  their rule-facing indices.
+  Proof-derived current-region integer ranges are reconstructed analysis rows,
+  not immutable unit catalog rows. Their rule-facing consumption remains open.
 - The clean artifact boundary now exposes a required
   `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
@@ -758,9 +757,24 @@ These facts constrain the work below.
   complement fixture passes this independent gate. `OPT-SCCP` now covers every
   currently foldable closed Terminal-Psi integer and Boolean operation;
   structural-field and call results remain overdefined without source facts.
+  `ValueRanges` now publishes identity-bound fixed-integer intervals from
+  canonical scalar constants and the first closed proof vocabulary: exact
+  right-shift count bounds, exact unsigned division-defined bounds, and
+  wrapping/saturating unsigned nonzero-divisor bounds. A proof interval binds
+  the accepted-obligation fact, exact canonical proof question, operation
+  owner, unit revision, value/type/bounds, operation-entry anchor, and canonical
+  current-CFG dominated-block roster. Signed nonzero propositions remain
+  disjunctive and produce no convex interval; exact casts and exact left-shift
+  overflow propositions remain outside the admitted extractor. `ValueRanges`
+  is always invalidated across a revision. The independent validation crate
+  separately rebuilds scalar support or the canonical kernel proposition,
+  intersects only direct value/literal conjunctions, recomputes dominance and
+  SSA availability, and rejects stale, malformed, pre-anchor, or nondominating
+  use. A real guarded exact-right-shift source canary proves the resulting
+  unsigned `[0, 63]` interval and corruption fails closed.
   The task reopens when the scalar vocabulary grows (including any future
   trapping or exact-float policy). Semantic analyses remain open for the wider
-  proof/effect/ownership vocabulary.
+  proof/effect/ownership vocabulary and for the first range-consuming rule.
 - Conservative node-effect summaries now distinguish pure scalar work,
   structural state, internal calls, boundary calls, services, and control.
   Unknown internal-call crash/suspension/observation behavior remains `May`;
@@ -1403,6 +1417,12 @@ dependency.
   Acceptance: every result names its exact supporting fact identities and
   validity region. Expired, path-mismatched, wrong-version, or incompatible
   access facts produce `Unknown`, not a broadened conclusion.
+
+  Current value-range slice: fixed-integer scalar constants and the first
+  canonical operation-proof interval vocabulary are implemented with
+  independent reconstruction and point-of-use dominance/availability checks.
+  Remaining here includes congruences, disjunctive nonzero facts, case domains,
+  broader proof goals, and a rule that records the exact consumed range fact.
 
 - **OPT-ORDERED-REGISTRY.** Implement explicit ordered built-in registries with
   duplicate detection and no global singleton.

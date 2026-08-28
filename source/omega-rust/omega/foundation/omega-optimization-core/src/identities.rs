@@ -74,6 +74,10 @@ canonical_identity!(
     b"omega.scalar-constant-fact-identity.v1\0"
 );
 canonical_identity!(
+    ValueRangeFactIdentity,
+    b"omega.value-range-fact-identity.v1\0"
+);
+canonical_identity!(
     AcceptedObligationFactIdentity,
     b"omega.accepted-obligation-fact-identity.v1\0"
 );
@@ -550,6 +554,7 @@ mod tests {
         round_trip!(OptimizationPassIdentity);
         round_trip!(OptimizationCandidateIdentity);
         round_trip!(ScalarConstantFactIdentity);
+        round_trip!(ValueRangeFactIdentity);
         round_trip!(AcceptedObligationFactIdentity);
         round_trip!(ProofQuestionIdentity);
         round_trip!(OwnershipFrontierFactIdentity);

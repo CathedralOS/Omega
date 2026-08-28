@@ -40,7 +40,7 @@ pub use identities::{
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
     TerminalFunctionFragmentEmissionIdentity, TerminalRelocationFreeObjectContainerIdentity,
     TerminalRelocationFreeObjectPlanIdentity, TerminalRelocationFreeTextSectionIdentity,
-    TransformationLedgerIdentity,
+    TransformationLedgerIdentity, ValueRangeFactIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
