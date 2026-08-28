@@ -9,10 +9,12 @@
 mod network;
 
 pub use network::{
-    ResolverExecutionEndpointEvent, ResolverExecutionEndpointHost,
-    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
-    ResolverExecutionEndpointRoute, ResolverExecutionEndpointRoutePolicy,
-    ResolverExecutionRequestedEndpoint,
+    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
+    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionEndpointEvent,
+    ResolverExecutionEndpointHost, ResolverExecutionEndpointObservation,
+    ResolverExecutionEndpointOutcome, ResolverExecutionEndpointRoute,
+    ResolverExecutionEndpointRoutePolicy, ResolverExecutionRequestedEndpoint,
+    run_resolver_connect_helper,
 };
 
 #[cfg(target_os = "macos")]
@@ -51,6 +53,8 @@ const MACOS_NULL_DEVICE: &str = "/dev/null";
 const MACOS_DIRECTORY_LOOKUP_SERVICE: &str = "com.apple.system.opendirectoryd.libinfo";
 #[cfg(target_os = "macos")]
 const MACOS_HOSTNAME_SYSCTL: &str = "kern.hostname";
+#[cfg(target_os = "macos")]
+const MACOS_RUST_RUNTIME_PAGE_SIZE_SYSCTL: &str = "hw.pagesize_compat";
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -717,7 +721,8 @@ impl ResolverExecutionBackend {
         if network_transport == Some(ResolverExecutionNetworkTransport::Ssh) {
             profile.push_str(&format!(
                 " (allow mach-lookup (global-name \"{MACOS_DIRECTORY_LOOKUP_SERVICE}\")) \
-                 (allow sysctl-read (sysctl-name \"{MACOS_HOSTNAME_SYSCTL}\"))"
+                 (allow sysctl-read (sysctl-name \"{MACOS_HOSTNAME_SYSCTL}\")) \
+                 (allow sysctl-read (sysctl-name \"{MACOS_RUST_RUNTIME_PAGE_SIZE_SYSCTL}\"))"
             ));
         }
         if phase.requires_mutable_root() {
@@ -1522,6 +1527,9 @@ mod tests {
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
         ));
         assert!(discovery_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
+        assert!(
+            discovery_profile.contains("(allow sysctl-read (sysctl-name \"hw.pagesize_compat\"))")
+        );
         assert!(!discovery_profile.contains("(allow sysctl-read)"));
         let https_discovery_profile = profile(&https_discovery_command);
         assert!(
@@ -1541,6 +1549,7 @@ mod tests {
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
         ));
         assert!(fetch_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
+        assert!(fetch_profile.contains("(allow sysctl-read (sysctl-name \"hw.pagesize_compat\"))"));
 
         let disposition = |observation: &super::ResolverExecutionPolicyObservation, guarantee| {
             observation

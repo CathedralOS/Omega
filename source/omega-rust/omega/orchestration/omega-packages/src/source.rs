@@ -18,8 +18,11 @@ use cap_std::{
 };
 use command_group::{CommandGroup, GroupChild};
 use omega_resolver_execution::{
-    ResolverExecutionBackend, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
-    ResolverExecutionPolicyObservation,
+    RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
+    RESOLVER_CONNECT_TARGET_ENVIRONMENT, ResolverExecutionBackend,
+    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
+    ResolverExecutionEndpointRoute, ResolverExecutionNetworkTransport, ResolverExecutionPhase,
+    ResolverExecutionPolicyObservation, ResolverExecutionRequestedEndpoint,
 };
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -38,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v14";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v15";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -76,8 +79,8 @@ const GIT_FIXED_COMMAND_ALLOWANCE: usize = 64;
 const GIT_COMMAND_CLEANUP_TIMEOUT: Duration = Duration::from_secs(2);
 const LOCAL_SNAPSHOT_LOCK_TIMEOUT: Duration = Duration::from_secs(120);
 const PROCESS_POLL_INTERVAL: Duration = Duration::from_millis(5);
-const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 2;
-const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v2";
+const GIT_RESOLUTION_OBSERVATION_SCHEMA_VERSION: u32 = 3;
+const GIT_RESOLUTION_OBSERVATION_DOMAIN: &[u8] = b"omega-git-resolution-observation-v3";
 static STAGING_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -636,6 +639,25 @@ fn issue_git_source_resolution_observation(
             message: "final Git resolution provenance has inconsistent command custody".to_owned(),
         });
     }
+    for (policy, command) in resolved
+        .execution_policy_observations
+        .iter()
+        .zip(&resolved.command_execution_observations)
+    {
+        if command.phase != policy.phase()
+            || command.policy_identity != format_sha256(&Sha256::digest(policy.canonical_bytes()))
+            || match (policy.endpoint_route(), &command.endpoint_observation) {
+                (Some(route), Some(endpoint)) => endpoint.route() != route,
+                (None, None) => false,
+                _ => true,
+            }
+        {
+            return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                message: "final Git execution rows are not joined to their native policies"
+                    .to_owned(),
+            });
+        }
+    }
     let expected_captured_output = git_captured_output_observation(
         &resolved.command_execution_observations,
         git_resolution_captured_output_ceiling(limits),
@@ -723,6 +745,13 @@ fn issue_git_source_resolution_observation(
         hash_resolution_field(&mut hasher, observation.stdout_identity.as_bytes());
         hash_resolution_u64(&mut hasher, observation.stderr_length);
         hash_resolution_field(&mut hasher, observation.stderr_identity.as_bytes());
+        match &observation.endpoint_observation {
+            Some(endpoint) => {
+                hash_resolution_field(&mut hasher, b"endpoint-present");
+                hash_resolution_field(&mut hasher, &endpoint.canonical_bytes());
+            }
+            None => hash_resolution_field(&mut hasher, b"endpoint-absent"),
+        }
     }
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.ceiling);
     hash_resolution_u64(&mut hasher, resolved.captured_output_observation.observed);
@@ -882,6 +911,7 @@ pub struct GitCommandExecutionObservation {
     stdout_identity: String,
     stderr_length: u64,
     stderr_identity: String,
+    endpoint_observation: Option<ResolverExecutionEndpointObservation>,
 }
 
 impl GitCommandExecutionObservation {
@@ -920,6 +950,10 @@ impl GitCommandExecutionObservation {
     pub fn stderr_identity(&self) -> &str {
         &self.stderr_identity
     }
+
+    pub const fn endpoint_observation(&self) -> Option<&ResolverExecutionEndpointObservation> {
+        self.endpoint_observation.as_ref()
+    }
 }
 
 #[derive(Debug)]
@@ -929,6 +963,7 @@ struct GitExecutor {
     transport_executable: Option<GitTransportExecutableObservation>,
     execution_helpers: Vec<GitTransportExecutableObservation>,
     execution_transport: GitExecutionTransport,
+    requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     started: Instant,
     timeout: Duration,
     launches: Cell<usize>,
@@ -1390,7 +1425,15 @@ pub fn resolve_git_source(
 ) -> Result<ResolvedGitSource, SourceResolveError> {
     let limits = limits.compiler_bounded();
     let execution_transport = request.execution_transport();
-    let executor = GitExecutor::system(execution_transport, limits)?;
+    #[cfg(test)]
+    let requested_network_endpoint = if execution_transport == GitExecutionTransport::File {
+        test_file_network_endpoint()
+    } else {
+        requested_network_endpoint(request)?
+    };
+    #[cfg(not(test))]
+    let requested_network_endpoint = requested_network_endpoint(request)?;
+    let executor = GitExecutor::system(execution_transport, requested_network_endpoint, limits)?;
     let result = (|| {
         let requested_rev = request.requested_revision();
         let locator_identity = request.locator_identity();
@@ -1508,6 +1551,18 @@ pub fn resolve_git_source(
     })();
     let executable_result = executor.verify_content();
     reconcile_git_command_result(result, executable_result, Ok(()))
+}
+
+fn requested_network_endpoint(
+    request: &GitSourceRequest,
+) -> Result<ResolverExecutionRequestedEndpoint, SourceResolveError> {
+    ResolverExecutionRequestedEndpoint::new(
+        request.requested_network_endpoint().host(),
+        request.requested_network_endpoint().port(),
+    )
+    .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+        message: format!("validated Git endpoint could not enter the native resolver: {error}"),
+    })
 }
 
 fn resolve_verified_git_cache_entry(
@@ -3245,10 +3300,11 @@ fn execute_git_blob_batch(
     entries: &mut [GitTreeEntry],
     stdout_limit: usize,
 ) -> Result<(), SourceResolveError> {
-    let mut command = sealed_git_command(
+    let mut command = sealed_git_command_with_route(
         executor,
         repository,
         ResolverExecutionPhase::RepositoryInspection,
+        None,
     )?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
@@ -3272,6 +3328,7 @@ fn execute_git_blob_batch(
         ResolverExecutionPhase::RepositoryInspection,
         command_identity,
         &output,
+        None,
     )?;
     if !output.status.success() {
         return Err(SourceResolveError::Git {
@@ -7031,6 +7088,7 @@ fn io_error(path: &Path, error: std::io::Error) -> SourceResolveError {
 impl GitExecutor {
     fn system(
         execution_transport: GitExecutionTransport,
+        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
         limits: LocalSourceLimits,
     ) -> Result<Self, SourceResolveError> {
         for candidate in system_git_candidates() {
@@ -7042,6 +7100,7 @@ impl GitExecutor {
                     GIT_RESOLUTION_TIMEOUT,
                     git_resolution_captured_output_ceiling(limits),
                     execution_transport,
+                    requested_network_endpoint,
                 );
             }
         }
@@ -7056,6 +7115,7 @@ impl GitExecutor {
             GIT_RESOLUTION_TIMEOUT,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
+            test_file_network_endpoint(),
         )
     }
 
@@ -7071,6 +7131,7 @@ impl GitExecutor {
             timeout,
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
             GitExecutionTransport::File,
+            test_file_network_endpoint(),
         )
     }
 
@@ -7087,6 +7148,7 @@ impl GitExecutor {
             timeout,
             captured_output_ceiling,
             GitExecutionTransport::File,
+            test_file_network_endpoint(),
         )
     }
 
@@ -7096,6 +7158,7 @@ impl GitExecutor {
         timeout: Duration,
         captured_output_ceiling: u64,
         execution_transport: GitExecutionTransport,
+        requested_network_endpoint: ResolverExecutionRequestedEndpoint,
     ) -> Result<Self, SourceResolveError> {
         let started = Instant::now();
         if !path.is_absolute() {
@@ -7137,6 +7200,7 @@ impl GitExecutor {
             transport_executable,
             execution_helpers,
             execution_transport,
+            requested_network_endpoint,
             started,
             timeout,
             launches: Cell::new(0),
@@ -7263,6 +7327,33 @@ impl GitExecutor {
                         .to_owned(),
                 });
             }
+            match (policy.endpoint_route(), &command.endpoint_observation) {
+                (Some(route), Some(endpoint)) if endpoint.route() == route => {
+                    #[cfg(not(test))]
+                    let requires_connection = true;
+                    #[cfg(test)]
+                    let requires_connection =
+                        self.execution_transport != GitExecutionTransport::File;
+                    if requires_connection
+                        && !endpoint.events().iter().any(|event| {
+                            event.outcome() == ResolverExecutionEndpointOutcome::Connected
+                        })
+                    {
+                        return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                            message: "successful remote Git command did not traverse its compiler-owned endpoint route"
+                                .to_owned(),
+                        });
+                    }
+                }
+                (None, None) => {}
+                _ => {
+                    return Err(SourceResolveError::GitExecutionBoundaryInvalid {
+                        message:
+                            "native endpoint activity is not joined to its sealed route policy"
+                                .to_owned(),
+                    });
+                }
+            }
         }
         Ok(())
     }
@@ -7288,6 +7379,7 @@ impl GitExecutor {
         phase: ResolverExecutionPhase,
         command_identity: String,
         output: &BoundedCommandOutput,
+        endpoint_observation: Option<ResolverExecutionEndpointObservation>,
     ) -> Result<(), SourceResolveError> {
         let policy_identity = {
             let policies = self.execution_policy_observations.borrow();
@@ -7325,8 +7417,15 @@ impl GitExecutor {
                 stdout_identity: format_sha256(&Sha256::digest(&output.stdout)),
                 stderr_length: output.stderr.len() as u64,
                 stderr_identity: format_sha256(&Sha256::digest(&output.stderr)),
+                endpoint_observation,
             });
         Ok(())
+    }
+
+    fn resolver_connect_helper(&self) -> Option<&GitTransportExecutableObservation> {
+        (self.execution_transport == GitExecutionTransport::Ssh)
+            .then(|| self.execution_helpers.last())
+            .flatten()
     }
 
     fn begin_launch(&self) -> Result<Duration, SourceResolveError> {
@@ -7357,33 +7456,107 @@ impl GitExecutor {
     }
 }
 
+#[cfg(test)]
+fn test_file_network_endpoint() -> ResolverExecutionRequestedEndpoint {
+    ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
+        .expect("the fixed test endpoint is valid")
+}
+
+#[cfg(test)]
+fn test_system_git_executor(
+    transport: GitExecutionTransport,
+) -> Result<GitExecutor, SourceResolveError> {
+    GitExecutor::system(
+        transport,
+        test_file_network_endpoint(),
+        LocalSourceLimits::default(),
+    )
+}
+
 #[cfg(target_os = "macos")]
 fn open_resolver_execution_helpers(
     execution_transport: GitExecutionTransport,
 ) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
-    let paths: &[&str] = match execution_transport {
-        GitExecutionTransport::Ssh => &["/bin/sh", "/bin/bash"],
-        GitExecutionTransport::Https => &[],
+    let mut paths = match execution_transport {
+        GitExecutionTransport::Ssh => vec![PathBuf::from("/bin/sh"), PathBuf::from("/bin/bash")],
+        GitExecutionTransport::Https => Vec::new(),
         #[cfg(test)]
-        GitExecutionTransport::File => &[
+        GitExecutionTransport::File => [
             "/bin/sh",
             "/bin/bash",
             "/bin/mv",
             "/bin/sleep",
             "/usr/bin/git-upload-pack",
-        ],
+        ]
+        .into_iter()
+        .map(PathBuf::from)
+        .collect(),
     };
+    if execution_transport == GitExecutionTransport::Ssh {
+        paths.push(resolver_connect_helper_path()?);
+    }
     paths
         .iter()
-        .map(|path| open_git_transport_executable(Path::new(path)))
+        .map(|path| open_git_transport_executable(path))
         .collect()
 }
 
 #[cfg(not(target_os = "macos"))]
 fn open_resolver_execution_helpers(
-    _execution_transport: GitExecutionTransport,
+    execution_transport: GitExecutionTransport,
 ) -> Result<Vec<GitTransportExecutableObservation>, SourceResolveError> {
-    Ok(Vec::new())
+    if execution_transport != GitExecutionTransport::Ssh {
+        return Ok(Vec::new());
+    }
+    [resolver_connect_helper_path()?]
+        .iter()
+        .map(|path| open_git_transport_executable(path))
+        .collect()
+}
+
+fn resolver_connect_helper_path() -> Result<PathBuf, SourceResolveError> {
+    let current_executable = std::env::current_exe().map_err(|error| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("cannot locate the Omega resolver CONNECT helper: {error}"),
+        }
+    })?;
+    let executable_directory = current_executable.parent().ok_or_else(|| {
+        SourceResolveError::GitExecutionBoundaryInvalid {
+            message: "the running Omega executable has no installation directory".to_owned(),
+        }
+    })?;
+    let helper_name = if cfg!(windows) {
+        format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")
+    } else {
+        RESOLVER_CONNECT_HELPER_BASENAME.to_owned()
+    };
+    let sibling = executable_directory.join(&helper_name);
+    if sibling.is_file() {
+        return Ok(sibling);
+    }
+    #[cfg(test)]
+    {
+        if executable_directory.file_name() == Some(OsStr::new("deps")) {
+            let cargo_sibling = executable_directory
+                .parent()
+                .expect("Cargo deps directory has a target-profile parent")
+                .join(&helper_name);
+            if cargo_sibling.is_file() {
+                return Ok(cargo_sibling);
+            }
+        }
+        #[cfg(unix)]
+        return Ok(PathBuf::from("/usr/bin/true"));
+        #[cfg(windows)]
+        return Ok(PathBuf::from(r"C:\Windows\System32\where.exe"));
+    }
+    #[cfg(not(test))]
+    Err(SourceResolveError::GitExecutionBoundaryInvalid {
+        message: format!(
+            "compiler-owned resolver CONNECT helper is missing at {}",
+            sibling.display()
+        ),
+    })
 }
 
 fn open_ssh_transport_executable(
@@ -8125,7 +8298,23 @@ where
     I: IntoIterator<Item = S>,
     S: AsRef<OsStr>,
 {
-    let mut command = sealed_git_command(executor, working_directory, phase)?;
+    let endpoint_route = if matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    ) {
+        Some(
+            executor
+                .execution_backend
+                .open_endpoint_route(executor.requested_network_endpoint.clone())
+                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
+                })?,
+        )
+    } else {
+        None
+    };
+    let mut command =
+        sealed_git_command_with_route(executor, working_directory, phase, endpoint_route.as_ref())?;
     let command_timeout = executor.begin_launch()?;
     command.args(args);
     let command_identity =
@@ -8138,9 +8327,37 @@ where
         command_timeout,
         executor.captured_output_budget.clone(),
     );
-    let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
-    executor.record_command_execution(phase, command_identity, &output)?;
+    let endpoint_result = endpoint_route
+        .map(ResolverExecutionEndpointRoute::finish)
+        .transpose()
+        .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+            message: format!("compiler-owned endpoint route failed: {error}"),
+        });
+    let output = reconcile_git_command_endpoint_result(
+        result,
+        endpoint_result.as_ref().map(|_| ()).map_err(Clone::clone),
+        executor.verify(),
+        executor.verify_budget(),
+    )?;
+    let endpoint_observation =
+        endpoint_result.expect("successful reconciliation checked endpoint result");
+    executor.record_command_execution(phase, command_identity, &output, endpoint_observation)?;
     Ok(output)
+}
+
+fn reconcile_git_command_endpoint_result<T>(
+    result: Result<T, SourceResolveError>,
+    endpoint_result: Result<(), SourceResolveError>,
+    executable_result: Result<(), SourceResolveError>,
+    budget_result: Result<(), SourceResolveError>,
+) -> Result<T, SourceResolveError> {
+    match (result, endpoint_result, executable_result, budget_result) {
+        (Err(error @ SourceResolveError::GitCleanupFailed { .. }), _, _, _) => Err(error),
+        (_, Err(error), _, _) => Err(error),
+        (_, _, Err(error), _) => Err(error),
+        (_, _, _, Err(error)) => Err(error),
+        (result, Ok(()), Ok(()), Ok(())) => result,
+    }
 }
 
 fn reconcile_git_command_result<T>(
@@ -8552,10 +8769,11 @@ fn duration_millis(duration: Duration) -> u64 {
     u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
 }
 
-fn sealed_git_command(
+fn sealed_git_command_with_route(
     executor: &GitExecutor,
     working_directory: &Path,
     phase: ResolverExecutionPhase,
+    endpoint_route: Option<&ResolverExecutionEndpointRoute>,
 ) -> Result<Command, SourceResolveError> {
     executor.verify()?;
     if !working_directory.is_absolute() {
@@ -8606,11 +8824,12 @@ fn sealed_git_command(
         network_phase.then(|| executor.execution_transport.resolver_network_transport());
     let (mut command, execution_policy_observation) = executor
         .execution_backend
-        .command_with_observation(
+        .command_with_endpoint_route_observation(
             &executor.identity.path,
             &helper_executables,
             phase,
             network_transport,
+            endpoint_route,
             mutable_root,
         )
         .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
@@ -8697,7 +8916,7 @@ fn sealed_git_command(
             "-c",
             "filter.lfs.required=false",
         ]);
-    if executor.execution_transport == GitExecutionTransport::Https {
+    if network_phase && executor.execution_transport == GitExecutionTransport::Https {
         let helper = executor
             .transport_executable
             .as_ref()
@@ -8708,18 +8927,64 @@ fn sealed_git_command(
             .parent()
             .expect("validated HTTPS helper has an absolute parent");
         command.env("GIT_EXEC_PATH", helper_directory);
+        let route = endpoint_route.expect("networked HTTPS command retains an endpoint route");
+        command
+            .arg("-c")
+            .arg(format!("http.proxy={}", route.policy().http_proxy_url()));
     }
     if let Some(transport_executable) = &executor.transport_executable {
-        if executor.execution_transport == GitExecutionTransport::Ssh {
+        if network_phase && executor.execution_transport == GitExecutionTransport::Ssh {
+            let route = endpoint_route.expect("networked SSH command retains an endpoint route");
+            let connector = executor
+                .resolver_connect_helper()
+                .expect("validated SSH executor retains its CONNECT helper");
+            let connector_directory = connector
+                .identity
+                .invocation_path
+                .parent()
+                .expect("validated CONNECT helper has an absolute parent");
             command
                 .env(
                     "GIT_SSH_COMMAND",
                     sealed_ssh_command(&transport_executable.identity.path),
                 )
-                .env("GIT_SSH_VARIANT", "ssh");
+                .env("GIT_SSH_VARIANT", "ssh")
+                .env("PATH", connector_directory)
+                .env(
+                    RESOLVER_CONNECT_BROKER_ENVIRONMENT,
+                    route.policy().broker_endpoint().to_string(),
+                )
+                .env(
+                    RESOLVER_CONNECT_TARGET_ENVIRONMENT,
+                    route.policy().requested_endpoint().authority(),
+                );
         }
     }
     Ok(command)
+}
+
+#[cfg(test)]
+fn sealed_git_command(
+    executor: &GitExecutor,
+    working_directory: &Path,
+    phase: ResolverExecutionPhase,
+) -> Result<Command, SourceResolveError> {
+    let route = if matches!(
+        phase,
+        ResolverExecutionPhase::TransportDiscovery | ResolverExecutionPhase::Fetch
+    ) {
+        Some(
+            executor
+                .execution_backend
+                .open_endpoint_route(executor.requested_network_endpoint.clone())
+                .map_err(|error| SourceResolveError::GitExecutionBoundaryInvalid {
+                    message: format!("cannot open the compiler-owned endpoint route: {error}"),
+                })?,
+        )
+    } else {
+        None
+    };
+    sealed_git_command_with_route(executor, working_directory, phase, route.as_ref())
 }
 
 #[cfg(unix)]
@@ -8739,9 +9004,18 @@ fn git_helper_path(executor: &GitExecutor) -> OsString {
 #[cfg(unix)]
 fn sealed_ssh_command(ssh_executable: &Path) -> OsString {
     OsString::from(format!(
-        "{} -F /dev/null -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes",
-        ssh_executable.display()
+        "{} -F none -oBatchMode=yes -oPasswordAuthentication=no -oKbdInteractiveAuthentication=no -oNumberOfPasswordPrompts=0 -oStrictHostKeyChecking=yes -oProxyUseFdpass=no -oProxyCommand={}",
+        ssh_executable.display(),
+        resolver_connect_helper_command_name(),
     ))
+}
+
+fn resolver_connect_helper_command_name() -> String {
+    if cfg!(windows) {
+        format!("{RESOLVER_CONNECT_HELPER_BASENAME}.exe")
+    } else {
+        RESOLVER_CONNECT_HELPER_BASENAME.to_owned()
+    }
 }
 
 #[cfg(windows)]
@@ -9498,8 +9772,7 @@ mod tests {
         run_test_git(&repo, ["add", "."]);
         run_test_git(&repo, ["commit", "--quiet", "-m", "add batched sources"]);
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
-                .expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let tree = run_git_stdout(
             &executor,
             &repo,
@@ -10760,7 +11033,7 @@ mod tests {
             resolved.command_execution_observations().len(),
             resolved.execution_policy_observations().len()
         );
-        assert_eq!(resolved.resolution_observation().schema_version(), 2);
+        assert_eq!(resolved.resolution_observation().schema_version(), 3);
         assert_eq!(resolved.resolution_observation().identity().len(), 64);
         assert_eq!(
             resolved.resolution_observation().command_count(),
@@ -10823,6 +11096,21 @@ mod tests {
             issue_git_source_resolution_observation(&unjoined_result, LocalSourceLimits::default())
                 .is_err(),
             "final issuance must reject missing command outcome rows"
+        );
+        let mut unjoined_endpoint = PendingResolvedGitSource::from_issued(&resolved);
+        unjoined_endpoint
+            .command_execution_observations
+            .iter_mut()
+            .find(|command| command.endpoint_observation.is_some())
+            .expect("resolved fixture retains a network command")
+            .endpoint_observation = None;
+        assert!(
+            issue_git_source_resolution_observation(
+                &unjoined_endpoint,
+                LocalSourceLimits::default()
+            )
+            .is_err(),
+            "final issuance must reject endpoint activity detached from its route policy"
         );
         let mut mismatched_output_accounting = PendingResolvedGitSource::from_issued(&resolved);
         mismatched_output_accounting
@@ -11125,8 +11413,8 @@ mod tests {
         let canonical_cache = cache.canonicalize().expect("canonical resolver cache");
         verify_git_cache_root_custody(&canonical_cache).expect("verify resolver cache custody");
         let execution_transport = request.execution_transport();
-        let executor = GitExecutor::system(execution_transport, LocalSourceLimits::default())
-            .expect("select test Git executor");
+        let executor =
+            test_system_git_executor(execution_transport).expect("select test Git executor");
         let cache_identity = git_cache_identity(
             request.locator_identity(),
             request.requested_revision(),
@@ -11519,8 +11807,7 @@ mod tests {
         let repository = entry_root.join(GIT_CACHE_REPOSITORY);
         let missing_oid = "0000000000000000000000000000000000000000";
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
-                .expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let mut entries = vec![GitTreeEntry {
             relative_bytes: b"missing.omg".to_vec(),
             relative_path: PathBuf::from("missing.omg"),
@@ -13071,8 +13358,7 @@ mod tests {
     #[test]
     fn git_commands_seal_ambient_config_protocol_and_execution_injection() {
         let executor =
-            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
-                .expect("system Git executor");
+            test_system_git_executor(GitExecutionTransport::Https).expect("system Git executor");
         let helper_directory = executor
             .transport_executable
             .as_ref()
@@ -13219,8 +13505,7 @@ mod tests {
             (GitExecutionTransport::Ssh, "ssh"),
             (GitExecutionTransport::File, "file"),
         ] {
-            let executor = GitExecutor::system(transport, LocalSourceLimits::default())
-                .expect("system Git executor");
+            let executor = test_system_git_executor(transport).expect("system Git executor");
             let command =
                 sealed_git_command(&executor, &working_directory, ResolverExecutionPhase::Fetch)
                     .expect("sealed absolute Git command");
@@ -13257,6 +13542,17 @@ mod tests {
                     );
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_COMMAND")));
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
+                    assert!(
+                        !environment.contains_key(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT))
+                    );
+                    assert!(
+                        !environment.contains_key(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT))
+                    );
+                    assert!(
+                        arguments.iter().any(|argument| {
+                            argument.starts_with("http.proxy=http://127.0.0.1:")
+                        })
+                    );
                 }
                 GitExecutionTransport::Ssh => {
                     let transport_executable = executor
@@ -13275,6 +13571,38 @@ mod tests {
                         environment.get(OsStr::new("GIT_SSH_VARIANT")),
                         Some(&Some(OsString::from("ssh")))
                     );
+                    let connector = executor
+                        .resolver_connect_helper()
+                        .expect("SSH CONNECT helper identity");
+                    assert_eq!(
+                        environment.get(OsStr::new("PATH")),
+                        Some(&Some(
+                            connector
+                                .identity
+                                .invocation_path
+                                .parent()
+                                .expect("CONNECT helper parent")
+                                .as_os_str()
+                                .to_owned()
+                        ))
+                    );
+                    assert_eq!(
+                        environment.get(OsStr::new(RESOLVER_CONNECT_TARGET_ENVIRONMENT)),
+                        Some(&Some(OsString::from("127.0.0.1:9")))
+                    );
+                    assert!(
+                        environment
+                            .get(OsStr::new(RESOLVER_CONNECT_BROKER_ENVIRONMENT))
+                            .and_then(Option::as_ref)
+                            .is_some_and(|endpoint| endpoint
+                                .to_string_lossy()
+                                .starts_with("127.0.0.1:"))
+                    );
+                    assert!(
+                        !arguments
+                            .iter()
+                            .any(|argument| argument.starts_with("http.proxy="))
+                    );
                     assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
                 }
                 GitExecutionTransport::File => {
@@ -13282,6 +13610,11 @@ mod tests {
                     assert!(!environment.contains_key(OsStr::new("GIT_SSH_VARIANT")));
                     assert!(!environment.contains_key(OsStr::new("GIT_EXEC_PATH")));
                     assert!(executor.transport_executable.is_none());
+                    assert!(
+                        !arguments
+                            .iter()
+                            .any(|argument| argument.starts_with("http.proxy="))
+                    );
                 }
             }
             for (configured, candidate) in [
@@ -13331,7 +13664,7 @@ mod tests {
     }
 
     #[cfg(target_os = "macos")]
-    fn bounded_system_executor(transport: GitExecutionTransport) -> GitExecutor {
+    fn bounded_system_executor(transport: GitExecutionTransport, port: u16) -> GitExecutor {
         let executable = system_git_candidates()
             .iter()
             .map(Path::new)
@@ -13343,6 +13676,8 @@ mod tests {
             Duration::from_secs(3),
             git_resolution_captured_output_ceiling(LocalSourceLimits::default()),
             transport,
+            ResolverExecutionRequestedEndpoint::new("127.0.0.1", port)
+                .expect("construct loopback execution endpoint"),
         )
         .expect("open bounded system Git executor")
     }
@@ -13351,7 +13686,7 @@ mod tests {
     #[test]
     fn macos_https_execution_chain_reaches_the_selected_endpoint() {
         let (port, acceptance) = loopback_acceptance_canary();
-        let executor = bounded_system_executor(GitExecutionTransport::Https);
+        let executor = bounded_system_executor(GitExecutionTransport::Https, port);
         let working_directory = std::env::temp_dir()
             .canonicalize()
             .expect("canonical temporary directory");
@@ -13370,8 +13705,15 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn macos_ssh_execution_chain_reaches_the_selected_endpoint() {
+        if resolver_connect_helper_path()
+            .ok()
+            .and_then(|path| path.file_name().map(OsStr::to_owned))
+            != Some(OsString::from(RESOLVER_CONNECT_HELPER_BASENAME))
+        {
+            return;
+        }
         let (port, acceptance) = loopback_acceptance_canary();
-        let executor = bounded_system_executor(GitExecutionTransport::Ssh);
+        let executor = bounded_system_executor(GitExecutionTransport::Ssh, port);
         let working_directory = std::env::temp_dir()
             .canonicalize()
             .expect("canonical temporary directory");
@@ -13619,9 +13961,8 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn system_git_executor_excludes_the_apple_dispatcher() {
-        let executor =
-            GitExecutor::system(GitExecutionTransport::Https, LocalSourceLimits::default())
-                .expect("concrete macOS Git executor");
+        let executor = test_system_git_executor(GitExecutionTransport::Https)
+            .expect("concrete macOS Git executor");
         assert_ne!(executor.identity.path, Path::new("/usr/bin/git"));
         assert!(executor.identity.path.is_absolute());
     }

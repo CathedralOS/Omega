@@ -234,8 +234,8 @@ fn audit_source(arguments: impl Iterator<Item = std::ffi::OsString>) {
 fn warn_unhardened_source_resolver() {
     eprintln!(
         "warning: source audit is diagnostic and non-admitting; strict native \
-         confinement, endpoint/credential custody, aggregate resource \
-         accounting, and an accepted source receipt remain unavailable"
+         confinement on every platform, TLS/SSH credential custody, aggregate \
+         resource accounting, and an accepted source receipt remain unavailable"
     );
 }
 

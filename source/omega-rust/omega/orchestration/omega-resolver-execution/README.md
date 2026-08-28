@@ -20,8 +20,10 @@ text or containment claims.
   executable set, and write-data to the fixed `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
   root. Discovery and fetch require one explicit closed HTTPS or SSH authority
-  and admit outbound network. Only SSH receives the OpenDirectory libinfo lookup
-  and `kern.hostname` read required by the pinned client; HTTPS receives neither.
+  and admit outbound network. Only SSH receives the OpenDirectory libinfo
+  lookup and `kern.hostname` read required by the pinned client, plus the exact
+  `hw.pagesize_compat` read required to initialize the compiler-owned Rust
+  CONNECT helper; HTTPS receives none.
   The child may connect only to the exact compiler-owned loopback broker port;
   the broker accepts only the typed requested host and port and records the
   effective connected peer. Initialization and inspection deny network and
@@ -48,6 +50,12 @@ and connection/relay duration. Its endpoint observation records closed
 connection outcomes and effective socket peers. It does not establish TLS or
 SSH host trust, credential custody, network-transfer quotas, package
 acceptance, or a receipt.
+
+The installed `omega` package includes `omega-resolver-connect` beside the main
+binary. HTTPS uses Git's command-scoped proxy configuration. SSH invokes the
+companion through a fixed ProxyCommand name and a sealed helper-only `PATH`;
+compiler-authored environment fields carry the broker and target authorities,
+so package locator text never becomes shell syntax.
 
 This is engineering enforcement and one input to a future package-source
 receipt, not that accepted receipt. macOS still permits broad file reads in

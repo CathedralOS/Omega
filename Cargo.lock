@@ -242,6 +242,7 @@ dependencies = [
  "omega-core",
  "omega-package-compilation",
  "omega-packages",
+ "omega-resolver-execution",
  "omega-target",
  "psi-checked-interpreter",
  "psi-checked-trees-to-terminal",

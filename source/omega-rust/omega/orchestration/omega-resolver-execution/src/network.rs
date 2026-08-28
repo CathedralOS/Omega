@@ -18,6 +18,11 @@ const IO_POLL_INTERVAL: Duration = Duration::from_millis(2);
 
 const ENDPOINT_OBSERVATION_SCHEMA_VERSION: u32 = 1;
 const ENDPOINT_OBSERVATION_CANONICAL_BYTE_LIMIT: usize = 128 * 1024;
+const CONNECT_RESPONSE_BYTE_LIMIT: usize = 4 * 1024;
+
+pub const RESOLVER_CONNECT_HELPER_BASENAME: &str = "omega-resolver-connect";
+pub const RESOLVER_CONNECT_BROKER_ENVIRONMENT: &str = "OMEGA_RESOLVER_BROKER";
+pub const RESOLVER_CONNECT_TARGET_ENVIRONMENT: &str = "OMEGA_RESOLVER_TARGET";
 
 /// One normalized host named by an already-validated source locator.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -718,6 +723,112 @@ fn invalid_input(message: &str) -> io::Error {
     io::Error::new(io::ErrorKind::InvalidInput, message)
 }
 
+/// Run the compiler-owned SSH `ProxyCommand` connector.
+///
+/// The helper accepts no arguments. Its compiler-authored environment names
+/// the loopback broker and the already-validated destination. It never opens a
+/// socket to the destination itself.
+pub fn run_resolver_connect_helper() -> io::Result<()> {
+    if std::env::args_os().len() != 1 {
+        return Err(invalid_input(
+            "the resolver CONNECT helper accepts no arguments",
+        ));
+    }
+    let broker = required_environment(RESOLVER_CONNECT_BROKER_ENVIRONMENT)?
+        .parse::<SocketAddr>()
+        .map_err(|_| invalid_input("the resolver broker endpoint is malformed"))?;
+    if !broker.ip().is_loopback() || broker.port() == 0 {
+        return Err(invalid_input(
+            "the resolver broker endpoint is not a concrete loopback socket",
+        ));
+    }
+    let target = parse_authority(&required_environment(RESOLVER_CONNECT_TARGET_ENVIRONMENT)?)?;
+    let (mut stream, trailing) = open_connect_tunnel(broker, &target)?;
+    let mut output = io::stdout().lock();
+    if !trailing.is_empty() {
+        output.write_all(&trailing)?;
+        output.flush()?;
+    }
+    let mut upload = stream.try_clone()?;
+    thread::spawn(move || {
+        let _ = io::copy(&mut io::stdin().lock(), &mut upload);
+        let _ = upload.shutdown(Shutdown::Write);
+    });
+    io::copy(&mut stream, &mut output)?;
+    output.flush()
+}
+
+fn required_environment(name: &str) -> io::Result<String> {
+    let value = std::env::var_os(name)
+        .ok_or_else(|| invalid_input("the resolver CONNECT helper environment is incomplete"))?;
+    value
+        .into_string()
+        .map_err(|_| invalid_input("the resolver CONNECT helper environment is not UTF-8"))
+}
+
+fn open_connect_tunnel(
+    broker: SocketAddr,
+    target: &ResolverExecutionRequestedEndpoint,
+) -> io::Result<(TcpStream, Vec<u8>)> {
+    let mut stream = TcpStream::connect_timeout(&broker, REQUEST_TIMEOUT)?;
+    stream.set_read_timeout(Some(REQUEST_TIMEOUT))?;
+    stream.set_write_timeout(Some(REQUEST_TIMEOUT))?;
+    let authority = target.authority();
+    write!(
+        stream,
+        "CONNECT {authority} HTTP/1.1\r\nHost: {authority}\r\nContent-Length: 0\r\n\r\n"
+    )?;
+    stream.flush()?;
+
+    let trailing = read_connect_response(&mut stream)?;
+    stream.set_read_timeout(None)?;
+    stream.set_write_timeout(None)?;
+    Ok((stream, trailing))
+}
+
+fn read_connect_response(stream: &mut TcpStream) -> io::Result<Vec<u8>> {
+    let mut response = Vec::with_capacity(512);
+    let mut buffer = [0_u8; 512];
+    loop {
+        let count = stream.read(&mut buffer)?;
+        if count == 0 {
+            return Err(io::Error::new(
+                io::ErrorKind::UnexpectedEof,
+                "the resolver broker closed before its CONNECT response",
+            ));
+        }
+        if response.len().saturating_add(count) > CONNECT_RESPONSE_BYTE_LIMIT {
+            return Err(io::Error::other(
+                "the resolver broker CONNECT response exceeded its fixed limit",
+            ));
+        }
+        response.extend_from_slice(&buffer[..count]);
+        let Some(end) = response.windows(4).position(|window| window == b"\r\n\r\n") else {
+            continue;
+        };
+        let header_end = end + 4;
+        let header = std::str::from_utf8(&response[..header_end])
+            .map_err(|_| invalid_input("the resolver broker response is not ASCII"))?;
+        let mut lines = header[..header.len() - 4].split("\r\n");
+        if lines.next() != Some("HTTP/1.1 200 Connection Established")
+            || lines.any(|line| {
+                line.split_once(':').is_none_or(|(name, value)| {
+                    name.is_empty()
+                        || !name
+                            .bytes()
+                            .all(|byte| byte.is_ascii_alphanumeric() || byte == b'-')
+                        || value.bytes().any(|byte| byte < b' ' && byte != b'\t')
+                })
+            })
+        {
+            return Err(io::Error::other(
+                "the resolver broker rejected the CONNECT request",
+            ));
+        }
+        return Ok(response[header_end..].to_vec());
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -767,6 +878,68 @@ mod tests {
                 .len(),
             DNS_RESULT_LIMIT
         );
+    }
+
+    #[test]
+    fn connect_helper_uses_only_the_broker_and_relays_the_tunnel() {
+        let upstream = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind upstream canary");
+        let upstream_endpoint = upstream.local_addr().expect("read upstream endpoint");
+        let requested = ResolverExecutionRequestedEndpoint::new(
+            &upstream_endpoint.ip().to_string(),
+            upstream_endpoint.port(),
+        )
+        .expect("construct upstream endpoint");
+        let route = ResolverExecutionEndpointRoute::open(requested.clone())
+            .expect("open compiler endpoint route");
+        let upstream_worker = thread::spawn(move || {
+            let (mut connection, _) = upstream.accept().expect("accept routed connection");
+            let mut request = [0_u8; 4];
+            connection
+                .read_exact(&mut request)
+                .expect("read tunneled request");
+            assert_eq!(&request, b"ping");
+            connection.write_all(b"pong").expect("write tunneled reply");
+        });
+
+        let (mut tunnel, trailing) = open_connect_tunnel(
+            route.policy().broker_endpoint(),
+            route.policy().requested_endpoint(),
+        )
+        .expect("open CONNECT tunnel");
+        assert!(trailing.is_empty());
+        tunnel.write_all(b"ping").expect("write tunnel request");
+        tunnel
+            .shutdown(Shutdown::Write)
+            .expect("finish tunnel request");
+        let mut reply = Vec::new();
+        tunnel.read_to_end(&mut reply).expect("read tunnel reply");
+        assert_eq!(reply, b"pong");
+
+        upstream_worker.join().expect("join upstream canary");
+        let observation = route.finish().expect("finish endpoint route");
+        assert!(observation.events().iter().any(|event| {
+            event.outcome() == ResolverExecutionEndpointOutcome::Connected
+                && event.effective_peer() == Some(upstream_endpoint)
+        }));
+    }
+
+    #[test]
+    fn connect_helper_rejects_a_failed_proxy_response() {
+        let broker = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).expect("bind rejecting proxy");
+        let broker_endpoint = broker.local_addr().expect("read proxy endpoint");
+        let worker = thread::spawn(move || {
+            let (mut connection, _) = broker.accept().expect("accept helper connection");
+            let mut request = [0_u8; 512];
+            let _ = connection.read(&mut request).expect("read CONNECT request");
+            connection
+                .write_all(b"HTTP/1.1 403 Forbidden\r\n\r\n")
+                .expect("write rejecting response");
+        });
+        let requested = ResolverExecutionRequestedEndpoint::new("example.invalid", 22)
+            .expect("construct requested endpoint");
+
+        assert!(open_connect_tunnel(broker_endpoint, &requested).is_err());
+        worker.join().expect("join rejecting proxy");
     }
 
     #[test]
