@@ -228,68 +228,7 @@ parse_output_prefix_censuses:
         imm r20, 50400
         imm r21, 50945
         imm r22, 4                   ; EIDS/WSTR/EPRO/EPAR calls
-        imm r23, 8                   ; argument/binary/local stores
-        call parse_output_prefix_scan_region
-        ret
-
-; Region [r20,r21) has exact call/store counts and no ret, direct I/O, halt,
-; byte memory, division, or remainder.
-parse_output_prefix_scan_region:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        imm r10, 0
-        imm r11, 0
-parse_output_prefix_scan_loop:
-        jlt r25, r26, parse_output_prefix_scan_pc
-        jeq r10, r27, parse_output_prefix_scan_stores
-        jmp reject
-parse_output_prefix_scan_stores:
-        jeq r11, r28, parse_output_prefix_scan_done
-        jmp reject
-parse_output_prefix_scan_pc:
-        imm r1, 4194304
-        add r1, r25
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, parse_output_prefix_scan_start
-        jmp parse_output_prefix_scan_next
-parse_output_prefix_scan_start:
-        imm r1, 2097152
-        add r1, r25
-        loadb r2, r1
-        imm r3, 19
-        jeq r2, r3, parse_output_prefix_scan_call
-        imm r3, 11
-        jeq r2, r3, parse_output_prefix_scan_store
-        imm r3, 0
-        jeq r2, r3, reject
-        imm r3, 6
-        jeq r2, r3, reject
-        imm r3, 7
-        jeq r2, r3, reject
-        imm r3, 8
-        jeq r2, r3, reject
-        imm r3, 9
-        jeq r2, r3, reject
-        imm r3, 17
-        jeq r2, r3, reject
-        imm r3, 18
-        jeq r2, r3, reject
-        imm r3, 20
-        jeq r2, r3, reject
-        jmp parse_output_prefix_scan_next
-parse_output_prefix_scan_call:
-        imm r1, 1
-        add r10, r1
-        jmp parse_output_prefix_scan_next
-parse_output_prefix_scan_store:
-        imm r1, 1
-        add r11, r1
-parse_output_prefix_scan_next:
-        imm r1, 1
-        add r25, r1
-        jmp parse_output_prefix_scan_loop
-parse_output_prefix_scan_done:
+        imm r23, 0                   ; this source interval contains no returns
+        imm r24, 8                   ; argument/binary/local stores
+        call exact_quiet_scan_region
         ret

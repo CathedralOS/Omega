@@ -92,19 +92,19 @@ do not become additional lattice steps.
   whose accepted artifact is constructed and audited below the Beta compiler it
   validates. Alternate Beta, Gamma, Rust, or Python checkers remain differential
   evidence, not acceptance authority.
-- [ ] Collapse the Beta validator's generated checker/permutation explosion into
-  one canonical obligation format and small responsibility-specific modules.
-  The current responsibility audit finds 189 `bc-*.alpha` fragments totaling
-  65,096 lines, all consumed by the bounded whole-compiler command. They live
-  under `validation/admission/obligations/`; the two exact-subject gates are in
-  `admission/`, untrusted witness producers are in `admission/witnesses/`, and
-  the curated/generated refinement suite is optional under `stress/` rather
-  than a default lattice stage. This is ownership cleanup, not completed
-  modularization. Next replace families of
-  shape/control/data/publication permutations with one data-driven obligation
-  decoder and responsibility-local checks. Delete cached viewers, duplicated
-  generated programs, receipt matrices, and debug-only publication paths when
-  no human or authoritative command consumes them.
+- [x] Put every retained Beta admission module under its actual consumer and
+  remove the cached viewers, duplicated generated programs, receipt matrices,
+  and default stress/permutation paths that had no authoritative consumer. The
+  bounded whole-compiler command now consumes all 189 retained `bc-*.alpha`
+  modules from `validation/admission/obligations/`; the two exact-subject gates
+  live in `admission/`, untrusted witness producers in
+  `admission/witnesses/`, and optional generated refinement in `stress/`.
+- [ ] Collapse the remaining Beta validator obligation explosion into one
+  canonical data format and small responsibility-specific modules. The current
+  189 fragments total 64,679 lines after replacing six more private instruction
+  scans with the shared exact quiet-region scanner. Continue replacing
+  shape/control/data/publication permutations with data decoded by common
+  checks; do not recreate cached viewers or debug-only publication paths.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
