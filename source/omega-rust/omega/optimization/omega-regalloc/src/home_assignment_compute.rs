@@ -827,9 +827,9 @@ mod tests {
     }
 
     #[test]
-    fn tied_component_coexists_with_disjoint_early_clobber_row() {
+    fn tied_component_coexists_with_multiple_early_clobber_rows() {
         let physical = physical();
-        let mut legality = legality(&[(0, 1), (2, 3), (4, 5), (6, 8), (9, 10)]);
+        let mut legality = legality(&[(0, 1), (2, 3), (4, 5), (6, 8), (9, 10), (11, 12)]);
         legality.virtual_registers[4].early_clobber_points =
             vec![TerminalVirtualEarlyClobberPointLegality {
                 block: TerminalSelectedBlockId(0),
@@ -839,11 +839,20 @@ mod tests {
                 point: TerminalLiveRangePoint(8),
                 candidates: vec![RegisterViewId(0), RegisterViewId(1)],
             }];
+        legality.virtual_registers[5].early_clobber_points =
+            vec![TerminalVirtualEarlyClobberPointLegality {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(5),
+                instruction: TerminalSelectedInstructionId(5),
+                operand: 1,
+                point: TerminalLiveRangePoint(10),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }];
 
         let mut ranges = tied_component_ranges(&[]);
         ranges
             .virtual_registers
-            .extend((3..=4).map(|register| TerminalVirtualLiveRange {
+            .extend((3..=5).map(|register| TerminalVirtualLiveRange {
                 virtual_register: TerminalVirtualRegisterId(register),
                 class: RegisterClassId(0),
                 occurrences: Vec::new(),
@@ -866,6 +875,21 @@ mod tests {
                 class: RegisterClassId(0),
             }],
         });
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(5),
+            instruction: TerminalSelectedInstructionId(5),
+            early_point: TerminalLiveRangePoint(10),
+            def_operand: 1,
+            def_virtual_register: TerminalVirtualRegisterId(5),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(11),
+            uses: vec![TerminalEarlyClobberUse {
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(4),
+                class: RegisterClassId(0),
+            }],
+        });
 
         let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
         assert_eq!(
@@ -880,6 +904,7 @@ mod tests {
                 RegisterViewId(0),
                 RegisterViewId(0),
                 RegisterViewId(1),
+                RegisterViewId(0),
             ]
         );
         assert_eq!(
