@@ -1,6 +1,94 @@
 use super::*;
 
 #[test]
+fn retains_exact_payloadless_guarded_identity_call() {
+    let checked = checked(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        data Root {}
+
+        machine Root::produce() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine Root::caller() -> Outcome {
+            let saved: Outcome = Root::produce();
+            transition saved {
+                Outcome::Success { ; selected: local } -> saved
+                Outcome::Failure { } -> saved
+            }
+        }
+        "#,
+    );
+    let caller = machine_named(&checked, "caller");
+    let producer = machine_named(&checked, "produce");
+    let plan = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(caller)
+        .expect("the exhaustive identity arms should retain one guarded call plan");
+    assert_eq!(plan.target_machine, producer);
+    assert_eq!(plan.call.statement_index, 0);
+    assert_eq!(plan.call.call_ordinal, 0);
+    assert_eq!(plan.result.multiplicity, Multiplicity::Unrestricted);
+    assert!(plan.result.qualifications.is_empty());
+    let selected = plan
+        .selected_evidence
+        .as_ref()
+        .expect("the named guarded row should retain its selected caller term");
+    assert_eq!(selected.arm_statement_index, 3);
+    assert_eq!(
+        checked
+            .facts
+            .proof
+            .evidence_terms
+            .get(selected.selected_term)
+            .name,
+        "local"
+    );
+}
+
+#[test]
+fn guarded_payloadless_identity_call_rejects_foreign_attachment() {
+    let checked = checked(
+        r#"
+        trait Evidence {}
+        proposition ready() evidence Evidence;
+        ConcreteEvidence: satisfies Evidence {}
+        data Outcome [copy] { case Success; case Failure; }
+        data Root {}
+        data Other {}
+
+        machine Root::produce() -> Outcome
+        ensures Outcome::Success -> { selected: ready(); }
+        { selected = ConcreteEvidence; Outcome::Success }
+
+        machine Other::caller() -> Outcome {
+            let saved: Outcome = Root::produce();
+            transition saved {
+                Outcome::Success { ; selected: local } -> saved
+                Outcome::Failure { } -> saved
+            }
+        }
+        "#,
+    );
+    let caller = machine_named(&checked, "caller");
+    assert!(
+        checked
+            .facts
+            .flow
+            .terminal_structural_call_returns
+            .payloadless_guarded_for_machine(caller)
+            .is_none(),
+        "the bounded call carrier must not forge the callee attachment onto a foreign caller"
+    );
+}
+
+#[test]
 fn retains_exact_payloadless_case_return_as_a_separate_checked_plan() {
     let checked = checked(
         r#"

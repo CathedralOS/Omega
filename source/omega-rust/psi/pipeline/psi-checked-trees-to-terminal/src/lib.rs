@@ -68,7 +68,8 @@ use psi_terminal::{
     CrashCause as TerminalCrashCause, EntryClaim, EvidenceContractLane, EvidenceContractLaneKind,
     EvidenceInterfaceIdentity, EvidenceProjectionIdentity, EvidenceRequirementIdentity,
     EvidenceTermDeclaration, InstallationReachDependency, MachineContract, NominalAffineCleanup,
-    Operation, OperationKind, OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
+    Operation, OperationKind, OutcomeSpecificCallEvidence, OutcomeSpecificCallEvidenceValidity,
+    OutcomeSpecificEnsure, OutcomeSpecificEvidence, OutcomeSpecificGuard,
     ProgramLocalRootIntroductionSchema, ProofOutput, ProofOutputCall, ProofOutputRuntimeCall,
     PropositionApplicationIdentity, PropositionBinderArgumentIdentity,
     PropositionBinderArgumentKind, PropositionBinderDeclaration, PropositionBinderKind,
@@ -104,6 +105,7 @@ mod float_meaning_projection;
 mod nonzero_divisor_certificate;
 mod operation_emission;
 mod payloadless_case_return;
+mod payloadless_guarded_call_return;
 mod scalar_call_closure;
 mod scalar_graph_lowering;
 mod scalar_graph_module;
@@ -156,6 +158,7 @@ use operation_emission::{
     emit_staged_scalar_call_binding, finalize_operation_proofs,
 };
 use payloadless_case_return::lower_payloadless_case_return_machine;
+use payloadless_guarded_call_return::lower_payloadless_guarded_call_return_machine;
 use scalar_call_closure::{checked_scalar_call_closure, lower_scalar_call_closure};
 use scalar_graph_lowering::{
     KnownDirectScalar, contains_short_circuit, direct_expression_contains_short_circuit,
@@ -819,6 +822,12 @@ pub fn lower_machine(
         .terminal_structural_returns
         .payloadless_case_for_machine(selection.machine)
         .is_some();
+    let guarded_payloadless_callee = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(selection.machine)
+        .map(|plan| plan.target_machine);
     if !exact_guarded_payloadless
         && checked
             .facts
@@ -832,7 +841,9 @@ pub fn lower_machine(
         );
     }
     let mut lowered = lower_selected_machine(checked, selection)?;
-    let source_machines = if let Some(plan) = checked
+    let source_machines = if let Some(target_machine) = guarded_payloadless_callee {
+        vec![selection.machine, target_machine]
+    } else if let Some(plan) = checked
         .facts
         .flow
         .terminal_structural_scalar_returns
@@ -851,9 +862,10 @@ pub fn lower_machine(
         .iter()
         .any(|(_, guarantee)| {
             source_machines.contains(&guarantee.machine_symbol)
-                && !(exact_guarded_payloadless
+                && !((exact_guarded_payloadless
                     && source_machines.as_slice() == [selection.machine]
                     && guarantee.machine_symbol == selection.machine)
+                    || guarded_payloadless_callee == Some(guarantee.machine_symbol))
         })
     {
         return unsupported(
@@ -917,6 +929,17 @@ fn lower_selected_machine(
     checked: &CheckedTrees,
     selection: &CheckedTerminalMachineSelection,
 ) -> Result<LoweredTerminalPsi, LoweringError> {
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(selection.machine)
+    {
+        if selection.signature != CheckedTerminalSignatureEligibility::Attached {
+            return unsupported("guarded payloadless call return requires an attached signature");
+        }
+        return lower_payloadless_guarded_call_return_machine(checked, plan);
+    }
     if let Some(plan) = checked
         .facts
         .flow

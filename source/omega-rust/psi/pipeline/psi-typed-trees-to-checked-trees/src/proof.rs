@@ -1049,7 +1049,7 @@ fn append_evidence_interface_reference_regions(
     }
 }
 
-fn exact_outcome_case_test(
+pub(crate) fn exact_outcome_case_test(
     program: &psi_typed_trees::TypedTrees,
     expression: psi_typed_trees::expression::ExpressionHandle,
 ) -> Option<(psi_typed_trees::expression::ExpressionHandle, SymbolHandle)> {

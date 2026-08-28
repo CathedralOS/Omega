@@ -538,6 +538,10 @@ pub struct CheckedStructuralCallReturnPlans {
     pub structural_types: Vec<CheckedUnitStructuralTypePlan>,
     pub structural_domains: Vec<CheckedUnitStructuralDomainPlan>,
     pub machines: Vec<CheckedStructuralCallReturnMachinePlan>,
+    /// Exact unrestricted payloadless calls whose exhaustive case arms all
+    /// return the saved call result unchanged. Proof selectors remain erased
+    /// and may bind at most one guarded caller-local evidence term.
+    pub payloadless_guarded_machines: Vec<CheckedPayloadlessGuardedCallReturnMachinePlan>,
 }
 
 impl CheckedStructuralCallReturnPlans {
@@ -547,6 +551,36 @@ impl CheckedStructuralCallReturnPlans {
     ) -> Option<&CheckedStructuralCallReturnMachinePlan> {
         self.machines.iter().find(|plan| plan.machine == machine)
     }
+
+    pub fn payloadless_guarded_for_machine(
+        &self,
+        machine: SymbolHandle,
+    ) -> Option<&CheckedPayloadlessGuardedCallReturnMachinePlan> {
+        self.payloadless_guarded_machines
+            .iter()
+            .find(|plan| plan.machine == machine)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPayloadlessGuardedCallReturnMachinePlan {
+    pub machine: SymbolHandle,
+    pub state: SymbolHandle,
+    pub attachment_type_identity: String,
+    pub result: CheckedStructuralResultPlan,
+    pub call: CheckedUnitCallCoordinate,
+    pub target_machine: SymbolHandle,
+    pub target_state: SymbolHandle,
+    /// Present only for one explicitly selected named row. Omission retains
+    /// the callee's guarded implication without minting a caller term.
+    pub selected_evidence: Option<CheckedPayloadlessGuardedCallEvidencePlan>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedPayloadlessGuardedCallEvidencePlan {
+    pub arm_statement_index: u32,
+    pub guarantee: psi_arena::Handle<crate::OutcomeSpecificGuaranteeFact>,
+    pub selected_term: psi_arena::Handle<crate::CheckedEvidenceTerm>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

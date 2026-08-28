@@ -8533,7 +8533,7 @@ Remaining N6/N8 work:
   callee return, caller return), including resumable exhaustion without replay.
   Omega lowering rejects the unrestricted call itself until tagged sum
   materialization exists. The first caller selected-term custody carrier is now
-  live on this exact Terminal-only call shape. One optional binding names the
+  live on this exact bounded call shape. One optional binding names the
   exact guarded callee case, dense row position, obligation, public selector,
   atomic proposition, callee term/interface, distinct caller-local output term,
   and source-handle-free result-root validity intersection. Codec format 31 /
@@ -8542,11 +8542,20 @@ Remaining N6/N8 work:
   producer provenance, duplicate output, and any unconditional contract-lane or
   evidence-projection reuse of the guarded output. Omission remains fact-only,
   reconstruction still imports only the guarded implication, and the binding
-  adds no runtime operation or fuel. Checked/source structural case-arm planning
-  does not yet exist, so arm-scoped source selection and actual guarded-term use,
-  payload substitution, erased proof-output linkage, wider structural calls,
-  and validity invalidation remain fail-closed rather than being inferred from
-  this Terminal custody rung.
+  adds no runtime operation or fuel. The matching checked/source carrier is now
+  live for one attached zero-input direct caller and payloadless producer over
+  the same exact attachment. The caller captures the call once in an immutable
+  local and every exhaustive case arm returns that saved result unchanged; the
+  checked plan replays the exact flow coordinate, target/receiver, symbol-root
+  association, case coverage, and result-root-only validity. At most one named
+  row may be selected, while omission remains fact-only. Terminal lowering
+  emits the exact two-machine closure, retains every sibling guarded row and
+  producer provenance on the callee, rejoins the selected row to a distinct
+  caller-local term, and preserves the four-unit call/construction/two-return
+  runtime with no selector charge. Payload substitution, later use of the bound
+  guarded term, erased proof-output linkage, wider structural calls, and
+  validity invalidation remain fail-closed rather than being inferred from this
+  bounded source carrier.
 
   Requirement guarantees are inherited and satisfiers author additions only;
   omission never weakens the requirement, exact restatement rejects, and direct

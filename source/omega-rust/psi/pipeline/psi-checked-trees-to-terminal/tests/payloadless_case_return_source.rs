@@ -57,6 +57,346 @@ const GUARDED_SOURCE: &str = r#"
     }
 "#;
 
+const GUARDED_CALL_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> { selected: ready(); true; }
+    ensures Outcome::Failure -> { sibling: ready(); }
+    { selected = ConcreteEvidence; Outcome::Success }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success { ; selected: local } -> saved
+            Outcome::Failure { } -> saved
+        }
+    }
+"#;
+
+const OMITTED_GUARDED_CALL_SOURCE: &str = r#"
+    trait Evidence {}
+    proposition ready() evidence Evidence;
+    ConcreteEvidence: satisfies Evidence {}
+    data Outcome [copy] { case Success; case Failure; }
+    data Root {}
+
+    machine Root::produce() -> Outcome
+    ensures Outcome::Success -> { selected: ready(); true; }
+    ensures Outcome::Failure -> { sibling: ready(); }
+    { selected = ConcreteEvidence; Outcome::Success }
+
+    machine Root::caller() -> Outcome {
+        let saved: Outcome = Root::produce();
+        transition saved {
+            Outcome::Success { } -> saved
+            Outcome::Failure { } -> saved
+        }
+    }
+"#;
+
+#[test]
+fn guarded_payloadless_source_call_rejoins_selected_evidence_and_uses_four_fuel() {
+    let checked = checked(GUARDED_CALL_SOURCE);
+    let lowered = psi_checked_trees_to_terminal::lower_machine(&checked, "Root::caller")
+        .expect("the exact guarded source call lowers");
+    let module = &lowered.semantic_module;
+    let [caller, callee] = module.machines.as_slice() else {
+        panic!("the guarded source call retains caller and callee")
+    };
+    let OperationKind::CallStructural {
+        selected_evidence: Some(selected),
+        ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        panic!("the guarded source call publishes its selected row")
+    };
+    let callee_row = callee
+        .contract
+        .outcome_specific_ensures
+        .iter()
+        .find(|row| {
+            row.evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.output_field == "selected")
+        })
+        .expect("the producer named guarded row remains on the callee");
+    assert_eq!(selected.guard, callee_row.guard);
+    assert_eq!(selected.position, callee_row.position);
+    assert_eq!(selected.callee_obligation, callee_row.obligation);
+    assert_eq!(
+        selected.callee_term,
+        callee_row.evidence.as_ref().unwrap().term
+    );
+    assert_eq!(selected.output_field, "selected");
+    assert_ne!(selected.output, selected.callee_term);
+    let callee_term = module
+        .evidence_terms
+        .iter()
+        .find(|term| term.id == selected.callee_term)
+        .unwrap();
+    let output_term = module
+        .evidence_terms
+        .iter()
+        .find(|term| term.id == selected.output)
+        .unwrap();
+    assert_eq!(callee_term.proposition, selected.proposition);
+    assert_eq!(output_term.proposition, selected.proposition);
+    assert_eq!(callee_term.interface, output_term.interface);
+    assert_eq!(
+        selected.validity.result,
+        caller.blocks[0].operations[0]
+            .result
+            .structural()
+            .unwrap()
+            .place
+    );
+    assert_eq!(
+        selected.validity.proposition_dependencies,
+        [selected.validity.result]
+    );
+    assert!(selected.validity.interface_dependencies.is_empty());
+    assert_eq!(module.evidence_terms.len(), 3);
+    assert!(module.evidence_contract_lanes.is_empty());
+    assert!(module.proof_output_calls.is_empty());
+    assert_eq!(lowered.proof_bundle.evidence_producers.len(), 1);
+    assert_eq!(lowered.proof_bundle.evidence.len(), 1);
+
+    let bytes = encode_module(module).expect("guarded caller semantics encode");
+    assert_eq!(decode_module(&bytes), Ok(module.clone()));
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("guarded caller proof encodes");
+    assert_eq!(
+        decode_proof_bundle(&proof),
+        Ok(lowered.proof_bundle.clone())
+    );
+    let verified = psi_terminal_verifier::verify_module(
+        module,
+        &lowered.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the selected guarded call verifies independently");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, module.entry)
+            .expect("the direct guarded call has fixed fuel")
+            .ceiling_units(),
+        4
+    );
+
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
+            .expect("the guarded caller artifact starts");
+    let mut meter = TerminalFuelMeter::with_allowance(4);
+    assert_eq!(
+        execution
+            .resume(&mut meter)
+            .expect("guarded caller completes"),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
+            TerminalPayloadlessCaseResult {
+                value: TerminalPayloadlessCaseValue {
+                    structural_type: caller.result.structural().unwrap().structural_type,
+                    result_case: selected.guard.result_case,
+                },
+            }
+        ))
+    );
+
+    let mut tampered = module.clone();
+    let OperationKind::CallStructural {
+        selected_evidence: Some(selected),
+        ..
+    } = &mut tampered.machines[0].blocks[0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    selected.position = selected.position.checked_add(1).unwrap();
+    assert!(psi_terminal_verifier::validate_module(&tampered).is_err());
+
+    let mut lost_selection = checked.clone();
+    lost_selection
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_machines[0]
+        .selected_evidence = None;
+    assert!(psi_checked_trees_to_terminal::lower_machine(&lost_selection, "Root::caller").is_err());
+
+    let mut wrong_arm = checked.clone();
+    wrong_arm
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_machines[0]
+        .selected_evidence
+        .as_mut()
+        .unwrap()
+        .arm_statement_index += 1;
+    assert!(psi_checked_trees_to_terminal::lower_machine(&wrong_arm, "Root::caller").is_err());
+
+    let sibling_guarantee = checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .find_map(|(handle, guarantee)| {
+            (guarantee.public_selector.as_deref() == Some("sibling")).then_some(handle)
+        })
+        .unwrap();
+    let mut wrong_guarantee = checked.clone();
+    wrong_guarantee
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_machines[0]
+        .selected_evidence
+        .as_mut()
+        .unwrap()
+        .guarantee = sibling_guarantee;
+    assert!(
+        psi_checked_trees_to_terminal::lower_machine(&wrong_guarantee, "Root::caller").is_err()
+    );
+
+    let selected_arm = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .find_map(|(handle, arm)| {
+            arm.rows
+                .iter()
+                .any(|row| row.selected_term.is_some())
+                .then_some(handle)
+        })
+        .unwrap();
+    let mut wider_validity = checked.clone();
+    let arm = wider_validity
+        .facts
+        .proof
+        .outcome_specific_arms
+        .get_mut(selected_arm);
+    let row = arm
+        .rows
+        .iter_mut()
+        .find(|row| row.selected_term.is_some())
+        .unwrap();
+    row.validity
+        .referenced_occurrences
+        .push(row.validity.result_occurrence);
+    assert!(psi_checked_trees_to_terminal::lower_machine(&wider_validity, "Root::caller").is_err());
+}
+
+#[test]
+fn omitted_guarded_selector_retains_fact_only_callee_without_runtime_delta() {
+    let omitted = psi_checked_trees_to_terminal::lower_machine(
+        &checked(OMITTED_GUARDED_CALL_SOURCE),
+        "Root::caller",
+    )
+    .expect("the exact omitted-selector guarded call lowers");
+    let [caller, callee] = omitted.semantic_module.machines.as_slice() else {
+        panic!("the omitted-selector call retains caller and callee")
+    };
+    let OperationKind::CallStructural {
+        selected_evidence: None,
+        ..
+    } = &caller.blocks[0].operations[0].kind
+    else {
+        panic!("omission does not mint caller evidence")
+    };
+    assert_eq!(callee.contract.outcome_specific_ensures.len(), 3);
+    assert_eq!(omitted.semantic_module.evidence_terms.len(), 2);
+    assert_eq!(omitted.proof_bundle.evidence_producers.len(), 1);
+    assert_eq!(omitted.proof_bundle.evidence.len(), 1);
+    assert!(omitted.semantic_module.evidence_contract_lanes.is_empty());
+    assert!(omitted.semantic_module.proof_output_calls.is_empty());
+
+    let selected =
+        psi_checked_trees_to_terminal::lower_machine(&checked(GUARDED_CALL_SOURCE), "Root::caller")
+            .expect("selected comparison lowers");
+    let mut selected_blocks = selected
+        .semantic_module
+        .machines
+        .iter()
+        .map(|machine| machine.blocks.clone())
+        .collect::<Vec<_>>();
+    let OperationKind::CallStructural {
+        selected_evidence, ..
+    } = &mut selected_blocks[0][0].operations[0].kind
+    else {
+        unreachable!()
+    };
+    *selected_evidence = None;
+    let omitted_blocks = omitted
+        .semantic_module
+        .machines
+        .iter()
+        .map(|machine| machine.blocks.clone())
+        .collect::<Vec<_>>();
+    assert_eq!(selected_blocks, omitted_blocks);
+
+    let success_case = match &omitted.semantic_module.structural_types[0].shape {
+        StructuralTypeShape::Sum { cases } => {
+            cases
+                .iter()
+                .find(|case| case.identity == "Success")
+                .unwrap()
+                .id
+        }
+        _ => panic!("Outcome remains a sum"),
+    };
+    let selected_rows = callee
+        .contract
+        .outcome_specific_ensures
+        .iter()
+        .filter(|row| row.guard.result_case == success_case)
+        .collect::<Vec<_>>();
+    assert_eq!(selected_rows.len(), 2);
+    assert!(selected_rows.iter().any(|row| {
+        row.evidence
+            .as_ref()
+            .is_some_and(|evidence| evidence.output_field == "selected")
+    }));
+    assert!(callee.contract.outcome_specific_ensures.iter().any(|row| {
+        row.guard.result_case != success_case
+            && row
+                .evidence
+                .as_ref()
+                .is_some_and(|evidence| evidence.output_field == "sibling")
+    }));
+    let verified = psi_terminal_verifier::verify_module(
+        &omitted.semantic_module,
+        &omitted.proof_bundle,
+        &AdmissionProfile::default(),
+    )
+    .expect("the omitted-selector guarded call verifies");
+    assert_eq!(
+        derive_fixed_entry_fuel(&verified, omitted.semantic_module.entry)
+            .unwrap()
+            .ceiling_units(),
+        4
+    );
+    let bytes = encode_module(&omitted.semantic_module).unwrap();
+    let proof = encode_proof_bundle(&omitted.proof_bundle).unwrap();
+    let mut execution =
+        TerminalExecution::start_artifact(&bytes, &proof, &AdmissionProfile::default(), &[])
+            .unwrap();
+    assert_eq!(
+        execution
+            .resume(&mut TerminalFuelMeter::with_allowance(4))
+            .unwrap(),
+        TerminalExecutionStatus::Complete(TerminalExecutionResult::PayloadlessCase(
+            TerminalPayloadlessCaseResult {
+                value: TerminalPayloadlessCaseValue {
+                    structural_type: caller.result.structural().unwrap().structural_type,
+                    result_case: success_case,
+                },
+            }
+        ))
+    );
+}
+
 #[test]
 fn exact_payloadless_case_return_is_canonical_verified_and_executable() {
     let checked = checked_source();

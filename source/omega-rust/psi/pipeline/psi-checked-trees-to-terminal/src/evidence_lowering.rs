@@ -8,6 +8,14 @@ pub(super) fn lower_and_install_evidence_artifacts(
     machine: psi_symbols::SymbolHandle,
     lowered: &mut LoweredTerminalPsi,
 ) -> Result<(), LoweringError> {
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(machine)
+    {
+        return lower_and_install_payloadless_guarded_call_evidence(checked, plan, lowered);
+    }
     let evidence_term_ids = lower_evidence_term_ids(checked, machine)?;
     let (declarations, applications, declaration_ids) =
         lower_proposition_vocabulary(checked, &evidence_term_ids.term_ids)?;
@@ -21,6 +29,7 @@ pub(super) fn lower_and_install_evidence_artifacts(
     let outcome_specific_ensures = lower_outcome_specific_ensures(
         checked,
         machine,
+        lowered.semantic_module.entry,
         &lowered.semantic_module,
         &evidence_terms.term_ids,
         &evidence_terms.declarations,
@@ -106,6 +115,7 @@ fn exact_payloadless_return_guard(machine: &TerminalMachine) -> Option<OutcomeSp
 fn lower_outcome_specific_ensures(
     checked: &CheckedTrees,
     selected_machine: psi_symbols::SymbolHandle,
+    terminal_machine_id: MachineId,
     module: &TerminalModule,
     term_ids: &[Option<EvidenceTermId>],
     evidence_terms: &[EvidenceTermDeclaration],
@@ -160,7 +170,7 @@ fn lower_outcome_specific_ensures(
     let terminal_machine = module
         .machines
         .iter()
-        .find(|machine| machine.id == module.entry)
+        .find(|machine| machine.id == terminal_machine_id)
         .ok_or(LoweringError::Unsupported(
             "guarded payloadless terminal machine is absent",
         ))?;
@@ -318,6 +328,283 @@ fn lower_outcome_specific_ensures(
         row.obligation = obligation_id(dense_identity(index)?);
     }
     Ok(rows)
+}
+
+fn lower_and_install_payloadless_guarded_call_evidence(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
+    lowered: &mut LoweredTerminalPsi,
+) -> Result<(), LoweringError> {
+    let term_ids = lower_payloadless_guarded_call_term_ids(checked, plan)?;
+    let (declarations, applications, declaration_ids) =
+        lower_proposition_vocabulary(checked, &term_ids)?;
+    let evidence_terms = lower_evidence_terms(
+        checked,
+        plan.machine,
+        &declaration_ids,
+        &applications,
+        term_ids,
+    )?;
+    let callee_ensures = lower_outcome_specific_ensures(
+        checked,
+        plan.target_machine,
+        machine_id(2),
+        &lowered.semantic_module,
+        &evidence_terms.term_ids,
+        &evidence_terms.declarations,
+    )?;
+    let evidence_producers =
+        lower_evidence_producer_provenance(checked, plan.machine, &evidence_terms.term_ids)?;
+
+    lowered.semantic_module.proposition_declarations = declarations;
+    lowered.semantic_module.proposition_applications = applications;
+    lowered.semantic_module.evidence_terms = evidence_terms.declarations;
+    lowered.proof_bundle.evidence_producers = evidence_producers;
+    let callee = lowered
+        .semantic_module
+        .machines
+        .iter_mut()
+        .find(|machine| machine.id == machine_id(2))
+        .ok_or(LoweringError::Unsupported(
+            "guarded payloadless callee is absent while installing evidence",
+        ))?;
+    callee.contract.outcome_specific_ensures = callee_ensures;
+    for row in &callee.contract.outcome_specific_ensures {
+        if row.evidence.is_none()
+            && row.proposition == Proposition::Truth
+            && exact_payloadless_return_guard(callee) == Some(row.guard)
+        {
+            lowered.proof_bundle.evidence.push(ObligationEvidence {
+                obligation: row.obligation,
+                route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+            });
+        }
+    }
+    lowered
+        .proof_bundle
+        .evidence
+        .sort_by_key(|evidence| evidence.obligation);
+
+    let retained_selected_rows = checked
+        .facts
+        .proof
+        .outcome_specific_arms
+        .iter()
+        .filter(|(_, arm)| {
+            arm.caller_machine_symbol == plan.machine
+                && arm.caller_state_symbol == plan.state
+                && arm.result_call_statement_index
+                    == usize::try_from(plan.call.statement_index).unwrap_or(usize::MAX)
+        })
+        .flat_map(|(_, arm)| {
+            arm.rows.iter().filter_map(move |row| {
+                row.selected_term
+                    .map(|selected_term| (arm, row.guarantee, selected_term))
+            })
+        })
+        .collect::<Vec<_>>();
+    match (&plan.selected_evidence, retained_selected_rows.as_slice()) {
+        (None, []) => {}
+        (Some(selection), [(arm, guarantee, selected_term)])
+            if u32::try_from(arm.statement_index).ok() == Some(selection.arm_statement_index)
+                && *guarantee == selection.guarantee
+                && *selected_term == selection.selected_term => {}
+        _ => {
+            return unsupported(
+                "guarded payloadless checked selection disagrees with retained arm evidence",
+            );
+        }
+    }
+
+    if let Some(selection) = &plan.selected_evidence {
+        let matching_arms = checked
+            .facts
+            .proof
+            .outcome_specific_arms
+            .iter()
+            .filter_map(|(_, arm)| {
+                (arm.caller_machine_symbol == plan.machine
+                    && arm.caller_state_symbol == plan.state
+                    && arm.result_call_statement_index
+                        == usize::try_from(plan.call.statement_index).ok()?
+                    && u32::try_from(arm.statement_index).ok()
+                        == Some(selection.arm_statement_index))
+                .then_some(arm)
+            })
+            .collect::<Vec<_>>();
+        let [arm] = matching_arms.as_slice() else {
+            return unsupported("guarded payloadless selected arm is absent");
+        };
+        let matching_rows = arm
+            .rows
+            .iter()
+            .filter(|row| {
+                row.guarantee == selection.guarantee
+                    && row.selected_term == Some(selection.selected_term)
+            })
+            .collect::<Vec<_>>();
+        let [row] = matching_rows.as_slice() else {
+            return unsupported("guarded payloadless selected row is absent");
+        };
+        if row.validity.result_occurrence != arm.result_expression
+            || !row.validity.referenced_occurrences.is_empty()
+            || row
+                .validity
+                .evidence_interface_scope
+                .as_ref()
+                .is_none_or(|scope| !scope.retained_occurrences.is_empty())
+        {
+            return unsupported("guarded payloadless selected validity exceeds the exact root");
+        }
+        let guarantee = checked
+            .facts
+            .proof
+            .outcome_specific_guarantees
+            .get(selection.guarantee);
+        if guarantee.machine_symbol != plan.target_machine
+            || guarantee.result_data != arm.result_data
+            || guarantee.result_case != arm.result_case
+        {
+            return unsupported("guarded payloadless selected arm identity drifted");
+        }
+        let callee_term_handle = guarantee.evidence_term.ok_or(LoweringError::Unsupported(
+            "guarded payloadless selected guarantee is unnamed",
+        ))?;
+        let callee_term = terminal_evidence_term_id(
+            &evidence_terms.term_ids,
+            callee_term_handle,
+            "guarded payloadless callee term has no terminal identity",
+        )?;
+        let output = terminal_evidence_term_id(
+            &evidence_terms.term_ids,
+            selection.selected_term,
+            "guarded payloadless selected term has no terminal identity",
+        )?;
+        if output == callee_term {
+            return unsupported("guarded payloadless selected output term is not distinct");
+        }
+        let callee_term_declaration = lowered
+            .semantic_module
+            .evidence_terms
+            .iter()
+            .find(|term| term.id == callee_term)
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless callee term declaration is absent",
+            ))?;
+        let output_declaration = lowered
+            .semantic_module
+            .evidence_terms
+            .iter()
+            .find(|term| term.id == output)
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless selected term declaration is absent",
+            ))?;
+        if callee_term_declaration.proposition != output_declaration.proposition
+            || callee_term_declaration.interface != output_declaration.interface
+        {
+            return unsupported("guarded payloadless selected term identity drifted");
+        }
+        let mut guarantee_position = 0_u32;
+        for (handle, candidate) in checked.facts.proof.outcome_specific_guarantees.iter() {
+            if candidate.machine_symbol == plan.target_machine
+                && candidate.result_data == guarantee.result_data
+                && candidate.result_case == guarantee.result_case
+            {
+                if handle == selection.guarantee {
+                    break;
+                }
+                guarantee_position =
+                    guarantee_position
+                        .checked_add(1)
+                        .ok_or(LoweringError::Unsupported(
+                            "guarded payloadless row position overflow",
+                        ))?;
+            }
+        }
+        let callee_row = lowered.semantic_module.machines[1]
+            .contract
+            .outcome_specific_ensures
+            .iter()
+            .find(|row| {
+                row.position == guarantee_position
+                    && row
+                        .evidence
+                        .as_ref()
+                        .is_some_and(|evidence| evidence.term == callee_term)
+            })
+            .ok_or(LoweringError::Unsupported(
+                "guarded payloadless callee row did not rejoin its selected term",
+            ))?;
+        let callee_guard = callee_row.guard;
+        let callee_position = callee_row.position;
+        let callee_obligation = callee_row.obligation;
+        let proposition = callee_term_declaration.proposition;
+        let evidence_interface = callee_term_declaration.interface.clone();
+        let caller = &mut lowered.semantic_module.machines[0];
+        let [operation] = caller.blocks[0].operations.as_mut_slice() else {
+            return unsupported("guarded payloadless caller has no exact call");
+        };
+        let OperationKind::CallStructural {
+            selected_evidence, ..
+        } = &mut operation.kind
+        else {
+            return unsupported("guarded payloadless caller operation is not structural");
+        };
+        *selected_evidence = Some(OutcomeSpecificCallEvidence {
+            guard: callee_guard,
+            position: callee_position,
+            callee_obligation,
+            callee_term,
+            output_field: guarantee
+                .public_selector
+                .clone()
+                .ok_or(LoweringError::Unsupported(
+                    "guarded payloadless selected row lost its public selector",
+                ))?,
+            proposition,
+            output,
+            validity: OutcomeSpecificCallEvidenceValidity {
+                result: place_id(1),
+                proposition_dependencies: vec![place_id(1)],
+                evidence_interface,
+                interface_dependencies: Vec::new(),
+            },
+        });
+    }
+    Ok(())
+}
+
+fn lower_payloadless_guarded_call_term_ids(
+    checked: &CheckedTrees,
+    plan: &psi_checked_trees::CheckedPayloadlessGuardedCallReturnMachinePlan,
+) -> Result<Vec<Option<EvidenceTermId>>, LoweringError> {
+    let mut handles = checked
+        .facts
+        .proof
+        .outcome_specific_guarantees
+        .iter()
+        .filter_map(|(_, guarantee)| {
+            (guarantee.machine_symbol == plan.target_machine)
+                .then_some(guarantee.evidence_term)
+                .flatten()
+        })
+        .collect::<Vec<_>>();
+    if let Some(selection) = &plan.selected_evidence {
+        handles.push(selection.selected_term);
+    }
+    let mut term_ids = vec![None; checked.facts.proof.evidence_terms.len()];
+    for (position, handle) in handles.into_iter().enumerate() {
+        let index = usize::try_from(handle.arena_index() - 1)
+            .expect("arena indices fit the host address space");
+        if term_ids[index].is_some() {
+            return unsupported("guarded payloadless evidence term is duplicated");
+        }
+        term_ids[index] = Some(
+            EvidenceTermId::new(dense_identity(position)?)
+                .expect("dense evidence term identity is nonzero"),
+        );
+    }
+    Ok(term_ids)
 }
 
 fn lower_proposition_vocabulary(
@@ -1356,7 +1643,7 @@ fn lower_evidence_producer_provenance(
     selected_machine: psi_symbols::SymbolHandle,
     term_ids: &[Option<EvidenceTermId>],
 ) -> Result<Vec<EvidenceProducerProvenance>, LoweringError> {
-    let package_callees = checked
+    let mut package_callees = checked
         .facts
         .proof
         .proof_output_calls
@@ -1366,6 +1653,16 @@ fn lower_evidence_producer_provenance(
                 .then_some(invocation.target_machine_symbol)
         })
         .collect::<Vec<_>>();
+    if let Some(plan) = checked
+        .facts
+        .flow
+        .terminal_structural_call_returns
+        .payloadless_guarded_for_machine(selected_machine)
+    {
+        package_callees.push(plan.target_machine);
+    }
+    package_callees.sort_unstable_by_key(|machine| machine.arena_index());
+    package_callees.dedup();
     let mut producers =
         checked
             .facts

@@ -2,7 +2,7 @@ use super::resolution::{effective_member_symbol, resolve_member_symbol_from_type
 use super::*;
 use crate::lookup::first_valid_name_path_symbol;
 
-pub(super) fn contextual_canonical_place_from_expression(
+pub(crate) fn contextual_canonical_place_from_expression(
     program: &psi_typed_trees::TypedTrees,
     state_symbol: SymbolHandle,
     statement_index: usize,
