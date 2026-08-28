@@ -219,26 +219,16 @@ pub fn resolve_satisfied_declaration<'program>(
     {
         return None;
     }
-    let external = conformance.external_binding.is_some()
-        || matches!(
-            machine.supply_mode,
-            psi_language_semantics::MachineSupplyMode::ExternalRealization { .. }
-        );
-    let operator = if external {
-        crate::operator::resolve_satisfied_boundary_operator(
-            program,
-            machine,
-            conformance.name.as_str(),
-            requirement_name.as_str(),
-        )
-    } else {
-        crate::operator::resolve_satisfied_checked_operator(
-            program,
-            machine,
-            conformance.name.as_str(),
-            requirement_name.as_str(),
-        )
-    }?;
+    // Resolve the declaration the source selected before applying supply-mode
+    // policy. External supply does not turn an ordinary operator into a
+    // boundary operator; validation and package admission reject that
+    // unsupported association independently while retaining its exact subject.
+    let operator = crate::operator::resolve_satisfied_checked_operator(
+        program,
+        machine,
+        conformance.name.as_str(),
+        requirement_name.as_str(),
+    )?;
     Some(SatisfiedDeclaration::Operator(operator))
 }
 

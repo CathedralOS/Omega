@@ -1559,14 +1559,34 @@ complete.
   establishment routes, and nominal machine-parameter requirements remain
   separate exact-symbol audits.
 
+  Follow-up 2026-08-28: every source-backed exact
+  `machine ... satisfies Namespace::requirement` edge now retains the authored
+  declaration coordinates it actually selects. Trait edges retain the exact
+  trait as a `TypeReference` row and the exact overload-resolved requirement as
+  a `StaticPathSegment` row. Operator edges retain the exact signature-selected
+  operator at the requirement token. Settlement runs after the complete typed
+  declaration graph exists and before progress, validation, checked operator
+  facts, provider planning, or package review consume the edge; those consumers
+  cross-check the retained symbol instead of reselecting by spelling. Trait
+  result-dispatch overloads and operator signature overloads therefore remain
+  distinct. Operator identity settles independently from supply mode, so an
+  unsupported external association still retains the exact subject before
+  admission rejects it. Rows follow the enclosing machine's interface
+  exposure, including non-`pub` boundary/accepted supply. Root-middle-leaf,
+  same-package visibility, result-dispatch overload, and operator-overload
+  canaries pin direct admission and public/private behavior. This closes exact
+  `satisfies` trait/requirement/operator selections; establishment routes and
+  nominal machine-parameter requirements remain separate exact-symbol audits.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,
   explicit static conformance arguments, expression and statement calls,
   all source-backed static declaration arguments, inferred generic-call
-  conformances, checked trait-operator conformances, and declaration-owned
-  expression positions whose visibility is settled, and named conformance
-  selectors in callable and trait bounds. Visibility-dependent nested positions
+  conformances, checked trait-operator conformances, declaration-owned
+  expression positions whose visibility is settled, named conformance
+  selectors in callable and trait bounds, and exact `satisfies` trait,
+  requirement, and operator coordinates. Visibility-dependent nested positions
   are not yet total. The package manager stays disabled until those gaps close.
   The first exact carried-semantic-dependency carrier and its versioned
   canonical review projection have landed. Total coverage and accepted

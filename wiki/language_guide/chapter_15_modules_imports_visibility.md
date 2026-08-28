@@ -298,7 +298,14 @@ authorized row map rather than those implementations.
 An exact `machine ... satisfies Trait::requirement` edge is not a standalone
 conformance declaration and follows the machine's visibility. Its optional
 `as Name` label groups requirement-local satisfiers but does not create a
-package-level selectable declaration. Conversely, a value may carry a private
+package-level selectable declaration. The edge nevertheless authors two exact
+declaration selections: the trait and its overload-resolved requirement. An
+operator requirement similarly selects the exact signature-matched operator.
+Both coordinates require direct dependency authority and must be public when
+the realizing machine publishes an interface, including boundary or accepted
+supply not separately spelled `pub`. Selection identity is settled before
+supply policy: an inadmissible external realization does not erase or replace
+the declaration it attempted to realize. Conversely, a value may carry a private
 dynamic conformance selected by its producer without granting the receiver
 authority to name or select that conformance elsewhere. Carrying compiler-
 selected semantics is not authored declaration selection.
