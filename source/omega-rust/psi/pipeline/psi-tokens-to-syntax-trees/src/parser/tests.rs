@@ -361,6 +361,15 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         psi_syntax_trees::item::PropositionBody::Transparent { proposition }
             if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
     ));
+    assert!(propositions[0].transparent_formula_source_span.is_none());
+    assert!(propositions[1].transparent_formula_source_span.is_none());
+    let formula_span = propositions[2]
+        .transparent_formula_source_span
+        .expect("transparent proposition formula span");
+    assert_eq!(
+        &source[formula_span.span.start..formula_span.span.end],
+        "related(value, value)"
+    );
 
     let snapshot = parsed
         .snapshot_json()

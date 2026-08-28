@@ -126,10 +126,16 @@ real package fixture demonstrates an irreducible external contract.
   targets do not invalidate location custody, which proves authorship location
   rather than target finalization. Generated calls retain neither occurrence
   nor location. External executable-supply rows additionally retain their exact
-  authored `via` occurrence under `external_binding`. Recovery envelope v8,
-  conflict fingerprint v11, and renderer V10 retain what review displays. Later nested
-  carriers must come from existing compiler owners rather than package-layer
-  source parsing.
+  authored `via` occurrence under `external_binding`. Public const rows retain
+  their parsed initializer under `const_initializer`, distinct from the
+  declaration-name anchor. Transparent public propositions retain the full
+  semantic-token extent of their authored formula under
+  `proposition_formula`; primitive and witness propositions retain no invented
+  formula location. Formula custody is captured at the parser boundary before
+  application lowering can erase its enclosing handle or an operator-root span
+  can narrow it to one token. Recovery envelope v10, conflict fingerprint v13,
+  and renderer V12 retain what review displays. Later nested carriers must come
+  from existing compiler owners rather than package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
   admission.
@@ -1257,12 +1263,15 @@ or contradictory custody. It does not parse source text in package
 orchestration or invent locations for inference and closure. Public operational
 facts remain may-ceilings; the review does not mislabel a permissive public
 contract as an observation that its current body exercised the permission.
-Other nested clause/use-site coordinates remain unfinished engineering work;
-none independently motivates nominal Chi. Checked invocation facts retain exact
+Public const initializer and transparent public-proposition formula coordinates
+also survive their owning frontend stages; neither is reconstructed from source
+text after value substitution or expression lowering. Other nested
+clause/use-site coordinates remain unfinished engineering work; none
+independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
-calls. Package review v74/row v32,
-canonical recovery v8, conflict fingerprint v11, and conflict renderer V10 bind
+calls. Package review v75/row v33,
+canonical recovery v10, conflict fingerprint v13, and conflict renderer V12 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes

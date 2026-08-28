@@ -17,6 +17,7 @@ pub(crate) fn lower_proposition_definition(
 ) -> Result<PropositionDefinition, Diagnostic> {
     let binders = lower_proposition_binders(lowerer, syntax_trees, proposition.type_parameters)?;
     let parameters = lower_state_parameters(lowerer, syntax_trees, proposition.parameters)?;
+    let transparent_formula_source_span = proposition.transparent_formula_source_span;
     let body = match proposition.body {
         syntax::item::PropositionBody::Primitive => PropositionBody::Primitive,
         syntax::item::PropositionBody::Witness { evidence } => PropositionBody::Witness {
@@ -39,6 +40,7 @@ pub(crate) fn lower_proposition_definition(
         is_public: proposition.is_public,
         binders,
         parameters,
+        transparent_formula_source_span,
         body,
     })
 }

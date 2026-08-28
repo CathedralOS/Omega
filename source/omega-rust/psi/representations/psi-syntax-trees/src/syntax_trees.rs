@@ -310,6 +310,7 @@ impl SyntaxTrees {
                         .copy_type_parameter_span(other, proposition.type_parameters),
                     parameters: self
                         .copy_state_parameter_handle_span(other, proposition.parameters),
+                    transparent_formula_source_span: proposition.transparent_formula_source_span,
                     body: match proposition.body {
                         crate::item::PropositionBody::Primitive => {
                             crate::item::PropositionBody::Primitive
