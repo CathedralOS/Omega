@@ -159,7 +159,7 @@ statement_gen_to_require_guarded_events:
         imm r25, 2
         call statement_gen_to_require_nth_call
         imm r21, 320
-        imm r22, statement_gen_to_literal_label_suffix
+        imm r22, statement_label_suffix_literal
         imm r23, 2
         call statement_gen_to_require_emit
         imm r21, 320
@@ -376,5 +376,5 @@ statement_gen_to_literal_jmp:
         db "jmp "
 statement_gen_to_literal_newline:
         db "\n"
-statement_gen_to_literal_label_suffix:
+statement_label_suffix_literal:
         db ":\n"
