@@ -473,6 +473,126 @@ fn independent_proof_certified_scalar_identity(
             *scalar_type,
             independent_integer_zero(*scalar_type),
         ),
+        (
+            O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::ExactIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::WrappingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
+        (
+            O::SaturatingIntegerRemainder {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                ..
+            },
+            ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft,
+        ) => (
+            *psi_operation,
+            *obligation,
+            *result,
+            *left,
+            *left,
+            *scalar_type,
+            *scalar_type,
+            independent_integer_zero(*scalar_type),
+        ),
         _ => return None,
     };
     Some(IndependentProofCertifiedScalarIdentity {
@@ -521,10 +641,14 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     let multiply_by_zero_rule = OptimizationRuleIdentity::from_canonical_bytes(
         b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1",
     );
+    let zero_dividend_rule = OptimizationRuleIdentity::from_canonical_bytes(
+        b"omega.psi-rule.live-proof-certified-integer-zero-dividend-elimination.v1",
+    );
     if ![
         exact_identity_rule,
         divide_by_one_rule,
         multiply_by_zero_rule,
+        zero_dividend_rule,
     ]
     .contains(&candidate.rule())
         || !candidate
@@ -583,6 +707,19 @@ pub fn validate_proof_certified_scalar_identity_candidate(
         {
             b"omega.validator.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
                 .as_slice()
+        }
+        rule if rule == zero_dividend_rule
+            && matches!(
+                patch.identity,
+                ProofCertifiedScalarIdentityKind::ExactIntegerDivideZeroLeft
+                    | ProofCertifiedScalarIdentityKind::WrappingIntegerDivideZeroLeft
+                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideZeroLeft
+                    | ProofCertifiedScalarIdentityKind::ExactIntegerRemainderZeroLeft
+                    | ProofCertifiedScalarIdentityKind::WrappingIntegerRemainderZeroLeft
+                    | ProofCertifiedScalarIdentityKind::SaturatingIntegerRemainderZeroLeft
+            ) =>
+        {
+            b"omega.validator.live-proof-certified-integer-zero-dividend-elimination.v1".as_slice()
         }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
@@ -780,7 +917,7 @@ pub fn validate_proof_certified_scalar_identity_candidate(
     let output_function = output
         .functions
         .iter()
-        .find(|function| function.machine == function.machine)
+        .find(|output_function| output_function.machine == function.machine)
         .expect("output function exists");
     for input_block in &function.blocks {
         if !expected_blocks.contains(&input_block.id)
@@ -1406,10 +1543,10 @@ fn validator_active_source_ordinals(unit: &PsiOptimizationUnit) -> BTreeMap<Mach
     let mut result = BTreeMap::new();
     for ordinal in 0..(unit.functions.len() + unit.pruned_machines.len()) {
         let ordinal = u32::try_from(ordinal).expect("function ordinal fits u32");
-        if !pruned.contains_key(&ordinal) {
-            if let Some(function) = active.next() {
-                result.insert(function.machine, ordinal);
-            }
+        if !pruned.contains_key(&ordinal)
+            && let Some(function) = active.next()
+        {
+            result.insert(function.machine, ordinal);
         }
     }
     result
@@ -1766,9 +1903,7 @@ fn reachable_blocks_after_conditional_fold(
         if !reachable.insert(block_id) {
             continue;
         }
-        let Some(block) = function.blocks.iter().find(|block| block.id == block_id) else {
-            return None;
-        };
+        let block = function.blocks.iter().find(|block| block.id == block_id)?;
         for edge in block.nodes.iter().flat_map(|node| &node.successors) {
             if block_id != source || edge.psi_edge == selected_edge {
                 pending.push(edge.target);

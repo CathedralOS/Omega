@@ -1140,7 +1140,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     );
     let proof_elision_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.proof-check-elision.v4",
+            b"omega.psi-pass.proof-check-elision.v5",
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
@@ -1802,7 +1802,7 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 4);
+        assert_eq!(manifest.ordered_rules().len(), 5);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
@@ -2806,7 +2806,7 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.pass_manifests.len(), 1);
-        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 4);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 5);
         assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
             run.pass_manifests[0].decisions()[0].consumed_facts().len(),
