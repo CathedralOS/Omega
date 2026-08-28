@@ -17,7 +17,7 @@
 
 use omega_compiler::{
     ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
-    CompileRequest, compile, compile_harness, compile_to_checked,
+    CompileRequest, RequestedCompileProduct, compile, compile_harness, compile_to_checked,
 };
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::fs;
@@ -2936,7 +2936,9 @@ fn try_compile_and_run_native_with_stdin(
                 .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
         (true, None) => compile(
-            CompileRequest::new(options).with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
+            CompileRequest::new(options)
+                .with_requested_product(RequestedCompileProduct::InstalledOutput)
+                .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         ),
         (false, Some(worker_count)) => compile_harness(
             CompileHarnessRequest::new(options)
@@ -3005,9 +3007,7 @@ fn repo_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .ancestors()
         .nth(5)
-        .expect(
-            "omega-native-differential-test lives under source/omega-rust/omega/orchestration",
-        )
+        .expect("omega-native-differential-test lives under source/omega-rust/omega/orchestration")
         .to_path_buf()
 }
 

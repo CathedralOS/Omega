@@ -7,7 +7,12 @@ use omega_compiler::{
 fn production_compile(
     options: CompileOptions,
 ) -> Result<CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(CompileRequest::new(options))
+    let requested_product = if options.write_output {
+        omega_compiler::RequestedCompileProduct::InstalledOutput
+    } else {
+        omega_compiler::RequestedCompileProduct::Check
+    };
+    omega_compiler::compile(CompileRequest::new(options).with_requested_product(requested_product))
 }
 
 fn compile_with_test_entry_worker_count_and_artifact_policy(

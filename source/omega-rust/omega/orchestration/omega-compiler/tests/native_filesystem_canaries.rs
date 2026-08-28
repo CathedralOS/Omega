@@ -17,7 +17,14 @@ static NEXT_ENTRY_STAGE: AtomicU64 = AtomicU64::new(1);
 fn compile_program(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    let requested_product = if options.write_output {
+        omega_compiler::RequestedCompileProduct::InstalledOutput
+    } else {
+        omega_compiler::RequestedCompileProduct::Check
+    };
+    omega_compiler::compile(
+        omega_compiler::CompileRequest::new(options).with_requested_product(requested_product),
+    )
 }
 
 fn compile_exact_macos_entry(
