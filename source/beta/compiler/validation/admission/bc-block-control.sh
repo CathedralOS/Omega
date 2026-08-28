@@ -348,7 +348,6 @@ build_expression_family_semantic_checker() {
       "$OBLIGATION_DIR/bc-emit-dec-shape.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-word-domain.alpha" \
       "$OBLIGATION_DIR/bc-emit-dec-word-summary.alpha" \
-      "$OBLIGATION_DIR/bc-emit-dec-word-label-publication.alpha" \
       "$OBLIGATION_DIR/bc-cursor-tail-summary.alpha" \
       "$OBLIGATION_DIR/bc-label-core-shape.alpha" \
       "$OBLIGATION_DIR/bc-label-counter-summary.alpha" \

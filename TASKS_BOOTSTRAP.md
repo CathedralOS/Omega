@@ -90,8 +90,8 @@ bootstrap. The durable source owners are therefore the language directories;
   evidence, not acceptance authority.
 - [ ] Collapse the Beta validator's generated checker/permutation explosion into
   one canonical obligation format and small responsibility-specific modules.
-  The responsibility audit found 190 `bc-*.alpha` fragments, all consumed by
-  the bounded whole-compiler command, amid roughly 72,000 lines. They now live
+  The current responsibility audit finds 189 `bc-*.alpha` fragments totaling
+  65,096 lines, all consumed by the bounded whole-compiler command. They live
   under `validation/admission/obligations/`; the two exact-subject gates are in
   `admission/`, untrusted witness producers are in `admission/witnesses/`, and
   the curated/generated refinement suite is optional under `stress/` rather

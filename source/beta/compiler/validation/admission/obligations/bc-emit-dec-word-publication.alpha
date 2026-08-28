@@ -6,46 +6,7 @@
 emit_dec_word_publication_init:
         call emit_dec_word_require_stack_root
         call emit_dec_require_shape
-        imm r20, 532512
-        imm r21, 808535123             ; SD10
-        call exact_require_cell
-        imm r20, 532520
-        imm r21, 1379479876            ; D19R
-        call exact_require_cell
-        imm r20, 532528
-        imm r21, 1195724356            ; DNEG
-        call exact_require_cell
-        imm r20, 532536
-        imm r21, 810373956             ; DSM0
-        call exact_require_cell
-        imm r20, 532544
-        imm r21, 1397706820            ; DPOS
-        call exact_require_cell
-        imm r20, 532552
-        imm r21, 1413694788            ; DECT
-        call exact_require_cell
-        imm r20, 532568
-        imm r21, 1                    ; complete signed Word partition
-        call exact_require_cell
-        imm r20, 532576
-        imm r21, 1                    ; divisor +10 excludes both trap cases
-        call exact_require_cell
-        imm r20, 532584
-        imm r21, 20                   ; one negative + nineteen nonnegative rows
-        call exact_require_cell
-        imm r20, 534400
-        imm r21, 20
-        call exact_require_cell
-        imm r20, 534408
-        imm r21, 19                   ; exact maximum positive rank
-        call exact_require_cell
-        imm r20, 534392
-        imm r21, 1                    ; negative/base/positive exhaustive join
-        call exact_require_cell
-        call emit_dec_word_require_all_completions
-        imm r1, 532560
-        imm r2, 1464026436            ; DECW
-        store r1, r2
+        call emit_dec_word_publish_relation
         imm r20, 532560
         imm r21, 1464026436            ; final publication self-consumed
         call exact_require_cell
