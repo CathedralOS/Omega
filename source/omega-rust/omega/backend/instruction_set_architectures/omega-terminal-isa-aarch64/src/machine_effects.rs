@@ -53,6 +53,7 @@ pub fn aarch64_terminal_machine_effect_catalog(
         target,
         register_constraints: constraints.identity(),
         selected_keys,
+        structural_unit_call: None,
         declarations: TerminalMachineSemanticKind::ALL
             .into_iter()
             .map(|semantic| declaration(semantic, selected_keys))
@@ -98,6 +99,7 @@ fn selected_keys(
         }
     };
     Ok(TerminalSelectedConstraintKeys {
+        structural_unit_call: None,
         materialize_i64: AARCH64_MATERIALIZE_I64,
         copy_i64: AARCH64_COPY_I64,
         add_i64: AARCH64_ADD_I64,
