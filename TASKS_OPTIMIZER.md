@@ -272,6 +272,33 @@ These facts constrain the work below.
   This retained declaration custody owns no runtime roots, wrapper bytes,
   bootstrap, image, installation, or publication authority.
 
+  Checked-to-Terminal production now also offers a receipt-coupled path for
+  that selected entry. The owned receipt binds the opaque source-signature
+  identity and checked source symbol/name to the canonical Terminal-Psi
+  identity and its unique Unit entry `MachineId`. Native orchestration
+  independently decodes and validates the artifact, rejoins the complete
+  retained source signature and paired calling plans, and rejects source,
+  target, Terminal-Psi, or entry substitution before returning an owned
+  settlement. This is association custody only; optimized publication still
+  fails closed.
+
+  `omega-program-storage` now owns a separate data-only optimized semantic
+  entry contract. It admits only the receiver-free UEFI x86-64 slot, ordered
+  Image then InitialStorage `Extent in Granted` roots, Unit/no-result semantics,
+  the exact Microsoft x64 semantic plan and fingerprint, and a separately
+  replayed paired physical plan retained as `PlannedNotInvokedV1`. It owns no
+  `MachineId`, wrapper bytes, runtime root values, bootstrap, image,
+  installation, or publication authority.
+
+  The current zero-VReg Unit legalization is deliberately narrower than that
+  future wrapper. Producer and independent replay now reject attachments,
+  structural parameters, entry claims, declared places, and published-service
+  custody because the closed Unit record cannot represent them. A regression
+  test proves a structurally parameterized bare `ReturnUnit` fails at
+  legalization instead of silently losing its ABI. The correct semantic
+  wrapper needs a distinct call-aware form that transfers both linear extents
+  to the private Terminal symbol before returning Unit.
+
   A separate
   `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
@@ -1570,13 +1597,14 @@ dependency.
 
   Current slice: `omega-terminal-legalized-operations` is a data-only,
   target-bound representation below target operations and above instruction
-  selection. Its V4 identity commits to Terminal-Psi, optimization-unit and
+  selection. Its V5 identity commits to Terminal-Psi, optimization-unit and
   fuel-schedule identities, exact `NativeTarget`, entry/function roster,
   attachments, target provenance, one closed legality recipe per function,
   source blocks/values/definition sites, branch/return edges and bindings,
   accepted exact-operation facts, and every operation/edge fuel settlement.
-  A mandatory checked canonicalizer admits seven bounded
-  cleanup-free unsigned-u64 three-block conditional families: constants,
+  A mandatory checked canonicalizer admits seven bounded cleanup-free
+  unsigned-u64 three-block conditional families plus the separate exact
+  zero-VReg Unit-return recipe. The conditional families are: constants,
   one shared entry parameter, two-immediate exact add, and two-immediate exact
   subtract, plus overflow-proven unsigned-u8 exact add or underflow-proven
   unsigned-u8 exact subtract followed by u8-to-u64 widening. The last two
@@ -2384,9 +2412,13 @@ dependency.
   liveness, ranges, legality, empty homes, post-allocation replay, an explicit
   `SingleEntryBlockV1` layout, typed Unit exit evidence, relocation-free
   fragment/text/object custody, and the canonical optimized artifact on both
-  supported architectures. The next boundary must preserve the source
-  signature-to-`MachineId` association across Terminal production and construct
-  a distinct semantic `ProgramStorageEntry` wrapper object that passes the
+  supported architectures. The source-signature-to-`MachineId` association is
+  now retained through receipt-coupled Terminal production and independently
+  replayed native settlement. A separate declaration-only ProgramStorage
+  contract validates the exact two roots, semantic calling plan, and retained
+  non-invoked physical plan. The next boundary must join that settlement and
+  contract to the applicable Unit object, then construct a distinct call-aware
+  semantic `ProgramStorageEntry` wrapper object that passes the
   two `Extent in Granted` roots to the private Terminal symbol. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
