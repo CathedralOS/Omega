@@ -43,9 +43,13 @@ the one acknowledged transitional defect in this chain. It cycles scratch homes
 for the small supported roster. The durable replacement is one in-line
 continuation—target legalization, selected virtual instructions,
 liveness/allocation, physical assignment, then emission—not a second backend.
-Nonempty selections reject until that continuation preserves ordinary
-frame/exit, object/image, and publication validation. Compilation never falls
-back or runs an alternate route.
+Selected builds no longer reject before optimization: they consume the same
+verified optimizer result and enter the in-line legalization,
+selected-virtual-instruction, liveness, allocation, home, and
+post-allocation-machine continuation. They fail closed only where that
+continuation still lacks ordinary frame/exit, object/image, and publication
+validation. The selected continuation must replace bounded assignment at that
+join; compilation never falls back or runs an alternate route.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
 canonical semantic and proof sections plus an explicit admission profile,
