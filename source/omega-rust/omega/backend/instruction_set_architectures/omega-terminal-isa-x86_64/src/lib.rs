@@ -8,6 +8,7 @@ mod machine_effects;
 mod native_fuel_runtime;
 mod register_model;
 mod selected_form_encoding;
+mod semantic_unit_wrapper_encoding;
 
 pub use machine_effects::{
     X86_64TerminalMachineEffectCatalogValidationError,
@@ -49,6 +50,26 @@ pub use selected_form_encoding::{
     validate_x86_64_terminal_selected_nonzero_branch_form,
     validate_x86_64_terminal_selected_short_nonzero_branch_form,
     validate_x86_64_terminal_selected_structural_unit_call_template,
+};
+pub use semantic_unit_wrapper_encoding::{
+    ValidatedX86_64ResolvedSemanticUnitWrapper, ValidatedX86_64SemanticUnitWrapperTemplate,
+    X86_64_SEMANTIC_UNIT_WRAPPER_CALL_BUNDLE_BYTE_COUNT,
+    X86_64_SEMANTIC_UNIT_WRAPPER_CALL_OPCODE_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_FUNCTION_BYTE_COUNT,
+    X86_64_SEMANTIC_UNIT_WRAPPER_NEXT_INSTRUCTION_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_OFFSET,
+    X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH, X86_64_SEMANTIC_UNIT_WRAPPER_RETURN_OFFSET,
+    X86_64SemanticUnitWrapperArgumentBinding, X86_64SemanticUnitWrapperCallEffect,
+    X86_64SemanticUnitWrapperCleanupEffect, X86_64SemanticUnitWrapperCopy,
+    X86_64SemanticUnitWrapperEncodingError, X86_64SemanticUnitWrapperEncodingPolicy,
+    X86_64SemanticUnitWrapperEncodingRequest, X86_64SemanticUnitWrapperFootprint,
+    X86_64SemanticUnitWrapperRelocation, X86_64SemanticUnitWrapperRelocationKind,
+    X86_64SemanticUnitWrapperRelocationState, X86_64SemanticUnitWrapperResolution,
+    X86_64SemanticUnitWrapperResolutionError, X86_64SemanticUnitWrapperResolutionState,
+    X86_64SemanticUnitWrapperTrapBehavior, canonical_x86_64_semantic_unit_wrapper_encoding_request,
+    encode_x86_64_semantic_unit_wrapper_template,
+    resolve_x86_64_semantic_unit_wrapper_private_continuation,
+    validate_x86_64_resolved_semantic_unit_wrapper, validate_x86_64_semantic_unit_wrapper_template,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};

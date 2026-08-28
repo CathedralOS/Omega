@@ -379,10 +379,22 @@ These facts constrain the work below.
   entry, bind its exact object-local semantic-entry symbol as the private
   continuation, independently replay the settlement, semantic contract, and
   wrapper plan, then synthesize a separate compiler-owned wrapper object. The
-  wrapper encoding must first reconcile and explicitly validate the optimized
-  structural call offsets `80/81` against the older full-frame wrapper recipe's
-  `113/114`; no join may claim wrapper bytes by silently equating those layouts.
-  This is an engineering representation task and does not require Q17. The
+  wrapper encoding mismatch is now resolved explicitly rather than by changing
+  either layout's meaning. The semantic wrapper plan is coordinate-free and
+  requires later target encoding. The target-owned compact Microsoft-x64
+  policy independently decodes its exact 90-byte function, retains the complete
+  physical footprint, owns opcode/field/next-IP offsets `80/81/85`, and checks
+  forward, backward, overflow, and corruption cases when resolving the private
+  continuation. Native realization consumes the semantic plan by value and
+  independently projects every step into that named policy. The older
+  full-frame wrapper remains a distinct 143-byte compatibility encoding with
+  offsets `113/114/118`. This engineering boundary does not require Q17. The
+  immediate prerequisite for the object join is an honest one-function
+  structural two-Extent `ReturnUnit` continuation: selection through layout
+  already admits it, but whole-function exit currently hardcodes the
+  two-function caller/leaf topology. It must gain a separately named and
+  replayed structural Unit leaf policy before fragments, text, object, and
+  canonical artifact custody can represent the settled continuation. The
   compiler-private wrapper itself receives no fabricated Terminal `MachineId`.
   The checked-source ProgramStorage fixture currently lowers its generic two-root
   handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
@@ -2529,10 +2541,14 @@ dependency.
   retain that generic two-Machine proof through exact caller/callee private
   symbols. It is not the wrapper object because both functions are Terminal
   `MachineId`s. The next boundary must instead bind the settled Terminal
-  entry's canonical object-local symbol as a private continuation, select and
-  replay one wrapper encoding contract (including the `80/81` optimized versus
-  `113/114` legacy offset distinction), and construct a distinct compiler-owned
-  semantic `ProgramStorageEntry` wrapper object in
+  entry's canonical object-local symbol as a private continuation. The wrapper
+  encoding contract is now explicit: the coordinate-free semantic plan selects
+  a target-owned compact 90-byte policy with exact `80/81/85` rel32 coordinates
+  and retained physical footprint, while the legacy 143-byte full-frame route
+  remains `113/114/118`. The next backend prerequisite is a separately named
+  whole-function-exit policy for the one-function structural two-Extent Unit
+  continuation, followed by fragment/text/object/artifact custody and the
+  distinct compiler-owned semantic `ProgramStorageEntry` wrapper object in
   `omega-terminal-native-realization`. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
