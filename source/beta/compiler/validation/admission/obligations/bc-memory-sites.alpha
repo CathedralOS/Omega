@@ -30,7 +30,7 @@ record_memory_site:
         imm r1, 91
         jeq r0, r1, memory_bracket_open
         ; Exact byte/word identifiers not used as memory forms are not sites.
-        jmp restore_memory_cursor_without_site
+        jmp restore_memory_cursor
 memory_bracket_open:
         call advance_one
         imm r8, 1                       ; bracket depth
@@ -82,12 +82,6 @@ memory_comparison_load:
         imm r6, 1
         call add_memory_site
 restore_memory_cursor:
-        imm r1, 524688
-        load r2, r1
-        imm r1, 524304
-        store r1, r2
-        ret
-restore_memory_cursor_without_site:
         imm r1, 524688
         load r2, r1
         imm r1, 524304

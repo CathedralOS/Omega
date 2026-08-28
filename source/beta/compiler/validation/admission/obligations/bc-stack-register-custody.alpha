@@ -448,13 +448,9 @@ stack_scan_start:
         imm r1, 11
         jeq r7, r1, stack_scan_store
         imm r1, 17
-        jeq r7, r1, stack_scan_read
+        jeq r7, r1, stack_scan_imm
         jmp stack_scan_classified
 stack_scan_imm:
-        call stack_scan_load_operand_one
-        call stack_scan_write_register
-        jmp stack_scan_classified
-stack_scan_read:
         call stack_scan_load_operand_one
         call stack_scan_write_register
         jmp stack_scan_classified
