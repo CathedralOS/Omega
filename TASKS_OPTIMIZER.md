@@ -253,10 +253,13 @@ These facts constrain the work below.
   and their codec to v6, postallocation manifest and codec to v6,
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
-  selected-form encoding v5, resolved-layout v4,
-  whole-function exit v4, function-relative manifest v6, fragment/text
+  selected-form encoding v5, resolved-layout v5,
+  whole-function exit v5, function-relative manifest v7, fragment/text
   manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
-  reject older detached vocabulary. A dedicated baseline carrier now proves
+  reject older detached vocabulary. The ordinary-callable record/manifest
+  codec is v2 because it closes over the expanded exit-policy vocabulary while
+  still rejecting structural custody during callable replay. A dedicated
+  baseline carrier now proves
   the exact one-function Unit shape through zero-VReg liveness, ranges,
   legality, empty homes, post-allocation machine replay, single-entry-block
   layout, Unit exit evidence, relocation-free fragments/text, private-symbol
@@ -343,11 +346,17 @@ These facts constrain the work below.
   parallel structural-function roster with the exact template, decoded
   footprint, typed fixup, separate canonical `C3` return row, and independently
   replayed ordinary/structural counts. It grants no layout or relocation
-  authority. The next backend milestone is to carry the unresolved fixup through
-  resolved and function-relative layout, then resolve it only at whole-text
-  placement where caller and callee section offsets are both known. Only then
-  can an applicable object and MachineId-rooted private continuation symbol be
-  joined to the settlement, semantic contract, and wrapper plan. The compiler-
+  authority. Resolved-layout v5 now retains exact caller spans `[0, 89)` and
+  `[89, 90)`, the leaf `[0, 1)` return, and the still-unresolved typed fixup.
+  Whole-function-exit v5 validates the distinct balanced Microsoft-x64 caller
+  policy without misclassifying it as a frameless leaf. A separate owning
+  structural function-relative carrier and `OMGFRM` v7 manifest retain ordinary
+  counts `0/0/0/0/0`, structural counts `2/2/3/91`, and one unresolved internal-
+  Machine fixup under independent replay. The next backend milestone is to
+  carry that fixup through machine-code fragments, then resolve it only at
+  whole-text placement where caller and callee section offsets are both known.
+  Only then can an applicable object and MachineId-rooted private continuation
+  symbol be joined to the settlement, semantic contract, and wrapper plan. The compiler-
   private wrapper itself receives no fabricated Terminal `MachineId`. The
   checked-source ProgramStorage fixture currently lowers its generic two-root
   handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
@@ -2484,11 +2493,13 @@ dependency.
   allocation legality, empty homes, an explicit allocation-manifest statistic,
   and post-allocation machine replay. The target-owned encoder produces an
   independently decoded canonical 89-byte template with one typed unresolved
-  internal-Machine rel32 fixup; selected-form encoding v5 retains it, its full
-  footprint, the separate return byte, and exact structural counts without
-  misclassifying the zero field as a resolved call. The next boundary must carry
-  and resolve that fixup through function-relative and whole-section layout,
-  encoding, and an applicable object/private continuation
+  internal-Machine rel32 fixup; selected-form encoding v5, resolved-layout v5,
+  whole-function-exit v5, and function-relative manifest v7 now retain it, its
+  full footprint, exact 90/1-byte function spans, separate returns, balanced
+  caller policy, and structural statistics without misclassifying the zero
+  field as a resolved call. The next boundary must carry and resolve that fixup
+  through machine-code fragments and whole-section layout, encoding, and an
+  applicable object/private continuation
   symbol, join those facts with the settlement, contract, and wrapper plan,
   then construct the semantic
   `ProgramStorageEntry` wrapper object. The scalar-

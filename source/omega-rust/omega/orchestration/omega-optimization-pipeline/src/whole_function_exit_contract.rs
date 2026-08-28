@@ -190,8 +190,12 @@ pub struct TerminalWholeFunctionExitContract {
     pub red_zone_bytes: u16,
     pub result_view: RegisterViewId,
     pub callee_saved_units: Vec<RegisterUnitId>,
-    pub functions: Vec<TerminalWholeFunctionExitEvidence>,
-    pub structural_unit_functions: Vec<TerminalWholeFunctionStructuralUnitExitEvidence>,
+    /// These rosters stay heap-owned because the validated contract is nested
+    /// in several owning pipeline carriers; adding structural evidence must
+    /// not inflate every ordinary carrier's stack frame.
+    pub functions: Box<Vec<TerminalWholeFunctionExitEvidence>>,
+    /// Parallel to `functions`; never merged by function-local instruction ID.
+    pub structural_unit_functions: Box<Vec<TerminalWholeFunctionStructuralUnitExitEvidence>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -569,8 +573,8 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
             red_zone_bytes: convention.red_zone_bytes,
             result_view,
             callee_saved_units: convention.callee_saved.clone(),
-            functions: Vec::new(),
-            structural_unit_functions,
+            functions: Box::new(Vec::new()),
+            structural_unit_functions: Box::new(structural_unit_functions),
         };
         contract.identity = contract_identity(&contract);
         return Ok(contract);
@@ -737,8 +741,8 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         red_zone_bytes: convention.red_zone_bytes,
         result_view,
         callee_saved_units: convention.callee_saved.clone(),
-        functions,
-        structural_unit_functions: Vec::new(),
+        functions: Box::new(functions),
+        structural_unit_functions: Box::new(Vec::new()),
     };
     contract.identity = contract_identity(&contract);
     Ok(contract)
@@ -1466,7 +1470,7 @@ fn contract_identity(
     hasher.update(contract.result_view.0.to_le_bytes());
     encode_units(&mut hasher, &contract.callee_saved_units);
     hasher.update((contract.functions.len() as u64).to_le_bytes());
-    for function in &contract.functions {
+    for function in contract.functions.iter() {
         hasher.update(function.machine.get().to_le_bytes());
         hasher.update(function.entry_block.0.to_le_bytes());
         hasher.update(function.body_stack_delta.to_le_bytes());
@@ -1516,7 +1520,7 @@ fn contract_identity(
         }
     }
     hasher.update((contract.structural_unit_functions.len() as u64).to_le_bytes());
-    for function in &contract.structural_unit_functions {
+    for function in contract.structural_unit_functions.iter() {
         hasher.update(function.machine.get().to_le_bytes());
         hasher.update(function.entry_block.0.to_le_bytes());
         hasher.update(function.body_stack_delta.to_le_bytes());
@@ -1669,8 +1673,8 @@ mod tests {
             red_zone_bytes: 128,
             result_view: RegisterViewId(1),
             callee_saved_units: Vec::new(),
-            functions: Vec::new(),
-            structural_unit_functions: Vec::new(),
+            functions: Box::new(Vec::new()),
+            structural_unit_functions: Box::new(Vec::new()),
         };
         contract.identity = contract_identity(&contract);
         contract
@@ -1720,7 +1724,7 @@ mod tests {
                 pop_bytes: 8,
             },
         };
-        contract.structural_unit_functions = vec![
+        *contract.structural_unit_functions = vec![
             TerminalWholeFunctionStructuralUnitExitEvidence {
                 machine: caller,
                 entry_block: TerminalSelectedBlockId(0),
