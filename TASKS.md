@@ -7673,17 +7673,22 @@ Owners:
   lease.
   The next target-closed placement rung is complete. Backend planning joins
   each exact registrar argument to the outbound `CallPlan` parameter's
-  `ValuePlacement` and, for the production field form, exactly one
-  authoritative `LayoutPlan` private-demand row. The retained row preserves
-  layout, slot, requirement, data symbol, physical offset, pointer extent, and
-  alignment as layout evidence rather than a new identity. Replay rejects
-  missing/duplicate rows, formal or ABI-placement drift, target-architecture
-  mismatch, identity or geometry drift, and field paths with zero or multiple
-  segments. Multi-segment physical path composition remains an engineering
-  prerequisite; the nominal path is already settled. Direct-parameter
-  construction remains synthetic-only pending Q13. This carrier still owns no
-  selected/assigned operation, object symbol, relocation kind, bytes, runtime
-  address, registration authority, or lease. The exact assigned-operand
+  `ValuePlacement`. The direct field form retains exactly one authoritative
+  `LayoutPlan` private-demand row. The bounded nested form instead retains one
+  exact rooted path: a domain-separated semantic field identity for one inline
+  named record field, its exact root/child layout identities and field-layout
+  snapshot, followed by one child-owned terminal private-demand row. Layout
+  closure and independent replay both prove that field belongs to the root,
+  rejoin the exact child record, and checked-compose the field-relative and
+  child-relative offsets while rechecking child and root bounds/alignment.
+  Existing one-slot layout identities remain stable. Missing, duplicate, or
+  colliding roots, children, fields, terminal rows, reversed/short/long paths,
+  formal or ABI-placement drift, target-architecture mismatch, and identity or
+  geometry drift reject. Reference, array, variant, and deeper field descent
+  remain fenced engineering extensions. Direct-parameter construction remains
+  synthetic-only pending Q13. This carrier still owns no selected/assigned
+  operation, object symbol, relocation kind, bytes, runtime address,
+  registration authority, or lease. The exact assigned-operand
   prerequisite is now complete for the custom/unknown outbound registrar
   branch. Selection retains the exact source host-call handle, call/operation
   ordinals, and ordered formal/native-parameter-to-abstract-operand rows while
@@ -7702,7 +7707,8 @@ Owners:
   region/base/slot/destination offsets, pointer extent, alignment, and both
   complete symbol snapshots. Independent replay rejects missing, duplicate,
   reordered, substituted, out-of-bounds, misaligned, `DataAddress`, direct-
-  parameter, or object-symbol-drifted rows. The exact address-store operation
+  parameter, bounded-two-hop, or object-symbol-drifted rows. The exact
+  address-store operation
   rung is now complete for that production shape. Backend orchestration inserts
   one `WriteFunctionAddressToRuntimeStorage` immediately before the exact
   registrar operation, preserves the registrar source coordinate and function
@@ -7713,7 +7719,7 @@ Owners:
   `Absolute64` pair or AArch64 `Page21`/`PageOffset12` pairs, and final replay
   independently rejoins the private function identity, canonical BSS symbol,
   sites, kinds, addends, origin, cardinality, and unchanged instruction bits.
-  `DataAddress`, direct parameters, multi-segment paths, registration,
+  `DataAddress`, direct parameters, bounded two-hop paths, registration,
   invocation, callback lifetime/lease, and publication authority remain
   fenced. The installation-entry manifest rung is now complete. Each ordered
   non-Clone row retains the full private object-store request, complete checked
@@ -7731,7 +7737,7 @@ Owners:
   installed-occurrence drift rejects with retry custody. This still grants no
   resolved address, registrar invocation, source-level `Registration`, live-
   registration capacity, lease, or publication authority; `DataAddress`, Q13
-  direct parameters, and multi-segment physical paths remain fenced.
+  direct parameters, and bounded two-hop physical paths remain fenced.
 
   The first source canary cohort is live: the exact target-selected registrar
   closes two explicitly named, nonoverlapping nested private slots for two

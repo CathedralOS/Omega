@@ -214,7 +214,8 @@ fn store_error(index: usize, message: &str) -> Diagnostic {
 mod tests {
     use super::*;
     use crate::callback_registrar_assigned_operands::tests::{
-        build_target, fixture, plan as plan_assigned, shared_root_fixture, with_formal_operand_kind,
+        build_target, fixture, nested_fixture, plan as plan_assigned, shared_root_fixture,
+        with_formal_operand_kind,
     };
     use omega_abstract_operations::{
         AbstractPermissionEvent, InstructionOperandKind, PermissionRealizationCandidate,
@@ -405,5 +406,21 @@ mod tests {
             .is_err()
         );
         assert_eq!(wrong.abstract_operations, before);
+    }
+
+    #[test]
+    fn nested_field_remains_fenced_before_address_store_insertion() {
+        let (mut fixture, bindings) = prepared(nested_fixture());
+        let original = fixture.abstract_operations.clone();
+        let boundary = boundary(&fixture);
+        assert!(
+            insert_callback_private_address_store_operations(
+                &mut fixture.abstract_operations,
+                &bindings,
+                Some(&boundary),
+            )
+            .is_err()
+        );
+        assert_eq!(fixture.abstract_operations, original);
     }
 }

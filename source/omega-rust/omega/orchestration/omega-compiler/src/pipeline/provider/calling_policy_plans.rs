@@ -787,6 +787,13 @@ pub(crate) fn close_outbound_callback_materializations(
             {
                 demands.push(demand.native_demand(parameter.identity));
             }
+            for path in layout_plan
+                .two_hop_private_callback_paths
+                .iter()
+                .filter(|path| path.root_layout.data_symbol == parameter.layout_data_symbol)
+            {
+                demands.push(path.native_demand(parameter.identity));
+            }
         }
         if demands.is_empty() && realization.callback_binders.is_empty() {
             continue;

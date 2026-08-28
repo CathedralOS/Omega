@@ -305,6 +305,53 @@ pub struct TargetClosedPrivateCallbackDemand {
     pub alignment: usize,
 }
 
+/// Exact target-closed identity of one plan-laid data layout.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetClosedPlanLaidDataLayoutIdentity {
+    pub data_symbol: SymbolHandle,
+    pub data_identity: Arc<str>,
+    pub layout_subject_identity: Arc<str>,
+    pub layout: omega_calling_conventions::LayoutPlanId,
+    pub physical: TypeLayout,
+}
+
+/// Exact two-hop proof from a plan-laid root through one inline named record
+/// field to a terminal private callback slot in a plan-laid child.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TargetClosedTwoHopPrivateCallbackPath {
+    pub root_layout_index: usize,
+    pub root_layout: TargetClosedPlanLaidDataLayoutIdentity,
+    pub field_symbol: SymbolHandle,
+    pub field: psi_arena::Handle<FieldLayout>,
+    pub field_layout: FieldLayout,
+    pub field_identity: Arc<str>,
+    pub field_slot: omega_calling_conventions::LayoutSlotId,
+    pub field_relative_offset: usize,
+    pub field_extent: usize,
+    pub field_alignment: usize,
+    pub child_layout_index: usize,
+    pub child_layout: TargetClosedPlanLaidDataLayoutIdentity,
+    pub terminal_demand_index: usize,
+    pub terminal_demand: TargetClosedPrivateCallbackDemand,
+    pub composed_offset: usize,
+}
+
+impl TargetClosedTwoHopPrivateCallbackPath {
+    pub fn native_demand(
+        &self,
+        parameter: omega_calling_conventions::NativeParameterId,
+    ) -> omega_calling_conventions::NativeCallbackDemand {
+        omega_calling_conventions::NativeCallbackDemand {
+            destination: omega_calling_conventions::NativePlace::Field {
+                parameter,
+                layout: self.root_layout.layout,
+                field_path: vec![self.field_slot, self.terminal_demand.slot],
+            },
+            requirement: self.terminal_demand.requirement,
+        }
+    }
+}
+
 impl TargetClosedPrivateCallbackDemand {
     pub fn native_demand(
         &self,
@@ -343,6 +390,8 @@ pub struct LayoutPlan {
     pub machine_layouts: Arena<MachineLayout>,
     pub variants: Arena<VariantLayout>,
     pub private_callback_demands: Vec<TargetClosedPrivateCallbackDemand>,
+    pub plan_laid_layout_identities: Vec<TargetClosedPlanLaidDataLayoutIdentity>,
+    pub two_hop_private_callback_paths: Vec<TargetClosedTwoHopPrivateCallbackPath>,
 }
 
 impl LayoutPlan {
