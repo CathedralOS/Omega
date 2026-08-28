@@ -48,12 +48,16 @@ pub enum TerminalLegalizationTheorem {
     /// For unsigned exact addition with a discharged narrow overflow
     /// obligation, zero-extension commutes with addition.
     UnsignedExactAddCommutesWithWidenV1,
+    /// For unsigned exact subtraction with a discharged narrow underflow
+    /// obligation, zero-extension commutes with subtraction while preserving
+    /// the authored operand order.
+    UnsignedExactSubtractCommutesWithWidenV1,
 }
 
-/// The closed V2 legality recipe admitted for one function.
+/// The closed V3 legality recipe admitted for one function.
 ///
-/// The original recipes are identity legalizations. The widened-u8 recipe is
-/// a closed non-identity transformation with explicit theorem, temporary,
+/// The original recipes are identity legalizations. The widened-u8 recipes
+/// are closed non-identity transformations with explicit theorem, temporary,
 /// source-operation, proof, and fuel custody.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalLegalizationRecipe {
@@ -62,6 +66,7 @@ pub enum TerminalLegalizationRecipe {
     ReturnU64ExactAddImmediateConditionalV1,
     ReturnU64ExactSubtractImmediateConditionalV1,
     ReturnU64WidenedU8ExactAddImmediateConditionalV1,
+    ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -154,6 +159,24 @@ pub enum TerminalLegalizedLeafValue {
         left: TerminalLegalizedImmediate,
         right: TerminalLegalizedImmediate,
     },
+    WidenedExactSubtract {
+        source_type: IntegerType,
+        target_type: IntegerType,
+        theorem: TerminalLegalizationTheorem,
+        obligation: ObligationId,
+        accepted_fact: AcceptedObligationFactIdentity,
+        subtract_operation: OperationId,
+        narrow_result: ValueId,
+        subtract_definition_site: ValueDefinitionSite,
+        subtract_fuel: Vec<FuelSettlement>,
+        widen_operation: OperationId,
+        widen_definition_site: ValueDefinitionSite,
+        widen_fuel: Vec<FuelSettlement>,
+        left_temporary: TerminalLegalizedTemporaryId,
+        right_temporary: TerminalLegalizedTemporaryId,
+        left: TerminalLegalizedImmediate,
+        right: TerminalLegalizedImmediate,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -169,7 +192,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v3\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -201,6 +224,7 @@ pub fn terminal_legalized_operation_plan_identity(
             TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1 => 2,
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => 3,
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => 5,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         bytes.extend_from_slice(&(function.condition_parameter_index as u64).to_le_bytes());
@@ -307,6 +331,7 @@ fn encode_leaf(bytes: &mut Vec<u8>, leaf: &TerminalLegalizedLeaf) {
             encode_integer_type(bytes, *target_type);
             bytes.push(match theorem {
                 TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1 => 0,
+                TerminalLegalizationTheorem::UnsignedExactSubtractCommutesWithWidenV1 => 1,
             });
             bytes.extend_from_slice(&obligation.get().to_le_bytes());
             bytes.extend_from_slice(&accepted_fact.bytes());
@@ -314,6 +339,45 @@ fn encode_leaf(bytes: &mut Vec<u8>, leaf: &TerminalLegalizedLeaf) {
             bytes.extend_from_slice(&narrow_result.get().to_le_bytes());
             encode_definition_site(bytes, *add_definition_site);
             encode_fuel(bytes, add_fuel);
+            bytes.extend_from_slice(&widen_operation.get().to_le_bytes());
+            encode_definition_site(bytes, *widen_definition_site);
+            encode_fuel(bytes, widen_fuel);
+            bytes.extend_from_slice(&left_temporary.0.to_le_bytes());
+            bytes.extend_from_slice(&right_temporary.0.to_le_bytes());
+            encode_immediate(bytes, left);
+            encode_immediate(bytes, right);
+        }
+        TerminalLegalizedLeafValue::WidenedExactSubtract {
+            source_type,
+            target_type,
+            theorem,
+            obligation,
+            accepted_fact,
+            subtract_operation,
+            narrow_result,
+            subtract_definition_site,
+            subtract_fuel,
+            widen_operation,
+            widen_definition_site,
+            widen_fuel,
+            left_temporary,
+            right_temporary,
+            left,
+            right,
+        } => {
+            bytes.push(5);
+            encode_integer_type(bytes, *source_type);
+            encode_integer_type(bytes, *target_type);
+            bytes.push(match theorem {
+                TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1 => 0,
+                TerminalLegalizationTheorem::UnsignedExactSubtractCommutesWithWidenV1 => 1,
+            });
+            bytes.extend_from_slice(&obligation.get().to_le_bytes());
+            bytes.extend_from_slice(&accepted_fact.bytes());
+            bytes.extend_from_slice(&subtract_operation.get().to_le_bytes());
+            bytes.extend_from_slice(&narrow_result.get().to_le_bytes());
+            encode_definition_site(bytes, *subtract_definition_site);
+            encode_fuel(bytes, subtract_fuel);
             bytes.extend_from_slice(&widen_operation.get().to_le_bytes());
             encode_definition_site(bytes, *widen_definition_site);
             encode_fuel(bytes, widen_fuel);

@@ -1344,7 +1344,7 @@ registers in ways that hide interference from the allocator.
 The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-legalized-operations` is a data-only,
 target-bound representation below raw target operations. A mandatory checked
-canonicalizer reconstructs one exact V2 projection from the target plan,
+canonicalizer reconstructs one exact V3 projection from the target plan,
 optimized abstract plan, and verified optimization unit. Its canonical identity
 binds Terminal-Psi, optimization-unit and fuel-schedule roots, exact native
 target, entry/function roster, attachments, one closed recipe, source
@@ -1371,7 +1371,7 @@ existing `omega-terminal-target-operations-to-selected-instructions` pipeline
 currently owns both checked legalization and selection mechanics, but the type
 boundary is mandatory and explicit.
 
-The closed V2 has five exact three-block runtime conditional forms. The first
+The closed V3 has six exact three-block runtime conditional forms. The first
 has leaves that materialize unsigned 64-bit constants and return. The second
 carries a shared unsigned 64-bit entry parameter across both branch edges and
 returns it directly, exposing genuine virtual interference and different
@@ -1381,16 +1381,19 @@ or subtraction. Their selected semantic kinds retain the exact obligation and
 accepted-fact identity. Addition uses the target-owned flag-neutral
 three-address `add_i64` row. AArch64 subtraction uses flag-transparent `SUB`;
 x86-64 retains the honest RFLAGS clobber of its alias-safe subtraction pseudo.
-The fifth accepts two immediate unsigned-u8 exact additions followed by
-u8-to-u64 widening. A closed theorem records that zero-extension commutes with
-the overflow-proven unsigned addition; independent replay checks the concrete
-arithmetic instance as well as the original u8 accepted-fact owner. Each arm's
-add and widen become one selected i64 add with ordered two-operation/two-fuel
-custody. Its promoted operands receive dense function-local legalization-
-temporary identities, and selected virtual-register origins preserve those
-identities instead of attributing a u64 value directly to a u8 Psi definition.
-The receipt therefore reports two non-identity legalization groups for the
-two-arm function. Source-derived virtual registers retain their exact Psi value
+The fifth and sixth accept two immediate unsigned-u8 exact additions or exact
+subtractions followed by u8-to-u64 widening. Closed theorems record that zero-
+extension commutes with the overflow- or underflow-proven unsigned operation;
+independent replay checks the concrete arithmetic instance as well as the
+original u8 accepted-fact owner. Subtraction preserves the authored left/right
+order rather than applying addition's commutative reasoning. Each arm's narrow
+operation and widen become one selected i64 operation with ordered two-
+operation/two-fuel custody. Its promoted operands receive dense function-local
+legalization-temporary identities, and selected virtual-register origins
+preserve those identities instead of attributing a u64 value directly to a u8
+Psi definition.
+The receipt therefore reports two non-identity legalization groups for either
+two-arm recipe. Source-derived virtual registers retain their exact Psi value
 and definition site; legalized temporaries retain their function-local identity
 plus exact source lineage and definition site. Each
 instruction retains its catalog constraint, explicit and implicit state

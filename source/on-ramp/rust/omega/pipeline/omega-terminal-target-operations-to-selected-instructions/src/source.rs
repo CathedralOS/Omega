@@ -243,13 +243,54 @@ fn derive_source_function(
                 )
             )
     );
+    let widened_u8_exact_subtract_leaves = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::IntegerWiden {
+                    source_type,
+                    operand,
+                    ..
+                },
+                ..
+            },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::IntegerWiden {
+                    source_type: false_source_type,
+                    operand: false_operand,
+                    ..
+                },
+                ..
+            }
+        ) if *source_type == u8_integer_type
+            && *false_source_type == u8_integer_type
+            && matches!(
+                (operand.as_ref(), false_operand.as_ref()),
+                (
+                    TerminalTargetIntegerExpression::ExactSubtract { left, right, .. },
+                    TerminalTargetIntegerExpression::ExactSubtract {
+                        left: false_left,
+                        right: false_right,
+                        ..
+                    }
+                ) if matches!(
+                    (left.as_ref(), right.as_ref(), false_left.as_ref(), false_right.as_ref()),
+                    (
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                        TerminalTargetIntegerExpression::Immediate { .. },
+                    )
+                )
+            )
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
         [0, 1, 2]
     } else if exact_add_leaves || exact_subtract_leaves {
         [0, 1, 5]
-    } else if widened_u8_exact_add_leaves {
+    } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
         [0, 1, 6]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
@@ -258,7 +299,7 @@ fn derive_source_function(
         (5, 2)
     } else if parameter_leaves {
         (3, 1)
-    } else if widened_u8_exact_add_leaves {
+    } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
         (11, 5)
     } else {
         (9, 4)
@@ -407,6 +448,8 @@ fn derive_source_function(
             TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
         } else if widened_u8_exact_add_leaves {
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
+        } else if widened_u8_exact_subtract_leaves {
+            TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1
         } else {
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
         },
@@ -532,39 +575,67 @@ fn derive_leaf(
         } => {
             let u8_integer_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
             let u8_type = ScalarType::Integer(u8_integer_type);
-            let TerminalTargetIntegerExpression::ExactAdd {
-                psi_operation: add_operation,
-                obligation,
-                left,
-                right,
-            } = operand.as_ref()
-            else {
-                return Err(Error::UnsupportedSourceShape { function });
-            };
+            let (is_subtract, arithmetic_operation, obligation, left, right) =
+                match operand.as_ref() {
+                    TerminalTargetIntegerExpression::ExactAdd {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    } => (false, psi_operation, obligation, left, right),
+                    TerminalTargetIntegerExpression::ExactSubtract {
+                        psi_operation,
+                        obligation,
+                        left,
+                        right,
+                    } => (true, psi_operation, obligation, left, right),
+                    _ => return Err(Error::UnsupportedSourceShape { function }),
+                };
             if nodes.len() != 5 || *source_type != u8_integer_type {
                 return Err(Error::UnsupportedSourceShape { function });
             }
             let left = derive_immediate(function, arm_edge, left, &nodes[0], u8_type)?;
             let right = derive_immediate(function, arm_edge, right, &nodes[1], u8_type)?;
-            let TerminalAbstractOperation::ExactIntegerAdd {
-                psi_operation: abstract_add_operation,
-                obligation: abstract_obligation,
-                result: narrow_result,
-                scalar_type: add_type,
-                left: abstract_left,
-                right: abstract_right,
-            } = &nodes[2].operation
-            else {
-                return Err(Error::UnsupportedSourceShape { function });
+            let (
+                abstract_arithmetic_operation,
+                abstract_obligation,
+                narrow_result,
+                arithmetic_type,
+                abstract_left,
+                abstract_right,
+            ) = match (&nodes[2].operation, is_subtract) {
+                (
+                    TerminalAbstractOperation::ExactIntegerAdd {
+                        psi_operation,
+                        obligation,
+                        result,
+                        scalar_type,
+                        left,
+                        right,
+                    },
+                    false,
+                )
+                | (
+                    TerminalAbstractOperation::ExactIntegerSubtract {
+                        psi_operation,
+                        obligation,
+                        result,
+                        scalar_type,
+                        left,
+                        right,
+                    },
+                    true,
+                ) => (psi_operation, obligation, result, scalar_type, left, right),
+                _ => return Err(Error::UnsupportedSourceShape { function }),
             };
-            if abstract_add_operation != add_operation
+            if abstract_arithmetic_operation != arithmetic_operation
                 || abstract_obligation != obligation
-                || *add_type != u8_integer_type
+                || *arithmetic_type != u8_integer_type
                 || *abstract_left != left.source_value
                 || *abstract_right != right.source_value
                 || nodes[2].definitions.len() != 1
                 || nodes[2].definitions[0].value != *narrow_result
-                || nodes[2].provenance != vec![PsiProvenance::Operation(*add_operation)]
+                || nodes[2].provenance != vec![PsiProvenance::Operation(*arithmetic_operation)]
             {
                 return Err(Error::UnsupportedSourceShape { function });
             }
@@ -591,10 +662,16 @@ fn derive_leaf(
                 return Err(Error::UnsupportedSourceShape { function });
             }
 
-            let Some(narrow_sum) = u8_integer_type.exact_add(left.value, right.value) else {
+            let narrow_value = if is_subtract {
+                u8_integer_type.exact_sub(left.value, right.value)
+            } else {
+                u8_integer_type.exact_add(left.value, right.value)
+            };
+            let Some(narrow_value) = narrow_value else {
                 return Err(Error::UnsupportedSourceShape { function });
             };
-            let Some(widened_sum) = u8_integer_type.widen_value_to(u64_integer_type, narrow_sum)
+            let Some(widened_value) =
+                u8_integer_type.widen_value_to(u64_integer_type, narrow_value)
             else {
                 return Err(Error::UnsupportedSourceShape { function });
             };
@@ -606,13 +683,18 @@ fn derive_leaf(
             else {
                 return Err(Error::UnsupportedSourceShape { function });
             };
-            if u64_integer_type.exact_add(widened_left, widened_right) != Some(widened_sum) {
+            let recomputed_widened = if is_subtract {
+                u64_integer_type.exact_sub(widened_left, widened_right)
+            } else {
+                u64_integer_type.exact_add(widened_left, widened_right)
+            };
+            if recomputed_widened != Some(widened_value) {
                 return Err(Error::UnsupportedSourceShape { function });
             }
 
             let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
                 fact.machine == optimized.machine
-                    && fact.operation == *add_operation
+                    && fact.operation == *arithmetic_operation
                     && fact.obligation == *obligation
             }) else {
                 return Err(Error::SourceCustodyMismatch);
@@ -623,25 +705,25 @@ fn derive_leaf(
                     OptimizationFact::OperationObligationReference {
                         obligation: referenced_obligation,
                         support,
-                    } if *referenced_obligation == *obligation && *support == *add_operation
+                    } if *referenced_obligation == *obligation
+                        && *support == *arithmetic_operation
                 )
             }) {
                 return Err(Error::SourceCustodyMismatch);
             }
-            let add_fuel = exact_operation_fuel(&nodes[2], *add_operation, function)?;
+            let arithmetic_fuel = exact_operation_fuel(&nodes[2], *arithmetic_operation, function)?;
             let widen_fuel = exact_operation_fuel(&nodes[3], *widen_operation, function)?;
-            (
-                &nodes[4],
-                SourceLeafValue::WidenedExactAdd {
+            let value = if is_subtract {
+                SourceLeafValue::WidenedExactSubtract {
                     source_type: u8_integer_type,
                     target_type: u64_integer_type,
-                    theorem: TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1,
+                    theorem: TerminalLegalizationTheorem::UnsignedExactSubtractCommutesWithWidenV1,
                     obligation: *obligation,
                     accepted_fact: accepted_fact.identity,
-                    add_operation: *add_operation,
+                    subtract_operation: *arithmetic_operation,
                     narrow_result: *narrow_result,
-                    add_definition_site: nodes[2].definitions[0].site,
-                    add_fuel,
+                    subtract_definition_site: nodes[2].definitions[0].site,
+                    subtract_fuel: arithmetic_fuel,
                     widen_operation: *widen_operation,
                     widen_definition_site: nodes[3].definitions[0].site,
                     widen_fuel,
@@ -649,8 +731,28 @@ fn derive_leaf(
                     right_temporary: temporaries[1],
                     left,
                     right,
-                },
-            )
+                }
+            } else {
+                SourceLeafValue::WidenedExactAdd {
+                    source_type: u8_integer_type,
+                    target_type: u64_integer_type,
+                    theorem: TerminalLegalizationTheorem::UnsignedExactAddCommutesWithWidenV1,
+                    obligation: *obligation,
+                    accepted_fact: accepted_fact.identity,
+                    add_operation: *arithmetic_operation,
+                    narrow_result: *narrow_result,
+                    add_definition_site: nodes[2].definitions[0].site,
+                    add_fuel: arithmetic_fuel,
+                    widen_operation: *widen_operation,
+                    widen_definition_site: nodes[3].definitions[0].site,
+                    widen_fuel,
+                    left_temporary: temporaries[0],
+                    right_temporary: temporaries[1],
+                    left,
+                    right,
+                }
+            };
+            (&nodes[4], value)
         }
         TerminalTargetIntegerExpression::ExactAdd {
             psi_operation,
@@ -852,6 +954,18 @@ fn source_operations(value: &SourceLeafValue) -> Vec<OperationId> {
             left.constant_operation,
             right.constant_operation,
             *add_operation,
+            *widen_operation,
+        ],
+        SourceLeafValue::WidenedExactSubtract {
+            subtract_operation,
+            widen_operation,
+            left,
+            right,
+            ..
+        } => vec![
+            left.constant_operation,
+            right.constant_operation,
+            *subtract_operation,
             *widen_operation,
         ],
     }
