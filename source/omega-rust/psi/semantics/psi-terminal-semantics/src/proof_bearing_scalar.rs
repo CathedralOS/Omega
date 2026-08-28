@@ -487,6 +487,11 @@ impl CanonicalScalarGoal {
                 left,
                 right,
             } => exact_division_defined_proposition(*integer_type, left, right)?,
+            Self::ExactShiftCount {
+                value_type,
+                count_type,
+                count,
+            } => exact_shift_count_proposition(*value_type, *count_type, count)?,
             _ => return Ok(None),
         };
         proposition
@@ -494,6 +499,69 @@ impl CanonicalScalarGoal {
             .map_err(OperationSemanticError::InvalidProposition)?;
         Ok(Some(proposition))
     }
+}
+
+fn exact_shift_count_proposition(
+    value_type: IntegerType,
+    count_type: IntegerType,
+    count: &ScalarTerm,
+) -> Result<Proposition, OperationSemanticError> {
+    if value_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactShiftCountRequiresFixedValueInteger(value_type));
+    }
+    if count_type.carrier() != IntegerCarrier::Fixed {
+        return Err(OperationSemanticError::ExactShiftCountRequiresFixedCountInteger(count_type));
+    }
+    if count.scalar_type() != ScalarType::Integer(count_type) {
+        return Err(OperationSemanticError::ExactShiftCountTypeMismatch {
+            declared: count_type,
+            actual: count.scalar_type(),
+        });
+    }
+    if let ScalarTerm::Integer { value, .. } = count {
+        let count = match value {
+            IntegerValue::Signed(count) => u128::try_from(*count).ok(),
+            IntegerValue::Unsigned(count) => Some(*count),
+        };
+        return Ok(
+            if count.is_some_and(|count| count < u128::from(value_type.bits())) {
+                Proposition::Truth
+            } else {
+                Proposition::Falsehood
+            },
+        );
+    }
+
+    let mut bounds = Vec::with_capacity(2);
+    if count_type.sign() == IntegerSign::Signed {
+        bounds.push(Proposition::LessOrEqual(
+            ScalarTerm::integer(count_type, IntegerValue::Signed(0))
+                .map_err(OperationSemanticError::InvalidProposition)?,
+            count.clone(),
+        ));
+    }
+    let maximum = u128::from(value_type.bits() - 1);
+    let maximum = match count_type.sign() {
+        IntegerSign::Signed => i128::try_from(maximum).ok().map(IntegerValue::Signed),
+        IntegerSign::Unsigned => Some(IntegerValue::Unsigned(maximum)),
+    };
+    // Once the bound is admitted it cannot exceed the carrier maximum, so
+    // inequality here is exactly the strict-greater test used by reduction.
+    if let Some(maximum) = maximum
+        && count_type.admits(maximum)
+        && count_type.maximum_value() != maximum
+    {
+        bounds.push(Proposition::LessOrEqual(
+            count.clone(),
+            ScalarTerm::integer(count_type, maximum)
+                .map_err(OperationSemanticError::InvalidProposition)?,
+        ));
+    }
+    Ok(match bounds.len() {
+        0 => Proposition::Truth,
+        1 => bounds.pop().expect("one exact-shift count bound"),
+        _ => Proposition::Conjunction(bounds),
+    })
 }
 
 fn nonzero_divisor_proposition(
@@ -1450,6 +1518,124 @@ mod tests {
     }
 
     #[test]
+    fn exact_shift_count_projects_only_non_carrier_implied_bounds() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let unsigned_count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let unsigned_count = ScalarTerm::value(
+            ValueId::new(34).expect("unsigned count"),
+            ScalarType::Integer(unsigned_count_type),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type,
+                count_type: unsigned_count_type,
+                count: unsigned_count.clone(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::LessOrEqual(
+                unsigned_count,
+                ScalarTerm::integer(unsigned_count_type, IntegerValue::Unsigned(63)).unwrap(),
+            ))),
+        );
+
+        let signed_count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+        let signed_count = ScalarTerm::value(
+            ValueId::new(35).expect("signed count"),
+            ScalarType::Integer(signed_count_type),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type,
+                count_type: signed_count_type,
+                count: signed_count.clone(),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Conjunction(vec![
+                Proposition::LessOrEqual(
+                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(0)).unwrap(),
+                    signed_count.clone(),
+                ),
+                Proposition::LessOrEqual(
+                    signed_count,
+                    ScalarTerm::integer(signed_count_type, IntegerValue::Signed(63)).unwrap(),
+                ),
+            ]))),
+        );
+
+        let narrow_count_type = IntegerType::new(IntegerSign::Unsigned, 5).expect("u5");
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type,
+                count_type: narrow_count_type,
+                count: ScalarTerm::value(
+                    ValueId::new(36).expect("narrow count"),
+                    ScalarType::Integer(narrow_count_type),
+                ),
+            }
+            .kernel_proposition(),
+            Ok(Some(Proposition::Truth)),
+        );
+    }
+
+    #[test]
+    fn exact_shift_count_normalizes_known_literal_boundary() {
+        let value_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let count_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        for (literal, expected) in [(63, Proposition::Truth), (64, Proposition::Falsehood)] {
+            let goal = CanonicalScalarGoal::ExactShiftCount {
+                value_type,
+                count_type,
+                count: ScalarTerm::integer(count_type, IntegerValue::Unsigned(literal))
+                    .expect("u8 shift count"),
+            };
+            assert_eq!(goal.kernel_proposition(), Ok(Some(expected)));
+        }
+    }
+
+    #[test]
+    fn exact_shift_count_rejects_invalid_carrier_identity() {
+        let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+        let u8_type = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
+        let address = IntegerType::address(64).expect("address64");
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: address,
+                count_type: u8_type,
+                count: ScalarTerm::value(
+                    ValueId::new(37).expect("count"),
+                    ScalarType::Integer(u8_type),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactShiftCountRequiresFixedValueInteger(address),),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: u64_type,
+                count_type: address,
+                count: ScalarTerm::value(
+                    ValueId::new(38).expect("address count"),
+                    ScalarType::Integer(address),
+                ),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactShiftCountRequiresFixedCountInteger(address),),
+        );
+        assert_eq!(
+            CanonicalScalarGoal::ExactShiftCount {
+                value_type: u64_type,
+                count_type: u8_type,
+                count: ScalarTerm::boolean(true),
+            }
+            .kernel_proposition(),
+            Err(OperationSemanticError::ExactShiftCountTypeMismatch {
+                declared: u8_type,
+                actual: ScalarType::Boolean,
+            }),
+        );
+    }
+
+    #[test]
     fn unsettled_canonical_goal_shapes_do_not_project_to_kernel_propositions() {
         let integer = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
         let value = ScalarTerm::value(
@@ -1461,11 +1647,6 @@ mod tests {
                 source_type: integer,
                 target_type: integer,
                 operand: value.clone(),
-            },
-            CanonicalScalarGoal::ExactShiftCount {
-                value_type: integer,
-                count_type: integer,
-                count: value.clone(),
             },
             CanonicalScalarGoal::ExactShiftLeftRepresentable {
                 value_type: integer,

@@ -22,6 +22,49 @@ fn two_value_context(integer_type: IntegerType) -> PropositionContext {
 }
 
 #[test]
+fn signed_exact_shift_count_uses_checked_conjunction_introduction() {
+    let count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let count = value(1, count_type);
+    let lower = Proposition::LessOrEqual(integer(count_type, 0), count.clone());
+    let upper = Proposition::LessOrEqual(count.clone(), integer(count_type, 63));
+    let goal = Proposition::Conjunction(vec![lower.clone(), upper.clone()]);
+    let context = PropositionContext::from_value_types([
+        (ValueId::new(1).unwrap(), ScalarType::Integer(count_type)),
+        (ValueId::new(2).unwrap(), ScalarType::Integer(count_type)),
+    ])
+    .unwrap();
+    let proof = prove_canonical_integer_proposition(
+        &context,
+        &goal,
+        std::slice::from_ref(&upper),
+        std::slice::from_ref(&lower),
+    )
+    .expect("complete exact count bounds prove the canonical conjunction");
+    let ProofRule::ConjunctionIntroduction(conjuncts) = proof.rule else {
+        panic!("signed exact count uses conjunction introduction")
+    };
+    assert_eq!(conjuncts.len(), 2);
+    assert!(matches!(
+        conjuncts[0].rule,
+        ProofRule::SemanticAxiom { index: 0 }
+    ));
+    assert!(matches!(
+        conjuncts[1].rule,
+        ProofRule::Assumption { index: 0 }
+    ));
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, std::slice::from_ref(&upper), &[],)
+            .is_none(),
+        "missing lower-bound custody cannot prove the count goal",
+    );
+    let redirected = Proposition::LessOrEqual(value(2, count_type), integer(count_type, 63));
+    assert!(
+        prove_canonical_integer_proposition(&context, &goal, &[redirected], &[lower]).is_none(),
+        "a different count identity cannot prove the count goal",
+    );
+}
+
+#[test]
 fn signed_goal_prefers_negative_arm_and_tightens_requirement() {
     let integer_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
     let divisor = value(1, integer_type);

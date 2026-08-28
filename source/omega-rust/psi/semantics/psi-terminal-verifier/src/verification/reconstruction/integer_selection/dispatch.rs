@@ -12,6 +12,15 @@ pub(super) fn retained_atomic(
     semantic_axioms: &[Proposition],
     definitions: &mut DefinitionIndex,
 ) -> Option<bool> {
-    matches!(goal, Proposition::LessOrEqual(_, _))
-        .then(|| bound::retained(context, goal, requirements, semantic_axioms, definitions))
+    match goal {
+        Proposition::Truth => Some(true),
+        Proposition::LessOrEqual(_, _) => Some(bound::retained(
+            context,
+            goal,
+            requirements,
+            semantic_axioms,
+            definitions,
+        )),
+        _ => None,
+    }
 }

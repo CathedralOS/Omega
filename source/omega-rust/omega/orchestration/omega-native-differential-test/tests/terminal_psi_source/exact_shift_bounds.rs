@@ -134,6 +134,7 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         .find(|operation| matches!(operation.kind, OperationKind::ExactIntegerShiftRight { .. }))
         .expect("the proof-gated right shift remains explicit terminal work");
     let OperationKind::ExactIntegerShiftRight {
+        count,
         obligation: shift_obligation,
         ..
     } = shift_operation.kind
@@ -151,6 +152,25 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
                 psi_proof_admission::EvidenceRoute::CertificateDerived(_)
             )
     }));
+    let reconstructed =
+        psi_terminal_verifier::reconstruct_operation_obligations(&lowered.semantic_module)
+            .expect("exact right-shift obligation reconstructs");
+    let site = reconstructed
+        .iter()
+        .find(|site| site.obligation.id == shift_obligation)
+        .expect("exact right-shift obligation is reconstructed");
+    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    assert!(
+        site.canonical_certificate,
+        "right-shift count custody must select the unchanged canonical goal",
+    );
+    assert_eq!(
+        site.obligation.proposition,
+        psi_core::Proposition::LessOrEqual(
+            psi_core::ScalarTerm::value(count, ScalarType::Integer(u64_type)),
+            psi_core::ScalarTerm::integer(u64_type, IntegerValue::Unsigned(63)).unwrap(),
+        ),
+    );
 
     let semantic = encode_module(&lowered.semantic_module).expect("exact shift semantics");
     let proof = encode_proof_bundle(&lowered.proof_bundle).expect("exact shift proof");
@@ -169,7 +189,6 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
             if obligation == shift_obligation
     ));
 
-    let u64_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
     let argument = |value| TerminalScalarValue::Integer {
         scalar_type: u64_type,
         value: IntegerValue::Unsigned(value),

@@ -2931,8 +2931,19 @@ Remaining:
   `NonzeroDivisor` now has an exact fail-closed kernel proposition projection:
   unsigned fixed integers use `1 <= d`, signed fixed integers of at least two
   bits use the ordered disjunction `(d <= -1) OR (1 <= d)`, and signed one-bit
-  integers use `d <= -1`; address and mismatched carriers reject, while the
-  other five canonical goal shapes remain unprojected.
+  integers use `d <= -1`; address and mismatched carriers reject. The other
+  canonical goal shapes were initially unprojected.
+  `ExactShiftCount` now also has an exact fail-closed projection of the settled
+  `[0, width)` law. Fixed value/count carriers and exact count identity are
+  mandatory; direct literals normalize to `Truth` or `Falsehood`, while
+  symbolic counts retain only non-carrier-implied lower and upper bounds in
+  canonical order. Carrier-total counts project to `Truth`. Exact right shift
+  is the bounded production pilot: complete prior bounds select the unchanged
+  canonical goal and the existing untrusted recursive producer emits a kernel-
+  checked citation/conjunction proof; missing or redirected evidence retains
+  the trusted sufficient-reduction fallback. Exact left-shift result
+  representability, exact arithmetic/cast representability, general ledger
+  reconstruction, and global composition remain open.
   `IntegerLessOrEqualTransitivity` checks two recursively derived `<=` premises
   with an identical middle and exact outer endpoints, allowing existing
   `d <= -2` evidence plus the closed `-2 <= -1` relation to establish the

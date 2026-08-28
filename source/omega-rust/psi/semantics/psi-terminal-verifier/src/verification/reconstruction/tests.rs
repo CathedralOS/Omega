@@ -9,6 +9,55 @@ fn value(id: u64, integer_type: IntegerType) -> ScalarTerm {
 }
 
 #[test]
+fn exact_shift_count_selects_only_complete_prior_canonical_evidence() {
+    let value_type = IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    let count_type = IntegerType::new(IntegerSign::Signed, 8).expect("i8");
+    let count = value(2, count_type);
+    let goal = CanonicalScalarGoal::ExactShiftCount {
+        value_type,
+        count_type,
+        count: count.clone(),
+    };
+    let lower = Proposition::LessOrEqual(
+        ScalarTerm::integer(count_type, IntegerValue::Signed(0)).expect("i8 zero"),
+        count.clone(),
+    );
+    let upper = Proposition::LessOrEqual(
+        count,
+        ScalarTerm::integer(count_type, IntegerValue::Signed(63)).expect("i8 shift maximum"),
+    );
+    assert!(canonical_goal_has_closed_prior_certificate(
+        &goal,
+        std::slice::from_ref(&lower),
+        std::slice::from_ref(&upper),
+    ));
+    assert!(!canonical_goal_has_closed_prior_certificate(
+        &goal,
+        &[],
+        std::slice::from_ref(&upper),
+    ));
+    assert!(!canonical_goal_has_closed_prior_certificate(
+        &goal,
+        std::slice::from_ref(&lower),
+        &[Proposition::LessOrEqual(
+            value(3, count_type),
+            ScalarTerm::integer(count_type, IntegerValue::Signed(63)).expect("i8 shift maximum"),
+        )],
+    ));
+
+    let narrow_count_type = IntegerType::new(IntegerSign::Unsigned, 5).expect("u5");
+    assert!(canonical_goal_has_closed_prior_certificate(
+        &CanonicalScalarGoal::ExactShiftCount {
+            value_type,
+            count_type: narrow_count_type,
+            count: value(4, narrow_count_type),
+        },
+        &[],
+        &[],
+    ));
+}
+
+#[test]
 fn exact_division_selects_canonical_certificate_only_for_complete_prior_facts() {
     let unsigned = IntegerType::new(IntegerSign::Unsigned, 8).expect("u8");
     let unsigned_right = value(2, unsigned);
