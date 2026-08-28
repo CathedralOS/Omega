@@ -196,7 +196,7 @@ expr_census_prefix_mutation_teeth:
         call expr_census_prefix_mutation_tooth
         imm r40, 17054520             ; store boundary 359
         call expr_census_prefix_mutation_tooth
-        jmp composition_scan_init
+        jmp build_effect_census_prefix_init
 
 expr_census_prefix_mutation_tooth:
         load r41, r40

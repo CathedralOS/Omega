@@ -75,12 +75,12 @@ Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
 - `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
-- exact maximal-observation ROOT: 82,085 bytes,
-  `17a09ed098fcbaa7247373bf009893260994b246fc920577f2345f65b1c03d4d`.
+- exact maximal-observation ROOT: 82,921 bytes,
+  `b3e41553ac5b52117bd17cf8028a6882fbc16729cd91f69bbd400e53edfc2731`.
 
 - [ ] Reduce the remaining admission implementation without merging distinct
-  proof responsibilities. The bounded gate currently has 190 Alpha modules,
-  60,391 lines, and a 1,004,588-byte Checker A source. Shape, control, data,
+  proof responsibilities. The bounded gate currently has 191 Alpha modules,
+  60,552 lines, and a 1,010,429-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems.
@@ -91,8 +91,12 @@ Canonical subjects:
   47 expression-census callers now use four checked boundary-prefix tables
   instead of rescanning all 1,236 primitive/push rows. Each family has an
   internal mutation tooth; primitive and push meaning remains with its existing
-  owner. A literal census rejected generic pooling across semantic owners and
-  retained only one statement-family-local label-suffix literal.
+  owner. The 57 direct effect-census calls likewise use four checked prefixes,
+  replacing 80,320 repeated local/memory/transition/event row visits per full
+  traversal with one construction and constant-time queries; four independent
+  teeth bind those families without moving their semantics. A literal census
+  rejected generic pooling across semantic owners and retained only one
+  statement-family-local label-suffix literal.
 - [ ] **BLOCKED — OWNER Q18:** ratify the generic guarded
   simulation/coinduction judgment and finite certificate shape. Then reconstruct
   the exact compiler proposition below `bc` and check it with the Alpha-owned
@@ -121,7 +125,13 @@ Delta.
   changing Alpha or Gamma meaning, hiding semantics in a runner, or weakening
   evidence joins. A 12-hour ceiling is emergency containment, not an acceptable
   normal gate duration. Profile the exact input before each optimization and
-  retain byte-identical output plus focused semantic tests.
+  retain byte-identical output plus focused semantic tests. A live sample of the
+  active publication found 86.7% of samples in Alpha dispatch and no allocator
+  or kernel hotspot. After that attempt finalizes, the next candidate is to
+  cache frame-relative variable byte displacements plus the current value-column
+  base, with nested non-tail restoration and tail-transfer tests. That change
+  alters the canonical interpreter/tape identities and must start a new pinned
+  attempt rather than invalidating the current one.
 - [x] The admitted dispatch, fuel-boundary, cached-variable, and canonical-u32
   changes are reflected in the current 50,762-byte interpreter source and its
   72,810-byte tape

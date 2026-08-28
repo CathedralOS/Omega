@@ -116,6 +116,7 @@ emit_stack_checker_prefix() {
     "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
     "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
     "$OBLIGATION_DIR/bc-expression-census-prefix.alpha" \
+    "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" \
     "$OBLIGATION_DIR/bc-expr-composition.alpha" \
     "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
     "$OBLIGATION_DIR/bc-call-bounds.alpha" \
@@ -278,6 +279,7 @@ emit_expression_table_prefix() {
     "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
     "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
     "$OBLIGATION_DIR/bc-expression-census-prefix.alpha" \
+    "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" \
     "$OBLIGATION_DIR/bc-expr-composition.alpha" \
     "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
     "$OBLIGATION_DIR/bc-call-bounds.alpha"
@@ -1018,6 +1020,12 @@ if [ "$procedure_inventory_module_bytes" -ge 20000 ]; then
   echo "bc block control FAIL — bc-procedure-inventory.alpha is ${procedure_inventory_module_bytes} bytes (20KB module cap)" >&2
   exit 1
 fi
+effect_census_prefix_module_bytes=$(wc -c \
+  < "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" | tr -d ' ')
+if [ "$effect_census_prefix_module_bytes" -ge 20000 ]; then
+  echo "bc block control FAIL — bc-effect-census-prefix.alpha is ${effect_census_prefix_module_bytes} bytes (20KB module cap)" >&2
+  exit 1
+fi
 build_emit_dec_word_checker
 smoke_emit_dec_word_checker
 build_label_emitters_checker
@@ -1040,6 +1048,7 @@ cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-expr-primitives.alpha" \
   "$OBLIGATION_DIR/bc-stack-pushes.alpha" \
   "$OBLIGATION_DIR/bc-expression-census-prefix.alpha" \
+  "$OBLIGATION_DIR/bc-effect-census-prefix.alpha" \
   "$OBLIGATION_DIR/bc-expr-composition.alpha" \
   "$OBLIGATION_DIR/bc-raw-load-families.alpha" \
   "$OBLIGATION_DIR/bc-call-bounds.alpha" \
@@ -1231,4 +1240,4 @@ label_emitters_case_run swapped-emit-occurrence "$T/swapped-emit-occurrence.bund
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 4 expression-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 8 format/identity-binding teeth + 4 expression-prefix teeth + 4 effect-prefix teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

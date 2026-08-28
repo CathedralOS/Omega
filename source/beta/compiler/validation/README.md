@@ -107,8 +107,8 @@ same memory-owner rejoins for its complete memory family. The synthesized
 `__write_str` helper resolves from the exact main-prelude successor and mapper
 cell; effect custody owns its sole exhaustive body check, while event and
 summary consumers use its returned relative sites. The final ROOT tape is
-82,085 bytes for the current exact subjects, SHA-256
-`17a09ed098fcbaa7247373bf009893260994b246fc920577f2345f65b1c03d4d`.
+82,921 bytes for the current exact subjects, SHA-256
+`b3e41553ac5b52117bd17cf8028a6882fbc16729cd91f69bbd400e53edfc2731`.
 `gen_emit`'s three identical newline events now use checker-owned exact
 cardinality and lexical occurrence rather than source rows. An eighth control
 swaps the first two valid witness PCs and is rejected by the label-emitter
@@ -167,6 +167,14 @@ full 829-row primitive scan and 407-row push scan from every query while
 leaving primitive and push semantics with their existing owners. Four internal
 mutation teeth independently perturb the terminal boundary of each family and
 require the constant-time query to reject.
+
+The 57 direct effect-census calls use the same construction discipline for
+local-access, memory-site, transition, and event row intervals. Four more
+prefix tables replace 80,320 repeated row visits per full consumer traversal;
+their owner checks source-block ordering, exact terminal counts, restored
+positive lookup, and one mutation tooth per family. Local kinds and slots,
+memory joins, transition meaning, event keys and occurrences, artifact PCs, and
+decoded opcode/effect policy remain separate semantic obligations.
 
 The whole-artifact frame summary retains one canonical per-PC reachability,
 relative-depth, frame-kind, and saved-frame product. Ranged-store transfer

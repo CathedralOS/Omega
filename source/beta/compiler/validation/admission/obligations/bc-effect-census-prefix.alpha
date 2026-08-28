@@ -1,0 +1,207 @@
+; Canonical structural index for local/memory/transition/event custody by block.
+;
+; The four source-table owners have already reconstructed and validated every
+; row before control reaches this phase. Build cumulative counts at block
+; boundaries 0..359 once, so exact effect censuses can bind their half-open row
+; intervals without repeatedly scanning all 1,255 rows. This owner indexes only
+; source-block custody; effect meanings, artifact PCs, and semantic joins remain
+; with their existing owners.
+;
+; Prefix arrays (360 words in independently reserved 4 KiB regions):
+;   local access    17055744
+;   memory site     17059840
+;   transition      17063936
+;   event           17068032
+
+build_effect_census_prefix_init:
+        imm r10, 0
+build_effect_census_prefix_zero_loop:
+        imm r1, 360
+        jlt r10, r1, build_effect_census_prefix_zero_one
+        jmp build_effect_census_prefix_families
+build_effect_census_prefix_zero_one:
+        mov r11, r10
+        imm r1, 8
+        mul r11, r1
+        imm r2, 0
+        imm r1, 17055744
+        add r1, r11
+        store r1, r2
+        imm r1, 17059840
+        add r1, r11
+        store r1, r2
+        imm r1, 17063936
+        add r1, r11
+        store r1, r2
+        imm r1, 17068032
+        add r1, r11
+        store r1, r2
+        imm r1, 1
+        add r10, r1
+        jmp build_effect_census_prefix_zero_loop
+
+build_effect_census_prefix_families:
+        imm r20, 7168000              ; checked local source blocks
+        imm r21, 244
+        imm r22, 17055744
+        call build_effect_census_prefix_family
+        imm r20, 7602176              ; checked memory source blocks
+        imm r21, 101
+        imm r22, 17059840
+        call build_effect_census_prefix_family
+        imm r20, 3215360              ; checked transition source blocks
+        imm r21, 293
+        imm r22, 17063936
+        call build_effect_census_prefix_family
+        imm r20, 7077888              ; checked event source blocks
+        imm r21, 617
+        imm r22, 17068032
+        call build_effect_census_prefix_family
+        imm r10, 1
+        jmp build_effect_census_prefix_accumulate
+
+; Source-block table base/count/prefix base in r20/r21/r22. In addition to
+; constructing counts, require the checked rows to be ordered by source block;
+; this makes each prefix pair an exact half-open row interval rather than only
+; a cardinality summary.
+build_effect_census_prefix_family:
+        imm r10, 0
+        imm r14, 0
+build_effect_census_prefix_family_loop:
+        jlt r10, r21, build_effect_census_prefix_family_one
+        ret
+build_effect_census_prefix_family_one:
+        mov r11, r10
+        imm r1, 8
+        mul r11, r1
+        mov r1, r20
+        add r1, r11
+        load r12, r1
+        imm r1, 0
+        jlt r12, r1, reject
+        imm r1, 359
+        jlt r12, r1, build_effect_census_prefix_family_order
+        jmp reject
+build_effect_census_prefix_family_order:
+        jlt r12, r14, reject
+        mov r14, r12
+        imm r1, 1
+        add r12, r1
+        imm r1, 8
+        mul r12, r1
+        mov r1, r22
+        add r1, r12
+        call exact_increment_cell
+        imm r1, 1
+        add r10, r1
+        jmp build_effect_census_prefix_family_loop
+
+build_effect_census_prefix_accumulate:
+        imm r1, 360
+        jlt r10, r1, build_effect_census_prefix_accumulate_one
+        jmp check_effect_census_prefix_terminals
+build_effect_census_prefix_accumulate_one:
+        mov r11, r10
+        imm r1, 8
+        mul r11, r1
+        mov r12, r11
+        imm r1, 8
+        sub r12, r1
+        imm r13, 17055744
+        call effect_census_prefix_accumulate_array
+        imm r13, 17059840
+        call effect_census_prefix_accumulate_array
+        imm r13, 17063936
+        call effect_census_prefix_accumulate_array
+        imm r13, 17068032
+        call effect_census_prefix_accumulate_array
+        imm r1, 1
+        add r10, r1
+        jmp build_effect_census_prefix_accumulate
+
+; Current byte offset in r11, preceding byte offset in r12, array base in r13.
+effect_census_prefix_accumulate_array:
+        mov r1, r13
+        add r1, r12
+        load r2, r1
+        mov r1, r13
+        add r1, r11
+        load r3, r1
+        add r3, r2
+        store r1, r3
+        ret
+
+check_effect_census_prefix_terminals:
+        imm r10, 2872                 ; boundary 359 * 8
+        imm r1, 17055744
+        add r1, r10
+        load r2, r1
+        imm r3, 244
+        jeq r2, r3, check_memory_census_prefix_terminal
+        jmp reject
+check_memory_census_prefix_terminal:
+        imm r1, 17059840
+        add r1, r10
+        load r2, r1
+        imm r3, 101
+        jeq r2, r3, check_transition_census_prefix_terminal
+        jmp reject
+check_transition_census_prefix_terminal:
+        imm r1, 17063936
+        add r1, r10
+        load r2, r1
+        imm r3, 293
+        jeq r2, r3, check_event_census_prefix_terminal
+        jmp reject
+check_event_census_prefix_terminal:
+        imm r1, 17068032
+        add r1, r10
+        load r2, r1
+        imm r3, 617
+        jeq r2, r3, effect_census_prefix_mutation_teeth
+        jmp reject
+
+; Four internal mutation teeth prove that every family participates in the
+; O(1) query without generating alternate checker-source permutations.
+effect_census_prefix_mutation_teeth:
+        imm r40, 17058616             ; local boundary 359
+        call effect_census_prefix_mutation_tooth
+        imm r40, 17062712             ; memory boundary 359
+        call effect_census_prefix_mutation_tooth
+        imm r40, 17066808             ; transition boundary 359
+        call effect_census_prefix_mutation_tooth
+        imm r40, 17070904             ; event boundary 359
+        call effect_census_prefix_mutation_tooth
+        call effect_census_prefix_full_range
+        call exact_effect_census_prefix_matches
+        imm r1, 1
+        jeq r0, r1, composition_scan_init
+        jmp reject
+
+effect_census_prefix_mutation_tooth:
+        load r41, r40
+        mov r42, r41
+        imm r1, 1
+        add r42, r1
+        store r40, r42
+        call effect_census_prefix_full_range
+        call exact_effect_census_prefix_matches
+        store r40, r41                 ; restore canonical derived index
+        imm r1, 0
+        jeq r0, r1, effect_census_prefix_mutation_tooth_ok
+        jmp reject
+effect_census_prefix_mutation_tooth_ok:
+        ret
+
+effect_census_prefix_full_range:
+        imm r20, 0
+        imm r21, 358
+        imm r22, 0
+        imm r23, 244
+        imm r24, 0
+        imm r25, 101
+        imm r26, 0
+        imm r27, 293
+        imm r28, 0
+        imm r29, 617
+        ret
