@@ -778,12 +778,19 @@ independent field namespaces remain legal. Top-level structural type and domain
 rosters require canonical ID order and unique nonempty identities; domain
 semantic identities are independently unique, carrier references are closed,
 shared carriers remain legal, first-class byte sequences are borrowed views,
-and fixed arrays are nonempty. Structural returns independently locate an exact
-`CallStructural` result producer in the current executable nodes and require it
-to occur strictly earlier in the same block or in a CFG-dominating block; block
-storage order and immutable source-frontier rows grant no availability. A
-source-derived content-bearing structural call/return canary exercises that
-admission boundary. Trivial-affine local declarations additionally require
+and fixed arrays are nonempty. Byte-literal place catalogs additionally require
+dense declaration ordinals, borrowed-view carriers, and one full typed
+executable establishment per row. Witness correspondence is identity-based;
+block storage order is not declaration authority. Every executable input of a
+producer-defined root independently locates its current `CallStructural`
+result, byte-literal, or explicit trivial-affine-local producer and requires it
+to occur strictly earlier in the same block or in a CFG-dominating block.
+Structural arguments, observations, return sources, and cleanup inputs all
+participate; immutable source-frontier rows grant no current-site availability.
+Compressed return-tuple locals have no executable producer requirement.
+Source-derived content-bearing structural call/return and byte-literal boundary
+canaries exercise that admission boundary. Trivial-affine local declarations
+additionally require
 dense declaration ordinals and empty-Record carriers. Each local has exactly
 one full typed witness route: an executable `EstablishTrivialAffineLocal`, or
 the compressed tuple on the currently emitted structural parameter return.
@@ -792,12 +799,11 @@ unique hidden source-operation identities disjoint from executable operations,
 and pair with the exact parameter-zero/result carrier shape and reverse
 local-plus-affine-tail discard sequence. Compressed no-ABI locals deliberately
 remain outside executable `declared_places`. This is catalog and current
-compressed-return correspondence, not authority to synthesize locals or a
-path-sensitive proof that an explicit local is available at an arbitrary
-rewritten site; hidden source-operation provenance remains in the later full
-custody replay layer. Full provider-attachment specialization replay,
-structural-domain content-projection validation, remaining root-kind legality,
-byte-literal and path-sensitive affine-local availability, provider and
+compressed-return correspondence plus producer availability, not authority to
+synthesize locals or a complete consume/cleanup custody replay; hidden
+source-operation provenance remains in the later full custody replay layer.
+Full provider-attachment specialization replay, structural-domain
+content-projection validation, remaining root-kind legality, provider and
 ownership/custody replay, exact payloadless-callee classification, and the wider
 crash/requirement/effect vocabulary remain explicit unfinished validator
 layers. It

@@ -542,17 +542,24 @@ These facts constrain the work below.
   canonical ID order and unique nonempty identities; domain semantic identities
   are independently unique, every domain names a known carrier, shared
   carriers remain legal, first-class byte sequences are borrowed views, and
-  fixed arrays are nonempty. Full provider-attachment specialization replay
-  and structural-domain content-projection validation remain separate validator
-  layers. Structural returns now locate their exact `CallStructural` result
-  producer in current executable nodes and require strict same-block ordering
-  or CFG dominance without trusting block storage order or immutable source
-  frontiers; a source-derived content-bearing call/return passes verified
-  optimizer admission. Trivial-affine local catalog rows now require dense
-  declaration ordinals and exact empty-Record carriers. The validator accepts
-  exactly one establishment representation: full typed executable
-  `EstablishTrivialAffineLocal` witnesses, or the currently emitted compressed
-  `ReturnStructural.trivial_affine_locals` tuple. Compressed tuples must match
+  fixed arrays are nonempty. Byte-literal place rows additionally require dense
+  declaration ordinals, exact borrowed-view carriers, and one full typed
+  executable establishment per catalog row; establishment matching is by
+  identity rather than block storage order. Full provider-attachment
+  specialization replay and structural-domain content-projection validation
+  remain separate validator layers. Every current executable input of a
+  producer-defined root now locates its exact `CallStructural` result,
+  byte-literal, or explicit trivial-affine-local producer and requires strict
+  same-block ordering or CFG dominance without trusting block storage order or
+  immutable source frontiers. Structural arguments, observations, returns, and
+  cleanup roots participate; compressed return-tuple locals remain
+  metadata-only and impose no executable producer requirement.
+  Source-derived content-bearing call/return and byte-literal boundary canaries
+  pass verified optimizer admission. Trivial-affine local catalog rows now
+  require dense declaration ordinals and exact empty-Record carriers. The
+  validator accepts exactly one establishment representation: full typed
+  executable `EstablishTrivialAffineLocal` witnesses, or the currently emitted
+  compressed `ReturnStructural.trivial_affine_locals` tuple. Compressed tuples must match
   the complete catalog in declaration order, use unique hidden source-operation
   identities disjoint from executable operations, retain the exact
   parameter-zero/result carrier shape, and discard locals then affine tail
@@ -565,10 +572,9 @@ These facts constrain the work below.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
   proof/range evidence, full provider-attachment specialization replay, and
   structural-domain content-projection validation; remaining root-kind
-  legality, byte-literal and path-sensitive affine-local availability, provider
-  and full ownership/custody replay, exact payloadless-callee classification, and the
-  crash/requirement/effect vocabulary also remain across the Terminal-Psi
-  lowering boundary.
+  legality, provider and full ownership/custody replay, exact payloadless-callee
+  classification, and the crash/requirement/effect vocabulary also remain
+  across the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1228,11 +1234,15 @@ dependency.
   borrowed-view first-class byte carriers, nonempty arrays, independently
   unique domain semantic identities, and known domain carriers. Full provider-
   attachment specialization replay and structural-domain content-projection
-  validation remain open. A structural return that names a `CallStructural`
-  operation result now requires that exact producer to occur strictly earlier
-  in the same block or in a CFG-dominating block, independent of block storage
-  order and immutable source-frontier rows. A source-derived content-bearing
-  structural call/return canary passes verified optimizer admission.
+  validation remain open. Byte-literal catalogs additionally require dense
+  ordinals, borrowed-view carriers, and exact one-to-one full typed executable
+  witnesses. A unified current-revision producer walk requires each use of a
+  `CallStructural` result, byte literal, or explicit affine local to occur
+  strictly after its producer in the same block or in a CFG-dominated block,
+  independent of block storage order and immutable source-frontier rows.
+  Compressed tuple locals impose no executable producer requirement.
+  Source-derived content-bearing structural call/return and byte-literal
+  boundary canaries pass verified optimizer admission.
   Trivial-affine local catalogs require dense declaration ordinals and exact
   empty-Record carriers, with one-to-one full typed recognition through either
   executable establishments or the compressed structural-return tuple. The
@@ -1241,9 +1251,9 @@ dependency.
   and reverse local-plus-affine-tail discard order while keeping no-ABI locals
   out of executable `declared_places`; real one-local, two-local, and
   local-plus-tail source canaries pass admission. Remaining root-kind legality,
-  byte-literal and path-sensitive affine-local availability, provider and full
-  ownership/custody replay—including hidden local-operation provenance—exact
-  payloadless-callee classification, and the crash/requirement/effect vocabulary
+  provider and full ownership/custody replay—including hidden local-operation
+  provenance—exact payloadless-callee classification, and the
+  crash/requirement/effect vocabulary
   remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
