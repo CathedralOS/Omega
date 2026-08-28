@@ -419,10 +419,13 @@ pub fn optimize_verified_terminal_input(
 mod tests {
     use std::collections::BTreeSet;
 
+    use omega_calling_conventions::{IndirectPointerLocation, MachineRegister, ValueLocation};
     use omega_optimization_core::{
         Optimization, OptimizationSelections, OptimizationWorkBudget, OptimizationWorkUsage,
     };
-    use omega_optimization_unit::{FuelSettlement, PsiProvenance, ValueDefinitionSite};
+    use omega_optimization_unit::{
+        FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
+    };
     use omega_psi_optimizer::OptimizationRunError;
     use omega_regalloc::{
         PostAllocationOptimizationManifest, PostAllocationOptimizationManifestError,
@@ -465,22 +468,23 @@ mod tests {
         TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
     };
     use omega_terminal_target_operations_to_selected_instructions::{
-        SelectedInstructionError, TerminalLegalizationError,
+        SelectedInstructionError, TerminalLegalizationError, legalize_terminal_target_operations,
         terminal_legalization_validator_identity, terminal_selected_instruction_plan_identity,
         validate_terminal_legalized_operations, validate_terminal_selected_instructions,
     };
     use psi_core::{
-        BlockId, ContractId, EdgeId, IntegerSign, IntegerType, IntegerValue, MachineId,
-        ObligationId, OperationId, PlaceId, ScalarType, StructuralFieldId, StructuralPlaceKind,
-        StructuralTypeId, ValueId,
+        BlockId, ContractId, DomainSemanticId, EdgeId, IntegerSign, IntegerType, IntegerValue,
+        MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralDomainId,
+        StructuralFieldId, StructuralPlaceKind, StructuralTypeId, ValueId,
     };
     use psi_proof_admission::{EvidenceRoute, PrimitiveJudgment};
     use psi_terminal::{
         BindingRelevance, Block, MachineContract, Operation, OperationKind, OperationResult,
-        StructuralAccess, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-        StructuralParameterDeclaration, StructuralPlaceDeclaration, StructuralTypeDeclaration,
-        StructuralTypeShape, SuccessorEdge, TerminalMachine, TerminalMachineResult, TerminalModule,
-        Terminator, ValueDeclaration, VocabularyMarker,
+        StructuralAccess, StructuralDomainDeclaration, StructuralFieldDeclaration,
+        StructuralFieldType, StructuralMultiplicity, StructuralParameterDeclaration,
+        StructuralPlaceDeclaration, StructuralTypeDeclaration, StructuralTypeShape, SuccessorEdge,
+        TerminalMachine, TerminalMachineResult, TerminalModule, Terminator, ValueDeclaration,
+        VocabularyMarker,
     };
     use psi_terminal_verifier::{ObligationEvidence, ProofBundle};
 
@@ -903,6 +907,171 @@ mod tests {
             },
         }];
         (psi_terminal_codec::encode_module(&module).unwrap(), proof)
+    }
+
+    fn structural_extent_call_unit_artifact() -> (Vec<u8>, Vec<u8>) {
+        let caller = MachineId::new(3_601).unwrap();
+        let callee = MachineId::new(3_602).unwrap();
+        let extent = StructuralTypeId::new(3_603).unwrap();
+        let granted = StructuralDomainId::new(3_604).unwrap();
+        let caller_places = [PlaceId::new(3_605).unwrap(), PlaceId::new(3_606).unwrap()];
+        let callee_places = [PlaceId::new(3_607).unwrap(), PlaceId::new(3_608).unwrap()];
+        let parameter = |place, position| StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type: extent,
+            multiplicity: StructuralMultiplicity::Unrestricted,
+            access: StructuralAccess::Owned,
+            qualifications: vec![granted],
+        };
+        let places = |roots: [PlaceId; 2]| {
+            roots
+                .into_iter()
+                .enumerate()
+                .map(|(position, id)| StructuralPlaceDeclaration {
+                    id,
+                    kind: StructuralPlaceKind::Parameter {
+                        position: u32::try_from(position).unwrap(),
+                        is_self: false,
+                    },
+                })
+                .collect::<Vec<_>>()
+        };
+        let parameters = |roots: [PlaceId; 2]| {
+            roots
+                .into_iter()
+                .enumerate()
+                .map(|(position, place)| parameter(place, u32::try_from(position).unwrap()))
+                .collect::<Vec<_>>()
+        };
+        let contract = |id| MachineContract {
+            id,
+            crash_routes: Vec::new(),
+            requires: Vec::new(),
+            ensures: Vec::new(),
+            outcome_specific_ensures: Vec::new(),
+        };
+        let module = TerminalModule {
+            vocabulary_marker: VocabularyMarker::CURRENT,
+            entry: caller,
+            structural_types: vec![StructuralTypeDeclaration {
+                id: extent,
+                identity: "named(name(Extent))".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "base".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::address(64).unwrap(),
+                            )),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "length".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            )),
+                        },
+                    ],
+                },
+            }],
+            structural_domains: vec![StructuralDomainDeclaration {
+                id: granted,
+                semantic_domain: DomainSemanticId::new(3_609).unwrap(),
+                identity: "Extent::Granted".into(),
+                carrier: extent,
+                content_projection: None,
+            }],
+            services: Vec::new(),
+            root_service_reach: Default::default(),
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            float_meaning_projections: Vec::new(),
+            float_meaning_equalities: Vec::new(),
+            proposition_declarations: Vec::new(),
+            proposition_applications: Vec::new(),
+            evidence_terms: Vec::new(),
+            proof_output_calls: Vec::new(),
+            evidence_contract_lanes: Vec::new(),
+            closed_conformance_applications: Vec::new(),
+            quotient_correspondences: Vec::new(),
+            machines: vec![
+                TerminalMachine {
+                    id: caller,
+                    attachment: None,
+                    parameters: Vec::new(),
+                    structural_parameters: parameters(caller_places),
+                    result: TerminalMachineResult::Unit,
+                    structural_places: places(caller_places),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    content_identity_reshuffles: Vec::new(),
+                    content_partition_compositions: Vec::new(),
+                    entry: BlockId::new(3_610).unwrap(),
+                    blocks: vec![Block {
+                        id: BlockId::new(3_610).unwrap(),
+                        parameters: Vec::new(),
+                        operations: vec![Operation {
+                            id: OperationId::new(3_611).unwrap(),
+                            result: OperationResult::Unit,
+                            kind: OperationKind::CallUnit {
+                                callee,
+                                structural_arguments: caller_places
+                                    .into_iter()
+                                    .map(|place| psi_terminal::StructuralArgument {
+                                        place,
+                                        path: Vec::new(),
+                                        access: StructuralAccess::Owned,
+                                    })
+                                    .collect(),
+                                claim_transfers: Vec::new(),
+                                requirement_obligations: Vec::new(),
+                                crash_continuations: Vec::new(),
+                            },
+                        }],
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(3_612).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    }],
+                    contract: contract(ContractId::new(3_613).unwrap()),
+                },
+                TerminalMachine {
+                    id: callee,
+                    attachment: None,
+                    parameters: Vec::new(),
+                    structural_parameters: parameters(callee_places),
+                    result: TerminalMachineResult::Unit,
+                    structural_places: places(callee_places),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    content_entry_claims: Vec::new(),
+                    content_identity_reshuffles: Vec::new(),
+                    content_partition_compositions: Vec::new(),
+                    entry: BlockId::new(3_614).unwrap(),
+                    blocks: vec![Block {
+                        id: BlockId::new(3_614).unwrap(),
+                        parameters: Vec::new(),
+                        operations: Vec::new(),
+                        terminator: Terminator::ReturnUnit {
+                            edge: EdgeId::new(3_615).unwrap(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    }],
+                    contract: contract(ContractId::new(3_616).unwrap()),
+                },
+            ],
+        };
+        let proof = ProofBundle::default();
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
     }
 
     fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
@@ -10916,7 +11085,7 @@ mod tests {
     }
 
     #[test]
-    fn unit_legalization_rejects_an_unrepresented_structural_abi() {
+    fn structural_unit_return_reaches_legalization_and_stops_before_selection() {
         for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
             let (semantic, proof) = structurally_parameterized_unit_return_artifact();
             let optimized = optimize_artifact_sections(
@@ -10932,11 +11101,120 @@ mod tests {
 
             assert!(matches!(
                 stage_optimized_instruction_selection(target),
-                Err(OptimizedSelectionPipelineError::Legalization(
-                    TerminalLegalizationError::UnsupportedSourceShape { function: 0 }
+                Err(OptimizedSelectionPipelineError::Selection(
+                    SelectedInstructionError::UnsupportedSourceShape { function: 0 }
                 ))
             ));
         }
+    }
+
+    #[test]
+    fn structural_unit_call_legalization_retains_exact_abi_effect_and_ownership_custody() {
+        let (semantic, proof) = structural_extent_call_unit_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .unwrap();
+        let target = omega_lowering_optimizer::lower_optimized_to_target_operations(
+            optimized,
+            NativeTarget::uefi_x64(),
+        )
+        .unwrap();
+        let legalized = legalize_terminal_target_operations(
+            target.target_operations(),
+            target.optimized().plan(),
+            target.optimized().unit(),
+        )
+        .expect("structural Unit call must reach the distinct v6 custody roster");
+
+        assert!(legalized.plan().unit_functions.is_empty());
+        assert_eq!(legalized.plan().structural_unit_functions.len(), 2);
+        assert_eq!(legalized.receipt().function_count(), 2);
+        let caller = &legalized.plan().structural_unit_functions[0];
+        let callee = &legalized.plan().structural_unit_functions[1];
+        assert_eq!(caller.parameters.len(), 2);
+        assert_eq!(callee.parameters.len(), 2);
+        assert!(callee.call.is_none());
+        let call = caller.call.as_ref().expect("caller retains one Unit call");
+        assert_eq!(call.arguments.len(), 2);
+        assert!(call.claim_transfers.is_empty());
+        assert!(matches!(
+            call.ownership.as_slice(),
+            [OwnershipEvent::ClaimTransfer(claims)] if claims.is_empty()
+        ));
+        assert!(matches!(
+            caller.return_ownership.as_slice(),
+            [OwnershipEvent::Cleanup(cleanups)] if cleanups.is_empty()
+        ));
+        assert_eq!(call.effect.output, caller.return_effect.input);
+        for (parameter, register, copy_offset) in [
+            (&caller.parameters[0], MachineRegister::X86Rcx, 32),
+            (&caller.parameters[1], MachineRegister::X86Rdx, 48),
+        ] {
+            assert!(matches!(
+                parameter.target.placement.locations.as_slice(),
+                [ValueLocation::Indirect {
+                    pointer: IndirectPointerLocation::Register(actual),
+                    copy_stack_byte_offset: Some(actual_offset),
+                    byte_size: 16,
+                    alignment: 8,
+                }] if *actual == register && *actual_offset == copy_offset
+            ));
+        }
+        assert_eq!(
+            call.arguments[0].target.source,
+            caller.parameters[0].target.placement
+        );
+        assert_eq!(
+            call.arguments[1].target.source,
+            caller.parameters[1].target.placement
+        );
+        assert_eq!(
+            call.arguments[0].target.destination,
+            callee.parameters[0].target.placement
+        );
+        assert_eq!(
+            call.arguments[1].target.destination,
+            callee.parameters[1].target.placement
+        );
+
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0].parameters.swap(0, 1);
+        assert!(
+            validate_terminal_legalized_operations(
+                target.target_operations(),
+                target.optimized().plan(),
+                target.optimized().unit(),
+                corrupted,
+            )
+            .is_err()
+        );
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .effect
+            .output += 1;
+        assert!(
+            validate_terminal_legalized_operations(
+                target.target_operations(),
+                target.optimized().plan(),
+                target.optimized().unit(),
+                corrupted,
+            )
+            .is_err()
+        );
+
+        assert!(matches!(
+            stage_optimized_instruction_selection(target),
+            Err(OptimizedSelectionPipelineError::Selection(
+                SelectedInstructionError::UnsupportedSourceShape { function: 0 }
+            ))
+        ));
     }
 
     #[test]
