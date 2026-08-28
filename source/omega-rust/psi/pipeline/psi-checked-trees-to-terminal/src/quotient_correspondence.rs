@@ -5,32 +5,25 @@
 //! executable quotient operation.
 
 use psi_terminal::{TerminalModule, retain_non_executable_quotient_correspondence};
-use psi_typed_trees::TypedTrees;
+use psi_validation::NonExecutableQuotientCorrespondenceBatch;
 
 use crate::LoweringError;
 
-/// Install the complete proof-only direct-`define` batch derived from the
-/// typed program.
+/// Install a complete proof-only direct-`define` batch derived by semantic
+/// validation.
 ///
 /// This entry point is separate from executable quotient admission. It is
 /// public so producer tests and later checked admission code can exercise the
-/// carrier while ordinary checked validation continues to reject quotient
-/// operations. Accepting `TypedTrees` is deliberate: this function does not
-/// claim that ordinary checked validation has admitted the request.
+/// source-free carrier while ordinary checked validation continues to reject
+/// quotient operations. The opaque batch can only be constructed by the
+/// all-or-nothing semantic extractor; raw typed-tree vocabulary does not cross
+/// into this Terminal producer.
 pub fn install_non_executable_quotient_correspondences(
-    program: &TypedTrees,
+    batch: NonExecutableQuotientCorrespondenceBatch,
     module: &mut TerminalModule,
 ) -> Result<(), LoweringError> {
-    let certificates = psi_validation::extract_non_executable_quotient_correspondences(program)
-        .map_err(|diagnostics| {
-            LoweringError::InvalidQuotientCorrespondence(
-                diagnostics
-                    .into_iter()
-                    .map(|diagnostic| diagnostic.message)
-                    .collect(),
-            )
-        })?;
-    let mut retained = certificates
+    let mut retained = batch
+        .into_correspondences()
         .into_iter()
         .map(retain_non_executable_quotient_correspondence)
         .collect::<Vec<_>>();
