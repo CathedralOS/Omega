@@ -25,14 +25,11 @@ use omega_package_compilation::{PackageCompilationInputs, PackageSourceBinding};
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    let requested_product = if options.write_output {
-        omega_compiler::RequestedCompileProduct::InstalledOutput
+    if options.write_output {
+        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
     } else {
-        omega_compiler::RequestedCompileProduct::Check
-    };
-    omega_compiler::compile(
-        omega_compiler::CompileRequest::new(options).with_requested_product(requested_product),
-    )
+        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    }
 }
 
 use psi_core::PackageKeyIdentity;

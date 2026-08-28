@@ -1150,6 +1150,10 @@ fn retained_native_product_enters_only_terminal_realization() {
         .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/legacy_driver.rs");
     let legacy_driver = std::fs::read_to_string(&legacy_driver_path)
         .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_driver_path.display()));
+    let request_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/compiler/request.rs");
+    let request = std::fs::read_to_string(&request_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", request_path.display()));
     assert!(
         driver
             .contains("RequestedCompileProduct::NativeArtifact => native_report(request, checked)"),
@@ -1159,6 +1163,14 @@ fn retained_native_product_enters_only_terminal_realization() {
         driver.matches("compile_to_checked_for_terminal(").count(),
         1,
         "production products must share one checked-Psi frontend"
+    );
+    assert!(
+        !driver.contains("legacy_driver"),
+        "the production compiler must not select the StateGraph compatibility harness"
+    );
+    assert!(
+        !request.contains("InstalledOutput"),
+        "installed legacy output is not a production compile product"
     );
     assert!(!legacy_driver.contains("RequestedCompileProduct::NativeArtifact"));
     assert!(!legacy_driver.contains("RequestedCompileProduct::TerminalArtifact"));

@@ -1,5 +1,4 @@
 use crate::compiler::CompileReport;
-use crate::compiler::CompileRequest;
 use crate::compiler::{ArtifactEmissionPolicy, CompileOptions};
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::artifacts::{
@@ -42,18 +41,6 @@ pub(crate) struct LegacyDriver {
 }
 
 impl LegacyDriver {
-    pub(crate) fn from_request(request: CompileRequest) -> Self {
-        Self {
-            options: request.options,
-            installs_output: true,
-            executable_tcb_policy: request.executable_tcb_policy,
-            test_entry_machine_name: None,
-            worker_count: None,
-            artifact_policy: request.artifact_policy,
-            package_inputs: request.package_inputs,
-        }
-    }
-
     pub(crate) fn with_executable_tcb_policy(
         options: CompileOptions,
         executable_tcb_policy: ExecutableTcbBuildPolicy,
@@ -86,11 +73,6 @@ impl LegacyDriver {
     }
 
     pub(crate) fn compile(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        self.compile_state_graph_compatibility()
-    }
-
-    pub(crate) fn compile_installed_output(self) -> Result<CompileReport, Vec<Diagnostic>> {
-        debug_assert!(self.installs_output);
         self.compile_state_graph_compatibility()
     }
 

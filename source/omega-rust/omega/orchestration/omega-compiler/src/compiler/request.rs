@@ -7,7 +7,6 @@ pub enum RequestedCompileProduct {
     Check,
     TerminalArtifact,
     NativeArtifact,
-    InstalledOutput,
 }
 
 /// One typed production compiler invocation.
