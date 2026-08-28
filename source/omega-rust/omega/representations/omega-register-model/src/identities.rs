@@ -58,7 +58,7 @@ identity!(
 );
 identity!(
     TargetRegisterEnvironmentIdentity,
-    b"omega.target-register-environment-identity.v5\0"
+    b"omega.target-register-environment-identity.v6\0"
 );
 
 pub(super) fn physical_register_model_identity(
@@ -154,6 +154,7 @@ pub fn target_register_environment_identity(
     bytes.extend_from_slice(&physical.identity().bytes());
     bytes.extend_from_slice(&constraints.identity().bytes());
     bytes.extend_from_slice(&reservations.identity().bytes());
+    optional_constraint_key(&mut bytes, selected_keys.structural_unit_call);
     for key in [
         selected_keys.materialize_i64,
         selected_keys.copy_i64,
@@ -221,6 +222,16 @@ fn instruction_constraint(bytes: &mut Vec<u8>, constraint: &RegisterInstructionC
 fn constraint_key(bytes: &mut Vec<u8>, family: RegisterConstraintFamily, variant: u32) {
     byte(bytes, constraint_family(family));
     bytes.extend_from_slice(&variant.to_le_bytes());
+}
+
+fn optional_constraint_key(bytes: &mut Vec<u8>, key: Option<super::RegisterConstraintKey>) {
+    match key {
+        None => byte(bytes, 0),
+        Some(key) => {
+            byte(bytes, 1);
+            constraint_key(bytes, key.family, key.variant);
+        }
+    }
 }
 
 fn unit_ids(bytes: &mut Vec<u8>, values: &[RegisterUnitId]) {
