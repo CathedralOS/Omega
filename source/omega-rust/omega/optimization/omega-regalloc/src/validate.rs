@@ -469,7 +469,6 @@ fn reject_v1_unsupported(
 ) -> Result<(), TerminalLivenessError> {
     let mut tied_registers = BTreeSet::new();
     let mut early_registers = Vec::new();
-    let mut witnessed_early_instruction = false;
     for instruction in function.blocks.iter().flat_map(ordered_instructions) {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
@@ -497,8 +496,7 @@ fn reject_v1_unsupported(
                 }
                 values.push(operand.virtual_register);
             }
-            if witnessed_early_instruction
-                || early.len() != 1
+            if early.len() != 1
                 || definition.access != RegisterOperandAccess::Def
                 || definition.tied_to.is_some()
                 || instruction.operands.len() < 2
@@ -514,7 +512,6 @@ fn reject_v1_unsupported(
                     operand: early.get(1).copied().unwrap_or(definition).operand,
                 });
             }
-            witnessed_early_instruction = true;
             early_registers.extend(
                 instruction
                     .operands
@@ -637,5 +634,23 @@ mod tests {
         assert!(computed.operand_positions[1].early_clobber);
         assert_eq!(computed.blocks[0].instructions[0].virtual_uses.len(), 1);
         assert_eq!(computed.blocks[0].instructions[0].virtual_defs.len(), 1);
+    }
+
+    #[test]
+    fn independent_liveness_replay_accepts_multiple_early_clobber_rows() {
+        let function = crate::compute::tests::supported_multiple_early_clobber_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert_eq!(
+            computed
+                .operand_positions
+                .iter()
+                .filter(|operand| operand.early_clobber)
+                .count(),
+            2
+        );
+        assert_eq!(computed.blocks[0].instructions[1].virtual_uses.len(), 1);
+        assert_eq!(computed.blocks[0].instructions[1].virtual_defs.len(), 1);
     }
 }

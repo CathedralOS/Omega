@@ -390,6 +390,25 @@ fn replay_register(
     })
 }
 
+#[cfg(test)]
+pub(crate) fn replay_register_for_test(
+    function_index: usize,
+    function: &crate::TerminalFunctionLiveRanges,
+    register: &TerminalVirtualLiveRange,
+    availability: &ValidatedTerminalAllocatorAvailability,
+    physical: &ValidatedPhysicalRegisterModel,
+    reservations: &ValidatedRegisterReservationProfile,
+) -> Result<TerminalVirtualRegisterAllocationLegality, TerminalAllocationLegalityError> {
+    replay_register(
+        function_index,
+        function,
+        register,
+        availability,
+        physical,
+        reservations,
+    )
+}
+
 fn occupied_units(
     function: &crate::TerminalFunctionLiveRanges,
     block: omega_terminal_selected_instructions::TerminalSelectedBlockId,
