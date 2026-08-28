@@ -249,18 +249,16 @@ complete.
 
   Remaining suspect points:
 
-  - Windows cache ownership and DACL enforcement remain for the native
-    isolation backend; the portable non-Unix floor currently checks only
-    concrete kinds and bounded topology;
   - the local before/after check does not defend against a deliberately hostile
     same-user process racing both observations;
   - cache locking coordinates resolver processes but is not protection against
     an independently hostile process that can mutate the cache directory;
-  - on Unix the selected Git executable now has resolver/root ownership,
-    non-writable/non-set-id executable mode, and safe owned ancestry checks;
-    Windows executable ownership/DACL custody, provenance, the already loaded
-    image, and any platform-specific executable chain not admitted by the
-    closed backend remain;
+  - on Unix the selected Git executable has resolver/root ownership,
+    non-writable/non-set-id executable mode, and safe owned ancestry checks. On
+    Windows, selected invocation entries, canonical targets, and ancestry have
+    closed owner/DACL mutation-authority checks. Executable provenance, the
+    already loaded image, and any platform-specific executable chain not
+    admitted by the closed backend remain;
   - macOS Git launches now have a concrete Seatbelt and inherited-resource-limit
     floor, but SSH discovery/fetch content reads and metadata reads remain broad,
     and the deprecated host launcher is not a portable or future-stable backend
@@ -1025,6 +1023,21 @@ complete.
   resolver passes strict cross-target Clippy. Native limit-exhaustion execution
   remains to be run on a Windows worker before treating platform coverage as
   complete.
+
+  Follow-up 2026-08-28: Windows cache and selected-executable custody now use a
+  narrow compiler-owned security-descriptor reader over already-open handles.
+  Cache roots, retained directories, regular files, reparse points, and locks
+  require current-user ownership; cache ancestry may additionally be owned by
+  LocalSystem or BUILTIN Administrators. Selected Git/HTTPS/SSH invocation
+  entries, canonical targets, and every ancestor use the same three trusted
+  owner SIDs. A null DACL, unknown access-allowing ACE form, or file/directory/
+  security-descriptor mutation grant to any other SID rejects without account-
+  name lookup. Pure policy canaries run on every host, the native handle canary
+  compiles for Windows, and the complete package crate cross-compiles for
+  `x86_64-pc-windows-msvc`. Git cache policy v28 prevents reuse of state created
+  before this custody floor. This closes ordinary Windows cross-user owner/DACL
+  substitution; trusted-principal racing, executable provenance/loaded-image
+  identity, and native filesystem/network/exec confinement remain open.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
