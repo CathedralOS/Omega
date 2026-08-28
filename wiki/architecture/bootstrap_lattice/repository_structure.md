@@ -9,21 +9,32 @@ bridge between Delta and Omega.
 
 ```text
 source/
-  alpha/                 Alpha semantics, seeds, assembler, and root checker
-    checker/             universal derivation checker and its tests
-  beta/                  Beta language, reference meaning, and gates
-    compiler/            compiler source, artifact, cold start, and validation
-  gamma/                 Gamma language, interpreter, and type checker
-  delta/                 Delta language, compiler, meaning, tests, and artifacts
-    compiler/            canonical compiler source and adjacent validation
-      artifacts/         admitted compiler artifacts, when publication closes
-      validation/        exact producer-edge verification and custody
-    meaning/             canonical lower-rung elaboration
+  alpha/                 Alpha semantics and audited native VM seeds
+    assembler/           Alpha-source assembler and its built tape
+    checker/             universal derivation-checker source/artifact/gates
+  beta/                  Beta language and reference meaning
+    compiler/
+      bc.beta            one Beta compiler source
+      artifacts/         admitted bc tape
+      cold-start/        Alpha-written construction of that tape
+      validation/        exact bc source/artifact admission
+  gamma/                 Gamma language
+    interp.beta          canonical evaluator built by bc
+    typeck.beta          canonical type checker built by bc
+    reference/           optional differential implementation
+  delta/                 Delta language
+    compiler/
+      main.alp           one canonical Delta compiler source
+      artifacts/         admitted delta binary, when publication closes
+      validation/        exact delta producer-edge verification and custody
+    meaning/             canonical Delta-to-Gamma elaboration
     tests/               Delta language cases
-  omega/                 complete Omega-written product compiler
+  omega/                 one complete Omega-written product compiler source C
+    main.omg             product compiler entry
+    build.omg            product build selection
     psi/                 target-neutral phases through terminal Psi
   library/               core, allocation, and standard-library source
-  omega-rust/             maintained Rust product implementation/comparator
+  omega-rust/            maintained Rust product implementation/comparator
 
 tests/lattice/            shared cross-rung inputs
 tests/omega/              Omega language acceptance/rejection cases
@@ -56,6 +67,13 @@ artifact it admits; product-language cases stay under `tests/omega/`.
 - The artifact being admitted owns its validation. For example,
   `source/beta/compiler/validation/` reconstructs the Beta compiler's
   source-to-artifact edge; there is no generic cross-rung dumping ground.
+- Alpha has no `compiler/` directory because its native VM seed executes Alpha
+  tapes and its assembler produces them. `source/alpha/checker/` is a separate
+  checker artifact used beside producer edges; it does not compile the next
+  language and is not a rung.
+- Gamma has no required compiler artifact. `bc` builds its Beta-written
+  evaluator and type checker, and those programs give the canonical route used
+  to realize and check Delta.
 - `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
 - `tests/omega/` owns product-language cases; it is not a bootstrap artifact.
 - `tools/lattice/` may invoke the chain. A script must not parse, resolve,

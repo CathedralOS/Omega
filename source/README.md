@@ -4,10 +4,15 @@ This tree is organized by language or durable semantic role, not by the
 implementation language that happens to realize it.
 
 ```text
-alpha/          audited execution seed, assembler, and root checker
-beta/           Beta language, compiler, compiler validation, and reference meaning
-gamma/          Gamma language, interpreter, and type checker
-delta/          Delta language, compiler source, lower-rung meaning, and tests
+alpha/          audited VM seeds, Alpha assembler, and separate root checker
+  assembler/    Alpha source-to-tape construction
+  checker/      derivation-checker source, artifact, gates, and implementations
+beta/           Beta language and reference meaning
+  compiler/     bc source/artifact, Alpha cold start, and adjacent validation
+gamma/          Beta-written canonical interpreter and type checker
+delta/          Delta language
+  compiler/     canonical compiler source/artifact and adjacent validation
+  meaning/      canonical Delta-to-Gamma meaning route
 library/        core, allocation, and standard library source
 omega/          complete Omega-written product compiler
   psi/          target-neutral phases through terminal Psi
@@ -25,6 +30,13 @@ generic `canaries/` source owner. A compiler, checker, meaning route, artifact,
 or validation rule lives with the language or artifact whose responsibility it
 implements. `omega₀` and `omega` are two builds of `source/omega/`, not two
 source trees.
+
+The Alpha checker is a separate binary from the Alpha VM/assembler and remains
+under `alpha/checker/` because it is part of the trust floor. It does not build
+Beta and is not inserted into the compiler spine. Gamma similarly needs no
+published compiler binary: `bc` builds the canonical Beta-written Gamma
+evaluator and type checker, which then realize Delta through its declared
+meaning route.
 
 The package library lives at `source/library/`. Temporary compiler readers may
 still address that physical location while package-manager P8 completes the
