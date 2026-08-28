@@ -9334,17 +9334,17 @@ mod tests {
 
             let record = emitted.manifest().record();
             let encoded = record.encode();
-            assert_eq!(&encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &4_u32.to_le_bytes());
             assert_eq!(encoded[45], 3);
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&encoded),
                 Ok(record.clone())
             );
             let mut unknown_source = encoded;
-            unknown_source[45] = 5;
+            unknown_source[45] = 6;
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&unknown_source),
-                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(5))
+                Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(6))
             );
 
             let original_fresh_byte = emitted.fragments().functions[0]
@@ -11730,6 +11730,110 @@ mod tests {
         assert!(matches!(
             validate_optimized_structural_unit_function_relative_realization(&realization),
             Err(OptimizedStructuralUnitFunctionRelativeRealizationError::RootMismatch)
+        ));
+        realization
+            .manifest_mut()
+            .record_mut()
+            .statistics
+            .unresolved_internal_machine_fixups = 1;
+        validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
+
+        let mut fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(Box::new(
+                realization,
+            )),
+        )
+        .expect("structural Unit calls must retain typed unresolved fragment custody");
+        assert!(fragments.fragments().functions.is_empty());
+        assert_eq!(fragments.fragments().structural_unit_functions.len(), 2);
+        let caller_fragment = &fragments.fragments().structural_unit_functions[0];
+        let callee_fragment = &fragments.fragments().structural_unit_functions[1];
+        assert_eq!(
+            (caller_fragment.byte_count, callee_fragment.byte_count),
+            (90, 1)
+        );
+        assert_eq!(caller_fragment.bytes.len(), 90);
+        assert_eq!(&caller_fragment.bytes[81..85], &[0, 0, 0, 0]);
+        assert_eq!(caller_fragment.bytes[89], 0xc3);
+        assert_eq!(callee_fragment.bytes, [0xc3]);
+        let fragment_call = caller_fragment
+            .block
+            .call
+            .as_ref()
+            .expect("caller fragment owns the unresolved internal call");
+        assert_eq!(fragment_call.offset, 0);
+        assert_eq!(fragment_call.fixup.opcode_function_offset, 80);
+        assert_eq!(fragment_call.fixup.field_function_offset, 81);
+        assert_eq!(fragment_call.fixup.next_instruction_function_offset, 85);
+        assert_eq!(fragment_call.fixup.field_byte_width, 4);
+        assert_eq!(fragment_call.fixup.addend, 0);
+        let fragment_manifest = fragments.manifest().record();
+        assert_eq!(
+            fragment_manifest.stage,
+            FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1
+        );
+        assert_eq!(
+            fragment_manifest.source_kind,
+            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1
+        );
+        assert_eq!(fragment_manifest.statistics.functions, 0);
+        assert_eq!(fragment_manifest.statistics.structural_unit_functions, 2);
+        assert_eq!(fragment_manifest.statistics.structural_unit_blocks, 2);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .structural_unit_instruction_spans,
+            3
+        );
+        assert_eq!(fragment_manifest.statistics.structural_unit_bytes, 91);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .unresolved_internal_machine_fixups,
+            1
+        );
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
+            Ok(fragment_manifest.clone())
+        );
+        for unsupported in [3_u32, 5_u32] {
+            let mut encoded = fragment_manifest.encode();
+            encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
+            assert_eq!(
+                FunctionFragmentEmissionManifest::decode(&encoded),
+                Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(unsupported))
+            );
+        }
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+        let original_field_offset = fragments.fragments().structural_unit_functions[0]
+            .block
+            .call
+            .as_ref()
+            .unwrap()
+            .fixup
+            .field_function_offset;
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_function_offset += 1;
+        assert!(matches!(
+            validate_optimized_function_fragment_emission(&fragments),
+            Err(FunctionFragmentEmissionError::ArtifactMismatch)
+        ));
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .fixup
+            .field_function_offset = original_field_offset;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+        assert!(matches!(
+            stage_optimized_relocation_free_text_section(fragments),
+            Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)
         ));
     }
 

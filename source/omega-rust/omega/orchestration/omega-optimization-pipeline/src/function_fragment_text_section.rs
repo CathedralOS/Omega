@@ -25,9 +25,9 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 
 use crate::{
     FunctionFragmentEmissionError, FunctionFragmentEmissionSourceKind,
-    StagedOptimizedFunctionFragmentEmission, TerminalResolvedSelectedFormLayoutIdentity,
-    TerminalSelectedFormEncodingIdentity, TerminalWholeFunctionExitContractIdentity,
-    validate_optimized_function_fragment_emission,
+    FunctionFragmentEmissionStage, StagedOptimizedFunctionFragmentEmission,
+    TerminalResolvedSelectedFormLayoutIdentity, TerminalSelectedFormEncodingIdentity,
+    TerminalWholeFunctionExitContractIdentity, validate_optimized_function_fragment_emission,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
@@ -327,6 +327,7 @@ pub enum RelocationFreeTextSectionPlacementError {
     SourceShapeMismatch,
     MisalignedAarch64Span,
     UnsupportedRelocationShape,
+    UnresolvedInternalMachineFixups,
     ArtifactMismatch,
     ManifestMismatch,
     ReceiptMismatch,
@@ -424,6 +425,16 @@ fn compute(
 > {
     let fragments = source.fragments();
     let source_manifest = source.manifest().record();
+    if source_manifest.stage
+        != FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
+        || !fragments.structural_unit_functions.is_empty()
+        || source_manifest
+            .statistics
+            .unresolved_internal_machine_fixups
+            != 0
+    {
+        return Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups);
+    }
     let text_section = place_fragments(fragments)?;
     let statistics = statistics(&text_section)?;
     let unavailable = FunctionFragmentTextSectionUnavailableData::Unavailable;
@@ -742,6 +753,9 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
+        FunctionFragmentEmissionSourceKind::StructuralUnitCallV1 => {
+            unreachable!("unresolved structural fragments cannot enter relocation-free text v3")
+        }
     });
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());

@@ -254,8 +254,9 @@ These facts constrain the work below.
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
   selected-form encoding v5, resolved-layout v5,
-  whole-function exit v5, function-relative manifest v7, fragment/text
-  manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
+  whole-function exit v5, function-relative manifest v7, fragment manifest
+  v4, text manifest v3, fragment vocabulary v3, and x86
+  relaxation/revision v2 all
   reject older detached vocabulary. The ordinary-callable record/manifest
   codec is v2 because it closes over the expanded exit-policy vocabulary while
   still rejecting structural custody during callable replay. A dedicated
@@ -352,9 +353,16 @@ These facts constrain the work below.
   policy without misclassifying it as a frameless leaf. A separate owning
   structural function-relative carrier and `OMGFRM` v7 manifest retain ordinary
   counts `0/0/0/0/0`, structural counts `2/2/3/91`, and one unresolved internal-
-  Machine fixup under independent replay. The next backend milestone is to
-  carry that fixup through machine-code fragments, then resolve it only at
-  whole-text placement where caller and callee section offsets are both known.
+  Machine fixup under independent replay. Machine-code fragment schema v3 and
+  `OMGFFE` v4 now carry a parallel two-function structural roster, exact
+  90/1-byte aggregate spans, call and return provenance, and an architecture-
+  neutral unresolved internal-Machine fixup. This stage is explicitly distinct
+  from relocation-free fragments, and the existing text API rejects it instead
+  of silently dropping the structural roster. Target-owned x86 resolution now
+  computes and independently replays checked signed rel32 fields, including the
+  canonical caller-at-zero/callee-at-90 displacement of `+5`. The next backend
+  milestone is to invoke that resolver only at whole-text placement where
+  caller and callee section offsets are both known.
   Only then can an applicable object and MachineId-rooted private continuation
   symbol be joined to the settlement, semantic contract, and wrapper plan. The compiler-
   private wrapper itself receives no fabricated Terminal `MachineId`. The
