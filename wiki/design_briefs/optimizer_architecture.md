@@ -182,7 +182,8 @@ canonical Terminal Psi semantic + proof sections
     -> relocation-free function fragments
     -> validated dense text-section placement
     -> private-symbol Omega object container
-       (external/process entry, native image, install, and publication closed)
+    -> canonical Terminal semantic/proof-to-object artifact + rebuild record
+       (ordinary-callable/process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
 
@@ -1339,10 +1340,21 @@ exact fixed-width signed/unsigned `0 << count` and `0 >> count` to the existing
 direct typed zero operand. The count need not be literal, but the operation must
 retain the verifier-accepted obligation proving that its authored shift is
 defined. Wrapping shifts are obligation-free and remain outside this proof-
-bearing family. Candidate schema remains v24, so extending the closed identity-
-kind tags does not rehash or change tie breaks for existing candidates.
-Optimization-unit identity remains v10; the named v6 pass, prephysical manifest
-v19, and optimized-plan projection validation v20 bind the expanded schedule.
+bearing family. The seventh rule,
+`live-proof-certified-exact-integer-self-subtract-elimination.v1`, replaces a
+live signed/unsigned exact `x - x` node in place with typed zero. It preserves
+the result `ValueId`, source location, operation/provenance/fuel custody, and an
+empty substitution set. The eighth rule,
+`live-proof-certified-integer-self-remainder-elimination.v1`, uses the same
+in-place contract for signed/unsigned exact, wrapping, and saturating `x % x`.
+In both cases the exact accepted obligation proves the authored operation
+defined; the active operation-reference fact is removed, the historical
+accepted catalog remains immutable, and independent replay reconstructs the
+new literal-zero fact. Candidate schema remains v24, so extending the closed
+identity-kind tags does not rehash or change tie breaks for existing candidates.
+Optimization-unit identity remains v10; the named v8 pass, prephysical manifest
+v21, and optimized-plan projection validation v22 bind the expanded eight-rule
+schedule.
 Ledger v4 already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
@@ -1668,18 +1680,21 @@ validator reconstructs selected instruction order, CFG successors, operand
 roles, machine-state effects, fixed positions, canonical exact sets, and the
 full content identity before an opaque result is issued. Orchestration nests
 that result with the complete selected carrier and revalidates both layers.
-The v4 slice admits distinct earlier-Use-to-later-Def ties in the same
+The current slice admits distinct earlier-Use-to-later-Def ties in the same
 instruction as canonical edge rows through liveness and block-domain ranges.
 Any number of edges may form transitive same-home components: multiple Defs may
 target one Use, and a VReg may participate in later ties, admitting both chains
-and forks. The separately named early-clobber topology,
-`SingleDistinctDefAgainstUsesEarlyClobberV1`, permits at most one instruction
-per function with exactly one early Def and one or more distinct Uses, excluding
-UseDef, overlapping tied participants, other Defs, and repeated participants.
-Disjoint tied components and that one early-clobber row may coexist. UseDef,
-overlapping tie/early-clobber compositions, general early-clobber forms, spills,
-loops, calls, crashes, cleanup, and suspension remain refused until they have
-explicit selected-IR frontiers and dedicated validation rules.
+and forks. `MultipleSingleDistinctDefAgainstUsesEarlyClobberV1` permits any
+number of disjoint instruction rows, each with exactly one early Def and one or
+more distinct Uses, excluding UseDef, other Defs, and repeated participants.
+The separately closed `IsolatedTiedDefAgainstOtherUsesEarlyClobberV1` form
+permits the early Def to be tied to exactly one earlier distinct same-class Use
+when that source/Def pair is an isolated size-two tied component and at least
+one unrelated untied Use remains. Ordinary cross-instruction SSA reuse and
+multiple disjoint rows remain valid. Other UseDef, tied-component, and early-
+clobber compositions, spills, loops, calls, crashes, cleanup, and suspension
+remain refused until they have explicit selected-IR frontiers and dedicated
+validation rules.
 
 A two-machine disconnected fixture exercises the complete current vertical on
 x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
@@ -1711,7 +1726,9 @@ publication authority.
 
 Early clobber is not modeled by moving the Def's semantic live range backward.
 The Def still begins at the after point, while a separate canonical phase-
-hazard row binds its before point and every same-instruction Use. Legality
+hazard row binds its before point and every unrelated same-instruction Use. In
+the admitted tied form, the tied source is represented only by the ordinary tie
+row and is deliberately absent from this hazard list. Legality
 derives an additional before-phase Def candidate row under the same fixed-view,
 reservation, architectural-state, and availability checks. Home assignment and
 its independent replay then require the selected Def view's complete write
@@ -1735,8 +1752,11 @@ uses union-find while independent replay uses separately coded set merging.
 Every unordered component member pair must be noninterfering. Replay rejects
 component interference, disjoint candidates, malformed topology, or unequal
 homes. Spill-choice fails closed while any tied component is present rather
-than separating tied values without a proved copy/storage strategy. Liveness
-and live-range identities are v4; the strict home identity and codec are v5.
+than separating tied values without a proved copy/storage strategy. The
+isolated tied source and early Def share the component home, while its complete
+write footprint remains disjoint from every unrelated Use home. Liveness and
+live-range identities are v6; the strict home identity and codec remain v5
+because their schema did not change.
 
 The same artifact exposes incompatible entry and operand fixed views as
 transition requirements. In the current forwarded-value fixture, the shared
@@ -2060,11 +2080,37 @@ relocation conclusion. This clean sibling does not acquire authority from the
 legacy object plan. External/process entry bridging, native image construction,
 installation, and publication remain unavailable.
 
+A following canonical semantic/proof-to-object boundary owns both the verified
+Terminal artifact and clean object carrier by value.
+`ValidatedOptimizedTerminalObjectArtifactV1` requires exact decoded module and
+proof-bundle equality, then binds the Terminal artifact, Psi, obligation and
+proof roots, optional debug fingerprint, explicit selections, target, semantic
+entry, every pre-physical through object manifest, canonical object/container
+roots, exact statistics, and the zero-relocation result. Production and an
+independently coded replay reconstruct the retained custody through different
+access paths. The strict `OMGOTA` and `OMGOTM` v1 codecs provide the canonical
+artifact and rebuild-metadata records. They still mark external entry bridging,
+native image construction, installation, and publication unavailable.
+
+The next engineering boundary is
+`ValidatedOptimizedTerminalOrdinaryCallableEntryV1`. It must consume that
+artifact by value and classify its private semantic-entry symbol as an ordinary
+target-ABI callable. Its identity binds the exact semantic parameter/result
+ValueIds to selected VRegs and fixed physical views/storage units, plus the
+retained whole-function exit contract, target-resolved policy and hardening,
+stack alignment, red-zone facts, and caller-created return-state assumption.
+Its explicit disposition is `ExternalProcessEntryBridgeRequiredV1`; strict
+`OMGOER`/`OMGOEM` v1 records and independent reconstruction grant no process
+symbol, wrapper bytes, relocations, image, installation, or publication. This
+classification is engineering-ready. A real process bridge is not: Omega still
+lacks authoritative sources and sinks for process arguments, result/termination
+handling, and establishment of the caller return state.
+
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The next
-join must give the object-local semantic entry an authoritative external entry
-bridge and carry the validated object container into a native artifact; the
-compiler gate can be removed only together with selected-build publication
+joins must classify the ordinary callable, give it an authoritative external
+process-entry bridge, and carry the resulting native image through publication;
+the compiler gate can be removed only together with selected-build publication
 tests.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
@@ -2322,12 +2368,14 @@ relative records have strict self-authenticating codecs. A third strict v1
 object-container manifest binds the clean object plan, private function symbols,
 object-local semantic-entry binding, strict `OMGTRO` bytes, and independently
 replayed zero relocation-record count while keeping external entry, native
-image, installation, and publication unavailable. The pipeline-owned cumulative
-report carrier joins the earlier records; that carrier and the fragment, text-
-section, and object-container manifests are not yet wired into a compiler-owned
-artifact or rebuild-metadata section.
-`OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
-publication records and enter that metadata path; successful native compiler
+image, installation, and publication unavailable. The strict `OMGOTA` and
+`OMGOTM` v1 records now join the exact Terminal semantic/proof artifact to that
+clean object, every preceding manifest, and its rebuild roots. The pipeline-
+owned cumulative report can gain fragment, text-section, object-container, and
+artifact records only from the opaque artifact carrier that owns all of them by
+value; suppression still changes no decision or byte. `OPT-MANIFEST-SCHEMA`
+remains open until later ordinary-entry, process-bridge, native-image, and
+publication manifests enter compiler custody. Successful native compiler
 publication must then materialize the already-retained report request.
 
 The decision-row substrate is self-authenticating rather than caller-stamped.
