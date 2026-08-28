@@ -105,7 +105,15 @@ do not become additional lattice steps.
   scans with shared exact effect-census logic and merging the duplicate
   selected-row decoders into the canonical exact-table helper. Continue replacing
   shape/control/data/publication permutations with data decoded by common
-  checks; do not recreate cached viewers or debug-only publication paths.
+  checks; do not recreate cached viewers or debug-only publication paths. In
+  particular, reconstruct one canonical exact instruction table that gives
+  stable procedure/block/event identities to artifact PCs, and own compiler
+  macro shapes such as push, pop, prologue, and epilogue once. Semantic modules
+  must consume those decoded identities and shape facts rather than embedding
+  copied byte offsets or instruction sequences. Acceptance includes changing
+  one shared compiler macro without mechanically editing unrelated semantic
+  fragments; the artifact-aware decoder and the one relevant shape owner should
+  expose the change to all consumers.
 - [x] Keep fuzzing, alternate checkers, large corpora, and exhaustive mutation
   campaigns as optional stress suites. The default lattice path must build each
   compiler and run only the bounded admission gates required for that edge.
@@ -182,8 +190,20 @@ and are not blocked on this ruling.
   4.28–4.29 seconds to 3.66 seconds, but regressed a representative million-call
   Gamma tail loop from 2.68–2.70 seconds to 3.18–3.19 seconds; it was therefore
   rejected. The simple row reorder is not enough to make the full publication
-  run practical by itself. Profile Beta-generated stack/register traffic
-  before attempting another dispatch mechanism or speculative Gamma rewrite.
+  run practical by itself. Exact Beta-generated traffic profiling found that
+  `imm r?,8` accounts for 2,917,667,729 executions and that the common stack and
+  frame helpers can eliminate 2,321,502,576 dispatches by reserving the already
+  callee-saved `r13` as a closed-program word-size constant. A temporary
+  implementation reached the unchanged-cold-start fixed point, shrank
+  `bc.tape` from 52,141 to 40,503 bytes, shrank the Gamma interpreter tape from
+  94,903 to 69,833 bytes, passed the Beta corpus and focused structural gates,
+  and improved the representative million-call loop by 10.4--10.6%. It was not
+  adopted because the semantic admission bundle still duplicates old macro
+  shapes and byte PCs throughout its 188 fragments; its first failure was the
+  `emit_dec Word` canonical smoke. Land the canonical decoded-PC/shape refactor
+  above, then reapply and admit this compiler change without a mechanical
+  obligation rewrite before attempting another dispatch mechanism or
+  speculative Gamma rewrite.
   Reduce the cost without changing Alpha or Gamma meaning, hiding a compiler
   stage, or weakening the
   exact evidence join. The 12-hour safety ceiling is not an acceptable normal
