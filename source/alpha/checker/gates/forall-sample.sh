@@ -67,7 +67,7 @@ verify3 "sqsum-forall  (sqfold(xs,n)=sumSq(xs)+n; sumSq adds each element's SQUA
 
 # ---- tie: real sample loops discharged for EVERY input ----
 cov=0; miss=0
-for f in "${OMEGA_PATH_CORPUS}"/*/main.omg; do
+for f in "${OMEGA_PATH_LATTICE_CORPUS}"/*/main.omg; do
   s=$(basename "$(dirname "$f")")
   # (a) slice COUNT fold: a machine NAME(&mut self, x: &[..]) recursing NAME(x[1..], acc + 1) under x.len > 0
   rec=$(grep -oE '[a-z_]+\([a-z_]+\[1\.\.\], *[a-z_]+ \+ 1\)' "$f" 2>/dev/null | head -1)
