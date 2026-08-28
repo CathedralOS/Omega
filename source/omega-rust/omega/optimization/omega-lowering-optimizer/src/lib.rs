@@ -493,7 +493,7 @@ mod tests {
         PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
         validate_pre_physical_optimization_manifest,
     };
-    use omega_psi_optimizer::{built_in_psi_registry, run_psi_pipeline};
+    use omega_psi_optimizer::{built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline};
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
     use omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
@@ -1736,6 +1736,33 @@ mod tests {
         assert!(matches!(
             project_optimization_run(optimized),
             Err(OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)
+        ));
+    }
+
+    #[test]
+    fn externally_replayed_psi_decisions_reach_verified_terminal_projection() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let baseline = run_pipeline(exact_add_verified(), selections.clone());
+        let external = baseline.external_decisions().clone();
+        let replayed = replay_psi_pipeline(
+            exact_add_verified(),
+            &selections,
+            work_budget(),
+            &external.encode(),
+        )
+        .unwrap();
+        let optimized = project_optimization_run(replayed).unwrap();
+
+        assert_eq!(optimized.external_decisions(), &external);
+        assert_eq!(optimized.commits().len(), 1);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::IntegerConstant {
+                value: IntegerValue::Unsigned(15),
+                ..
+            }
         ));
     }
 
