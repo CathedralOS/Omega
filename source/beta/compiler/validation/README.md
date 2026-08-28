@@ -9,6 +9,9 @@ This directory owns validation of the exact `bc.beta` source and persisted
 | `admission/bc-block-control.sh` | canonical whole-source/artifact maximal-observation reconstruction for `B_bc1` |
 | `admission/obligations/` | Alpha modules used to assemble the bounded exact-subject checkers |
 | `admission/witnesses/` | untrusted witness producers; these cannot select or replace either admitted subject |
+| `selfhost.sh` | fixed-point reconstruction from the persisted Alpha-rooted compiler artifact |
+| `resource-boundaries.sh` | exact `B_bc1` compiler resource ceilings and deterministic checked failures |
+| `malformed-progress.sh` | bounded fail-closed progress for unsupported tokens in persisted and self-built compilers |
 | `stress/` | curated/generated instruction-refinement and differential suites; useful evidence, never another lattice rung |
 
 Only the two commands under `admission/` run on the default Beta lattice edge.

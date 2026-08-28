@@ -60,7 +60,8 @@ Beta remains a small compiler-construction substrate with raw memory.
 - `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
   maximal observations.
 
-`source/beta/compiler/cold-start/full-source.sh`, `source/beta/selfhost.sh`, and
+`source/beta/compiler/cold-start/full-source.sh`,
+`source/beta/compiler/validation/selfhost.sh`, and
 `source/beta/test.sh`
 gate reconstruction, the fixed point, and language behavior. The obsolete
 Python backend and gate were removed because they added no unique semantic or
