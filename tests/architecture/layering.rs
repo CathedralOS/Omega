@@ -211,14 +211,16 @@ fn is_governed_crate(name: &str) -> bool {
     name.starts_with("omega-") || name.starts_with("psi-")
 }
 
-/// The workspace root: this crate lives beneath
-/// `<root>/source/omega-rust/omega/architecture/`.
+/// Find the repository root without coupling this repository-wide test to its
+/// own directory depth.
 fn workspace_root() -> std::path::PathBuf {
-    let mut p = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    for _ in 0..5 {
-        p.pop();
-    }
-    p
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .ancestors()
+        .find(|candidate| {
+            candidate.join("Cargo.toml").is_file() && candidate.join("source/omega-rust").is_dir()
+        })
+        .expect("architecture tests must run from within the Omega repository")
+        .to_path_buf()
 }
 
 #[test]
