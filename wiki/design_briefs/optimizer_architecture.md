@@ -2073,6 +2073,23 @@ identity remains v2 and no durable schema changes. Branch relaxation,
 whole-function exit, realization manifests, frame, emission, sections, objects,
 images, installation, and publication remain unavailable.
 
+One explicit-staging-only carrier now closes the next function-relative custody
+join for this route. It owns the resolved wrapper, validates the generic
+`BaselineNearLayoutV1` frameless exit, and independently reconstructs the v4
+realization manifest. This does not manufacture a build optimization name: the
+original source-visible selection identity remains intact, selected-lowering
+completion is absent, and all unexecuted allocation-recovery, post-allocation-
+machine, and function-relative-layout phase projections must be empty. The v5
+post-allocation manifest truthfully carries the sole typed
+`PressureRematerialization` row and transformed selected root. Production and
+replay derive every exit, layout, machine, manifest, and statistic field only
+after replaying the full upstream wrapper. Both targets use caller-saved
+pressure views (`rax`/`rcx` and `x0`/`x1`) rather than weakening callee-save
+validation. The existing whole-function-exit v3 and realization-manifest v4
+schemas already express the result. Compiler physical-pipeline integration
+waits for an explicit rematerialization build selection; frame, emission,
+sections, objects, images, installation, and publication remain unavailable.
+
 A separate immutable v2 artifact resolves those branch rows only after choosing
 the explicit required-stage layout policy
 `EntryThenZeroFallthroughThenNonzeroV1`. For the admitted three-block diamond it
