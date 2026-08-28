@@ -1,9 +1,9 @@
 # Product compiler entrypoints
 
 [`build.omg`](build.omg) and [`main.omg`](main.omg) are the hosted product build
-and machine entrypoints. The first versioned checkpoint exposes the real Psi
-source-to-token phase; later checkpoints extend that same closure through
-terminal Psi and Omega artifact emission. The target-neutral implementation
+and machine entrypoints. The current live slice exposes the real Psi
+source-to-token phase; later implementation extends that same ordinary source
+closure through terminal Psi and Omega artifact emission. The target-neutral implementation
 lives under `source/psi/`; target realization and these product entrypoints live
 under `source/omega/`.
 

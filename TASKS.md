@@ -105,50 +105,32 @@ Remaining:
   the compiler remain ordinary source dependencies; standalone interpreters,
   viewers, REPLs, proof explorers, and debuggers do not.
 
-  Deliver this incrementally through coherent, versioned source checkpoints.
-  Each checkpoint publishes the complete deterministic transitive closure for
-  the compiler functionality it claims, passes the applicable product suites,
-  and updates the provisional feature census. A checkpoint manifest is exact
-  for that checkpoint; the final manifest and profile freeze only at the
-  completed Delta-to-Omega join.
+  Deliver this incrementally through coherent live source slices, each of which
+  passes the applicable product suites. Historical `checkpoint-000001`
+  manifests and profiles were retired with `source/omega/source-checkpoints/`;
+  they are not current closure evidence and must not be recreated as a bridge
+  dialect or file allowlist. The live authored slice under `source/psi/` plus
+  `source/omega/` currently reaches source/span, token, Unicode-table, and lexer
+  implementation only. Parsing and every later Psi/Omega phase remain open.
+  Freeze the exact manifest and feature census only for the complete compiler
+  closure at the Delta-to-Omega join.
 
-  Current checkpoint: `source/omega/source-checkpoints/checkpoint-000001.json`
-  closes the first real Psi source-to-token slice under `source/psi/` plus
-  the hosted entrypoint under `source/omega/`. It includes source/span,
-  token, and lexical-diagnostic representations; Unicode 17 XID tables; nested
-  comments; numeric metadata; cooked/raw strings; punctuation; deterministic
-  capacity failures; and a native adapter publishing the versioned structural
-  `OMGLEX1` lexical observation. Its provisional
-  feature census is
-  `source/omega/source-checkpoints/profile-000001.md`. The complete gate now
-  compares an independently encoded Rust observation across accepted,
-  retained-prefix rejection, invalid-UTF-8, token-capacity, and source-capacity
-  cases and rejects a tampered stream. Parsing and every later Psi/Omega phase remain open; this
-  checkpoint does not complete the product compiler task.
-
-  Checkpoint 000001's manifest, profile, Cargo/provider provenance, and exact
-  extracted build prelude are refreshed together after the current product
-  changes. The product build now directly selects the complete
-  `ConsoleNativeProvider` through the normative
-  `Build::select_provider<Console, ConsoleNativeProvider>` surface, so this
-  checkpoint no longer depends observably on the Rust-recognized
-  `Owner::provider_defaults` suffix convention. The fast gate accepts that
-  coherent closure and rejects later source, provenance, prelude,
-  feature-partition, or resource drift until the complete evidence set is
-  reviewed and refreshed again. Replacing
+  The product build directly selects the complete `ConsoleNativeProvider`
+  through the normative
+  `Build::select_provider<Console, ConsoleNativeProvider>` surface rather than
+  the Rust-recognized `Owner::provider_defaults` suffix convention. Replacing
   `source/omega/build.omg`'s legacy `target ... {}` blocks is
   design-blocked on **OWNER_QUESTIONS Q8**. The file currently declares four
   selectable targets while the normative durable `Build` projection owns one
-  selected target and the checkpoint's actual toolchain prelude exposes no
+  selected target and the current build source exposes no
   requested-target input, target field, or selection operation. Settle how the
   external request becomes an exact Omega value and how ordinary build source
   accepts it without collapsing cross-target availability or inventing ambient
-  `Host` semantics; then migrate and refresh the checkpoint closure.
+  `Host` semantics; then migrate the live closure.
   Target-package defaults outside this explicitly selected product closure
   still require either that same ordinary build surface or exact declaration,
   receiver, target-scope, and duplicate/default precedence rules;
-  do not generalize the compatibility suffix from this checkpoint. Publish a
-  new source checkpoint when the target-form migration alters the closure.
+  do not generalize that compatibility suffix into the live closure.
 
   The lexical claim is design-blocked at explicit specification conflicts. The
   current Omega-written lexer accepts Unicode XID identifiers despite the
@@ -157,14 +139,14 @@ Remaining:
   raw strings whose delimiter/content rules are not yet normative there. The
   product source now uses the specified `u64` `Array`/`Slice` index and count
   carrier for byte coordinates, collection counts, and scan indices throughout
-  the checkpoint while retaining `u32` for Unicode scalar values; the earlier
+  the live lexical slice while retaining `u32` for Unicode scalar values; the earlier
   implicit `u32`/`u64` indexing and `.len` comparisons are gone without adding
-  a heterogeneous-conversion rule. The checkpoint still records the three
+  a heterogeneous-conversion rule. The live source still exercises the three
   unsettled lexical behaviors but does not claim full-spec lexical conformance
   for them.
 
-  Two broader evaluation/layout rulings must also close before a source
-  checkpoint may depend on them observably. Call-argument and aggregate-literal
+  Two broader evaluation/layout rulings must also close before the compiler
+  source may depend on them observably. Call-argument and aggregate-literal
   field evaluation order are not normative; current bridge slices therefore
   admit only combinations whose relative order cannot be observed. Explicit sum
   discriminants can also conflict with the first-case/tag-zero initialization
