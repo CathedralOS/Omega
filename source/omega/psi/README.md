@@ -25,7 +25,8 @@ Rust implementation belongs in this product subtree.
 acceptance, rejection, capacity-edge, lexical-handoff, and determinism cases
 against that one native artifact. Its Python helper only decodes the versioned
 black-box observation; it implements no compiler semantics. Set `OMEGA_CLI` to
-the exact freshly built comparator CLI that should compile the product source,
-or set `OMEGA_PRODUCT_PROGRAM` to reuse one exact product executable during a
-focused iteration. The gate deliberately does not select an arbitrary existing
-`target/debug/omega` as acceptance evidence.
+the exact freshly built comparator CLI and `OMEGA_TARGET` to the exact selected
+target profile that should compile the product source, or set
+`OMEGA_PRODUCT_PROGRAM` to reuse one exact product executable during a focused
+iteration. The gate deliberately selects neither an arbitrary existing
+`target/debug/omega` nor an ambient host target as acceptance evidence.

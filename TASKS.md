@@ -131,10 +131,10 @@ Remaining:
   black-box parser cases passed against the last emitted product artifact. A
   fresh current compiler now reaches checked product source in about 24 seconds,
   but explicit-target artifact emission rejects because `Main::main` has no
-  checked transitive machine plan. Restore that engineering path and rerun all
-  45 cases against the same explicitly selected fresh CLI before extending the
-  parser; do not treat an arbitrary pre-existing `target/debug/omega` as current
-  acceptance evidence.
+  checked transitive machine plan. The parser gate requires both the exact fresh
+  CLI and an explicit target profile; it selects neither a cached CLI nor an
+  ambient host target. Restore the lowering path and rerun all 45 cases against
+  that same explicitly selected fresh CLI before extending the parser.
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler
