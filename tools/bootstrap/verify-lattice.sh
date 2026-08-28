@@ -213,83 +213,10 @@ precise_step() { # label dir script cache-profile
   }
   s_profile="$CACHE_PROFILE_DIR/$s_profile_name.deps"
   authorize_cache_profile_script "$s_profile" "$s_script_rel" || exit $?
-  case "$s_profile_name" in
-    omega-bootstrap-ckir4-7)
-      if [ -z "${CACHE_HASH_CKIR4_7+x}" ]; then
-        CACHE_HASH_CKIR4_7=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR4_7
-      ;;
-    omega-bootstrap-omgrfn7-9)
-      if [ -z "${CACHE_HASH_OMGRFN7_9+x}" ]; then
-        CACHE_HASH_OMGRFN7_9=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN7_9
-      ;;
-    omega-bootstrap-ckir8)
-      if [ -z "${CACHE_HASH_CKIR8+x}" ]; then
-        CACHE_HASH_CKIR8=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR8
-      ;;
-    omega-bootstrap-ckir9)
-      if [ -z "${CACHE_HASH_CKIR9+x}" ]; then
-        CACHE_HASH_CKIR9=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR9
-      ;;
-    omega-bootstrap-ckir10)
-      if [ -z "${CACHE_HASH_CKIR10+x}" ]; then
-        CACHE_HASH_CKIR10=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR10
-      ;;
-    omega-bootstrap-ckir11)
-      if [ -z "${CACHE_HASH_CKIR11+x}" ]; then
-        CACHE_HASH_CKIR11=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR11
-      ;;
-    omega-bootstrap-ckir12)
-      if [ -z "${CACHE_HASH_CKIR12+x}" ]; then
-        CACHE_HASH_CKIR12=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_CKIR12
-      ;;
-    omega-bootstrap-omgrfn10)
-      if [ -z "${CACHE_HASH_OMGRFN10+x}" ]; then
-        CACHE_HASH_OMGRFN10=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN10
-      ;;
-    omega-bootstrap-omgrfn11)
-      if [ -z "${CACHE_HASH_OMGRFN11+x}" ]; then
-        CACHE_HASH_OMGRFN11=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN11
-      ;;
-    omega-bootstrap-omgrfn12)
-      if [ -z "${CACHE_HASH_OMGRFN12+x}" ]; then
-        CACHE_HASH_OMGRFN12=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN12
-      ;;
-    omega-bootstrap-omgrfn13)
-      if [ -z "${CACHE_HASH_OMGRFN13+x}" ]; then
-        CACHE_HASH_OMGRFN13=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN13
-      ;;
-    omega-bootstrap-omgrfn14)
-      if [ -z "${CACHE_HASH_OMGRFN14+x}" ]; then
-        CACHE_HASH_OMGRFN14=$(hash_cache_profile "$s_profile") || exit $?
-      fi
-      s_profile_hash=$CACHE_HASH_OMGRFN14
-      ;;
-    *)
-      s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
-      ;;
-  esac
+  # Each call computes its own manifest/input hash. The former hand-written
+  # profile-name memo table duplicated this generic operation and had become
+  # dead code once the producer-dependent call sites were suspended.
+  s_profile_hash=$(hash_cache_profile "$s_profile") || exit $?
   s_variant=${LATTICE_STEP_VARIANT:-default}
   s_key=$(printf '%s_%s' "$s_role" "$s_script" | tr '/ .' '___')
   s_hash="$CORE:precise-v1:$s_variant:$s_profile_name:$s_profile_hash"
@@ -347,6 +274,9 @@ step "predicate soundness — FUZZ: random predicates, kernel vs operational dec
 # substitute for reconstructing the canonical Delta compiler from below.
 step "delta D0 storage meaning — omega2gamma.beta -> interp.beta" omega-bootstrap-gates delta-storage-meaning.sh omega-bootstrap gamma
 step "omega2gamma termination canary — translator halts on every sample, supported or refused" omega-bootstrap-gates omega2gamma-termination.sh alpha-assembler beta corpus
+step "delta compiler meaning — complete source elaboration, bounded compile, and resource teeth through Gamma" omega-bootstrap-gates lowermachine-meaning.sh alpha-assembler beta gamma delta
+step "delta certifier convergence — Delta meaning emits certificates checked below Gamma" omega-bootstrap-gates convergence-reference.sh alpha-assembler beta gamma delta proof-kernel
+precise_step "delta source closure — exact path-independent compiler root; artifact replay remains suspended" delta source-closure-snapshot-v1.sh delta-source-closure-v1
 step "omega-bootstrap source bundle — canonical deterministic multi-file input" omega-bootstrap-gates omega-bootstrap-bundle-test.sh
 step "omega-bootstrap compilation envelope — canonical package/source/alias transport and malformed/resource teeth" omega-bootstrap-gates omega-bootstrap-compilation-test.sh omega-bootstrap
 step "omega-bootstrap two-package fixture — pinned deterministic OMGCOMP and semantic negatives" omega-bootstrap-gates two-unit-compilation-fixture.sh omega-bootstrap-compiler

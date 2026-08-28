@@ -100,11 +100,11 @@ The distinction is architectural:
 - `source/on-ramp/rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
   `source/on-ramp/rust/apps/omega-cli/` is its user-facing executable.
-- `source/omega/{psi,omega}/` owns the Omega-written product source. Checkpoint
-  000001 implements the complete Psi source-to-token spelling phase under
-  `source/psi/`; later Psi phases and `source/omega/` remain open. Hosted
-  product entrypoints live under `source/omega/`, and exact closure and
-  profile snapshots live under `source/omega/source-checkpoints/`.
+- `source/{psi,omega}/` owns the Omega-written product source. The complete Psi
+  source-to-token spelling phase lives under `source/psi/`; later Psi phases
+  and `source/omega/` remain open. Hosted product entrypoints live under
+  `source/omega/`. Exact closure comes from Git, package resolution, and the
+  accepted source closure rather than authored numbered snapshots.
 - `source/on-ramp/omega-bootstrap/` is the owner for Rust-free meaning,
   Delta-written bridge-compiler slices/profiles, and bootstrap validation.
 - `source/delta/` owns the bootstrap language corpus, Delta-written compiler
