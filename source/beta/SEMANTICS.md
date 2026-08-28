@@ -188,36 +188,13 @@ stream admitted by `B_bc1`.
 - `source-exhaustion.sh` pins `B_bc1` resource boundaries;
 - `source/beta/compiler/validation/bc-artifact-structure.sh` checks the
   exact artifact's reachable instruction framing and direct targets below `bc`.
-- `source/beta/compiler/validation/bc-block-control.sh` checks exact source
-  control successors and static custody for every call/return/I/O/emit site,
-  including the fixed-literal output macro, source-derived frame allocations,
-  parameter stores, callee arities, and pre-call argument pops, in one Alpha
-  process. Its BCT8 phase also resolves every function-scoped source name and
-  checks all 169 local reads and 73 `let`/assignment writes against exact frame
-  slots and load/store macros, then binds all 61 raw loads and 34 raw stores to
-  exact byte/word opcodes, registers, and store-address pops. Finally it binds
-  all 581 decimal/character literals, 55 arithmetic operators, and 180
-  comparisons to their exact immediate, 22-byte arithmetic, or 59-byte
-  comparison lowering macros. The comparison checks select signed `jlt` versus
-  full-word `jeq`, operand order, branch targets, and complementary 0/1 results.
-  A final static phase binds all 235 binary-left, 134 ordinary-call argument,
-  and 34 store-address pushes to exact 16-byte data-stack macros. A separate
-  grammar-directed phase reparses every expression and statement continuation,
-  requires those owned pieces in recursive lowering order, proves relative
-  temporary-stack balance, and pins exact `bc.beta`'s peak at two words.
-  A final reduced induction checks the complete Beta-source `slurp`/`declare`
-  store slices, proving the nonwrapping SRC/NAMEOFF/NAMELEN premise for all
-  three ranged stores. A witness-free selected-row join transfers those three
-  address operands through the exact compiled slots with an executable selected
-  tag/interval domain and proves conditional 32-byte frame restoration for the
-  two call-free procedures. Later protected-counter, frame-summary, and
-  potential phases establish those entry relations globally. The final ROOT
-  process composes all conditional relations, independently rescans and bounds
-  the seven dynamic raw loads, and proves exact maximal-observation equality for
-  the persisted artifact over every finite source and supported `B_bc1` profile.
+- `source/beta/compiler/validation/bc-block-control.sh` reconstructs one
+  canonical exact-source/exact-artifact obligation and checks its component
+  Alpha programs through the final ROOT maximal-observation conjunction.
 
-These executable gates close the repository's declared `B_bc1`
-source-to-artifact refinement edge, including memory bounds, call/return
-discipline, complete output traces, traps, exhaustion, and coinductive
-divergence. Broader soundness of the checking method against the written
-Alpha/Beta semantics remains the separate lattice soundness obligation.
+These executable gates are evidence for the declared `B_bc1` relation. The
+ROOT conjunction covers memory bounds, call/return discipline, complete output
+traces, traps, exhaustion, and coinductive divergence, but it is not yet a
+certificate accepted by the universal derivation checker. Complete admission
+and soundness of the executable reconstruction against these written semantics
+therefore remain explicit lattice obligations.

@@ -1,3 +1,0 @@
-; Base Checker-B continuation: stop after the conditional NEQS theorem.
-bc_post_name_eq:
-        jmp scan_owned_effects_init

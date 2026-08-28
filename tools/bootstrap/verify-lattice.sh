@@ -36,6 +36,7 @@ step "alpha — below-Beta checker construction" alpha-checker reconstruct-artif
 
 step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler
 step "beta — compiler artifact framing" beta-validation bc-artifact-structure.sh alpha beta-compiler alpha-assembler
+step "beta — maximal-observation reconstruction" beta-validation bc-block-control.sh alpha beta-compiler alpha-assembler
 step "beta — proof-carrying instruction refinement" beta-validation refinement.sh alpha alpha-checker beta-compiler
 
 step "gamma — interpreter" gamma test-interp.sh beta beta-compiler

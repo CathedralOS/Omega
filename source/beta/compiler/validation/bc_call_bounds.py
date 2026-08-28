@@ -500,33 +500,11 @@ def analyze(repo: Path, source: bytes) -> Analysis:
     )
 
 
-def encode(
-    analysis: Analysis, *, underreport_probe: bool = False,
-    underreport_root: bool = False,
-) -> bytes:
-    expr_phases = [list(phase) for phase in analysis.expr_phases]
-    root_summaries = list(analysis.root_summaries)
-    expr_index = next(
-        proc.index for proc in analysis.procedures if proc.name == "gen_expr"
-    )
-    main_index = next(
-        proc.index for proc in analysis.procedures if proc.name == "main"
-    )
-    if underreport_probe:
-        summary = expr_phases[0][expr_index]
-        expr_phases[0][expr_index] = Summary(
-            summary.explicit_bytes - 8, summary.hidden_returns
-        )
-    if underreport_root:
-        summary = root_summaries[main_index]
-        root_summaries[main_index] = Summary(
-            summary.explicit_bytes - 8, summary.hidden_returns - 1
-        )
-
+def encode(analysis: Analysis) -> bytes:
     out = bytearray(MAGIC)
     for phases, field in (
-        (expr_phases, "explicit_bytes"),
-        (expr_phases, "hidden_returns"),
+        (analysis.expr_phases, "explicit_bytes"),
+        (analysis.expr_phases, "hidden_returns"),
         (analysis.block_phases, "explicit_bytes"),
         (analysis.block_phases, "hidden_returns"),
     ):
@@ -534,7 +512,7 @@ def encode(
             for summary in phase:
                 out.extend(U32.pack(getattr(summary, field)))
     for field in ("explicit_bytes", "hidden_returns"):
-        for summary in root_summaries:
+        for summary in analysis.root_summaries:
             out.extend(U32.pack(getattr(summary, field)))
     return bytes(out)
 
@@ -602,25 +580,14 @@ def main() -> None:
     ap.add_argument("--repo", type=Path, required=True)
     ap.add_argument("--source", type=Path, required=True)
     ap.add_argument("--output", type=Path)
-    ap.add_argument("--underreport-probe-output", type=Path)
-    ap.add_argument("--underreport-root-output", type=Path)
     ap.add_argument("--report", action="store_true")
     args = ap.parse_args()
-    if (args.output is None and args.underreport_probe_output is None
-            and args.underreport_root_output is None and not args.report):
+    if args.output is None and not args.report:
         ap.error("an output or --report is required")
 
     analysis = analyze(args.repo.resolve(), args.source.read_bytes())
     if args.output is not None:
         args.output.write_bytes(encode(analysis))
-    if args.underreport_probe_output is not None:
-        args.underreport_probe_output.write_bytes(
-            encode(analysis, underreport_probe=True)
-        )
-    if args.underreport_root_output is not None:
-        args.underreport_root_output.write_bytes(
-            encode(analysis, underreport_root=True)
-        )
     if args.report:
         print(report(analysis), end="")
 
