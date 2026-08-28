@@ -281,6 +281,10 @@ parameter or local is a lexical place and does not become a package row.
 Every declaration selected from a public-interface position must itself be
 publicly visible. The compiler rejects a public contract or predicate that
 names a private declaration rather than silently promoting the target.
+For a reviewed nominal member expression, the authored member token and the
+checked semantic place or call-result projection must also select the same
+exact field. The token cannot disappear merely because the checked expression
+already carries a structurally representable receiver and field path.
 
 Generic conformance bounds apply the same distinction. Their subject and
 evidence binder are lexical; the right-hand trait, or both declarations in a

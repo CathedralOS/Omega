@@ -2120,7 +2120,9 @@ lane binds that template to the source proposition application's concrete
 arguments. Matching checked evidence-term, interface, and projection facts are
 required. Direct parameter-rooted member paths retain their receiver ordinal
 and exact package-qualified case/field chain after a unique checked semantic-
-place join. Simple total, pure calls retain their optional receiver, exact
+place join and exactly one finalized public-interface member-token selection
+to the same field. Missing, duplicate, or mismatched custody rejects. Simple
+total, pure calls retain their optional receiver, exact
 checked package-qualified entry target, and ordinary arguments after a unique
 public-interface declaration-selection join. Their helper bodies remain pinned
 by the separate whole-source commitment rather than being confused with

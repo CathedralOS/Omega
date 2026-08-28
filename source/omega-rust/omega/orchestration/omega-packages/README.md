@@ -1117,7 +1117,9 @@ lane binds the template to the proposition application's concrete arguments;
 the local evidence alias is not identity. Matching checked evidence-term,
 interface, and projection facts are mandatory. Direct parameter-rooted member
 paths retain the receiver ordinal and exact package-qualified case/field chain
-only when a unique checked semantic-place row agrees. Computed members,
+only when a unique checked semantic-place row and exactly one finalized public-
+interface member-token selection agree on the field. Missing, duplicate, or
+mismatched token custody rejects without changing canonical row bytes. Computed members,
 proposition-argument members without that join, unsupported advanced call
 forms, and aggregate expressions still fail closed. Contract casts retain the
 structural operand, alpha-normalized target, arithmetic policy, package-qualified

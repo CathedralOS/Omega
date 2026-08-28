@@ -9663,6 +9663,12 @@ fn project_contract_expression_with_substitutions(
                 .expect("guarded projection substitution");
             let projection =
                 exact_fact_call_projection(compilation, context, expression, actual, member)?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                projection.field,
+            )?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9678,6 +9684,12 @@ fn project_contract_expression_with_substitutions(
                     if substitutions.iter().any(|(symbol, _)| *symbol == path.symbol)
             ) =>
         {
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                member.member_symbol,
+            )?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9715,8 +9727,9 @@ fn project_contract_expression_with_substitutions(
                 vec![Diagnostic::error(format!(
                     "reviewed {} `{}` proposition parameter member does not resolve through its declared carrier",
                     context.subject_kind, context.subject_name
-                ))]
-            })?;
+                    ))]
+                })?;
+            require_exact_checked_contract_nominal_member(compilation, context, expression, field)?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9737,6 +9750,12 @@ fn project_contract_expression_with_substitutions(
                 expression,
                 member.receiver,
                 member,
+            )?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                projection.field,
             )?;
             project_contract_member_expression(
                 compilation,
@@ -9786,24 +9805,37 @@ fn project_contract_expression_with_substitutions(
             } else {
                 child(root_expression)?
             };
-            checked_contract_member_path(
+            let member_path = checked_contract_member_path(
                 compilation,
                 context,
                 checked_fact,
                 expression,
                 root,
                 &source_members,
-            )?
-            .into_iter()
-            .try_fold(receiver, |receiver, (case_variant, member_symbol)| {
-                project_contract_member_expression(
-                    compilation,
-                    context,
-                    receiver,
-                    member_symbol,
-                    case_variant,
-                )
-            })
+            )?;
+            let selected_member = member_path.last().ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` contract member path has no checked member coordinate",
+                    context.subject_kind, context.subject_name
+                ))]
+            })?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                selected_member.1,
+            )?;
+            member_path
+                .into_iter()
+                .try_fold(receiver, |receiver, (case_variant, member_symbol)| {
+                    project_contract_member_expression(
+                        compilation,
+                        context,
+                        receiver,
+                        member_symbol,
+                        case_variant,
+                    )
+                })
         }
         ExpressionNode::Cast(cast) => {
             let semantic_domain = if cast.semantic_domain_symbol.is_valid() {
@@ -10627,6 +10659,56 @@ fn contract_member_has_exact_collection_length(
                         AuthoredDeclarationSelectionIntrinsic::CollectionLength,
                     )
         })
+}
+
+fn require_exact_checked_contract_nominal_member(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    expected_member: SymbolHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member has {} exact checked member-selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member does not retain one exact declaration target",
+            context.subject_kind, context.subject_name
+        ))]);
+    };
+    if !expected_member.is_valid() || target.selected_symbol() != expected_member {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
 }
 
 fn require_exact_checked_contract_collection_length(

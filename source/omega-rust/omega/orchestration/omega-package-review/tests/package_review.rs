@@ -4986,6 +4986,81 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_rejects_nominal_member_selection_custody_tamper() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Pair [copy] {
+    left: i32;
+    right: i32;
+}
+pub proposition balanced(pair: Pair) = pair.left == pair.right;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public nominal-member proposition should check");
+    project_checked_package_review(&checked)
+        .expect("untampered nominal-member selection custody should project");
+
+    let members = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            let psi_typed_trees::expression::ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            matches!(member.member.as_str(), "left" | "right").then_some((
+                member.member.as_str().to_owned(),
+                expression,
+                checked
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let left = members
+        .iter()
+        .find(|(name, _, _)| name == "left")
+        .expect("left member expression");
+    let right = members
+        .iter()
+        .find(|(name, _, _)| name == "right")
+        .expect("right member expression");
+    let [left_occurrence] = left.2.as_slice() else {
+        panic!("left member must retain one exact selection")
+    };
+    let [right_occurrence] = right.2.as_slice() else {
+        panic!("right member must retain one exact selection")
+    };
+    assert_ne!(left_occurrence, right_occurrence);
+
+    let mut tampered = checked.clone();
+    tampered
+        .typed
+        .expression_table
+        .attach_authored_selection_occurrences(left.1, [*right_occurrence]);
+    let diagnostics = project_checked_package_review(&tampered)
+        .expect_err("duplicate nominal-member selection custody must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("nominal member has 2 exact checked member-selection rows")
+    }));
+}
+
+#[test]
 fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
     let package = TempPackage::new();
     package.write(

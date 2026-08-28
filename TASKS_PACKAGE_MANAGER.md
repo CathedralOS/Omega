@@ -2443,6 +2443,14 @@ complete.
   target type, exact arithmetic policy, package-qualified semantic domain and
   arguments, and value/recast form. Diagnostic target/domain spellings are
   absent, and a private package domain cannot leak through a public cast.
+
+  Follow-up 2026-08-28: every nominal member admitted by the existing contract
+  projector now also requires exactly one public-interface `MemberAccess`
+  occurrence whose finalized declaration equals the checked semantic-place or
+  call-projection field. Missing, duplicate, intrinsic, late-bound, private, or
+  mismatched token custody rejects. This closes the source-selection join for
+  already-supported member expressions without admitting the computed-member
+  forms named above or changing review v76/canonical row v34 bytes.
   The settled proposition path is a join, not a new nominal stage: typed trees
   supply structural declaration, binder, and value-expression coordinates;
   checked proof facts supply acceptance, evidence-term/interface routing, and
