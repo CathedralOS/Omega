@@ -28,15 +28,20 @@ use omega_program_storage::{
 use omega_target::{NativeTarget, ProgramEntryPhysicalContractPackage, TargetProfile};
 use omega_terminal_abstract_operations_to_target_operations::AdmittedTerminalBoundarySettlement;
 use omega_terminal_native_realization::{
+    InstalledProgramStorageContinuationEvidenceError,
     OptimizedProgramStorageSemanticWrapperObjectSymbolRole, TerminalNativeProgramEntrySettlement,
     TerminalNativeProgramEntrySettlementError,
     select_optimized_program_storage_semantic_wrapper_encoding,
     stage_validated_optimized_program_storage_semantic_wrapper_object,
+    validate_installed_program_storage_continuation_evidence,
     validate_optimized_program_storage_semantic_wrapper_object,
     validate_terminal_native_program_entry_settlement,
 };
 use omega_terminal_psi_to_abstract_operations::{
     SelectedProviderAdapter, admit_provider_installation, lower_artifact_sections_for_optimization,
+};
+use omega_terminal_selected_instructions::{
+    TerminalSelectedInstructionPlan, TerminalSelectedStructuralUnitCallSource,
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalClaimCompletionOnlyRealization, TerminalTargetOperation,
@@ -47,6 +52,7 @@ use psi_proof_admission::AdmissionProfile;
 use psi_source_files_to_tokens::Lexer;
 use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
 use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
+use psi_terminal::StructuralAccess;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -351,6 +357,11 @@ fn checked_program_storage_provider_reaches_optimized_selected_claim_completion(
     );
     validate_optimized_terminal_object_artifact(&artifact)
         .expect("installed ProgramStorage object independently replays");
+    assert_installed_substitution_matrix(
+        retained_installation,
+        artifact.selected_plan(),
+        artifact.artifact().semantic_entry,
+    );
 
     let semantic_call = evaluate_ordinary_boundary_entry_plan(
         CallingPolicy::MicrosoftX64,
@@ -421,6 +432,324 @@ fn checked_program_storage_provider_reaches_optimized_selected_claim_completion(
         OptimizedProgramStorageSemanticWrapperObjectSymbolRole::SemanticWrapperV1
     );
     assert!(composite.object().symbols[0].machine.is_none());
+}
+
+fn assert_installed_substitution_matrix(
+    installation: &omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation,
+    selected: &TerminalSelectedInstructionPlan,
+    semantic_entry: psi_core::MachineId,
+) {
+    use InstalledProgramStorageContinuationEvidenceError as Error;
+
+    validate_installed_program_storage_continuation_evidence(
+        installation,
+        selected,
+        semantic_entry,
+    )
+    .expect("original checked installed continuation evidence");
+
+    type Mutation = fn(&mut TerminalSelectedInstructionPlan);
+    let cases: &[(&str, Error, Mutation)] = &[
+        ("provider identity", Error::ProviderMismatch, |plan| {
+            let TerminalSelectedStructuralUnitCallSource::InstalledProvider { provider, .. } =
+                &mut entry_call_mut(plan).source
+            else {
+                unreachable!()
+            };
+            provider.provider_identity.push_str("::substituted");
+        }),
+        (
+            "provider candidate identity",
+            Error::ProviderMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    provider, ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                provider.candidate_identity.push_str("::substituted");
+            },
+        ),
+        ("provider owned access", Error::ProviderMismatch, |plan| {
+            let TerminalSelectedStructuralUnitCallSource::InstalledProvider { provider, .. } =
+                &mut entry_call_mut(plan).source
+            else {
+                unreachable!()
+            };
+            provider.signature.parameters[0].access = StructuralAccess::SharedBorrow;
+        }),
+        (
+            "provider qualification domain",
+            Error::ProviderMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    provider, ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                provider.signature.parameters[0].qualifications.clear();
+            },
+        ),
+        (
+            "selected entry qualification domain",
+            Error::StructuralContractMismatch,
+            |plan| {
+                entry_function_mut(plan).abi.parameters[0]
+                    .semantic
+                    .qualifications
+                    .clear();
+            },
+        ),
+        (
+            "selected provider parameter access",
+            Error::StructuralContractMismatch,
+            |plan| {
+                provider_function_mut(plan).abi.parameters[0]
+                    .semantic
+                    .access = StructuralAccess::SharedBorrow;
+            },
+        ),
+        (
+            "selected call semantic argument access",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                entry_call_mut(plan).arguments[0].semantic.access = StructuralAccess::SharedBorrow;
+            },
+        ),
+        (
+            "installed versus authored source",
+            Error::SourceKindMismatch,
+            |plan| {
+                entry_call_mut(plan).source =
+                    TerminalSelectedStructuralUnitCallSource::AuthoredCallUnit;
+            },
+        ),
+        (
+            "completion claim source order",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_claim_sources,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                completion_claim_sources.swap(0, 1);
+            },
+        ),
+        (
+            "completion claim source claim",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_claim_sources,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                completion_claim_sources[0].claim = completion_claim_sources[1].claim;
+            },
+        ),
+        (
+            "completion claim source place",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_claim_sources,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                let replacement = completion_claim_sources[1]
+                    .entry
+                    .as_ref()
+                    .expect("ordinary entry claim source")
+                    .input;
+                completion_claim_sources[0]
+                    .entry
+                    .as_mut()
+                    .expect("ordinary entry claim source")
+                    .input = replacement;
+            },
+        ),
+        (
+            "completion receipt order",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_receipts,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                completion_receipts.swap(0, 1);
+            },
+        ),
+        (
+            "duplicate completion receipt claim",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_receipts,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                completion_receipts[0].claim = completion_receipts[1].claim;
+            },
+        ),
+        (
+            "wrong completion receipt claim",
+            Error::CallEvidenceMismatch,
+            |plan| {
+                let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+                    completion_receipts,
+                    ..
+                } = &mut entry_call_mut(plan).source
+                else {
+                    unreachable!()
+                };
+                completion_receipts[0].claim =
+                    psi_core::ClaimId::new(completion_receipts[1].claim.get() + 1)
+                        .expect("substituted claim identity");
+            },
+        ),
+        ("entry claim order", Error::EntryClaimMismatch, |plan| {
+            entry_function_mut(plan).entry_claims.swap(0, 1)
+        }),
+        ("selected callee", Error::CallEvidenceMismatch, |plan| {
+            entry_call_mut(plan).callee = plan.entry
+        }),
+        ("missing entry call", Error::EntryCallMissing, |plan| {
+            entry_function_mut(plan).call = None
+        }),
+        (
+            "provider settlement claim",
+            Error::ProviderSettlementMismatch,
+            |plan| {
+                let provider = provider_function_mut(plan);
+                let replacement = provider.boundary_settlements[1].completion_receipts[0].claim;
+                provider.boundary_settlements[0].completion_receipts[0].claim = replacement;
+            },
+        ),
+        (
+            "missing provider settlement",
+            Error::ProviderSettlementMismatch,
+            |plan| {
+                provider_function_mut(plan).boundary_settlements.pop();
+            },
+        ),
+        (
+            "provider settlement order",
+            Error::ProviderSettlementMismatch,
+            |plan| provider_function_mut(plan).boundary_settlements.swap(0, 1),
+        ),
+        (
+            "extra provider settlement",
+            Error::ProviderSettlementMismatch,
+            |plan| {
+                let extra = provider_function_mut(plan).boundary_settlements[0].clone();
+                provider_function_mut(plan).boundary_settlements.push(extra);
+            },
+        ),
+        (
+            "provider calls recursively",
+            Error::ProviderSettlementMismatch,
+            |plan| {
+                let call = entry_call_mut(plan).clone();
+                provider_function_mut(plan).call = Some(call);
+            },
+        ),
+        (
+            "missing provider function",
+            Error::FunctionRosterMismatch,
+            |plan| {
+                let provider = provider_machine(plan);
+                plan.structural_unit_functions
+                    .retain(|function| function.machine != provider);
+            },
+        ),
+        (
+            "duplicate provider function",
+            Error::FunctionRosterMismatch,
+            |plan| {
+                let provider = provider_function_mut(plan).clone();
+                plan.structural_unit_functions.push(provider);
+            },
+        ),
+    ];
+
+    for (name, expected, mutate) in cases {
+        let mut substituted = selected.clone();
+        mutate(&mut substituted);
+        assert_eq!(
+            validate_installed_program_storage_continuation_evidence(
+                installation,
+                &substituted,
+                semantic_entry,
+            ),
+            Err(*expected),
+            "substitution case `{name}` must fail closed",
+        );
+    }
+
+    assert_eq!(
+        validate_installed_program_storage_continuation_evidence(
+            installation,
+            selected,
+            psi_core::MachineId::new(semantic_entry.get() + 1).expect("substituted semantic entry"),
+        ),
+        Err(Error::RootMismatch),
+    );
+}
+
+fn entry_function_mut(
+    plan: &mut TerminalSelectedInstructionPlan,
+) -> &mut omega_terminal_selected_instructions::TerminalSelectedStructuralUnitFunction {
+    plan.structural_unit_functions
+        .iter_mut()
+        .find(|function| function.machine == plan.entry)
+        .expect("selected ProgramStorage entry function")
+}
+
+fn entry_call_mut(
+    plan: &mut TerminalSelectedInstructionPlan,
+) -> &mut omega_terminal_selected_instructions::TerminalSelectedStructuralUnitCallInstruction {
+    entry_function_mut(plan)
+        .call
+        .as_mut()
+        .expect("selected ProgramStorage installed call")
+}
+
+fn provider_machine(plan: &TerminalSelectedInstructionPlan) -> psi_core::MachineId {
+    let entry = plan
+        .structural_unit_functions
+        .iter()
+        .find(|function| function.machine == plan.entry)
+        .expect("selected ProgramStorage entry function");
+    let TerminalSelectedStructuralUnitCallSource::InstalledProvider { provider, .. } =
+        &entry.call.as_ref().expect("installed call").source
+    else {
+        panic!("selected ProgramStorage source must be installed")
+    };
+    provider.candidate
+}
+
+fn provider_function_mut(
+    plan: &mut TerminalSelectedInstructionPlan,
+) -> &mut omega_terminal_selected_instructions::TerminalSelectedStructuralUnitFunction {
+    let provider = provider_machine(plan);
+    plan.structural_unit_functions
+        .iter_mut()
+        .find(|function| function.machine == provider)
+        .expect("selected ProgramStorage provider function")
 }
 
 fn program_storage_source_entry(
