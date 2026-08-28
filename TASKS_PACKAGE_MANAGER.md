@@ -921,8 +921,8 @@ complete.
   evidence, and Git cache policy v21 prevents reuse of state fetched without
   this floor. A ceiling event becomes a typed package-layer transfer failure
   before an ordinary Git transport error can hide it; process-container cleanup
-  failure still outranks both. Native tests cover directional counts, shared-route exhaustion,
-  canonical sensitivity, and concurrent non-overshoot; all 157 source-resolver
+  failure still outranks both. Native tests cover directional counts, shared-
+  route exhaustion, canonical sensitivity, and concurrent non-overshoot; all 158 source-resolver
   tests pass. This is a strict broker-routed quota, not a universal network
   guarantee: macOS endpoint confinement prevents direct child egress, while
   Linux/Windows helpers can still bypass the broker. It does not mark
@@ -931,6 +931,22 @@ complete.
   non-admitting `omega audit source` report exposes the broker ceiling and
   directional counts for Git sources; local sources omit those inapplicable
   rows.
+
+  Follow-up 2026-08-28: macOS repository inspection no longer receives broad
+  `file-read-metadata`. Its generated policy admits metadata and content beneath
+  the exact retained bare repository, plus only the compiler-derived exact
+  executable/runtime paths and literal ancestors needed to reach them. The
+  bounded, deduplicated metadata set is supplied through compiler-authored
+  Seatbelt parameters, so package path bytes never enter policy syntax. A native
+  canary proves in-root metadata and the in-root symlink entry succeed while an
+  adjacent path and following that symlink outside both fail; the content,
+  write, network, descendant, and real Git inspection canaries continue to pass.
+  `FilesystemReadsConfined` is now `Enforced` only for macOS inspection. Native
+  policy schema 9 records the stronger guarantee and Git cache policy v22
+  prevents reuse of state inspected under broad metadata authority. Other
+  phases are unchanged: initialization/HTTPS network phases retain broad
+  metadata, SSH discovery/fetch retain broad content and metadata, and strict
+  resolver-wide read confinement remains open.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
