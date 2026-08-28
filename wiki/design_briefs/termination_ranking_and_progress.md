@@ -252,18 +252,22 @@ premise schemas from the named requirement contract rather than from whichever
 implementation is later substituted. This keeps generic and exported contract
 identity fixed across selection.
 
-The first checked-only transition certificate covers an existing statement
-transfer only when both endpoints are exact parameter-rooted Field/Case places
-and the copied fact carries `CheckedTransformation` evidence. A separate proof
-ledger retains both fact identities, the fact's source place, the contextual
-source occurrence, destination place, formation point, qualification
-payload/domain, and evidence. Checked progress independently replays exact
+The checked-only transition certificate covers an existing statement transfer
+only when both endpoints are exact parameter-rooted Field/Case places, possibly
+continued through nested in-bounds `FixedIndex` segments of literal-length
+fixed arrays, and the copied fact carries `CheckedTransformation` evidence. A
+separate proof ledger retains both fact identities, the fact's source place,
+the contextual source occurrence, destination place, formation point,
+qualification payload/domain, and evidence. Checked progress independently
+replays exact
 structural place equality, construction order, statement-transfer origin and
-point, formation ownership, and unchanged payload/evidence. Label-only,
-unknown, expression, type, indexed/ranged, local, generic, and invalid-member
-relations produce no certificate. Each retained structural place root must
-belong to the formation machine or exact formation state; same-shaped foreign-
-machine and sibling-state parameter substitution rejects independently for the
+point, formation ownership, unchanged payload/evidence, and the exact
+member/attachment/array type walk with literal index bounds. Label-only,
+unknown, expression, type, runtime-indexed/ranged, nonliteral-length, local,
+generic, and invalid-member relations produce no certificate. Each retained
+structural place root must belong to the formation machine or exact formation
+state; same-shaped foreign-machine and sibling-state parameter substitution
+rejects independently for the
 source fact, contextual source occurrence, and destination. The ledger changes
 neither premise admission nor Terminal authority.
 

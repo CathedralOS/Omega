@@ -8207,21 +8207,25 @@ compiler concept is introduced.
   removing the fence there would erase the obligation; selected plans and
   authorized routes remain insufficient. This is missing platform/provider
   engineering, not a language-design block.
-  The first checked-only qualification-correspondence carrier is now live for
+  The checked-only qualification-correspondence carrier is now live for
   existing statement transfers between exact parameter-rooted structural
-  Field/Case places. A separate deterministic proof ledger retains the source
-  and destination fact handles, the fact's source place, the exact contextual
-  source occurrence, destination place, formation point, unchanged
+  Field/Case places and nested exact in-bounds `FixedIndex` paths through
+  literal-length fixed arrays. A separate deterministic proof ledger retains
+  the source and destination fact handles, the fact's source place, the exact
+  contextual source occurrence, destination place, formation point, unchanged
   qualification payload/domain, and exact `CheckedTransformation` evidence.
   Emission and checked-progress replay independently require structural place
   equality rather than label fallback, source-before-destination construction,
   exact statement-transfer origin/point, valid formation ownership, and
-  identical payload/evidence. Every retained source, contextual source
+  identical payload/evidence. They also independently walk exact data members,
+  machine attachments, and literal array element types and reject every
+  out-of-bounds index. Every retained source, contextual source
   occurrence, and destination parameter root must belong to the formation
   machine or exact formation state; same-shaped foreign-machine and sibling-
   state parameter substitution rejects independently at production and replay.
-  Unknown, expression, type, indexed/ranged, local, generic, invalid-member, or
-  mismatched source occurrences remain fail closed.
+  Unknown, expression, type, runtime-indexed/ranged, nonliteral-length, local,
+  generic, label-only, invalid-member, or mismatched source occurrences remain
+  fail closed.
   This carrier grants no admission or Terminal authority. Broader authored
   qualification-preserving transitions outside this narrow existing flow shape
   remain engineering work.

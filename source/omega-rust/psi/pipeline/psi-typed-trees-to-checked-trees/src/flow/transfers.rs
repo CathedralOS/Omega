@@ -426,18 +426,157 @@ fn exact_structural_symbol_place(
     let Some(segments) = semantic.place_segments.span(place.segments) else {
         return false;
     };
-    segments.iter().all(|segment| match segment {
-        psi_facts::PlaceSegment::Field { symbol } => {
-            symbol.is_valid() && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Field
+    let Some(mut current) =
+        correspondence_root_type_reference(program, machine_symbol, state_symbol, root)
+    else {
+        return false;
+    };
+    let mut selected_variant = None;
+    for segment in segments {
+        match segment {
+            psi_facts::PlaceSegment::Field { symbol } => {
+                if !symbol.is_valid()
+                    || program.symbols.get(*symbol).kind != psi_symbols::SymbolKind::Field
+                {
+                    return false;
+                }
+                let Some(data) = correspondence_data_type(program, current, machine_symbol) else {
+                    return false;
+                };
+                let field = if let Some(variant_symbol) = selected_variant.take() {
+                    program.data_members(data).iter().find_map(|member| {
+                        let psi_typed_trees::data::DataMember::Variant(variant) = member else {
+                            return None;
+                        };
+                        (variant.symbol == variant_symbol).then(|| {
+                            program
+                                .data_payload_fields(variant)
+                                .iter()
+                                .find(|field| field.symbol == *symbol)
+                        })?
+                    })
+                } else {
+                    program.data_members(data).iter().find_map(|member| {
+                        let psi_typed_trees::data::DataMember::Field(field) = member else {
+                            return None;
+                        };
+                        (field.symbol == *symbol).then_some(field)
+                    })
+                };
+                let Some(field) = field else {
+                    return false;
+                };
+                current = field.type_reference;
+            }
+            psi_facts::PlaceSegment::Case { variant } => {
+                if selected_variant.is_some()
+                    || !variant.is_valid()
+                    || program.symbols.get(*variant).kind != psi_symbols::SymbolKind::Variant
+                {
+                    return false;
+                }
+                let Some(data) = correspondence_data_type(program, current, machine_symbol) else {
+                    return false;
+                };
+                if !program.data_members(data).iter().any(|member| {
+                    matches!(member, psi_typed_trees::data::DataMember::Variant(candidate)
+                        if candidate.symbol == *variant)
+                }) {
+                    return false;
+                }
+                selected_variant = Some(*variant);
+            }
+            psi_facts::PlaceSegment::FixedIndex { index } => {
+                if selected_variant.is_some() {
+                    return false;
+                }
+                loop {
+                    match program.type_reference_table.type_reference(current) {
+                        psi_typed_trees::types::TypeReferenceNode::Reference {
+                            referee, ..
+                        }
+                        | psi_typed_trees::types::TypeReferenceNode::Constrained {
+                            base_type: referee,
+                            ..
+                        } => current = *referee,
+                        psi_typed_trees::types::TypeReferenceNode::FixedArray {
+                            element_type,
+                            length: psi_typed_trees::types::FixedArrayLength::Literal(length),
+                        } if *index < *length => {
+                            current = *element_type;
+                            break;
+                        }
+                        _ => return false,
+                    }
+                }
+            }
+            psi_facts::PlaceSegment::FixedRange { .. } | psi_facts::PlaceSegment::Index { .. } => {
+                return false;
+            }
         }
-        psi_facts::PlaceSegment::Case { variant } => {
-            variant.is_valid()
-                && program.symbols.get(*variant).kind == psi_symbols::SymbolKind::Variant
+    }
+    true
+}
+
+fn correspondence_root_type_reference(
+    program: &psi_typed_trees::TypedTrees,
+    machine_symbol: SymbolHandle,
+    state_symbol: SymbolHandle,
+    root: SymbolHandle,
+) -> Option<psi_typed_trees::types::TypeReferenceHandle> {
+    program
+        .machines()
+        .iter()
+        .find(|machine| machine.symbol == machine_symbol)
+        .and_then(|machine| {
+            program
+                .machine_states(machine)
+                .iter()
+                .find(|state| state.symbol == state_symbol)
+                .and_then(|state| {
+                    program
+                        .state_parameters(state)
+                        .iter()
+                        .find(|parameter| parameter.symbol == root)
+                        .map(|parameter| parameter.type_reference)
+                })
+        })
+}
+
+fn correspondence_data_type<'program>(
+    program: &'program psi_typed_trees::TypedTrees,
+    type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    machine_symbol: SymbolHandle,
+) -> Option<&'program psi_typed_trees::data::DataDefinition> {
+    match program.type_reference_table.type_reference(type_reference) {
+        psi_typed_trees::types::TypeReferenceNode::Reference { referee, .. }
+        | psi_typed_trees::types::TypeReferenceNode::Constrained {
+            base_type: referee, ..
+        } => correspondence_data_type(program, *referee, machine_symbol),
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if symbol.is_valid()
+                && program.symbols.get(*symbol).kind == psi_symbols::SymbolKind::Data =>
+        {
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == *symbol && definition.name == *name)
         }
-        psi_facts::PlaceSegment::FixedIndex { .. }
-        | psi_facts::PlaceSegment::FixedRange { .. }
-        | psi_facts::PlaceSegment::Index { .. } => false,
-    })
+        psi_typed_trees::types::TypeReferenceNode::Named { symbol, name }
+            if *symbol == machine_symbol && name.as_str() == "Self" =>
+        {
+            let machine = program
+                .machines()
+                .iter()
+                .find(|machine| machine.symbol == machine_symbol)?;
+            machine.attached_data_symbol.is_valid().then_some(())?;
+            program
+                .data_definitions()
+                .iter()
+                .find(|definition| definition.symbol == machine.attached_data_symbol)
+        }
+        _ => None,
+    }
 }
 
 fn exact_statement_owner(
@@ -489,6 +628,8 @@ mod tests {
         payload: FactPayload,
         evidence: QualificationEvidence,
         local: SymbolHandle,
+        data_symbol: SymbolHandle,
+        wrong_data_symbol: SymbolHandle,
         foreign_parameter: SymbolHandle,
         sibling_state_parameter: SymbolHandle,
     }
@@ -501,8 +642,7 @@ mod tests {
             [
                 (SymbolKind::Machine, SymbolNameRef::Static("transform")),
                 (SymbolKind::Domain, SymbolNameRef::Static("Ready")),
-                (SymbolKind::Field, SymbolNameRef::Static("source")),
-                (SymbolKind::Field, SymbolNameRef::Static("destination")),
+                (SymbolKind::Data, SymbolNameRef::Static("Pair")),
                 (SymbolKind::Local, SymbolNameRef::Static("excluded_local")),
                 (
                     SymbolKind::Machine,
@@ -513,10 +653,19 @@ mod tests {
         let declarations = SymbolTableBuilder::child_handles(declarations).collect::<Vec<_>>();
         let machine = declarations[0];
         let domain = declarations[1];
-        let source_field = declarations[2];
-        let destination_field = declarations[3];
-        let local = declarations[4];
-        let foreign_machine = declarations[5];
+        let data_symbol = declarations[2];
+        let local = declarations[3];
+        let foreign_machine = declarations[4];
+        let fields = SymbolTableBuilder::child_handles(symbols.insert_children(
+            data_symbol,
+            [
+                (SymbolKind::Field, SymbolNameRef::Static("source")),
+                (SymbolKind::Field, SymbolNameRef::Static("destination")),
+            ],
+        ))
+        .collect::<Vec<_>>();
+        let source_field = fields[0];
+        let destination_field = fields[1];
         let machine_members = symbols.insert_children(
             machine,
             [
@@ -542,10 +691,59 @@ mod tests {
         ))
         .next()
         .expect("foreign machine parameter");
-        let program = psi_typed_trees::TypedTrees {
+        let mut program = psi_typed_trees::TypedTrees {
             symbols: symbols.finish(),
             ..psi_typed_trees::TypedTrees::default()
         };
+        let unit = program
+            .type_reference_table
+            .insert(psi_typed_trees::types::TypeReferenceNode::Unit);
+        let pair_type =
+            program
+                .type_reference_table
+                .insert(psi_typed_trees::types::TypeReferenceNode::Named {
+                    symbol: data_symbol,
+                    name: psi_typed_trees::name::Identifier::generated("Pair"),
+                });
+        let mut data = psi_typed_trees::data::DataDefinition {
+            symbol: data_symbol,
+            name: psi_typed_trees::name::Identifier::generated("Pair"),
+            ..Default::default()
+        };
+        for (symbol, name) in [(source_field, "source"), (destination_field, "destination")] {
+            program.push_data_member(
+                &mut data,
+                psi_typed_trees::data::DataMember::Field(psi_typed_trees::data::DataField {
+                    symbol,
+                    name: psi_typed_trees::name::Identifier::generated(name),
+                    type_reference: unit,
+                    ..Default::default()
+                }),
+            );
+        }
+        program.push_data_definition(data);
+        let mut state_node = psi_typed_trees::state::State {
+            symbol: state,
+            name: psi_typed_trees::name::Identifier::generated("entry"),
+            ..Default::default()
+        };
+        program.push_state_parameter(
+            &mut state_node,
+            psi_typed_trees::signature::StateParameter {
+                symbol: parameter,
+                name: psi_typed_trees::name::Identifier::generated("self"),
+                type_reference: pair_type,
+                is_self: true,
+                ..Default::default()
+            },
+        );
+        let mut machine_node = psi_typed_trees::machine::Machine {
+            symbol: machine,
+            name: psi_typed_trees::name::Identifier::generated("transform"),
+            ..Default::default()
+        };
+        program.push_machine_state(&mut machine_node, state_node);
+        program.push_machine(machine_node);
 
         let mut semantic = FactPlan::default();
         let source_place = semantic.append_symbol_place(parameter);
@@ -607,9 +805,159 @@ mod tests {
             payload,
             evidence,
             local,
+            data_symbol,
+            wrong_data_symbol: foreign_machine,
             foreign_parameter,
             sibling_state_parameter,
         }
+    }
+
+    fn set_formation_parameter_type(
+        fixture: &mut CorrespondenceFixture,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) {
+        let ProgramPoint::Statement {
+            machine_symbol,
+            state_symbol,
+            ..
+        } = fixture.formation
+        else {
+            unreachable!("correspondence fixture formation")
+        };
+        let machine = fixture
+            .program
+            .machines()
+            .iter()
+            .find(|machine| machine.symbol == machine_symbol)
+            .expect("formation machine");
+        let state = fixture
+            .program
+            .machine_states(machine)
+            .iter()
+            .find(|state| state.symbol == state_symbol)
+            .expect("formation state");
+        let parameter = state.parameters.start();
+        fixture
+            .program
+            .state_parameters
+            .get_mut(parameter)
+            .type_reference = type_reference;
+    }
+
+    fn install_correspondence_paths(
+        fixture: &mut CorrespondenceFixture,
+        source: &[PlaceSegment],
+        destination: &[PlaceSegment],
+    ) {
+        let root = fixture.semantic.places.get(fixture.source_place).root;
+        let source_place = fixture.semantic.append_place(psi_facts::Place {
+            root,
+            segments: HandleSpan::empty(),
+        });
+        for segment in source {
+            fixture.semantic.push_place_segment(source_place, *segment);
+        }
+        let source_occurrence_place = fixture.semantic.append_place(psi_facts::Place {
+            root,
+            segments: HandleSpan::empty(),
+        });
+        for segment in source {
+            fixture
+                .semantic
+                .push_place_segment(source_occurrence_place, *segment);
+        }
+        let destination_place = fixture.semantic.append_place(psi_facts::Place {
+            root,
+            segments: HandleSpan::empty(),
+        });
+        for segment in destination {
+            fixture
+                .semantic
+                .push_place_segment(destination_place, *segment);
+        }
+        fixture.source_place = source_place;
+        fixture.source_occurrence_place = source_occurrence_place;
+        fixture.destination_place = destination_place;
+        fixture.semantic.facts.get_mut(fixture.source_fact).place = FactPlace::Place(source_place);
+        fixture
+            .semantic
+            .facts
+            .get_mut(fixture.destination_fact)
+            .place = FactPlace::Place(destination_place);
+    }
+
+    fn set_pair_field_type(
+        fixture: &mut CorrespondenceFixture,
+        type_reference: psi_typed_trees::types::TypeReferenceHandle,
+    ) {
+        let members = fixture
+            .program
+            .data_definitions()
+            .iter()
+            .find(|data| data.symbol == fixture.data_symbol)
+            .map(|data| data.members)
+            .expect("Pair members");
+        for member in fixture.program.data_members.span_mut_or_empty(members) {
+            let psi_typed_trees::data::DataMember::Field(field) = member else {
+                unreachable!("Pair record field")
+            };
+            field.type_reference = type_reference;
+        }
+    }
+
+    fn nested_fixed_array_fixture() -> CorrespondenceFixture {
+        let mut fixture = correspondence_fixture();
+        let source_field = fixture
+            .semantic
+            .place_segments
+            .span(fixture.semantic.places.get(fixture.source_place).segments)
+            .and_then(|segments| segments.first())
+            .copied()
+            .expect("source field");
+        let destination_field = fixture
+            .semantic
+            .place_segments
+            .span(
+                fixture
+                    .semantic
+                    .places
+                    .get(fixture.destination_place)
+                    .segments,
+            )
+            .and_then(|segments| segments.first())
+            .copied()
+            .expect("destination field");
+        let unit = fixture
+            .program
+            .type_reference_table
+            .insert(psi_typed_trees::types::TypeReferenceNode::Unit);
+        let inner = fixture.program.type_reference_table.insert(
+            psi_typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+            },
+        );
+        let outer = fixture.program.type_reference_table.insert(
+            psi_typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type: inner,
+                length: psi_typed_trees::types::FixedArrayLength::Literal(2),
+            },
+        );
+        set_pair_field_type(&mut fixture, outer);
+        install_correspondence_paths(
+            &mut fixture,
+            &[
+                source_field,
+                PlaceSegment::FixedIndex { index: 0 },
+                PlaceSegment::FixedIndex { index: 1 },
+            ],
+            &[
+                destination_field,
+                PlaceSegment::FixedIndex { index: 1 },
+                PlaceSegment::FixedIndex { index: 0 },
+            ],
+        );
+        fixture
     }
 
     fn retain(fixture: &mut CorrespondenceFixture) {
@@ -649,6 +997,155 @@ mod tests {
         assert_eq!(retained.destination_place, fixture.destination_place);
         assert_eq!(retained.formation, fixture.formation);
         assert_eq!(retained.evidence, fixture.evidence);
+    }
+
+    #[test]
+    fn nested_literal_fixed_indexes_retain_exact_correspondence() {
+        let mut fixture = nested_fixed_array_fixture();
+        retain(&mut fixture);
+        let retained = fixture
+            .semantic
+            .qualification_correspondences
+            .iter()
+            .next()
+            .map(|(_, correspondence)| correspondence)
+            .expect("nested in-bounds correspondence");
+        assert_eq!(retained.source_place, fixture.source_place);
+        assert_eq!(
+            retained.source_occurrence_place,
+            fixture.source_occurrence_place
+        );
+        assert_eq!(retained.destination_place, fixture.destination_place);
+        assert_eq!(retained.formation, fixture.formation);
+        assert_eq!(
+            retained.payload,
+            QualificationPayloadIdentity::from_fact_payload(fixture.payload).expect("payload")
+        );
+        assert_eq!(retained.evidence, fixture.evidence);
+    }
+
+    #[test]
+    fn nonliteral_out_of_bounds_runtime_and_wrong_type_indexes_are_not_retained() {
+        let mut out_of_bounds = nested_fixed_array_fixture();
+        let source_field = out_of_bounds
+            .semantic
+            .place_segments
+            .span(
+                out_of_bounds
+                    .semantic
+                    .places
+                    .get(out_of_bounds.source_place)
+                    .segments,
+            )
+            .and_then(|segments| segments.first())
+            .copied()
+            .expect("source field");
+        let destination_field = out_of_bounds
+            .semantic
+            .place_segments
+            .span(
+                out_of_bounds
+                    .semantic
+                    .places
+                    .get(out_of_bounds.destination_place)
+                    .segments,
+            )
+            .and_then(|segments| segments.first())
+            .copied()
+            .expect("destination field");
+        install_correspondence_paths(
+            &mut out_of_bounds,
+            &[source_field, PlaceSegment::FixedIndex { index: 2 }],
+            &[destination_field, PlaceSegment::FixedIndex { index: 0 }],
+        );
+        retain(&mut out_of_bounds);
+        assert!(
+            out_of_bounds
+                .semantic
+                .qualification_correspondences
+                .is_empty()
+        );
+
+        let mut runtime = nested_fixed_array_fixture();
+        install_correspondence_paths(
+            &mut runtime,
+            &[
+                source_field,
+                PlaceSegment::Index {
+                    expression: ExpressionHandle::invalid(),
+                },
+            ],
+            &[destination_field, PlaceSegment::FixedIndex { index: 0 }],
+        );
+        retain(&mut runtime);
+        assert!(runtime.semantic.qualification_correspondences.is_empty());
+
+        let mut range = nested_fixed_array_fixture();
+        install_correspondence_paths(
+            &mut range,
+            &[source_field, PlaceSegment::FixedRange { start: 0, end: 1 }],
+            &[destination_field, PlaceSegment::FixedIndex { index: 0 }],
+        );
+        retain(&mut range);
+        assert!(range.semantic.qualification_correspondences.is_empty());
+
+        let mut nonliteral = nested_fixed_array_fixture();
+        let unit = nonliteral
+            .program
+            .type_reference_table
+            .insert(psi_typed_trees::types::TypeReferenceNode::Unit);
+        let array = nonliteral.program.type_reference_table.insert(
+            psi_typed_trees::types::TypeReferenceNode::FixedArray {
+                element_type: unit,
+                length: psi_typed_trees::types::FixedArrayLength::ConstParameter {
+                    symbol: nonliteral.local,
+                    name: psi_typed_trees::name::Identifier::generated("N"),
+                },
+            },
+        );
+        set_pair_field_type(&mut nonliteral, array);
+        retain(&mut nonliteral);
+        assert!(nonliteral.semantic.qualification_correspondences.is_empty());
+
+        let mut wrong_type = nested_fixed_array_fixture();
+        let unit = wrong_type
+            .program
+            .type_reference_table
+            .insert(psi_typed_trees::types::TypeReferenceNode::Unit);
+        set_pair_field_type(&mut wrong_type, unit);
+        retain(&mut wrong_type);
+        assert!(wrong_type.semantic.qualification_correspondences.is_empty());
+    }
+
+    #[test]
+    fn generic_or_label_only_data_traversal_is_not_retained() {
+        let mut generic = correspondence_fixture();
+        let arguments = generic
+            .program
+            .type_reference_table
+            .insert_type_reference_handles([]);
+        let generic_type = generic.program.type_reference_table.insert(
+            psi_typed_trees::types::TypeReferenceNode::Generic {
+                base_symbol: generic.data_symbol,
+                base_name: psi_typed_trees::name::Identifier::generated("Pair"),
+                lifetime_arguments: Vec::new(),
+                arguments,
+            },
+        );
+        set_formation_parameter_type(&mut generic, generic_type);
+        retain(&mut generic);
+        assert!(generic.semantic.qualification_correspondences.is_empty());
+
+        let mut label_only = correspondence_fixture();
+        let wrong = label_only.program.type_reference_table.insert(
+            psi_typed_trees::types::TypeReferenceNode::Named {
+                symbol: label_only.wrong_data_symbol,
+                name: psi_typed_trees::name::Identifier::generated("Pair"),
+            },
+        );
+        set_formation_parameter_type(&mut label_only, wrong);
+        retain(&mut label_only);
+        assert!(label_only.semantic.qualification_correspondences.is_empty());
     }
 
     #[test]
