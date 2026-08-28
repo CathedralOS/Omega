@@ -19,7 +19,7 @@ import source_closure_snapshot_v1 as closure
 
 
 HERE = Path(__file__).resolve().parent
-REPOSITORY = HERE.parents[1]
+REPOSITORY = HERE.parents[3]
 DELTA2GAMMA_SOURCE = REPOSITORY / "source/delta/meaning/delta2gamma.beta"
 INTERPRETER_SOURCE = REPOSITORY / "source/gamma/interp.beta"
 PACKER_SOURCE = REPOSITORY / "source/delta/meaning/encode-gamma-input.py"

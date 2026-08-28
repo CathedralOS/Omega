@@ -15,6 +15,7 @@ import publication_support as support
 
 
 HERE = Path(__file__).resolve().parent
+DELTA = HERE.parents[1]
 MANIFEST = HERE / "source-closures" / "canonical-compiler-v1.json"
 LOCATIONS = HERE / "source-closures" / "canonical-compiler-v1.locations.json"
 EXPECTED_IMAGE_LENGTH = 168_560
@@ -99,17 +100,17 @@ Lstr0:
 class CanonicalImageTests(unittest.TestCase):
     def test_exact_image(self) -> None:
         image = support.materialize_canonical_image(
-            MANIFEST, LOCATIONS, {"delta": HERE}
+            MANIFEST, LOCATIONS, {"delta": DELTA}
         )
         self.assertEqual(len(image), EXPECTED_IMAGE_LENGTH)
         self.assertEqual(hashlib.sha256(image).hexdigest(), EXPECTED_IMAGE_SHA256)
-        self.assertEqual(image, (HERE / "compiler" / "main.alp").read_bytes() + b"\n")
+        self.assertEqual(image, (DELTA / "compiler" / "main.alp").read_bytes() + b"\n")
 
     def test_changed_located_source_rejects(self) -> None:
         with tempfile.TemporaryDirectory() as spelling:
             root = Path(spelling)
             (root / "compiler").mkdir()
-            source = (HERE / "compiler" / "main.alp").read_bytes()
+            source = (DELTA / "compiler" / "main.alp").read_bytes()
             (root / "compiler" / "main.alp").write_bytes(source + b"\0")
             with self.assertRaises(support.PublicationSupportError):
                 support.materialize_canonical_image(
@@ -125,7 +126,7 @@ class CanonicalImageTests(unittest.TestCase):
             path.write_text(json.dumps(candidate, indent=2, sort_keys=True) + "\n")
             result = subprocess.run(
                 [sys.executable, str(HERE / "publication_support.py"),
-                 "materialize-image", str(path), str(LOCATIONS), f"delta={HERE}"],
+                 "materialize-image", str(path), str(LOCATIONS), f"delta={DELTA}"],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             )
             self.assertEqual(result.returncode, 251)
@@ -137,7 +138,7 @@ class CanonicalImageTests(unittest.TestCase):
             path.write_bytes(b" " * 65_537)
             result = subprocess.run(
                 [sys.executable, str(HERE / "publication_support.py"),
-                 "materialize-image", str(path), str(LOCATIONS), f"delta={HERE}"],
+                 "materialize-image", str(path), str(LOCATIONS), f"delta={DELTA}"],
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
             )
             self.assertEqual(result.returncode, 252)

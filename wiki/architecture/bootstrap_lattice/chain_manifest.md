@@ -89,7 +89,8 @@ evidence only and cannot admit `bc.tape`.
 ## Delta publication
 
 The canonical source snapshot is
-`source/delta/source-closures/canonical-compiler-v1.json` with closure SHA-256
+`source/delta/compiler/validation/source-closures/canonical-compiler-v1.json`
+with closure SHA-256
 `31324d8342f1e3c2da95553418245e4bd981985558256fcc012eb8e6a804ff32`
 and content-set SHA-256
 `9559bdee641d8dfcb4452d1eb9d9510c0534a031df86737258d370d3e08d3c42`.

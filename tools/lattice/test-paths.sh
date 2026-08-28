@@ -24,13 +24,16 @@ expect_role beta-compiler "$OMEGA_REPO_ROOT/source/beta/compiler"
 expect_role beta-validation "$OMEGA_REPO_ROOT/source/beta/compiler/validation"
 expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
+expect_role delta-compiler "$OMEGA_REPO_ROOT/source/delta/compiler"
+expect_role delta-validation "$OMEGA_REPO_ROOT/source/delta/compiler/validation"
 expect_role omega "$OMEGA_REPO_ROOT/source/omega"
 expect_role omega-psi "$OMEGA_REPO_ROOT/source/omega/psi"
 expect_role lattice-tools "$OMEGA_REPO_ROOT/tools/lattice"
 
 for required in \
   "$OMEGA_PATH_ALPHA" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
-  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_MEANING" \
+  "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
+  "$OMEGA_PATH_DELTA_VALIDATION" "$OMEGA_PATH_DELTA_MEANING" \
   "$OMEGA_PATH_OMEGA" "$OMEGA_PATH_OMEGA_PSI" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION" \
   "$OMEGA_PATH_ALPHA_CHECKER"
@@ -47,6 +50,18 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/compatibility" ] || fail "retired Gamma compatibility bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/canonical-bytes" ] || fail "unowned Gamma canonical-byte bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/terminal-codec-primitives" ] || fail "unowned Gamma terminal-codec bucket remains"
+[ ! -e "$OMEGA_PATH_DELTA/source-closures" ] || fail "Delta compiler validation records remain at the language root"
+for misplaced in \
+  "$OMEGA_PATH_DELTA"/DELTA_*_V1.md \
+  "$OMEGA_PATH_DELTA"/lower-rooted-* \
+  "$OMEGA_PATH_DELTA"/lower_rooted_* \
+  "$OMEGA_PATH_DELTA"/publication-support-* \
+  "$OMEGA_PATH_DELTA"/publication_support* \
+  "$OMEGA_PATH_DELTA"/source-closure-* \
+  "$OMEGA_PATH_DELTA"/source_closure_*
+do
+  [ ! -e "$misplaced" ] || fail "Delta compiler validation file remains at the language root: $misplaced"
+done
 [ ! -e "$OMEGA_REPO_ROOT/bootstrap" ] || fail "generic bootstrap bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/canaries" ] || fail "generic canaries bucket remains"
 

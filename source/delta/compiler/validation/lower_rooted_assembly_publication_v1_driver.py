@@ -27,7 +27,8 @@ import publication_support as support
 
 
 HERE = Path(__file__).resolve().parent
-REPOSITORY = HERE.parents[1]
+DELTA = HERE.parents[1]
+REPOSITORY = HERE.parents[3]
 MANIFEST = HERE / "source-closures/canonical-compiler-v1.json"
 LOCATIONS = HERE / "source-closures/canonical-compiler-v1.locations.json"
 ALPHA = REPOSITORY / "source/alpha"
@@ -274,7 +275,7 @@ def prepare(path: Path) -> dict:
     root = safe_new_directory(path)
     try:
         build_tools(root)
-        image = support.materialize_canonical_image(MANIFEST, LOCATIONS, {"delta": HERE})
+        image = support.materialize_canonical_image(MANIFEST, LOCATIONS, {"delta": DELTA})
         (root / "canonical-source.lf").write_bytes(image)
         now = time.time_ns()
         plan = {
@@ -533,7 +534,7 @@ def finalize(root: Path) -> dict:
     if (root / "packing.stderr").read_bytes() != b"":
         fail("packing diagnostics")
     artifacts = root / "artifacts"
-    roots = {"delta": HERE}
+    roots = {"delta": DELTA}
     with tempfile.TemporaryDirectory(prefix="finalize-", dir=root) as spelling:
         temporary = Path(spelling)
         assemblies: list[Path] = []

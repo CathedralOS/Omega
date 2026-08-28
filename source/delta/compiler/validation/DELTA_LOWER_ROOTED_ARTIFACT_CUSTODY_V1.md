@@ -106,7 +106,7 @@ reason: authoritative_delta_v1_semantics_subject_not_published
 The repository currently has an executable Delta-to-Gamma meaning
 implementation, but no authoritative Delta v1 language/operational-semantics
 subject from which an artifact-aware verifier can reconstruct the proposition
-that `compiler/main.alp` and this Mach-O executable must satisfy. Treating the
+that `source/delta/compiler/main.alp` and this Mach-O executable must satisfy. Treating the
 translator implementation as both the semantics and its own refinement witness
 would be circular.
 
