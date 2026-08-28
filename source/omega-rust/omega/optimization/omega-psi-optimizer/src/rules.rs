@@ -32,7 +32,7 @@ const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propa
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v11";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
-const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v7";
+const PROOF_CHECK_ELISION_PASS_NAME: &[u8] = b"omega.psi-pass.proof-check-elision.v8";
 const GLOBAL_VALUE_NUMBERING_PASS_NAME: &[u8] = b"omega.psi-pass.global-value-numbering.v5";
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -67,6 +67,9 @@ pub struct LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct LiveProofCertifiedExactIntegerSelfSubtractEliminationRule;
+
+#[derive(Debug, Clone, Copy, Default)]
+pub struct LiveProofCertifiedIntegerSelfRemainderEliminationRule;
 
 #[derive(Debug, Clone, Copy, Default)]
 pub struct SameBlockTotalScalarCseRule;
@@ -2436,6 +2439,145 @@ impl PsiOptimizationRule for LiveProofCertifiedExactIntegerSelfSubtractEliminati
                     } = &node.operation
                     else {
                         continue;
+                    };
+                    if left != right
+                        || !use_definitions.uses.iter().any(|(machine, use_site)| {
+                            *machine == function.machine && use_site.value == *result
+                        })
+                    {
+                        continue;
+                    }
+                    let node_index =
+                        u32::try_from(node_index).expect("optimization node index fits u32");
+                    let effect = effects.nodes.iter().find(|row| {
+                        row.machine == function.machine
+                            && row.block == block.id
+                            && row.node == node_index
+                    });
+                    if effect.is_none_or(|row| {
+                        row.revision != unit.identity
+                            || row.class != crate::EffectClass::PureScalar
+                            || row.observable != crate::EffectKnowledge::No
+                            || row.structural_state != crate::EffectKnowledge::No
+                            || row.crash != crate::EffectKnowledge::No
+                            || row.suspension != crate::EffectKnowledge::No
+                    }) {
+                        continue;
+                    }
+                    let Ok(obligation_fact) =
+                        accepted_obligation_fact(unit, function.machine, *psi_operation)
+                    else {
+                        continue;
+                    };
+                    let location = NodeLocation {
+                        machine: function.machine,
+                        block: block.id,
+                        node: node_index,
+                    };
+                    let site = PsiRealizationSite::Node(location);
+                    candidates.push(
+                        PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                            unit.identity,
+                            Self::contract(),
+                            vec![block.id],
+                            vec![ProvenanceRewrite {
+                                input: site,
+                                disposition: ProvenanceDisposition::RealizedAt(site),
+                                sources: node.provenance.clone(),
+                                fuel: node.fuel.clone(),
+                            }],
+                            obligation_fact,
+                            -1,
+                            IntegerConstantRewrite {
+                                location,
+                                source_operation: *psi_operation,
+                                result: *result,
+                                scalar_type: *scalar_type,
+                                constant: integer_zero(*scalar_type),
+                            },
+                        )
+                        .map_err(RuleProposalError::InvalidCandidate)?,
+                    );
+                }
+            }
+        }
+        Ok(candidates)
+    }
+}
+
+impl LiveProofCertifiedIntegerSelfRemainderEliminationRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.live-proof-certified-integer-self-remainder-elimination.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::UseDefinition, AnalysisKind::EffectSummaries]),
+            AnalysisInvalidationSet::new([
+                AnalysisKind::UseDefinition,
+                AnalysisKind::EffectSummaries,
+            ]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for LiveProofCertifiedIntegerSelfRemainderEliminationRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::UseDefinition(use_definitions)) =
+            analyses.get(AnalysisKind::UseDefinition)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::UseDefinition,
+            ));
+        };
+        let Some(AnalysisProduct::EffectSummaries(effects)) =
+            analyses.get(AnalysisKind::EffectSummaries)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::EffectSummaries,
+            ));
+        };
+        let mut candidates = Vec::new();
+        for function in &unit.functions {
+            for block in &function.blocks {
+                for (node_index, node) in block.nodes.iter().enumerate() {
+                    let (psi_operation, result, scalar_type, left, right) = match &node.operation {
+                        O::ExactIntegerRemainder {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                            ..
+                        }
+                        | O::WrappingIntegerRemainder {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                            ..
+                        }
+                        | O::SaturatingIntegerRemainder {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            left,
+                            right,
+                            ..
+                        } => (psi_operation, result, scalar_type, left, right),
+                        _ => continue,
                     };
                     if left != right
                         || !use_definitions.uses.iter().any(|(machine, use_site)| {
@@ -7265,6 +7407,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
             LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule
         );
         register!(6, LiveProofCertifiedExactIntegerSelfSubtractEliminationRule);
+        register!(7, LiveProofCertifiedIntegerSelfRemainderEliminationRule);
     }
     registrations
 }
@@ -7305,6 +7448,7 @@ pub(crate) mod tests {
         validate_non_adjacent_block_merge_candidate, validate_path_qualified_empty_block_candidate,
         validate_phi_translated_scalar_common_subexpression_candidate,
         validate_proof_certified_exact_integer_self_subtract_candidate,
+        validate_proof_certified_integer_self_remainder_candidate,
         validate_proof_certified_scalar_identity_candidate, validate_psi_optimization_unit,
         validate_redundant_block_parameter_candidate,
         validate_shared_terminal_jump_fusion_candidate,
@@ -7538,6 +7682,100 @@ pub(crate) mod tests {
                         },
                         TerminalAbstractOperation::Return {
                             psi_edge: id(337, EdgeId::new),
+                            result,
+                            value: result,
+                            scalar_type,
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                }],
+            },
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        with_synthetic_accepted_obligations(unit)
+    }
+
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum SelfRemainderPolicy {
+        Exact,
+        Wrapping,
+        Saturating,
+    }
+
+    pub(crate) fn live_self_remainder_unit(
+        integer: IntegerType,
+        policy: SelfRemainderPolicy,
+    ) -> PsiOptimizationUnit {
+        let machine = id(341, MachineId::new);
+        let block = id(342, BlockId::new);
+        let operand = id(343, ValueId::new);
+        let result = id(344, ValueId::new);
+        let operation = id(345, OperationId::new);
+        let obligation = id(346, ObligationId::new);
+        let scalar_type = ScalarType::Integer(integer);
+        let operation = match policy {
+            SelfRemainderPolicy::Exact => TerminalAbstractOperation::ExactIntegerRemainder {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: integer,
+                left: operand,
+                right: operand,
+            },
+            SelfRemainderPolicy::Wrapping => TerminalAbstractOperation::WrappingIntegerRemainder {
+                psi_operation: operation,
+                obligation,
+                result,
+                scalar_type: integer,
+                left: operand,
+                right: operand,
+            },
+            SelfRemainderPolicy::Saturating => {
+                TerminalAbstractOperation::SaturatingIntegerRemainder {
+                    psi_operation: operation,
+                    obligation,
+                    result,
+                    scalar_type: integer,
+                    left: operand,
+                    right: operand,
+                }
+            }
+        };
+        let unit = reconstruct_psi_optimization_unit_seed(
+            &TerminalAbstractOperationPlan {
+                terminal_psi: TerminalPsiIdentity {
+                    vocabulary_marker: VocabularyMarker::CURRENT,
+                    program_fingerprint: SemanticFingerprint::from_bytes([34; 32]),
+                },
+                entry: machine,
+                structural_types: Vec::new(),
+                boundary_machines: Vec::new(),
+                provider_candidates: Vec::new(),
+                functions: vec![TerminalAbstractFunction {
+                    machine,
+                    attachment: None,
+                    entry: block,
+                    parameters: vec![TerminalAbstractParameter {
+                        value: operand,
+                        scalar_type,
+                    }],
+                    structural_parameters: Vec::new(),
+                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+                        value: result,
+                        scalar_type,
+                    }),
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        operation,
+                        TerminalAbstractOperation::Return {
+                            psi_edge: id(347, EdgeId::new),
                             result,
                             value: result,
                             scalar_type,
@@ -10388,7 +10626,7 @@ pub(crate) mod tests {
         assert_eq!(built_in_psi_registry(&dead).unwrap().len(), 2);
         let proof = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
         let proof = built_in_psi_registry(&proof).unwrap();
-        assert_eq!(proof.len(), 7);
+        assert_eq!(proof.len(), 8);
         assert_eq!(
             proof
                 .contracts()
@@ -10402,6 +10640,7 @@ pub(crate) mod tests {
                 LiveProofCertifiedIntegerZeroDividendEliminationRule::contract().identity(),
                 LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule::contract().identity(),
                 LiveProofCertifiedExactIntegerSelfSubtractEliminationRule::contract().identity(),
+                LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity(),
             ]
         );
         let unsupported_combination = OptimizationSelections::new([
@@ -14157,6 +14396,431 @@ pub(crate) mod tests {
             assert!(
                 LiveProofCertifiedExactIntegerSelfSubtractEliminationRule
                     .propose(&missing.1, RuleAnalysisView::new(&products))
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+    }
+
+    #[test]
+    fn proof_certified_self_remainder_materializes_typed_zero_for_every_policy_and_sign() {
+        for integer in [
+            IntegerType::new(IntegerSign::Unsigned, 8).unwrap(),
+            IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+        ] {
+            for policy in [
+                SelfRemainderPolicy::Exact,
+                SelfRemainderPolicy::Wrapping,
+                SelfRemainderPolicy::Saturating,
+            ] {
+                let unit = live_self_remainder_unit(integer, policy);
+                let contract = LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract();
+                let original_node = unit.functions[0].blocks[0].nodes[0].clone();
+                let mut manager = crate::AnalysisManager::new(&unit);
+                let products = manager
+                    .require_all(&unit, contract.required_analyses())
+                    .unwrap()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                let [candidate] = LiveProofCertifiedIntegerSelfRemainderEliminationRule
+                    .propose(&unit, RuleAnalysisView::new(&products))
+                    .unwrap()
+                    .try_into()
+                    .expect("one live same-operand remainder candidate");
+                let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch()
+                else {
+                    unreachable!()
+                };
+                assert_eq!(
+                    patch.location,
+                    NodeLocation {
+                        machine: id(341, MachineId::new),
+                        block: id(342, BlockId::new),
+                        node: 0,
+                    }
+                );
+                assert_eq!(patch.source_operation, id(345, OperationId::new));
+                assert_eq!(patch.result, id(344, ValueId::new));
+                assert_eq!(patch.scalar_type, integer);
+                assert_eq!(patch.constant, integer_zero(integer));
+                assert_eq!(candidate.predicted_cost_delta(), -1);
+                assert!(candidate.substitutions().is_empty());
+                assert_eq!(candidate.affected_blocks(), [id(342, BlockId::new)]);
+                assert_eq!(candidate.consumed_facts().len(), 1);
+                assert!(matches!(
+                    candidate.consumed_facts()[0],
+                    OptimizationFactReference::AcceptedObligation(_)
+                ));
+
+                let accepted =
+                    validate_proof_certified_integer_self_remainder_candidate(&unit, &candidate)
+                        .unwrap();
+                assert_eq!(
+                    accepted.validator(),
+                    OptimizationValidatorIdentity::from_canonical_bytes(
+                        b"omega.validator.live-proof-certified-integer-self-remainder-elimination.v1"
+                    )
+                );
+                assert_eq!(
+                    accepted.unit().accepted_obligation_facts,
+                    unit.accepted_obligation_facts
+                );
+                let output_node = &accepted.unit().functions[0].blocks[0].nodes[0];
+                assert!(matches!(
+                    output_node.operation,
+                    O::IntegerConstant {
+                        psi_operation,
+                        result,
+                        scalar_type: ScalarType::Integer(output_type),
+                        value,
+                    } if psi_operation == id(345, OperationId::new)
+                        && result == id(344, ValueId::new)
+                        && output_type == integer
+                        && value == integer_zero(integer)
+                ));
+                assert_eq!(output_node.provenance, original_node.provenance);
+                assert_eq!(output_node.fuel, original_node.fuel);
+                assert!(accepted.unit().functions[0].facts.iter().all(|fact| {
+                    !matches!(fact, OptimizationFact::OperationObligationReference { .. })
+                }));
+                assert!(accepted.unit().functions[0].facts.iter().any(|fact| {
+                    matches!(
+                        fact,
+                        OptimizationFact::IntegerConstant { value, constant, support }
+                            if *value == id(344, ValueId::new)
+                                && *constant == integer_zero(integer)
+                                && *support == id(345, OperationId::new)
+                    )
+                }));
+
+                let mut manager = crate::AnalysisManager::new(accepted.unit());
+                let products = manager
+                    .require_all(accepted.unit(), contract.required_analyses())
+                    .unwrap()
+                    .into_iter()
+                    .cloned()
+                    .collect::<Vec<_>>();
+                assert!(
+                    LiveProofCertifiedIntegerSelfRemainderEliminationRule
+                        .propose(accepted.unit(), RuleAnalysisView::new(&products))
+                        .unwrap()
+                        .is_empty()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn proof_certified_self_remainder_declines_and_rejects_corruption() {
+        let integer = IntegerType::new(IntegerSign::Unsigned, 8).unwrap();
+        let unit = live_self_remainder_unit(integer, SelfRemainderPolicy::Exact);
+        let contract = LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let [candidate] = LiveProofCertifiedIntegerSelfRemainderEliminationRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .try_into()
+            .unwrap();
+        let PsiRewritePatch::ReplaceIntegerOperationWithConstant(patch) = candidate.patch() else {
+            unreachable!()
+        };
+        let obligation_fact = candidate.accepted_obligation_witness().unwrap();
+
+        for forged_patch in [
+            IntegerConstantRewrite {
+                constant: IntegerValue::Unsigned(1),
+                ..patch
+            },
+            IntegerConstantRewrite {
+                source_operation: id(348, OperationId::new),
+                ..patch
+            },
+            IntegerConstantRewrite {
+                result: id(349, ValueId::new),
+                ..patch
+            },
+            IntegerConstantRewrite {
+                scalar_type: IntegerType::new(IntegerSign::Signed, 8).unwrap(),
+                constant: IntegerValue::Signed(0),
+                ..patch
+            },
+        ] {
+            let forged = PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                obligation_fact,
+                candidate.predicted_cost_delta(),
+                forged_patch,
+            )
+            .unwrap();
+            assert!(
+                validate_proof_certified_integer_self_remainder_candidate(&unit, &forged).is_err()
+            );
+        }
+
+        let foreign_fact = PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            omega_optimization_core::AcceptedObligationFactIdentity::from_canonical_bytes(
+                b"foreign self-remainder proof",
+            ),
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(&unit, &foreign_fact),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+
+        for corrupt_provenance in [
+            {
+                let mut rows = candidate.provenance().to_vec();
+                rows[0].fuel[0].units += 1;
+                rows
+            },
+            {
+                let mut rows = candidate.provenance().to_vec();
+                rows[0].sources[0] = PsiProvenance::Operation(id(348, OperationId::new));
+                rows[0].fuel[0].site = rows[0].sources[0];
+                rows
+            },
+        ] {
+            let forged = PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                unit.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                corrupt_provenance,
+                obligation_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+            assert_eq!(
+                validate_proof_certified_integer_self_remainder_candidate(&unit, &forged),
+                Err(OptimizationUnitValidationError::CandidateProvenanceMismatch)
+            );
+        }
+
+        let foreign_contract = OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(b"foreign self-remainder rule"),
+            OptimizationPassIdentity::from_canonical_bytes(PROOF_CHECK_ELISION_PASS_NAME),
+            1,
+            contract.required_analyses(),
+            contract.invalidated_analyses(),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .unwrap();
+        let foreign_rule = PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+            unit.identity,
+            foreign_contract,
+            candidate.affected_blocks().to_vec(),
+            candidate.provenance().to_vec(),
+            obligation_fact,
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(&unit, &foreign_rule),
+            Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)
+        );
+
+        let terminal_location = NodeLocation {
+            machine: patch.location.machine,
+            block: patch.location.block,
+            node: 1,
+        };
+        let terminal = &unit.functions[0].blocks[0].nodes[1];
+        let terminal_site = PsiRealizationSite::Node(terminal_location);
+        assert!(
+            PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                unit.identity,
+                contract,
+                vec![id(350, BlockId::new)],
+                candidate.provenance().to_vec(),
+                obligation_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .is_err()
+        );
+        let wrong_location = PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            vec![ProvenanceRewrite {
+                input: terminal_site,
+                disposition: ProvenanceDisposition::RealizedAt(terminal_site),
+                sources: terminal.provenance.clone(),
+                fuel: terminal.fuel.clone(),
+            }],
+            obligation_fact,
+            candidate.predicted_cost_delta(),
+            IntegerConstantRewrite {
+                location: terminal_location,
+                ..patch
+            },
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(&unit, &wrong_location),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+
+        let substituted = PsiRewriteCandidate::new_integer_evaluation(
+            unit.identity,
+            contract,
+            candidate.affected_blocks().to_vec(),
+            vec![ScalarSubstitution {
+                from: patch.result,
+                to: id(343, ValueId::new),
+                scalar_type: ScalarType::Integer(integer),
+            }],
+            candidate.provenance().to_vec(),
+            IntegerEvaluationWitness::ProofCertifiedUnary {
+                operand_fact: ScalarConstantFactIdentity::from_canonical_bytes(
+                    b"foreign self-remainder operand",
+                ),
+                obligation_fact,
+            },
+            candidate.predicted_cost_delta(),
+            patch,
+        )
+        .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(&unit, &substituted),
+            Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch)
+        );
+
+        let mut missing_catalog = unit.clone();
+        missing_catalog.accepted_obligation_facts.clear();
+        missing_catalog.identity = recompute_psi_optimization_unit_identity(&missing_catalog);
+        let missing_catalog_candidate =
+            PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                missing_catalog.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                obligation_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(
+                &missing_catalog,
+                &missing_catalog_candidate,
+            ),
+            Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)
+        );
+
+        let unequal = live_proof_binary_identity_unit(
+            integer,
+            IntegerValue::Unsigned(1),
+            false,
+            |psi_operation, obligation, result, scalar_type, left, right| {
+                O::ExactIntegerRemainder {
+                    psi_operation,
+                    obligation,
+                    result,
+                    scalar_type,
+                    left,
+                    right,
+                }
+            },
+        );
+        let mut foreign_operation = unit.clone();
+        foreign_operation.functions[0].blocks[0].nodes[0].operation = O::ExactIntegerDivide {
+            psi_operation: patch.source_operation,
+            obligation: id(346, ObligationId::new),
+            result: patch.result,
+            scalar_type: integer,
+            left: id(343, ValueId::new),
+            right: id(343, ValueId::new),
+        };
+        foreign_operation.identity = recompute_psi_optimization_unit_identity(&foreign_operation);
+        validate_psi_optimization_unit(&foreign_operation).unwrap();
+        let foreign_operation_candidate =
+            PsiRewriteCandidate::new_proof_certified_integer_constant_replacement(
+                foreign_operation.identity,
+                contract,
+                candidate.affected_blocks().to_vec(),
+                candidate.provenance().to_vec(),
+                obligation_fact,
+                candidate.predicted_cost_delta(),
+                patch,
+            )
+            .unwrap();
+        assert_eq!(
+            validate_proof_certified_integer_self_remainder_candidate(
+                &foreign_operation,
+                &foreign_operation_candidate,
+            ),
+            Err(OptimizationUnitValidationError::CandidatePatchMismatch)
+        );
+
+        for ineligible in [
+            unequal,
+            discard_scalar_function_result(live_self_remainder_unit(
+                integer,
+                SelfRemainderPolicy::Exact,
+            )),
+        ] {
+            let mut manager = crate::AnalysisManager::new(&ineligible);
+            let products = manager
+                .require_all(&ineligible, contract.required_analyses())
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            assert!(
+                LiveProofCertifiedIntegerSelfRemainderEliminationRule
+                    .propose(&ineligible, RuleAnalysisView::new(&products))
+                    .unwrap()
+                    .is_empty()
+            );
+        }
+
+        for (remove_catalog, mut missing) in [
+            (
+                true,
+                live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+            ),
+            (
+                false,
+                live_self_remainder_unit(integer, SelfRemainderPolicy::Exact),
+            ),
+        ] {
+            if remove_catalog {
+                missing.accepted_obligation_facts.clear();
+            } else {
+                missing.functions[0].facts.retain(|fact| {
+                    !matches!(fact, OptimizationFact::OperationObligationReference { .. })
+                });
+            }
+            missing.identity = recompute_psi_optimization_unit_identity(&missing);
+            let mut manager = crate::AnalysisManager::new(&missing);
+            let products = manager
+                .require_all(&missing, contract.required_analyses())
+                .unwrap()
+                .into_iter()
+                .cloned()
+                .collect::<Vec<_>>();
+            assert!(
+                LiveProofCertifiedIntegerSelfRemainderEliminationRule
+                    .propose(&missing, RuleAnalysisView::new(&products))
                     .unwrap()
                     .is_empty()
             );

@@ -49,6 +49,7 @@ pub use rules::{
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
     LiveProofCertifiedIntegerDivideByOneEliminationRule,
     LiveProofCertifiedIntegerIdentityEliminationRule,
+    LiveProofCertifiedIntegerSelfRemainderEliminationRule,
     LiveProofCertifiedIntegerZeroDividendEliminationRule, NonAdjacentBlockMergeRule,
     PhiTranslatedObligationFreeScalarGvnRule, PhiTranslatedProofCertifiedScalarGvnRule,
     ProofCertifiedDeadScalarEliminationRule, RedundantBlockParameterRule,
