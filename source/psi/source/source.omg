@@ -1,4 +1,4 @@
-// Product Psi source custody for the first hosted compiler checkpoint.
+// Product Psi source custody for the current hosted compiler slice.
 //
 // Source coordinates are byte offsets. UTF-8 validation belongs at the
 // source-unit boundary; the lexer never repairs invalid input or substitutes

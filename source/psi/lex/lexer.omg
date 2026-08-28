@@ -3,7 +3,7 @@ use psi::source::source;
 use psi::tokens::tokens;
 
 // Complete source-to-token spelling phase for the first product-source
-// checkpoint. The implementation is deliberately bounded but the accepted
+// live slice. The implementation is deliberately bounded but the accepted
 // forms use ordinary Omega lexical semantics: Unicode 17 XID identifiers and
 // whitespace, nested comments, all numeric metadata, cooked/raw strings, and
 // longest-match punctuation.
