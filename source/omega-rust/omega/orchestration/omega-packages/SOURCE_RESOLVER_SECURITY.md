@@ -217,11 +217,17 @@ fetch products such as shallow state, refs, loose objects, and packs. Every
 repository-bound Git launch, including the bespoke blob batch, reconciles the
 retained entry/repository/object identities after success or failure, and full
 static shape is checked after fetch and before acceptance. This is not a claim
-that arbitrary bare Git repositories have that stricter shape. Git still
-receives the repository as a pathname, and batch-request staging remains
-ambient, so launch-race confinement and capability-relative request staging are
-still open. Published Git/local snapshot mode and shape verification opens the
-publication and Source roots no-follow, traverses retained child handles with
+that arbitrary bare Git repositories have that stricter shape. The blob-batch
+request is now an exact-mode `0600`, create-new file beneath the retained cache
+entry. Its handle/name identity is checked around use, explicit cleanup is
+parent-relative and synchronized, and an already observed replacement name is
+preserved. The final check/unlink pair is not atomic against an active same-user
+rename race. The Git snapshot collection is classified through that same
+retained entry; only exact `NotFound` permits private `0700` creation, and later
+publication lookup and materialization staging use the retained collection. Git still receives the
+repository as a pathname, so launch-race confinement remains open. Published
+Git/local snapshot mode and shape verification opens the publication and Source
+roots no-follow, traverses retained child handles with
 identity checks, and captures content from that same open Source root.
 Authenticated Git paths, kinds, and
 executable bits are compared with the captured tree rather than ambient

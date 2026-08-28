@@ -22,7 +22,9 @@ use std::cell::Cell;
 use std::collections::{BTreeMap, BTreeSet};
 use std::ffi::{OsStr, OsString};
 use std::fmt;
-use std::fs::{File, OpenOptions};
+use std::fs::File;
+#[cfg(test)]
+use std::fs::OpenOptions;
 use std::io::{Read, Seek, SeekFrom, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitStatus, Stdio};
@@ -1038,7 +1040,7 @@ fn resolve_verified_git_cache_entry(
     let entries = inspect_git_tree(executor, &repository, &tree, limits)?;
     repository.verify_current(limits)?;
     let (snapshot_root, local) =
-        resolve_git_snapshot(executor, entry_root, &tree, entries, limits)?;
+        resolve_git_snapshot(executor, &repository, &tree, entries, limits)?;
     repository.verify_current(limits)?;
     executor.verify()?;
     Ok(ResolvedGitSource {
@@ -1868,26 +1870,24 @@ fn validate_git_symlink_target(link: &[u8], target: &[u8]) -> Result<(), SourceR
 
 fn resolve_git_snapshot(
     executor: &GitExecutor,
-    entry_root: &Path,
+    repository: &VerifiedGitRepository,
     tree: &str,
     mut entries: Vec<GitTreeEntry>,
     limits: LocalSourceLimits,
 ) -> Result<(PathBuf, ResolvedLocalSource), SourceResolveError> {
-    authenticate_git_tree(tree, &entries)?;
-    verify_git_destination_containment(Path::new("omega-verified-snapshot-root"), &entries)?;
-    let expected = authenticated_git_snapshot_identity(tree, &entries)?;
-    let snapshots = entry_root.join(GIT_CACHE_SNAPSHOTS);
-    std::fs::create_dir_all(&snapshots).map_err(|error| io_error(&snapshots, error))?;
-    require_real_directory(&snapshots, "snapshot cache is not a real directory")?;
-    let publication = snapshots.join(format!("tree-{tree}"));
-    if publication.exists() {
+    let expected = preflight_git_snapshot(tree, &entries)?;
+    let snapshots = repository.open_or_create_snapshots()?;
+    let publication = snapshots.path.join(format!("tree-{tree}"));
+    if snapshots.publication_exists(&publication)? {
         release_git_blob_payloads(&mut entries);
-        return verify_git_snapshot(&publication, &expected, &entries, limits);
+        let result = verify_git_snapshot(&publication, &expected, &entries, limits);
+        return reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None);
     }
 
-    let mut pending = PendingMaterializedSnapshot::create(
+    let mut pending = PendingMaterializedSnapshot::create_from_open_parent(
         CacheCustodyKind::Git,
-        &snapshots,
+        &snapshots.path,
+        &snapshots.directory,
         &format!(".tree-{tree}.stage"),
     )?;
     let source = pending.root.join(GIT_SNAPSHOT_SOURCE);
@@ -1982,11 +1982,21 @@ fn resolve_git_snapshot(
             "finalized snapshot did not preserve the authenticated Git tree exactly",
         ));
     }
-    pending.publish(&snapshots, &publication)?;
+    pending.publish(&snapshots.path, &publication)?;
 
     // The returned identity is always calculated from the atomically published tree, never from
     // the staging directory or Git's mutable object-cache state.
-    verify_git_snapshot(&publication, &expected, &entries, limits)
+    let result = verify_git_snapshot(&publication, &expected, &entries, limits);
+    reconcile_git_cache_operation_result(result, snapshots.verify_identity(), None)
+}
+
+fn preflight_git_snapshot(
+    tree: &str,
+    entries: &[GitTreeEntry],
+) -> Result<GitSnapshotMetadata, SourceResolveError> {
+    authenticate_git_tree(tree, entries)?;
+    verify_git_destination_containment(Path::new("omega-verified-snapshot-root"), entries)?;
+    authenticated_git_snapshot_identity(tree, entries)
 }
 
 fn authenticated_git_snapshot_identity(
@@ -2489,11 +2499,34 @@ fn read_git_blobs_batch(
     entries: &mut [GitTreeEntry],
     limits: LocalSourceLimits,
 ) -> Result<(), SourceResolveError> {
+    executor.verify_budget()?;
+    if entries
+        .iter()
+        .all(|entry| matches!(&entry.kind, GitTreeEntryKind::Tree))
+    {
+        return Ok(());
+    }
+    let stdout_limit = git_batch_output_limit(entries, limits)?;
     repository.verify_identity()?;
-    let result = read_git_blobs_batch_from_path(executor, repository.path(), entries, limits);
-    reconcile_git_cache_operation_result(result, repository.verify_identity(), None)
+    let mut request = PendingGitBatchRequest::create(&repository.entry, &repository.entry_root)?;
+    let operation_result = (|| {
+        let request_path = request.display_path.clone();
+        write_git_batch_request(request.file_mut(), &request_path, entries)?;
+        request.verify_current()?;
+        let stdin = request
+            .file()
+            .try_clone()
+            .map_err(|error| io_error(&request.display_path, error))?;
+        execute_git_blob_batch(executor, repository.path(), stdin, entries, stdout_limit)
+    })();
+    let namespace_result = repository
+        .verify_identity()
+        .and_then(|_| request.verify_current());
+    let cleanup_result = request.remove();
+    reconcile_git_cache_operation_result(operation_result, namespace_result, Some(cleanup_result))
 }
 
+#[cfg(test)]
 fn read_git_blobs_batch_from_path(
     executor: &GitExecutor,
     repository: &Path,
@@ -2526,6 +2559,18 @@ fn read_git_blobs_batch_from_path(
         .create_new(true)
         .open(&request_path)
         .map_err(|error| io_error(&request_path, error))?;
+    write_git_batch_request(&mut request, &request_path, entries)?;
+
+    let result = execute_git_blob_batch(executor, repository, request, entries, stdout_limit);
+    drop(request_guard);
+    result
+}
+
+fn write_git_batch_request(
+    request: &mut File,
+    request_path: &Path,
+    entries: &[GitTreeEntry],
+) -> Result<(), SourceResolveError> {
     for entry in entries
         .iter()
         .filter(|entry| !matches!(&entry.kind, GitTreeEntryKind::Tree))
@@ -2533,12 +2578,21 @@ fn read_git_blobs_batch_from_path(
         request
             .write_all(entry.oid.as_bytes())
             .and_then(|_| request.write_all(b"\n"))
-            .map_err(|error| io_error(&request_path, error))?;
+            .map_err(|error| io_error(request_path, error))?;
     }
     request
         .seek(SeekFrom::Start(0))
-        .map_err(|error| io_error(&request_path, error))?;
+        .map(|_| ())
+        .map_err(|error| io_error(request_path, error))
+}
 
+fn execute_git_blob_batch(
+    executor: &GitExecutor,
+    repository: &Path,
+    request: File,
+    entries: &mut [GitTreeEntry],
+    stdout_limit: usize,
+) -> Result<(), SourceResolveError> {
     let mut command = sealed_git_command(executor, repository)?;
     let command_timeout = executor.begin_launch()?;
     command.args([OsStr::new("cat-file"), OsStr::new("--batch")]);
@@ -2551,7 +2605,6 @@ fn read_git_blobs_batch_from_path(
         command_timeout,
     );
     let output = reconcile_git_command_result(result, executor.verify(), executor.verify_budget())?;
-    drop(request_guard);
     if !output.status.success() {
         return Err(SourceResolveError::Git {
             operation: "cat-file --batch".to_owned(),
@@ -2702,10 +2755,220 @@ fn assign_git_batch_output(
     Ok(())
 }
 
+struct PendingGitBatchRequest {
+    parent: CapabilityDirectory,
+    name: OsString,
+    display_path: PathBuf,
+    file: Option<File>,
+    identity: Option<CapabilityMetadata>,
+    removed: bool,
+}
+
+impl PendingGitBatchRequest {
+    fn create(entry: &CapabilityDirectory, entry_root: &Path) -> Result<Self, SourceResolveError> {
+        let parent = entry
+            .try_clone()
+            .map_err(|error| io_error(entry_root, error))?;
+        for _ in 0..128 {
+            let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
+            let name = OsString::from(format!(
+                ".omega-cat-file-batch.{}.{}",
+                std::process::id(),
+                sequence
+            ));
+            let display_path = entry_root.join(&name);
+            let mut options = CapabilityOpenOptions::new();
+            options
+                .read(true)
+                .write(true)
+                .create_new(true)
+                .follow(FollowSymlinks::No);
+            #[cfg(unix)]
+            options.mode(0o600);
+            let capability_file = match parent.open_with(&name, &options) {
+                Ok(file) => file,
+                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
+                Err(error) => return Err(io_error(&display_path, error)),
+            };
+            let file = capability_file.into_std();
+            let mut pending = Self {
+                parent,
+                name,
+                display_path,
+                file: Some(file),
+                identity: None,
+                removed: false,
+            };
+            #[cfg(unix)]
+            {
+                use std::os::unix::fs::PermissionsExt;
+
+                let mut permissions = pending
+                    .file()
+                    .metadata()
+                    .map_err(|error| io_error(&pending.display_path, error))?
+                    .permissions();
+                permissions.set_mode(0o600);
+                pending
+                    .file()
+                    .set_permissions(permissions)
+                    .map_err(|error| io_error(&pending.display_path, error))?;
+            }
+            let identity = pending
+                .parent
+                .symlink_metadata(&pending.name)
+                .map_err(|error| io_error(&pending.display_path, error))?;
+            pending.identity = Some(identity);
+            pending.verify_current()?;
+            return Ok(pending);
+        }
+        Err(cache_invalid(
+            entry_root,
+            "could not allocate a unique Git batch-request file",
+        ))
+    }
+
+    fn file(&self) -> &File {
+        self.file
+            .as_ref()
+            .expect("live Git batch request retains its file")
+    }
+
+    fn file_mut(&mut self) -> &mut File {
+        self.file
+            .as_mut()
+            .expect("live Git batch request retains its file")
+    }
+
+    fn verify_current(&self) -> Result<(), SourceResolveError> {
+        let identity = self.identity.as_ref().ok_or_else(|| {
+            cache_invalid(
+                &self.display_path,
+                "Git batch-request identity has not been retained",
+            )
+        })?;
+        verify_git_batch_request_identity(
+            &self.parent,
+            &self.name,
+            &self.display_path,
+            self.file(),
+            identity,
+        )
+    }
+
+    fn remove(&mut self) -> Result<(), SourceResolveError> {
+        self.verify_current()?;
+        drop(self.file.take());
+        let named = self
+            .parent
+            .symlink_metadata(&self.name)
+            .map_err(|error| io_error(&self.display_path, error))?;
+        if named.file_type().is_symlink()
+            || !named.is_file()
+            || !self
+                .identity
+                .as_ref()
+                .is_some_and(|identity| same_capability_file_identity(identity, &named))
+        {
+            return Err(cache_invalid(
+                &self.display_path,
+                "Git batch-request name no longer identifies the retained file",
+            ));
+        }
+        self.parent
+            .remove_file(&self.name)
+            .map_err(|error| io_error(&self.display_path, error))?;
+        self.parent
+            .try_clone()
+            .map_err(|error| io_error(&self.display_path, error))?
+            .into_std_file()
+            .sync_all()
+            .map_err(|error| io_error(&self.display_path, error))?;
+        self.removed = true;
+        Ok(())
+    }
+}
+
+fn verify_git_batch_request_identity(
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    path: &Path,
+    file: &File,
+    expected: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let named = parent
+        .symlink_metadata(name)
+        .map_err(|error| io_error(path, error))?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if named.file_type().is_symlink()
+        || !named.is_file()
+        || !opened.is_file()
+        || !same_capability_file_identity(expected, &named)
+        || !same_std_and_capability_file_identity(&opened, expected)
+    {
+        return Err(cache_invalid(
+            path,
+            "Git batch-request name does not identify the retained file",
+        ));
+    }
+    verify_capability_cache_node_owner_and_mode(CacheCustodyKind::Git, path, &named)?;
+    #[cfg(unix)]
+    {
+        use cap_fs_ext::OsMetadataExt;
+
+        if named.mode() & 0o777 != 0o600 {
+            return Err(cache_invalid(
+                path,
+                "Git batch-request file does not have exact private mode 0600",
+            ));
+        }
+    }
+    verify_macos_open_cache_extended_acl_custody(CacheCustodyKind::Git, path, file)
+}
+
+impl Drop for PendingGitBatchRequest {
+    fn drop(&mut self) {
+        if self.removed {
+            return;
+        }
+        let Ok(retained_name) = self.parent.symlink_metadata(&self.name) else {
+            return;
+        };
+        if retained_name.file_type().is_symlink() || !retained_name.is_file() {
+            return;
+        }
+        if let Some(file) = self.file.as_ref() {
+            let Ok(opened) = file.metadata() else {
+                return;
+            };
+            if !opened.is_file() || !same_std_and_capability_file_identity(&opened, &retained_name)
+            {
+                return;
+            }
+        } else if !self
+            .identity
+            .as_ref()
+            .is_some_and(|identity| same_capability_file_identity(identity, &retained_name))
+        {
+            return;
+        }
+        drop(self.file.take());
+        if let Ok(current_name) = self.parent.symlink_metadata(&self.name)
+            && !current_name.file_type().is_symlink()
+            && current_name.is_file()
+            && same_capability_file_identity(&retained_name, &current_name)
+        {
+            let _ = self.parent.remove_file(&self.name);
+        }
+    }
+}
+
+#[cfg(test)]
 struct TemporaryFileGuard {
     path: PathBuf,
 }
 
+#[cfg(test)]
 impl Drop for TemporaryFileGuard {
     fn drop(&mut self) {
         let _ = std::fs::remove_file(&self.path);
@@ -3048,6 +3311,18 @@ impl PendingMaterializedSnapshot {
         verify_cache_custody_root(snapshots, kind)?;
         let parent = open_absolute_directory_nofollow(snapshots)
             .map_err(|error| cache_custody_invalid(kind, snapshots, error.to_string()))?;
+        Self::create_from_open_parent(kind, snapshots, &parent, prefix)
+    }
+
+    fn create_from_open_parent(
+        kind: CacheCustodyKind,
+        snapshots: &Path,
+        retained_parent: &CapabilityDirectory,
+        prefix: &str,
+    ) -> Result<Self, SourceResolveError> {
+        let parent = retained_parent
+            .try_clone()
+            .map_err(|error| io_error(snapshots, error))?;
         for _ in 0..128 {
             let sequence = STAGING_SEQUENCE.fetch_add(1, Ordering::Relaxed);
             let stage_name = OsString::from(format!("{prefix}-{}-{sequence}", std::process::id()));
@@ -3620,6 +3895,101 @@ impl VerifiedGitRepository {
         let result = run_git_bytes_stdout(executor, &self.repository_path, args);
         reconcile_git_cache_operation_result(result, self.verify_identity(), None)
     }
+
+    fn open_or_create_snapshots(&self) -> Result<RetainedGitSnapshots, SourceResolveError> {
+        self.verify_identity()?;
+        let path = self.entry_root.join(GIT_CACHE_SNAPSHOTS);
+        let name = OsStr::new(GIT_CACHE_SNAPSHOTS);
+        let (directory, identity) = match self.entry.symlink_metadata(name) {
+            Ok(_) => {
+                let (directory, identity) = open_retained_git_directory(
+                    &self.entry,
+                    name,
+                    &path,
+                    "Git snapshot collection is not a concrete directory",
+                )?;
+                verify_capability_cache_node_owner_and_mode(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &identity,
+                )?;
+                verify_macos_open_cache_extended_acl_custody(
+                    CacheCustodyKind::Git,
+                    &path,
+                    &directory
+                        .try_clone()
+                        .map_err(|error| io_error(&path, error))?
+                        .into_std_file(),
+                )?;
+                (directory, identity)
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                create_private_cache_directory(&self.entry, name)
+                    .map_err(|error| io_error(&path, error))?;
+                let provisional = ProvisionalCacheDirectory::new(&self.entry, name);
+                let directory = retain_private_cache_directory(
+                    CacheCustodyKind::Git,
+                    &self.entry,
+                    name,
+                    &path,
+                )?;
+                let identity = directory
+                    .dir_metadata()
+                    .map_err(|error| io_error(&path, error))?;
+                provisional.disarm();
+                (directory, identity)
+            }
+            Err(error) => return Err(io_error(&path, error)),
+        };
+        let snapshots = RetainedGitSnapshots {
+            path,
+            entry: self
+                .entry
+                .try_clone()
+                .map_err(|error| io_error(&self.entry_root, error))?,
+            directory,
+            identity,
+        };
+        snapshots.verify_identity()?;
+        self.verify_identity()?;
+        Ok(snapshots)
+    }
+}
+
+struct RetainedGitSnapshots {
+    path: PathBuf,
+    entry: CapabilityDirectory,
+    directory: CapabilityDirectory,
+    identity: CapabilityMetadata,
+}
+
+impl RetainedGitSnapshots {
+    fn verify_identity(&self) -> Result<(), SourceResolveError> {
+        verify_retained_git_directory_identity(
+            &self.entry,
+            OsStr::new(GIT_CACHE_SNAPSHOTS),
+            &self.directory,
+            &self.identity,
+            &self.path,
+            "Git snapshot collection no longer identifies the retained directory",
+        )
+    }
+
+    fn publication_exists(&self, publication: &Path) -> Result<bool, SourceResolveError> {
+        self.verify_identity()?;
+        let name = direct_cache_child_name(CacheCustodyKind::Git, &self.path, publication)?;
+        match self.directory.symlink_metadata(name) {
+            Ok(metadata) if metadata.file_type().is_symlink() || !metadata.is_dir() => {
+                Err(cache_invalid(
+                    publication,
+                    "Git snapshot publication is not a concrete directory",
+                ))
+            }
+            Ok(_) => Ok(true),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(io_error(publication, error)),
+        }
+    }
 }
 
 fn open_retained_git_directory(
@@ -3954,14 +4324,6 @@ fn local_snapshot_invalid(path: &Path, message: impl Into<String>) -> SourceReso
         path: path.to_path_buf(),
         message: message.into(),
     }
-}
-
-fn require_real_directory(path: &Path, message: &str) -> Result<(), SourceResolveError> {
-    let metadata = std::fs::symlink_metadata(path).map_err(|error| io_error(path, error))?;
-    if metadata.file_type().is_symlink() || !metadata.is_dir() {
-        return Err(cache_invalid(path, message));
-    }
-    Ok(())
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -7972,6 +8334,69 @@ mod tests {
     }
 
     #[test]
+    fn git_batch_request_creation_and_cleanup_remain_in_the_retained_entry() {
+        let (repo, _) = create_git_source("retained-batch-request-source");
+        let cache = temp_root("retained-batch-request-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let entry = verified.entry_root.clone();
+        let displaced = entry.with_file_name("entry.displaced");
+        std::fs::rename(&entry, &displaced).expect("displace retained entry");
+        std::fs::create_dir(&entry).expect("create replacement entry");
+
+        let mut batch = PendingGitBatchRequest::create(&verified.entry, &verified.entry_root)
+            .expect("create request through retained entry");
+        let name = batch.name.clone();
+        assert!(displaced.join(&name).is_file());
+        assert!(!entry.join(&name).exists());
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                std::fs::metadata(displaced.join(&name))
+                    .expect("read batch request mode")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o600
+            );
+        }
+        batch.remove().expect("remove retained batch request");
+        assert!(!displaced.join(&name).exists());
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
+    fn git_batch_request_cleanup_does_not_remove_a_replacement_name() {
+        let (repo, _) = create_git_source("replaced-batch-request-source");
+        let cache = temp_root("replaced-batch-request-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let batch = PendingGitBatchRequest::create(&verified.entry, &verified.entry_root)
+            .expect("create retained batch request");
+        let path = batch.display_path.clone();
+        let displaced = path.with_extension("displaced");
+        std::fs::rename(&path, &displaced).expect("displace batch request");
+        std::fs::write(&path, b"replacement").expect("install replacement request name");
+
+        drop(batch);
+        assert_eq!(
+            std::fs::read(&path).expect("read replacement request"),
+            b"replacement"
+        );
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
+    }
+
+    #[test]
     fn git_blob_batch_parser_binds_order_type_size_and_framing() {
         fn entry(oid: char, path: &str, size: u64, symlink: bool) -> GitTreeEntry {
             GitTreeEntry {
@@ -8175,18 +8600,13 @@ mod tests {
     #[test]
     fn git_object_rejection_precedes_snapshot_staging() {
         let entry_root = temp_root("git-object-rejection-before-stage");
-        let executor =
-            GitExecutor::system(GitExecutionTransport::Https).expect("system Git executor");
-        let error = resolve_git_snapshot(
-            &executor,
-            &entry_root,
+        let error = preflight_git_snapshot(
             "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
-            vec![authenticated_file_entry(
+            &[authenticated_file_entry(
                 "ce013625030ba8dba906f756967f9e9ca394464a",
                 "main.omg",
                 b"tampered\n",
             )],
-            LocalSourceLimits::default(),
         )
         .expect_err("mismatched object bytes must reject before staging");
         assert!(matches!(error, SourceResolveError::GitObjectInvalid { .. }));
@@ -8201,14 +8621,8 @@ mod tests {
             b"hello\n",
         );
         escaping.relative_path = std::env::temp_dir().join("omega-escaped-snapshot.omg");
-        let error = resolve_git_snapshot(
-            &executor,
-            &entry_root,
-            "6e3b5fe3c2f6b56c4d150929f0df706a5356004a",
-            vec![escaping],
-            LocalSourceLimits::default(),
-        )
-        .expect_err("destination escape must reject before staging");
+        let error = preflight_git_snapshot("6e3b5fe3c2f6b56c4d150929f0df706a5356004a", &[escaping])
+            .expect_err("destination escape must reject before staging");
         assert!(matches!(error, SourceResolveError::GitTreeInvalid { .. }));
         assert!(
             !entry_root.exists(),
@@ -10638,6 +11052,66 @@ mod tests {
         assert!(!retained_parent.join(&stage_name).exists());
         assert!(snapshots.is_dir());
         let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn git_snapshot_bootstrap_and_staging_remain_bound_to_the_retained_entry() {
+        let (repo, _) = create_git_source("retained-snapshot-bootstrap-source");
+        let cache = temp_root("retained-snapshot-bootstrap-cache");
+        let request = local_git_request(&repo, "HEAD");
+        resolve_git_source(&request, &cache, LocalSourceLimits::default()).expect("prime cache");
+        let verified = open_verified_git_repository(&cache, &request);
+        let snapshots_path = verified.entry_root.join(GIT_CACHE_SNAPSHOTS);
+        make_tree_owner_writable(&snapshots_path);
+        std::fs::remove_dir_all(&snapshots_path).expect("remove primed snapshot collection");
+
+        let snapshots = verified
+            .open_or_create_snapshots()
+            .expect("bootstrap snapshots through retained entry");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            assert_eq!(
+                std::fs::metadata(&snapshots_path)
+                    .expect("read snapshot collection mode")
+                    .permissions()
+                    .mode()
+                    & 0o777,
+                0o700
+            );
+        }
+
+        let displaced_entry = verified.entry_root.with_file_name("entry.displaced");
+        std::fs::rename(&verified.entry_root, &displaced_entry)
+            .expect("displace retained cache entry");
+        std::fs::create_dir(&verified.entry_root).expect("create replacement cache entry");
+        let pending = PendingMaterializedSnapshot::create_from_open_parent(
+            CacheCustodyKind::Git,
+            &snapshots.path,
+            &snapshots.directory,
+            ".tree-retained.stage",
+        )
+        .expect("stage through retained snapshots collection");
+        let stage_name = pending.stage_name.clone();
+        assert!(
+            displaced_entry
+                .join(GIT_CACHE_SNAPSHOTS)
+                .join(&stage_name)
+                .is_dir()
+        );
+        assert!(
+            !verified
+                .entry_root
+                .join(GIT_CACHE_SNAPSHOTS)
+                .join(&stage_name)
+                .exists()
+        );
+        drop(pending);
+
+        let _ = std::fs::remove_dir_all(&repo);
+        make_tree_owner_writable(&cache);
+        let _ = std::fs::remove_dir_all(&cache);
     }
 
     #[test]
