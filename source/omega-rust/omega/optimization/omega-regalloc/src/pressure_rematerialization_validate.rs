@@ -32,9 +32,6 @@ pub fn validate_terminal_pressure_rematerialization<S: ValidatedTerminalSelected
     selected_keys: TargetRegisterEnvironmentConstraintKeys,
     plan: TerminalPressureRematerializationPlan,
 ) -> Result<ValidatedTerminalPressureRematerialization, TerminalPressureRematerializationError> {
-    if plan.policy != TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 {
-        return Err(TerminalPressureRematerializationError::UnsupportedPolicy);
-    }
     if plan.source_selected != selected.selected_identity()
         || plan.spill_choices != spill_choices.receipt().identity()
         || plan.recovery_classifications != recovery.receipt().identity()
@@ -88,6 +85,7 @@ pub fn validate_terminal_pressure_rematerialization<S: ValidatedTerminalSelected
     validate_materialize_row(row)?;
     let mut transformed = selected.selected_plan().clone();
     let mut applied = 0usize;
+    let mut rewritten_uses = 0usize;
     for index in 0..plan.functions.len() {
         let source = &selected.selected_plan().functions[index];
         let function_plan = &plan.functions[index];
@@ -102,13 +100,27 @@ pub fn validate_terminal_pressure_rematerialization<S: ValidatedTerminalSelected
             });
         }
         validate_dense(index, source)?;
-        match (&recovery_function.classification, function_plan.action) {
+        match (
+            &recovery_function.classification,
+            function_plan.action.as_ref(),
+        ) {
             (None, None) => {}
             (Some(candidate), Some(action)) => {
-                validate_action(index, source, range_function, candidate, action, row)?;
+                validate_action(
+                    index,
+                    source,
+                    range_function,
+                    candidate,
+                    action,
+                    row,
+                    plan.policy,
+                )?;
                 replay_action(index, &mut transformed.functions[index], action, row)?;
                 applied = applied
                     .checked_add(1)
+                    .ok_or(TerminalPressureRematerializationError::WorkOverflow)?;
+                rewritten_uses = rewritten_uses
+                    .checked_add(action.rewrites.len())
                     .ok_or(TerminalPressureRematerializationError::WorkOverflow)?;
             }
             _ => {
@@ -121,7 +133,7 @@ pub fn validate_terminal_pressure_rematerialization<S: ValidatedTerminalSelected
     if applied == 0 {
         return Err(TerminalPressureRematerializationError::NoAction);
     }
-    let usage = independent_usage(selected, applied)?;
+    let usage = independent_usage(selected, applied, rewritten_uses)?;
     if plan.usage != usage {
         return Err(TerminalPressureRematerializationError::UsageMismatch);
     }
@@ -151,6 +163,7 @@ pub fn validate_terminal_pressure_rematerialization<S: ValidatedTerminalSelected
         usage: plan.usage,
         function_count: transformed.functions.len(),
         applied_count: applied,
+        rewritten_use_count: rewritten_uses,
     };
     Ok(ValidatedTerminalPressureRematerialization {
         plan,
@@ -184,8 +197,9 @@ fn validate_action(
     function: &TerminalSelectedFunction,
     ranges: &TerminalFunctionLiveRanges,
     candidate: &TerminalPressureRecoveryClassification,
-    action: TerminalPressureRematerializationAction,
+    action: &TerminalPressureRematerializationAction,
     row: &RegisterInstructionConstraint,
+    policy: TerminalPressureRematerializationPolicy,
 ) -> Result<(), TerminalPressureRematerializationError> {
     let TerminalRecoveryVictimRole::ActiveResident {
         current_view,
@@ -208,9 +222,18 @@ fn validate_action(
             TerminalPressureRematerializationError::ClassificationNotAdmitted { function: index },
         );
     };
-    let [future] = future_uses.as_slice() else {
-        return Err(TerminalPressureRematerializationError::FutureUseMismatch { function: index });
+    let valid_arity = match policy {
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 => future_uses.len() == 1,
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1 => future_uses.len() >= 2,
     };
+    if !valid_arity
+        || future_uses.windows(2).any(|pair| pair[0] >= pair[1])
+        || future_uses
+            .iter()
+            .any(|future| future.block != candidate.block || future.point <= candidate.point)
+    {
+        return Err(TerminalPressureRematerializationError::FutureUseMismatch { function: index });
+    }
     let expected_instruction = TerminalSelectedInstructionId(instruction_count(index, function)?);
     let expected_register =
         TerminalVirtualRegisterId(u32::try_from(function.virtual_registers.len()).map_err(
@@ -224,14 +247,19 @@ fn validate_action(
         || action.original_materialize != *defining_instruction
         || action.source_value != *source_value
         || action.value != *value
-        || action.future_point != future.point
-        || action.future_instruction != future.instruction
-        || action.future_operand != future.operand
+        || action.rewrites.len() != future_uses.len()
+        || !action
+            .rewrites
+            .iter()
+            .zip(future_uses)
+            .all(|(rewrite, future)| {
+                rewrite.point == future.point
+                    && rewrite.instruction == future.instruction
+                    && rewrite.operand == future.operand
+            })
         || action.fresh_materialize != expected_instruction
         || action.result_virtual_register != expected_register
         || action.materialize_constraint != row.key
-        || future.block != candidate.block
-        || future.point <= candidate.point
     {
         return Err(TerminalPressureRematerializationError::DecisionMismatch { function: index });
     }
@@ -284,19 +312,24 @@ fn validate_action(
             TerminalPressureRematerializationError::MaterializeMismatch { function: index },
         );
     }
-    let future_instruction = lookup_instruction(block, future.instruction)
-        .ok_or(TerminalPressureRematerializationError::FutureUseMismatch { function: index })?;
-    let future_operand = future_instruction
-        .operands
-        .iter()
-        .find(|operand| operand.operand == future.operand)
-        .ok_or(TerminalPressureRematerializationError::FutureUseMismatch { function: index })?;
-    if future_operand.virtual_register != candidate.victim
-        || future_operand.access != RegisterOperandAccess::Use
-        || future_operand.fixed_view.is_some()
-        || future_operand.class != candidate.class
-    {
-        return Err(TerminalPressureRematerializationError::FutureUseMismatch { function: index });
+    for future in future_uses {
+        let instruction = lookup_instruction(block, future.instruction)
+            .ok_or(TerminalPressureRematerializationError::FutureUseMismatch { function: index })?;
+        let matching = instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.operand == future.operand)
+            .collect::<Vec<_>>();
+        if matching.len() != 1
+            || matching[0].virtual_register != candidate.victim
+            || matching[0].access != RegisterOperandAccess::Use
+            || matching[0].fixed_view.is_some()
+            || matching[0].class != candidate.class
+        {
+            return Err(TerminalPressureRematerializationError::FutureUseMismatch {
+                function: index,
+            });
+        }
     }
     Ok(())
 }
@@ -304,7 +337,7 @@ fn validate_action(
 fn replay_action(
     index: usize,
     function: &mut TerminalSelectedFunction,
-    action: TerminalPressureRematerializationAction,
+    action: &TerminalPressureRematerializationAction,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), TerminalPressureRematerializationError> {
     let source = function
@@ -347,24 +380,60 @@ fn replay_action(
         .iter_mut()
         .find(|block| block.id == action.block)
         .ok_or(TerminalPressureRematerializationError::DecisionMismatch { function: index })?;
-    if let Some(position) = block
-        .instructions
-        .iter()
-        .position(|instruction| instruction.id == action.future_instruction)
-    {
-        rewrite(index, &mut block.instructions[position], action)?;
-        block.instructions.insert(position, inserted);
-    } else {
+    for rewrite_row in &action.rewrites {
+        let mut matched = 0usize;
+        for instruction in &mut block.instructions {
+            if instruction.id == rewrite_row.instruction {
+                rewrite(
+                    index,
+                    instruction,
+                    action.victim,
+                    action.result_virtual_register,
+                    *rewrite_row,
+                )?;
+                matched += 1;
+            }
+        }
         let terminator = match &mut block.terminator {
             TerminalSelectedTerminator::ConditionalBranch { instruction, .. }
             | TerminalSelectedTerminator::Return { instruction, .. } => instruction,
         };
-        if terminator.id != action.future_instruction {
+        if terminator.id == rewrite_row.instruction {
+            rewrite(
+                index,
+                terminator,
+                action.victim,
+                action.result_virtual_register,
+                *rewrite_row,
+            )?;
+            matched += 1;
+        }
+        if matched != 1 {
             return Err(TerminalPressureRematerializationError::DecisionMismatch {
                 function: index,
             });
         }
-        rewrite(index, terminator, action)?;
+    }
+    let first = action
+        .rewrites
+        .first()
+        .ok_or(TerminalPressureRematerializationError::DecisionMismatch { function: index })?;
+    if let Some(position) = block
+        .instructions
+        .iter()
+        .position(|instruction| instruction.id == first.instruction)
+    {
+        block.instructions.insert(position, inserted);
+    } else {
+        let terminator = match &block.terminator {
+            TerminalSelectedTerminator::ConditionalBranch { instruction, .. }
+            | TerminalSelectedTerminator::Return { instruction, .. } => instruction,
+        };
+        if terminator.id != first.instruction {
+            return Err(TerminalPressureRematerializationError::DecisionMismatch {
+                function: index,
+            });
+        }
         block.instructions.push(inserted);
     }
     Ok(())
@@ -373,19 +442,21 @@ fn replay_action(
 fn rewrite(
     index: usize,
     instruction: &mut TerminalSelectedInstruction,
-    action: TerminalPressureRematerializationAction,
+    victim: TerminalVirtualRegisterId,
+    result: TerminalVirtualRegisterId,
+    rewrite: TerminalPressureRematerializationRewrite,
 ) -> Result<(), TerminalPressureRematerializationError> {
     let operand = instruction
         .operands
         .iter_mut()
         .find(|operand| {
-            operand.operand == action.future_operand
-                && operand.virtual_register == action.victim
+            operand.operand == rewrite.operand
+                && operand.virtual_register == victim
                 && operand.access == RegisterOperandAccess::Use
                 && operand.fixed_view.is_none()
         })
         .ok_or(TerminalPressureRematerializationError::DecisionMismatch { function: index })?;
-    operand.virtual_register = action.result_virtual_register;
+    operand.virtual_register = result;
     Ok(())
 }
 
@@ -475,6 +546,7 @@ fn instruction_count(
 fn independent_usage(
     selected: &impl ValidatedTerminalSelectedAnalysis,
     applied: usize,
+    rewritten_uses: usize,
 ) -> Result<OptimizationWorkUsage, TerminalPressureRematerializationError> {
     let rule_evaluations = u64::try_from(selected.selected_plan().functions.len())
         .map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?;
@@ -494,6 +566,11 @@ fn independent_usage(
                 .checked_add(u64::try_from(function.virtual_registers.len()).ok()?)?
                 .checked_add(instructions)
         })
+        .ok_or(TerminalPressureRematerializationError::WorkOverflow)?
+        .checked_add(
+            u64::try_from(rewritten_uses)
+                .map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?,
+        )
         .ok_or(TerminalPressureRematerializationError::WorkOverflow)?;
     let applied =
         u64::try_from(applied).map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?;
@@ -516,10 +593,14 @@ mod tests {
             crate::pressure_rematerialization_compute::tests::fixture();
         let candidate = recovery.functions[0].classification.as_ref().unwrap();
         let (functions, proposed) = crate::pressure_rematerialization_compute::build_functions(
-            &selected, &ranges, &recovery, &row,
+            &selected,
+            &ranges,
+            &recovery,
+            &row,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
         )
         .unwrap();
-        let action = functions[0].action.unwrap();
+        let action = functions[0].action.as_ref().unwrap();
         validate_action(
             0,
             &selected.functions[0],
@@ -527,22 +608,95 @@ mod tests {
             candidate,
             action,
             &row,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
         )
         .unwrap();
         let mut replayed = selected.clone();
         replay_action(0, &mut replayed.functions[0], action, &row).unwrap();
         assert_eq!(replayed, proposed);
 
-        let mut corrupt = action;
-        corrupt.future_operand = 1;
+        let mut corrupt = action.clone();
+        corrupt.rewrites[0].operand = 1;
         assert_eq!(
             validate_action(
                 0,
                 &selected.functions[0],
                 &ranges.functions[0],
                 candidate,
-                corrupt,
+                &corrupt,
                 &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+            ),
+            Err(TerminalPressureRematerializationError::DecisionMismatch { function: 0 })
+        );
+    }
+
+    #[test]
+    fn independent_replay_reconstructs_multiple_use_suffix_and_rejects_rewrite_corruption() {
+        let (selected, ranges, recovery, row) =
+            crate::pressure_rematerialization_compute::tests::multiple_future_fixture();
+        let candidate = recovery.functions[0].classification.as_ref().unwrap();
+        let policy = TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1;
+        let (functions, proposed) = crate::pressure_rematerialization_compute::build_functions(
+            &selected, &ranges, &recovery, &row, policy,
+        )
+        .unwrap();
+        let action = functions[0].action.as_ref().unwrap();
+        validate_action(
+            0,
+            &selected.functions[0],
+            &ranges.functions[0],
+            candidate,
+            action,
+            &row,
+            policy,
+        )
+        .unwrap();
+        let mut replayed = selected.clone();
+        replay_action(0, &mut replayed.functions[0], action, &row).unwrap();
+        assert_eq!(replayed, proposed);
+
+        let mut removed = action.clone();
+        removed.rewrites.pop();
+        assert_eq!(
+            validate_action(
+                0,
+                &selected.functions[0],
+                &ranges.functions[0],
+                candidate,
+                &removed,
+                &row,
+                policy,
+            ),
+            Err(TerminalPressureRematerializationError::DecisionMismatch { function: 0 })
+        );
+
+        let mut reordered = action.clone();
+        reordered.rewrites.swap(0, 1);
+        assert_eq!(
+            validate_action(
+                0,
+                &selected.functions[0],
+                &ranges.functions[0],
+                candidate,
+                &reordered,
+                &row,
+                policy,
+            ),
+            Err(TerminalPressureRematerializationError::DecisionMismatch { function: 0 })
+        );
+
+        let mut corrupt_point = action.clone();
+        corrupt_point.rewrites[1].point.0 += 1;
+        assert_eq!(
+            validate_action(
+                0,
+                &selected.functions[0],
+                &ranges.functions[0],
+                candidate,
+                &corrupt_point,
+                &row,
+                policy,
             ),
             Err(TerminalPressureRematerializationError::DecisionMismatch { function: 0 })
         );

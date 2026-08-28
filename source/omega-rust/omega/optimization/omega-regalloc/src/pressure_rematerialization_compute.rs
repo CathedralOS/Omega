@@ -44,15 +44,13 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedTerminalSe
         reservations,
         selected_keys,
     )?;
-    if policy != TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 {
-        return Err(TerminalPressureRematerializationError::UnsupportedPolicy);
-    }
     let materialize = materialize_row(constraints, selected_keys)?;
     let (functions, transformed) = build_functions(
         selected.selected_plan(),
         ranges.plan(),
         recovery.plan(),
         materialize,
+        policy,
     )?;
     let applied = functions
         .iter()
@@ -61,7 +59,14 @@ pub(crate) fn compute_terminal_pressure_rematerialization<S: ValidatedTerminalSe
     if applied == 0 {
         return Err(TerminalPressureRematerializationError::NoAction);
     }
-    let usage = required_usage(selected, applied)?;
+    let rewritten_uses = functions
+        .iter()
+        .filter_map(|function| function.action.as_ref())
+        .try_fold(0usize, |total, action| {
+            total.checked_add(action.rewrites.len())
+        })
+        .ok_or(TerminalPressureRematerializationError::WorkOverflow)?;
+    let usage = required_usage(selected.selected_plan(), applied, rewritten_uses)?;
     ensure_budget(usage, budget)?;
     Ok(TerminalPressureRematerializationPlan {
         source_selected: selected.selected_identity(),
@@ -165,6 +170,7 @@ pub(crate) fn build_functions(
     ranges: &TerminalLiveRangePlan,
     recovery: &TerminalRecoveryClassificationPlan,
     row: &RegisterInstructionConstraint,
+    policy: TerminalPressureRematerializationPolicy,
 ) -> Result<
     (
         Vec<TerminalFunctionPressureRematerialization>,
@@ -198,9 +204,10 @@ pub(crate) fn build_functions(
                 range_function,
                 candidate,
                 row,
+                policy,
             )?),
         };
-        if let Some(action) = action {
+        if let Some(action) = &action {
             apply_action(index, &mut transformed.functions[index], action, row)?;
         }
         functions.push(TerminalFunctionPressureRematerialization {
@@ -217,6 +224,7 @@ fn action_from_candidate(
     ranges: &TerminalFunctionLiveRanges,
     candidate: &TerminalPressureRecoveryClassification,
     row: &RegisterInstructionConstraint,
+    policy: TerminalPressureRematerializationPolicy,
 ) -> Result<TerminalPressureRematerializationAction, TerminalPressureRematerializationError> {
     let TerminalRecoveryVictimRole::ActiveResident {
         current_view,
@@ -243,12 +251,16 @@ fn action_from_candidate(
             },
         );
     };
-    let [future] = future_uses.as_slice() else {
-        return Err(TerminalPressureRematerializationError::FutureUseMismatch {
-            function: function_index,
-        });
+    let valid_arity = match policy {
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1 => future_uses.len() == 1,
+        TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1 => future_uses.len() >= 2,
     };
-    if future.block != candidate.block || future.point <= candidate.point {
+    if !valid_arity
+        || future_uses.windows(2).any(|pair| pair[0] >= pair[1])
+        || future_uses
+            .iter()
+            .any(|future| future.block != candidate.block || future.point <= candidate.point)
+    {
         return Err(TerminalPressureRematerializationError::FutureUseMismatch {
             function: function_index,
         });
@@ -324,26 +336,27 @@ fn action_from_candidate(
             },
         );
     }
-    let future_instruction = find_instruction(block, future.instruction).ok_or(
-        TerminalPressureRematerializationError::FutureUseMismatch {
-            function: function_index,
-        },
-    )?;
-    let operand = future_instruction
-        .operands
-        .iter()
-        .find(|operand| operand.operand == future.operand)
-        .ok_or(TerminalPressureRematerializationError::FutureUseMismatch {
-            function: function_index,
-        })?;
-    if operand.virtual_register != candidate.victim
-        || operand.access != RegisterOperandAccess::Use
-        || operand.fixed_view.is_some()
-        || operand.class != candidate.class
-    {
-        return Err(TerminalPressureRematerializationError::FutureUseMismatch {
-            function: function_index,
-        });
+    for future in future_uses {
+        let future_instruction = find_instruction(block, future.instruction).ok_or(
+            TerminalPressureRematerializationError::FutureUseMismatch {
+                function: function_index,
+            },
+        )?;
+        let matching = future_instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.operand == future.operand)
+            .collect::<Vec<_>>();
+        if matching.len() != 1
+            || matching[0].virtual_register != candidate.victim
+            || matching[0].access != RegisterOperandAccess::Use
+            || matching[0].fixed_view.is_some()
+            || matching[0].class != candidate.class
+        {
+            return Err(TerminalPressureRematerializationError::FutureUseMismatch {
+                function: function_index,
+            });
+        }
     }
     let fresh_instruction =
         TerminalSelectedInstructionId(instruction_count(function_index, function)?);
@@ -362,9 +375,14 @@ fn action_from_candidate(
         original_materialize: *defining_instruction,
         source_value: *source_value,
         value: *value,
-        future_point: future.point,
-        future_instruction: future.instruction,
-        future_operand: future.operand,
+        rewrites: future_uses
+            .iter()
+            .map(|future| TerminalPressureRematerializationRewrite {
+                point: future.point,
+                instruction: future.instruction,
+                operand: future.operand,
+            })
+            .collect(),
         fresh_materialize: fresh_instruction,
         result_virtual_register: fresh_register,
         materialize_constraint: row.key,
@@ -374,7 +392,7 @@ fn action_from_candidate(
 fn apply_action(
     function_index: usize,
     function: &mut TerminalSelectedFunction,
-    action: TerminalPressureRematerializationAction,
+    action: &TerminalPressureRematerializationAction,
     row: &RegisterInstructionConstraint,
 ) -> Result<(), TerminalPressureRematerializationError> {
     let source = function
@@ -421,24 +439,36 @@ fn apply_action(
         .ok_or(TerminalPressureRematerializationError::DecisionMismatch {
             function: function_index,
         })?;
+    for rewrite in &action.rewrites {
+        rewrite_operand(
+            function_index,
+            block,
+            action.victim,
+            action.result_virtual_register,
+            *rewrite,
+        )?;
+    }
+    let first = action.rewrites.first().ok_or(
+        TerminalPressureRematerializationError::DecisionMismatch {
+            function: function_index,
+        },
+    )?;
     if let Some(index) = block
         .instructions
         .iter()
-        .position(|instruction| instruction.id == action.future_instruction)
+        .position(|instruction| instruction.id == first.instruction)
     {
-        rewrite_operand(function_index, &mut block.instructions[index], action)?;
         block.instructions.insert(index, new_instruction);
     } else {
-        let terminator = match &mut block.terminator {
+        let terminator_id = match &block.terminator {
             TerminalSelectedTerminator::ConditionalBranch { instruction, .. }
-            | TerminalSelectedTerminator::Return { instruction, .. } => instruction,
+            | TerminalSelectedTerminator::Return { instruction, .. } => instruction.id,
         };
-        if terminator.id != action.future_instruction {
+        if terminator_id != first.instruction {
             return Err(TerminalPressureRematerializationError::DecisionMismatch {
                 function: function_index,
             });
         }
-        rewrite_operand(function_index, terminator, action)?;
         block.instructions.push(new_instruction);
     }
     Ok(())
@@ -446,20 +476,34 @@ fn apply_action(
 
 fn rewrite_operand(
     function: usize,
-    instruction: &mut TerminalSelectedInstruction,
-    action: TerminalPressureRematerializationAction,
+    block: &mut omega_terminal_selected_instructions::TerminalSelectedBlock,
+    victim: TerminalVirtualRegisterId,
+    result: TerminalVirtualRegisterId,
+    rewrite: TerminalPressureRematerializationRewrite,
 ) -> Result<(), TerminalPressureRematerializationError> {
+    let instruction = block
+        .instructions
+        .iter_mut()
+        .find(|instruction| instruction.id == rewrite.instruction)
+        .or_else(|| {
+            let terminator = match &mut block.terminator {
+                TerminalSelectedTerminator::ConditionalBranch { instruction, .. }
+                | TerminalSelectedTerminator::Return { instruction, .. } => instruction,
+            };
+            (terminator.id == rewrite.instruction).then_some(terminator)
+        })
+        .ok_or(TerminalPressureRematerializationError::DecisionMismatch { function })?;
     let operand = instruction
         .operands
         .iter_mut()
         .find(|operand| {
-            operand.operand == action.future_operand
-                && operand.virtual_register == action.victim
+            operand.operand == rewrite.operand
+                && operand.virtual_register == victim
                 && operand.access == RegisterOperandAccess::Use
                 && operand.fixed_view.is_none()
         })
         .ok_or(TerminalPressureRematerializationError::DecisionMismatch { function })?;
-    operand.virtual_register = action.result_virtual_register;
+    operand.virtual_register = result;
     Ok(())
 }
 
@@ -556,13 +600,13 @@ fn instruction_count(
 }
 
 fn required_usage(
-    selected: &impl ValidatedTerminalSelectedAnalysis,
+    selected: &TerminalSelectedInstructionPlan,
     applied: usize,
+    rewritten_uses: usize,
 ) -> Result<OptimizationWorkUsage, TerminalPressureRematerializationError> {
-    let rule_evaluations = u64::try_from(selected.selected_plan().functions.len())
+    let rule_evaluations = u64::try_from(selected.functions.len())
         .map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?;
     let validation_steps = selected
-        .selected_plan()
         .functions
         .iter()
         .try_fold(0u64, |total, function| {
@@ -577,6 +621,11 @@ fn required_usage(
                 .checked_add(u64::try_from(function.virtual_registers.len()).ok()?)?
                 .checked_add(instructions)
         })
+        .ok_or(TerminalPressureRematerializationError::WorkOverflow)?
+        .checked_add(
+            u64::try_from(rewritten_uses)
+                .map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?,
+        )
         .ok_or(TerminalPressureRematerializationError::WorkOverflow)?;
     let applied =
         u64::try_from(applied).map_err(|_| TerminalPressureRematerializationError::WorkOverflow)?;
@@ -850,13 +899,137 @@ pub(crate) mod tests {
         (selected, ranges, recovery, row)
     }
 
+    pub(crate) fn multiple_future_fixture() -> (
+        TerminalSelectedInstructionPlan,
+        TerminalLiveRangePlan,
+        TerminalRecoveryClassificationPlan,
+        RegisterInstructionConstraint,
+    ) {
+        let (mut selected, mut ranges, mut recovery, row) = fixture();
+        let block = &mut selected.functions[0].blocks[0];
+        let TerminalSelectedTerminator::Return { instruction, .. } = &mut block.terminator else {
+            unreachable!()
+        };
+        instruction.id = TerminalSelectedInstructionId(4);
+        block.instructions.push(TerminalSelectedInstruction {
+            id: TerminalSelectedInstructionId(3),
+            kind: TerminalSelectedInstructionKind::CompareI64Zero,
+            constraint: row.key,
+            operands: vec![
+                operand(0, RegisterOperandAccess::Use),
+                TerminalSelectedOperand {
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    access: RegisterOperandAccess::Use,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                },
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+            provenance: TerminalSelectedInstructionProvenance {
+                values: vec![ValueId::new(1).unwrap()],
+                ..Default::default()
+            },
+        });
+        let function_ranges = &mut ranges.functions[0];
+        function_ranges.block_domains[0].end = TerminalLiveRangePoint(10);
+        let victim = &mut function_ranges.virtual_registers[0];
+        victim.occurrences[1] = TerminalVirtualOccurrence {
+            position: TerminalLivenessPosition(3),
+            point: TerminalLiveRangePoint(6),
+            instruction: TerminalSelectedInstructionId(3),
+            operand: 0,
+            access: RegisterOperandAccess::Use,
+        };
+        victim.occurrences.push(TerminalVirtualOccurrence {
+            position: TerminalLivenessPosition(4),
+            point: TerminalLiveRangePoint(8),
+            instruction: TerminalSelectedInstructionId(4),
+            operand: 0,
+            access: RegisterOperandAccess::Use,
+        });
+        victim.fragments[0].end = TerminalLiveRangePoint(9);
+        let Some(TerminalPressureRecoveryClassification {
+            classification:
+                TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                    future_uses,
+                    ..
+                },
+            ..
+        }) = recovery.functions[0].classification.as_mut()
+        else {
+            unreachable!()
+        };
+        future_uses.push(TerminalRecoveryFutureUse {
+            block: TerminalSelectedBlockId(0),
+            point: TerminalLiveRangePoint(8),
+            instruction: TerminalSelectedInstructionId(4),
+            operand: 0,
+        });
+        (selected, ranges, recovery, row)
+    }
+
+    fn same_instruction_multiple_future_fixture() -> (
+        TerminalSelectedInstructionPlan,
+        TerminalLiveRangePlan,
+        TerminalRecoveryClassificationPlan,
+        RegisterInstructionConstraint,
+    ) {
+        let (mut selected, mut ranges, mut recovery, row) = multiple_future_fixture();
+        selected.functions[0].blocks[0].instructions[3].operands[1].virtual_register =
+            TerminalVirtualRegisterId(0);
+        let TerminalSelectedTerminator::Return { instruction, .. } =
+            &mut selected.functions[0].blocks[0].terminator
+        else {
+            unreachable!()
+        };
+        instruction.operands[0].virtual_register = TerminalVirtualRegisterId(1);
+        let victim = &mut ranges.functions[0].virtual_registers[0];
+        victim.occurrences[2] = TerminalVirtualOccurrence {
+            position: TerminalLivenessPosition(3),
+            point: TerminalLiveRangePoint(6),
+            instruction: TerminalSelectedInstructionId(3),
+            operand: 1,
+            access: RegisterOperandAccess::Use,
+        };
+        victim.fragments[0].end = TerminalLiveRangePoint(7);
+        let Some(TerminalPressureRecoveryClassification {
+            classification:
+                TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                    future_uses,
+                    ..
+                },
+            ..
+        }) = recovery.functions[0].classification.as_mut()
+        else {
+            unreachable!()
+        };
+        future_uses[1] = TerminalRecoveryFutureUse {
+            block: TerminalSelectedBlockId(0),
+            point: TerminalLiveRangePoint(6),
+            instruction: TerminalSelectedInstructionId(3),
+            operand: 1,
+        };
+        (selected, ranges, recovery, row)
+    }
+
     #[test]
     fn active_resident_is_split_before_sole_future_use_and_reanalyzes() {
         let (selected, ranges, recovery, row) = fixture();
         let original = selected.functions[0].blocks[0].instructions[0].clone();
-        let (functions, transformed) =
-            build_functions(&selected, &ranges, &recovery, &row).unwrap();
-        let action = functions[0].action.unwrap();
+        let (functions, transformed) = build_functions(
+            &selected,
+            &ranges,
+            &recovery,
+            &row,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+        )
+        .unwrap();
+        let action = functions[0].action.as_ref().unwrap();
         assert_eq!(action.fresh_materialize, TerminalSelectedInstructionId(4));
         assert_eq!(action.result_virtual_register, TerminalVirtualRegisterId(3));
         let function = &transformed.functions[0];
@@ -924,6 +1097,7 @@ pub(crate) mod tests {
             usage: plan.usage,
             function_count: 1,
             applied_count: 1,
+            rewritten_use_count: 1,
         };
         let validated = ValidatedTerminalPressureRematerialization {
             plan,
@@ -1011,5 +1185,312 @@ pub(crate) mod tests {
         .unwrap();
         assert_eq!(homes, replayed_homes);
         assert_eq!(homes.assignments.len(), 4);
+    }
+
+    #[test]
+    fn active_resident_is_split_once_before_a_multiple_use_suffix_and_reanalyzes() {
+        let (selected, ranges, recovery, row) = multiple_future_fixture();
+        assert!(matches!(
+            build_functions(
+                &selected,
+                &ranges,
+                &recovery,
+                &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1,
+            ),
+            Err(TerminalPressureRematerializationError::FutureUseMismatch { function: 0 })
+        ));
+        let (functions, transformed) = build_functions(
+            &selected,
+            &ranges,
+            &recovery,
+            &row,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+        )
+        .unwrap();
+        let action = functions[0].action.as_ref().unwrap();
+        assert_eq!(action.rewrites.len(), 2);
+        assert_eq!(
+            action.rewrites[0].instruction,
+            TerminalSelectedInstructionId(3)
+        );
+        assert_eq!(
+            action.rewrites[1].instruction,
+            TerminalSelectedInstructionId(4)
+        );
+        assert_eq!(action.fresh_materialize, TerminalSelectedInstructionId(5));
+        assert_eq!(action.result_virtual_register, TerminalVirtualRegisterId(3));
+
+        let source_original = &selected.functions[0].blocks[0].instructions[0];
+        let transformed_function = &transformed.functions[0];
+        let transformed_machine = transformed_function.machine;
+        assert_eq!(
+            transformed_function.blocks[0].instructions[0],
+            *source_original
+        );
+        assert_eq!(source_original.provenance.fuel.len(), 1);
+        let inserted = &transformed_function.blocks[0].instructions[3];
+        assert_eq!(inserted.id, TerminalSelectedInstructionId(5));
+        assert_eq!(inserted.provenance.values, vec![ValueId::new(1).unwrap()]);
+        assert!(inserted.provenance.operations.is_empty());
+        assert!(inserted.provenance.fuel.is_empty());
+        assert_eq!(
+            transformed_function.blocks[0].instructions[4].operands[0].virtual_register,
+            TerminalVirtualRegisterId(3)
+        );
+        assert_eq!(
+            transformed_function.blocks[0].instructions[4].operands[1].virtual_register,
+            TerminalVirtualRegisterId(1)
+        );
+        let returned = match &transformed_function.blocks[0].terminator {
+            TerminalSelectedTerminator::Return { instruction, .. } => instruction,
+            _ => unreachable!(),
+        };
+        assert_eq!(
+            returned.operands[0].virtual_register,
+            TerminalVirtualRegisterId(3)
+        );
+
+        let transformed_identity = terminal_selected_instruction_plan_identity(&transformed);
+        let plan = TerminalPressureRematerializationPlan {
+            source_selected: TerminalSelectedInstructionPlanIdentity::from_bytes([2; 32]),
+            spill_choices: TerminalSpillChoiceIdentity::from_bytes([5; 32]),
+            recovery_classifications: TerminalRecoveryClassificationIdentity::from_bytes([10; 32]),
+            ranges: TerminalLiveRangeIdentity::from_bytes([6; 32]),
+            legality: TerminalAllocationLegalityIdentity::from_bytes([7; 32]),
+            register_environment: TargetRegisterEnvironmentIdentity::from_bytes([8; 32]),
+            allocator_availability: TerminalAllocatorAvailabilityIdentity::from_bytes([9; 32]),
+            optimization_unit: OptimizationUnitIdentity::from_bytes([4; 32]),
+            fuel_schedule: transformed.fuel_schedule,
+            policy: TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            budget: OptimizationWorkBudget::new(10, 10, 30, 10, 1).unwrap(),
+            usage: OptimizationWorkUsage { rule_evaluations: 1, candidates: 1, validation_steps: 10, commits: 1, iterations: 1 },
+            functions,
+            transformed_selected: transformed_identity,
+        };
+        let receipt = TerminalPressureRematerializationValidationReceipt {
+            identity: terminal_pressure_rematerialization_identity(&plan),
+            source_selected: plan.source_selected,
+            spill_choices: plan.spill_choices,
+            recovery_classifications: plan.recovery_classifications,
+            ranges: plan.ranges,
+            legality: plan.legality,
+            register_environment: plan.register_environment,
+            allocator_availability: plan.allocator_availability,
+            optimization_unit: plan.optimization_unit,
+            fuel_schedule: plan.fuel_schedule,
+            transformed_selected: transformed_identity,
+            policy: plan.policy,
+            usage: plan.usage,
+            function_count: 1,
+            applied_count: 1,
+            rewritten_use_count: 2,
+        };
+        let validated = ValidatedTerminalPressureRematerialization {
+            plan,
+            transformed,
+            receipt,
+        };
+        assert_eq!(validated.receipt().rewritten_use_count(), 2);
+        let liveness = analyze_terminal_liveness(&validated).unwrap();
+        let post_ranges = analyze_terminal_live_ranges(&validated, &liveness).unwrap();
+        let victim = &post_ranges.plan().functions[0].virtual_registers[0];
+        assert!(
+            victim
+                .fragments
+                .iter()
+                .all(|fragment| fragment.end <= TerminalLiveRangePoint(5))
+        );
+        let suffix = &post_ranges.plan().functions[0].virtual_registers[3];
+        assert_eq!(suffix.occurrences.len(), 3);
+
+        let physical = validate_physical_register_model(PhysicalRegisterModel {
+            architecture: omega_target::Architecture::X86_64,
+            units: (0..2)
+                .map(|id| RegisterUnit {
+                    id: RegisterUnitId(id),
+                    name: format!("r{id}.storage"),
+                    bits: 64,
+                    kind: RegisterUnitKind::IntegerLane,
+                })
+                .collect(),
+            views: (0..2)
+                .map(|id| RegisterView {
+                    id: RegisterViewId(id),
+                    name: format!("r{id}"),
+                    class: RegisterClassId(0),
+                    units: vec![RegisterUnitId(id)],
+                    write_units: vec![RegisterUnitId(id)],
+                    bits: 64,
+                    write_semantics: RegisterWriteSemantics::ExactView,
+                    allocatable: true,
+                })
+                .collect(),
+            classes: vec![RegisterClass {
+                id: RegisterClassId(0),
+                name: "integer".into(),
+                views: vec![RegisterViewId(0), RegisterViewId(1)],
+            }],
+            conventions: Vec::new(),
+            reservations: Vec::new(),
+        })
+        .unwrap();
+        let legality = TerminalFunctionAllocationLegality {
+            machine: transformed_machine,
+            virtual_registers: post_ranges.plan().functions[0]
+                .virtual_registers
+                .iter()
+                .map(|range| TerminalVirtualRegisterAllocationLegality {
+                    virtual_register: range.virtual_register,
+                    class: range.class,
+                    points: range
+                        .fragments
+                        .iter()
+                        .flat_map(|fragment| fragment.start.0..fragment.end.0)
+                        .map(|point| TerminalVirtualPointLegality {
+                            block: TerminalSelectedBlockId(0),
+                            point: TerminalLiveRangePoint(point),
+                            candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                        })
+                        .collect(),
+                    early_clobber_points: Vec::new(),
+                    entry_transitions: Vec::new(),
+                })
+                .collect(),
+        };
+        let homes = crate::home_assignment_compute::compute_function(
+            0,
+            &legality,
+            &post_ranges.plan().functions[0],
+            &physical,
+        )
+        .unwrap();
+        assert_eq!(
+            homes,
+            crate::home_assignment_validate::replay_function(
+                0,
+                &legality,
+                &post_ranges.plan().functions[0],
+                &physical,
+            )
+            .unwrap()
+        );
+        assert_eq!(homes.assignments.len(), 4);
+    }
+
+    #[test]
+    fn multiple_use_policy_rejects_noncanonical_or_single_rewrite_evidence() {
+        let (single_selected, single_ranges, single_recovery, row) = fixture();
+        assert!(matches!(
+            build_functions(
+                &single_selected,
+                &single_ranges,
+                &single_recovery,
+                &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            ),
+            Err(TerminalPressureRematerializationError::FutureUseMismatch { function: 0 })
+        ));
+
+        let (selected, ranges, mut recovery, row) = multiple_future_fixture();
+        {
+            let Some(TerminalPressureRecoveryClassification {
+                classification:
+                    TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                        future_uses,
+                        ..
+                    },
+                ..
+            }) = recovery.functions[0].classification.as_mut()
+            else {
+                unreachable!()
+            };
+            future_uses.swap(0, 1);
+        }
+        assert!(matches!(
+            build_functions(
+                &selected,
+                &ranges,
+                &recovery,
+                &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            ),
+            Err(TerminalPressureRematerializationError::FutureUseMismatch { function: 0 })
+        ));
+        {
+            let Some(TerminalPressureRecoveryClassification {
+                classification:
+                    TerminalRecoveryClassification::ImmediateU64RematerializationCandidate {
+                        future_uses,
+                        ..
+                    },
+                ..
+            }) = recovery.functions[0].classification.as_mut()
+            else {
+                unreachable!()
+            };
+            future_uses.swap(0, 1);
+            future_uses[1] = future_uses[0];
+        }
+        assert!(matches!(
+            build_functions(
+                &selected,
+                &ranges,
+                &recovery,
+                &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            ),
+            Err(TerminalPressureRematerializationError::FutureUseMismatch { function: 0 })
+        ));
+
+        let (selected, ranges, recovery, row) = same_instruction_multiple_future_fixture();
+        let usage = required_usage(&selected, 1, 2).unwrap();
+        assert_eq!(usage.validation_steps, 10);
+        let insufficient = OptimizationWorkBudget::new(
+            usage.rule_evaluations,
+            usage.candidates,
+            usage.validation_steps - 1,
+            usage.commits,
+            usage.iterations,
+        )
+        .unwrap();
+        assert_eq!(
+            ensure_budget(usage, insufficient),
+            Err(TerminalPressureRematerializationError::BudgetExceeded {
+                required: usage,
+                budget: insufficient,
+            })
+        );
+        let (functions, transformed) = build_functions(
+            &selected,
+            &ranges,
+            &recovery,
+            &row,
+            TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+        )
+        .unwrap();
+        assert_eq!(functions[0].action.as_ref().unwrap().rewrites.len(), 2);
+        assert_eq!(
+            transformed.functions[0].blocks[0].instructions[4]
+                .operands
+                .iter()
+                .map(|operand| operand.virtual_register)
+                .collect::<Vec<_>>(),
+            vec![TerminalVirtualRegisterId(3), TerminalVirtualRegisterId(3)]
+        );
+
+        let (mut selected, ranges, recovery, row) = multiple_future_fixture();
+        selected.functions[0].blocks[0].instructions[3].operands[0].fixed_view =
+            Some(RegisterViewId(0));
+        assert!(matches!(
+            build_functions(
+                &selected,
+                &ranges,
+                &recovery,
+                &row,
+                TerminalPressureRematerializationPolicy::SelectedActiveResidentImmediateU64BeforeFirstOfMultipleFutureFlexibleUsesV1,
+            ),
+            Err(TerminalPressureRematerializationError::FutureUseMismatch { function: 0 })
+        ));
     }
 }
