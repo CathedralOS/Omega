@@ -173,12 +173,17 @@ pub struct TerminalSelectedStructuralUnitCallArgument {
     pub target: omega_terminal_target_operations::TerminalTargetStructuralArgument,
 }
 
+/// Selected calls retain the exact legalized semantic origin without
+/// introducing a second source vocabulary that could drift during replay.
+pub use omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource as TerminalSelectedStructuralUnitCallSource;
+
 /// One atomic semantic/ABI call bundle. The later target-owned machine layer
 /// must refine this row rather than decomposing it into untracked loads,
 /// stores, stack adjustments, and a call.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalSelectedStructuralUnitCallInstruction {
     pub id: TerminalSelectedInstructionId,
+    pub source: TerminalSelectedStructuralUnitCallSource,
     pub operation: OperationId,
     pub callee: MachineId,
     pub caller_call_plan: CallPlan,

@@ -207,106 +207,121 @@ fn assign_function(
             let operations = body
                 .operations
                 .iter()
-                .map(|operation| match operation {
-                    TerminalTargetUnitOperation::EstablishByteSequenceLiteral {
-                        psi_operation,
-                        place,
-                        structural_type,
-                        bytes,
-                    } => TerminalAssignedUnitOperation::EstablishByteSequenceLiteral {
-                        psi_operation: *psi_operation,
-                        place: place.clone(),
-                        structural_type: structural_type.clone(),
-                        bytes: bytes.clone(),
-                    },
-                    TerminalTargetUnitOperation::IntegerConstant {
-                        psi_operation,
-                        result,
-                        scalar_type,
-                        value,
-                    } => TerminalAssignedUnitOperation::IntegerConstant {
-                        psi_operation: *psi_operation,
-                        result: *result,
-                        scalar_type: *scalar_type,
-                        value: *value,
-                    },
-                    TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
-                        psi_operation,
-                        place,
-                        structural_type,
-                    } => TerminalAssignedUnitOperation::EstablishTrivialAffineLocal {
-                        psi_operation: *psi_operation,
-                        place: place.clone(),
-                        structural_type: structural_type.clone(),
-                    },
-                    TerminalTargetUnitOperation::Call {
-                        psi_operation,
-                        callee,
-                        arguments,
-                        claim_transfers,
-                    } => TerminalAssignedUnitOperation::Call {
-                        psi_operation: *psi_operation,
-                        callee: *callee,
-                        result: None,
-                        copies: arguments
-                            .iter()
-                            .map(|argument| TerminalAssignedAggregateCopy {
-                                place: argument.place,
-                                access: argument.access,
-                                path: argument.path.clone(),
-                                root_structural_type: argument.root_structural_type,
-                                structural_type: argument.structural_type,
-                                shape: argument.shape,
-                                source_byte_offset: argument.source_byte_offset,
-                                fixed_array_length: argument.fixed_array_length,
-                                element_stride: argument.element_stride,
-                                source: argument.source.clone(),
-                                destination: argument.destination.clone(),
-                            })
-                            .collect(),
-                        claim_transfers: claim_transfers.clone(),
-                    },
-                    TerminalTargetUnitOperation::PortWrite {
-                        psi_operation,
-                        service,
-                        port,
-                        value,
-                    } => TerminalAssignedUnitOperation::PortWrite {
-                        psi_operation: *psi_operation,
-                        service: *service,
-                        port: *port,
-                        value: *value,
-                    },
-                    TerminalTargetUnitOperation::BoundarySettlement {
-                        psi_operation,
-                        boundary,
-                        provider_execution,
-                        realization,
-                        scalar_arguments,
-                        arguments,
-                        byte_sequence_arguments,
-                        completion_claim_sources,
-                        completion_receipts,
-                    } => TerminalAssignedUnitOperation::BoundarySettlement {
-                        psi_operation: *psi_operation,
-                        boundary: *boundary,
-                        provider_execution: *provider_execution,
-                        realization: *realization,
-                        scalar_arguments: scalar_arguments.clone(),
-                        arguments: arguments.clone(),
-                        byte_sequence_arguments: byte_sequence_arguments.clone(),
-                        completion_claim_sources: completion_claim_sources.clone(),
-                        completion_receipts: completion_receipts.clone(),
-                    },
-                    TerminalTargetUnitOperation::Return {
-                        psi_edge,
-                        cleanup_actions,
-                    } => TerminalAssignedUnitOperation::Return {
-                        psi_edge: *psi_edge,
-                        cleanup_actions: cleanup_actions.clone(),
-                    },
+                .map(|operation| {
+                    Ok(match operation {
+                        TerminalTargetUnitOperation::EstablishByteSequenceLiteral {
+                            psi_operation,
+                            place,
+                            structural_type,
+                            bytes,
+                        } => TerminalAssignedUnitOperation::EstablishByteSequenceLiteral {
+                            psi_operation: *psi_operation,
+                            place: place.clone(),
+                            structural_type: structural_type.clone(),
+                            bytes: bytes.clone(),
+                        },
+                        TerminalTargetUnitOperation::IntegerConstant {
+                            psi_operation,
+                            result,
+                            scalar_type,
+                            value,
+                        } => TerminalAssignedUnitOperation::IntegerConstant {
+                            psi_operation: *psi_operation,
+                            result: *result,
+                            scalar_type: *scalar_type,
+                            value: *value,
+                        },
+                        TerminalTargetUnitOperation::EstablishTrivialAffineLocal {
+                            psi_operation,
+                            place,
+                            structural_type,
+                        } => TerminalAssignedUnitOperation::EstablishTrivialAffineLocal {
+                            psi_operation: *psi_operation,
+                            place: place.clone(),
+                            structural_type: structural_type.clone(),
+                        },
+                        TerminalTargetUnitOperation::Call {
+                            psi_operation,
+                            callee,
+                            arguments,
+                            claim_transfers,
+                        } => TerminalAssignedUnitOperation::Call {
+                            psi_operation: *psi_operation,
+                            callee: *callee,
+                            result: None,
+                            copies: arguments
+                                .iter()
+                                .map(|argument| TerminalAssignedAggregateCopy {
+                                    place: argument.place,
+                                    access: argument.access,
+                                    path: argument.path.clone(),
+                                    root_structural_type: argument.root_structural_type,
+                                    structural_type: argument.structural_type,
+                                    shape: argument.shape,
+                                    source_byte_offset: argument.source_byte_offset,
+                                    fixed_array_length: argument.fixed_array_length,
+                                    element_stride: argument.element_stride,
+                                    source: argument.source.clone(),
+                                    destination: argument.destination.clone(),
+                                })
+                                .collect(),
+                            claim_transfers: claim_transfers.clone(),
+                        },
+                        TerminalTargetUnitOperation::InstalledProviderCall {
+                            psi_operation,
+                            boundary,
+                            ..
+                        } => {
+                            return Err(
+                                AssignmentError::InstalledProviderCallRequiresOptimizedLane {
+                                    machine: function.machine,
+                                    operation: *psi_operation,
+                                    boundary: *boundary,
+                                },
+                            );
+                        }
+                        TerminalTargetUnitOperation::PortWrite {
+                            psi_operation,
+                            service,
+                            port,
+                            value,
+                        } => TerminalAssignedUnitOperation::PortWrite {
+                            psi_operation: *psi_operation,
+                            service: *service,
+                            port: *port,
+                            value: *value,
+                        },
+                        TerminalTargetUnitOperation::BoundarySettlement {
+                            psi_operation,
+                            boundary,
+                            provider_execution,
+                            realization,
+                            scalar_arguments,
+                            arguments,
+                            byte_sequence_arguments,
+                            completion_claim_sources,
+                            completion_receipts,
+                        } => TerminalAssignedUnitOperation::BoundarySettlement {
+                            psi_operation: *psi_operation,
+                            boundary: *boundary,
+                            provider_execution: *provider_execution,
+                            realization: *realization,
+                            scalar_arguments: scalar_arguments.clone(),
+                            arguments: arguments.clone(),
+                            byte_sequence_arguments: byte_sequence_arguments.clone(),
+                            completion_claim_sources: completion_claim_sources.clone(),
+                            completion_receipts: completion_receipts.clone(),
+                        },
+                        TerminalTargetUnitOperation::Return {
+                            psi_edge,
+                            cleanup_actions,
+                        } => TerminalAssignedUnitOperation::Return {
+                            psi_edge: *psi_edge,
+                            cleanup_actions: cleanup_actions.clone(),
+                        },
+                    })
                 })
-                .collect();
+                .collect::<Result<Vec<_>, _>>()?;
             TerminalAssignedOperation::UnitBody(TerminalAssignedUnitBody {
                 structural_types: body.structural_types.clone(),
                 call_plan: body.call_plan.clone(),
@@ -2394,6 +2409,11 @@ fn x86_expression_scratch_conflict(register: MachineRegister) -> bool {
 pub enum AssignmentError {
     EntryFunctionMissing(MachineId),
     UnsupportedScalarCleanup(MachineId),
+    InstalledProviderCallRequiresOptimizedLane {
+        machine: MachineId,
+        operation: OperationId,
+        boundary: psi_core::BoundaryMachineId,
+    },
     BoundaryPortReadUnsupported {
         machine: MachineId,
         architecture: Architecture,

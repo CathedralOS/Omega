@@ -257,6 +257,24 @@ fn derive_source_structural_unit_function(
             Some(optimized_call),
             optimized_return,
         ),
+        (
+            [
+                target_call @ TerminalTargetUnitOperation::InstalledProviderCall { .. },
+                target_return @ TerminalTargetUnitOperation::Return { .. },
+            ],
+            [
+                abstract_call @ TerminalAbstractOperation::BoundaryCall { .. },
+                abstract_return @ TerminalAbstractOperation::ReturnUnit { .. },
+            ],
+            [optimized_call, optimized_return],
+        ) => (
+            Some(target_call),
+            target_return,
+            Some(abstract_call),
+            abstract_return,
+            Some(optimized_call),
+            optimized_return,
+        ),
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let TerminalTargetUnitOperation::Return {
@@ -269,7 +287,10 @@ fn derive_source_structural_unit_function(
     let expected_provenance = TerminalPsiProvenance {
         operations: abstract_call
             .and_then(|operation| match operation {
-                TerminalAbstractOperation::CallUnit { psi_operation, .. } => Some(*psi_operation),
+                TerminalAbstractOperation::CallUnit { psi_operation, .. }
+                | TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
+                    Some(*psi_operation)
+                }
                 _ => None,
             })
             .into_iter()
@@ -429,36 +450,100 @@ fn derive_structural_call(
     abstract_plan: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
 ) -> Result<TerminalLegalizedCallUnit, TerminalLegalizationError> {
-    let TerminalTargetUnitOperation::Call {
-        psi_operation: target_operation,
-        callee: target_callee,
-        arguments: target_arguments,
-        claim_transfers: target_transfers,
-    } = target_call
-    else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    let TerminalAbstractOperation::CallUnit {
+    let (
         psi_operation,
         callee,
         structural_arguments,
+        target_arguments,
         claim_transfers,
-    } = abstract_call
-    else {
-        return Err(Error::UnsupportedSourceShape { function });
-    };
-    if target_operation != psi_operation
-        || target_callee != callee
-        || target_transfers != claim_transfers
-        || optimized_call.operation != *abstract_call
-        || optimized_call.provenance != [PsiProvenance::Operation(*psi_operation)]
-        || optimized_call.ownership
-            != [OwnershipEvent::ClaimTransfer(
-                claim_transfers
+        source,
+        expected_ownership,
+    ) = match (target_call, abstract_call) {
+        (
+            TerminalTargetUnitOperation::Call {
+                psi_operation: target_operation,
+                callee: target_callee,
+                arguments: target_arguments,
+                claim_transfers: target_transfers,
+            },
+            TerminalAbstractOperation::CallUnit {
+                psi_operation,
+                callee,
+                structural_arguments,
+                claim_transfers,
+            },
+        ) if target_operation == psi_operation
+            && target_callee == callee
+            && target_transfers == claim_transfers => (
+                *psi_operation,
+                *callee,
+                structural_arguments,
+                target_arguments,
+                claim_transfers,
+                omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::AuthoredCallUnit,
+                OwnershipEvent::ClaimTransfer(
+                    claim_transfers.iter().map(|transfer| transfer.claim).collect(),
+                ),
+            ),
+        (
+            TerminalTargetUnitOperation::InstalledProviderCall {
+                psi_operation: target_operation,
+                boundary: target_boundary,
+                provider,
+                source_arguments,
+                arguments: target_arguments,
+                claim_transfers: target_transfers,
+                completion_claim_sources: target_sources,
+                completion_receipts: target_receipts,
+            },
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation,
+                result: None,
+                boundary,
+                arguments,
+                structural_arguments,
+                completion_claim_sources,
+                completion_receipts,
+            },
+        ) if target_operation == psi_operation
+            && target_boundary == boundary
+            && arguments.is_empty()
+            && source_arguments == structural_arguments
+            && target_sources == completion_claim_sources
+            && target_receipts == completion_receipts
+            && target_transfers
+                == &completion_receipts
                     .iter()
-                    .map(|transfer| transfer.claim)
-                    .collect(),
-            )]
+                    .map(|receipt| psi_terminal::ClaimTransfer {
+                        claim: receipt.claim,
+                        argument_index: receipt.argument_index,
+                    })
+                    .collect::<Vec<_>>()
+            && provider.boundary == *boundary
+            && abstract_plan
+                .provider_candidates
+                .iter()
+                .any(|candidate| candidate == provider) => (
+                *psi_operation,
+                provider.candidate,
+                structural_arguments,
+                target_arguments,
+                target_transfers,
+                omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::InstalledProvider {
+                    boundary: *boundary,
+                    provider: provider.clone(),
+                    completion_claim_sources: completion_claim_sources.clone(),
+                    completion_receipts: completion_receipts.clone(),
+                },
+                OwnershipEvent::ClaimCompletion(
+                    completion_receipts.iter().map(|receipt| receipt.claim).collect(),
+                ),
+            ),
+        _ => return Err(Error::UnsupportedSourceShape { function }),
+    };
+    if optimized_call.operation != *abstract_call
+        || optimized_call.provenance != [PsiProvenance::Operation(psi_operation)]
+        || optimized_call.ownership != [expected_ownership]
         || optimized_call.effect.input != 0
         || optimized_call.effect.output != 1
         || !optimized_call.definitions.is_empty()
@@ -496,7 +581,7 @@ fn derive_structural_call(
         .collect::<Result<Vec<_>, _>>()?;
     validate_callee_alpha_match(
         function,
-        *callee,
+        callee,
         &arguments,
         claim_transfers,
         caller_claims,
@@ -504,15 +589,19 @@ fn derive_structural_call(
         abstract_plan,
         unit,
     )?;
-    Ok(TerminalLegalizedCallUnit {
-        operation: *psi_operation,
-        callee: *callee,
+    let call = TerminalLegalizedCallUnit {
+        source,
+        operation: psi_operation,
+        callee,
         arguments,
         claim_transfers: claim_transfers.clone(),
         fuel: optimized_call.fuel.clone(),
         effect: optimized_call.effect,
         ownership: optimized_call.ownership.clone(),
-    })
+    };
+    call.validate_source()
+        .map_err(|_| Error::UnsupportedSourceShape { function })?;
+    Ok(call)
 }
 
 #[allow(clippy::too_many_arguments)]

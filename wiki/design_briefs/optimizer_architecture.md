@@ -2554,11 +2554,31 @@ transfer interpretation. It rejects external-settlement overlap, partial
 installation, and identity or structural substitution. This is not permission
 to relabel the occurrence as source-authored `CallUnit`.
 
+Legalization retains that distinction in `TerminalLegalizedCallUnitSource` and
+independently replays the installed provider row, candidate ABI, physical
+receipt-derived transfers, original `BoundaryCall`, and `ClaimCompletion`
+ownership. Selected structural calls reuse the same source vocabulary and bind
+it in selected identity v10 while reusing the ordinary direct-internal-call
+physical recipe. An authored-call substitution therefore changes identity and
+fails replay. The compatibility assigned-operations lane rejects
+`InstalledProviderCall` explicitly; consumers that have not selected the
+optimizer cannot acquire it accidentally.
+
+Pure claim completion is a separate target mechanism. The provider body's
+`Extent::settle` operations may use the named `ClaimCompletionOnly` realization
+only when exact whole-root owned linear arguments, canonical entry-claim
+sources, receipts, and admitted provider execution all replay. It owns no
+scalar/result/byte payload and emits zero bytes, while legacy machine/object/
+installation custody retains the complete settlement row. Installation format
+41 binds the added realization tag. It is not a fake call, port effect, or
+selected instruction.
+
 The first positive three-way settlement/object/wrapper test still waits for
-legalization, selection, and a concrete provider/native realization to carry
-that installed call and its claim-completion custody into the canonical object
-lane. That is an implementation prerequisite, not a language-design question,
-and does not add an owner question.
+the optimized structural lane to retain the provider body's two no-code claim-
+completion rows through legalization and selection, then for orchestration to
+own the opaque installation alongside both functions through canonical object
+custody. That is an implementation prerequisite, not a language-design
+question, and does not add an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime

@@ -1014,6 +1014,7 @@ pub enum EmissionError {
     LinuxExitGroupEncoding,
     LinuxWriteLineEncoding,
     InvalidLinuxWriteLineCustody,
+    InvalidClaimCompletionOnlyCustody,
     InvalidCompletionProviderCustody,
     IntegerWidthNotNativelySupported {
         value: ValueId,

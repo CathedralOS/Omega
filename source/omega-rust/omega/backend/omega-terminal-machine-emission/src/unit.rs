@@ -505,6 +505,11 @@ pub(super) fn emit_unit_body(
                             return Err(EmissionError::InvalidLinuxWriteLineCustody);
                         }
                     }
+                    omega_terminal_target_operations::TerminalBoundaryRealization::ClaimCompletionOnly(_) => {
+                        if !scalar_arguments.is_empty() || !byte_sequence_arguments.is_empty() {
+                            return Err(EmissionError::InvalidClaimCompletionOnlyCustody);
+                        }
+                    }
                     omega_terminal_target_operations::TerminalBoundaryRealization::LinuxWriteLine(_) => {
                         let [argument] = byte_sequence_arguments.as_slice() else {
                             return Err(EmissionError::InvalidLinuxWriteLineCustody);

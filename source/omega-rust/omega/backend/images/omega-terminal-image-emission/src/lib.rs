@@ -1089,6 +1089,12 @@ pub fn build_terminal_object_artifact(
                             .count()
                             == 1
                 }
+                TerminalBoundaryRealization::ClaimCompletionOnly(_) => {
+                    settlement.scalar_arguments.is_empty()
+                        && settlement.byte_sequence_arguments.is_empty()
+                        && settlement.native_result.is_none()
+                        && settlement.byte_count == 0
+                }
                 TerminalBoundaryRealization::DirectPortReadU8(realization) => {
                     let expected =
                         omega_x86_encoding::encode_immediate_port_read_u8(realization.port);

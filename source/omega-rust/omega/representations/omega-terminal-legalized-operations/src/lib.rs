@@ -17,14 +17,16 @@ use omega_optimization_unit::{
     EffectLink, FuelSettlement, OwnershipEvent, PsiProvenance, ValueDefinitionSite,
 };
 use omega_target::NativeTarget;
-use omega_terminal_abstract_operations::TerminalValueBinding;
+use omega_terminal_abstract_operations::{TerminalCompletionClaimSource, TerminalValueBinding};
 use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
 use psi_core::{
-    BlockId, EdgeId, FuelScheduleIdentity, IeeeFloatFormat, IntegerType, IntegerValue, MachineId,
-    ObligationId, OperationId, ServiceId, StructuralPlaceKind, ValueId,
+    BlockId, BoundaryMachineId, ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment,
+    ContentPlaceVersion, EdgeId, FuelScheduleIdentity, IeeeFloatFormat, IntegerType, IntegerValue,
+    MachineId, ObligationId, OperationId, ServiceId, StructuralPlaceKind, ValueId,
 };
 use psi_terminal::{
-    BindingRelevance, ByteSequenceCarrier, ClaimTransfer, EntryClaim, StructuralAccess,
+    BindingRelevance, ByteSequenceCarrier, ClaimContentProjection, ClaimTransfer,
+    CompletionReceipt, EntryClaim, ProviderCandidateConformance, StructuralAccess,
     StructuralArgument, StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralParameterDeclaration, StructuralPathSegment, StructuralPlaceDeclaration,
     StructuralTypeDeclaration, StructuralTypeShape, TerminalPsiIdentity,
@@ -164,6 +166,7 @@ pub struct TerminalLegalizedCallUnitArgument {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TerminalLegalizedCallUnit {
+    pub source: TerminalLegalizedCallUnitSource,
     pub operation: OperationId,
     pub callee: MachineId,
     pub arguments: Vec<TerminalLegalizedCallUnitArgument>,
@@ -171,6 +174,115 @@ pub struct TerminalLegalizedCallUnit {
     pub fuel: Vec<FuelSettlement>,
     pub effect: EffectLink,
     pub ownership: Vec<OwnershipEvent>,
+}
+
+/// Exact semantic origin of one legalized structural Unit call.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalLegalizedCallUnitSource {
+    AuthoredCallUnit,
+    InstalledProvider {
+        boundary: BoundaryMachineId,
+        provider: ProviderCandidateConformance,
+        completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+        completion_receipts: Vec<CompletionReceipt>,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TerminalLegalizedCallSourceError {
+    ProviderIdentityMismatch,
+    ArgumentSignatureMismatch,
+    CompletionEvidenceMismatch,
+    OwnershipMismatch,
+}
+
+impl TerminalLegalizedCallUnit {
+    /// Validate only invariants owned by this representation. Upstream source,
+    /// target, optimizer, and installation replay remain independently
+    /// required before construction.
+    pub fn validate_source(&self) -> Result<(), TerminalLegalizedCallSourceError> {
+        match &self.source {
+            TerminalLegalizedCallUnitSource::AuthoredCallUnit => {
+                let claims = self
+                    .claim_transfers
+                    .iter()
+                    .map(|transfer| transfer.claim)
+                    .collect::<Vec<_>>();
+                (self.ownership == [OwnershipEvent::ClaimTransfer(claims)])
+                    .then_some(())
+                    .ok_or(TerminalLegalizedCallSourceError::OwnershipMismatch)
+            }
+            TerminalLegalizedCallUnitSource::InstalledProvider {
+                boundary,
+                provider,
+                completion_claim_sources,
+                completion_receipts,
+            } => {
+                if provider.boundary != *boundary || provider.candidate != self.callee {
+                    return Err(TerminalLegalizedCallSourceError::ProviderIdentityMismatch);
+                }
+                if provider.signature.parameters.len() != self.arguments.len()
+                    || self
+                        .arguments
+                        .iter()
+                        .zip(&provider.signature.parameters)
+                        .any(|(argument, parameter)| {
+                            argument.semantic.path.len() != 0
+                                || argument.semantic.access != parameter.access
+                                || argument.target.access != parameter.access
+                                || argument.target.structural_type != parameter.structural_type
+                        })
+                {
+                    return Err(TerminalLegalizedCallSourceError::ArgumentSignatureMismatch);
+                }
+                let transfers = completion_receipts
+                    .iter()
+                    .map(|receipt| ClaimTransfer {
+                        claim: receipt.claim,
+                        argument_index: receipt.argument_index,
+                    })
+                    .collect::<Vec<_>>();
+                let unique_source_claims = completion_claim_sources
+                    .iter()
+                    .map(|source| source.claim)
+                    .collect::<std::collections::BTreeSet<_>>();
+                if unique_source_claims.len() != completion_claim_sources.len()
+                    || transfers != self.claim_transfers
+                    || completion_receipts
+                        .windows(2)
+                        .any(|pair| pair[0] >= pair[1])
+                    || completion_receipts.iter().any(|receipt| {
+                        let Some(argument) = self.arguments.get(receipt.argument_index as usize)
+                        else {
+                            return true;
+                        };
+                        let matching = completion_claim_sources
+                            .iter()
+                            .filter(|source| source.claim == receipt.claim)
+                            .collect::<Vec<_>>();
+                        let [source] = matching.as_slice() else {
+                            return true;
+                        };
+                        (source.entry.is_none() && source.content.is_none())
+                            || source.input() != argument.semantic.place
+                            || source
+                                .entry
+                                .as_ref()
+                                .is_some_and(|entry| entry.path != argument.semantic.path)
+                    })
+                {
+                    return Err(TerminalLegalizedCallSourceError::CompletionEvidenceMismatch);
+                }
+                let completed = completion_receipts
+                    .iter()
+                    .map(|receipt| receipt.claim)
+                    .collect::<Vec<_>>();
+                (self.ownership == [OwnershipEvent::ClaimCompletion(completed)])
+                    .then_some(())
+                    .ok_or(TerminalLegalizedCallSourceError::OwnershipMismatch)
+            }
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -307,7 +419,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v6\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v7\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -438,6 +550,7 @@ fn encode_structural_unit_function(
     match &function.call {
         Some(call) => {
             bytes.push(1);
+            encode_call_source(bytes, &call.source);
             bytes.extend_from_slice(&call.operation.get().to_le_bytes());
             bytes.extend_from_slice(&call.callee.get().to_le_bytes());
             encode_len(bytes, call.arguments.len());
@@ -460,6 +573,130 @@ fn encode_structural_unit_function(
     encode_fuel(bytes, &function.return_fuel);
     encode_effect(bytes, function.return_effect);
     encode_ownership_roster(bytes, &function.return_ownership);
+}
+
+fn encode_call_source(bytes: &mut Vec<u8>, source: &TerminalLegalizedCallUnitSource) {
+    match source {
+        TerminalLegalizedCallUnitSource::AuthoredCallUnit => bytes.push(1),
+        TerminalLegalizedCallUnitSource::InstalledProvider {
+            boundary,
+            provider,
+            completion_claim_sources,
+            completion_receipts,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&boundary.get().to_le_bytes());
+            encode_provider_candidate(bytes, provider);
+            encode_len(bytes, completion_claim_sources.len());
+            for source in completion_claim_sources {
+                encode_completion_claim_source(bytes, source);
+            }
+            encode_len(bytes, completion_receipts.len());
+            for receipt in completion_receipts {
+                bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+                bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+            }
+        }
+    }
+}
+
+fn encode_provider_candidate(bytes: &mut Vec<u8>, provider: &ProviderCandidateConformance) {
+    bytes.extend_from_slice(&provider.boundary.get().to_le_bytes());
+    encode_string(bytes, &provider.requirement_identity);
+    encode_string(bytes, &provider.provider_identity);
+    encode_string(bytes, &provider.candidate_identity);
+    bytes.extend_from_slice(&provider.candidate.get().to_le_bytes());
+    encode_len(bytes, provider.signature.parameters.len());
+    for parameter in &provider.signature.parameters {
+        bytes.extend_from_slice(&parameter.position.to_le_bytes());
+        bytes.push(u8::from(parameter.is_self));
+        bytes.extend_from_slice(&parameter.structural_type.get().to_le_bytes());
+        encode_multiplicity(bytes, parameter.multiplicity);
+        encode_access(bytes, parameter.access);
+        encode_ids(
+            bytes,
+            parameter
+                .qualifications
+                .iter()
+                .map(|qualification| qualification.get()),
+        );
+    }
+    encode_len(bytes, provider.refinement.positional_parameters.len());
+    for parameter in &provider.refinement.positional_parameters {
+        bytes.extend_from_slice(&parameter.boundary_index.to_le_bytes());
+        bytes.extend_from_slice(&parameter.candidate_index.to_le_bytes());
+    }
+    encode_len(bytes, provider.refinement.required_domains.len());
+    for requirement in &provider.refinement.required_domains {
+        bytes.extend_from_slice(&requirement.argument_index.to_le_bytes());
+        bytes.extend_from_slice(&requirement.domain.get().to_le_bytes());
+    }
+    encode_ids(
+        bytes,
+        provider
+            .refinement
+            .realized_service_ceiling
+            .iter()
+            .map(|service| service.get()),
+    );
+}
+
+fn encode_completion_claim_source(bytes: &mut Vec<u8>, source: &TerminalCompletionClaimSource) {
+    bytes.extend_from_slice(&source.claim.get().to_le_bytes());
+    match &source.entry {
+        Some(entry) => {
+            bytes.push(1);
+            encode_entry_claim(bytes, entry);
+        }
+        None => bytes.push(0),
+    }
+    match &source.content {
+        Some(content) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&content.claim.get().to_le_bytes());
+            bytes.push(match content.input.version {
+                ContentPlaceVersion::Entry => 1,
+                ContentPlaceVersion::Current => 2,
+            });
+            bytes.extend_from_slice(&content.input.root.get().to_le_bytes());
+            encode_len(bytes, content.input.segments.len());
+            for segment in &content.input.segments {
+                match segment {
+                    ContentPlaceSegment::Field(value) => {
+                        bytes.push(1);
+                        encode_string(bytes, value);
+                    }
+                    ContentPlaceSegment::FixedIndex(value) => {
+                        bytes.push(2);
+                        bytes.extend_from_slice(&value.to_le_bytes());
+                    }
+                    ContentPlaceSegment::Case(value) => {
+                        bytes.push(3);
+                        encode_string(bytes, value);
+                    }
+                }
+            }
+            encode_len(bytes, content.projections.len());
+            for projection in &content.projections {
+                encode_claim_projection(bytes, projection);
+            }
+        }
+        None => bytes.push(0),
+    }
+}
+
+fn encode_claim_projection(bytes: &mut Vec<u8>, projection: &ClaimContentProjection) {
+    bytes.extend_from_slice(&projection.projection.domain.get().to_le_bytes());
+    bytes.extend_from_slice(&projection.projection.projection_fingerprint.to_le_bytes());
+    encode_content_algebra(bytes, &projection.algebra);
+}
+
+fn encode_content_algebra(bytes: &mut Vec<u8>, algebra: &ContentAlgebra) {
+    bytes.push(match algebra.kind {
+        ContentAlgebraKind::IntervalSet => 1,
+        ContentAlgebraKind::CountedQuantity => 2,
+    });
+    encode_string(bytes, &algebra.parameter);
 }
 
 fn encode_effect(bytes: &mut Vec<u8>, effect: EffectLink) {
@@ -1408,6 +1645,7 @@ mod tests {
                 published_service_ceiling: Vec::new(),
                 entry_block: id(1),
                 call: Some(TerminalLegalizedCallUnit {
+                    source: TerminalLegalizedCallUnitSource::AuthoredCallUnit,
                     operation: call,
                     callee: id(2),
                     arguments,
@@ -1443,6 +1681,169 @@ mod tests {
                 return_ownership: vec![OwnershipEvent::Cleanup(Vec::new())],
             }],
         }
+    }
+
+    fn installed_provider_plan() -> TerminalLegalizedOperationPlan {
+        let mut plan = call_aware_plan();
+        let function = &mut plan.structural_unit_functions[0];
+        let boundary = id::<BoundaryMachineId>(1);
+        let provider = ProviderCandidateConformance {
+            boundary,
+            requirement_identity: "ProgramEntry::enter".into(),
+            provider_identity: "UefiProgramProvider".into(),
+            candidate_identity: "UefiProgramProvider::enter".into(),
+            candidate: id(2),
+            signature: psi_terminal::ProviderUnitSignature {
+                parameters: function
+                    .parameters
+                    .iter()
+                    .map(|parameter| psi_terminal::ProviderSignatureParameter {
+                        position: parameter.semantic.position,
+                        is_self: parameter.semantic.is_self,
+                        structural_type: parameter.semantic.structural_type,
+                        multiplicity: parameter.semantic.multiplicity,
+                        access: parameter.semantic.access,
+                        qualifications: parameter.semantic.qualifications.clone(),
+                    })
+                    .collect(),
+            },
+            refinement: psi_terminal::ProviderUnitRefinement {
+                positional_parameters: vec![
+                    psi_terminal::ProviderParameterRefinement {
+                        boundary_index: 0,
+                        candidate_index: 0,
+                    },
+                    psi_terminal::ProviderParameterRefinement {
+                        boundary_index: 1,
+                        candidate_index: 1,
+                    },
+                ],
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        };
+        let completion_claim_sources = function
+            .entry_claims
+            .iter()
+            .cloned()
+            .map(|entry| TerminalCompletionClaimSource {
+                claim: entry.claim,
+                entry: Some(entry),
+                content: None,
+            })
+            .collect::<Vec<_>>();
+        let completion_receipts = function
+            .entry_claims
+            .iter()
+            .enumerate()
+            .map(|(argument_index, claim)| CompletionReceipt {
+                claim: claim.claim,
+                argument_index: argument_index as u32,
+            })
+            .collect::<Vec<_>>();
+        let call = function.call.as_mut().expect("structural call");
+        call.source = TerminalLegalizedCallUnitSource::InstalledProvider {
+            boundary,
+            provider,
+            completion_claim_sources,
+            completion_receipts,
+        };
+        call.ownership = vec![OwnershipEvent::ClaimCompletion(vec![id(1), id(2)])];
+        plan
+    }
+
+    #[test]
+    fn structural_call_source_validation_preserves_installed_completion_custody() {
+        let authored = call_aware_plan();
+        authored.structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("authored call")
+            .validate_source()
+            .expect("authored call source");
+
+        let installed = installed_provider_plan();
+        let call = installed.structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("installed call");
+        call.validate_source().expect("installed provider source");
+        assert_ne!(
+            terminal_legalized_operation_plan_identity(&authored),
+            terminal_legalized_operation_plan_identity(&installed)
+        );
+
+        let mut with_unrelated_source = installed.clone();
+        let call = with_unrelated_source.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("installed call");
+        let TerminalLegalizedCallUnitSource::InstalledProvider {
+            completion_claim_sources,
+            ..
+        } = &mut call.source
+        else {
+            panic!("installed provider source");
+        };
+        completion_claim_sources.push(TerminalCompletionClaimSource {
+            claim: id(3),
+            entry: Some(EntryClaim {
+                claim: id(3),
+                input: id(1),
+                path: Vec::new(),
+            }),
+            content: None,
+        });
+        call.validate_source()
+            .expect("unrelated retained caller source is permitted");
+        assert_ne!(
+            terminal_legalized_operation_plan_identity(&installed),
+            terminal_legalized_operation_plan_identity(&with_unrelated_source)
+        );
+
+        let mut duplicate_source = installed.clone();
+        let call = duplicate_source.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("installed call");
+        let TerminalLegalizedCallUnitSource::InstalledProvider {
+            completion_claim_sources,
+            ..
+        } = &mut call.source
+        else {
+            panic!("installed provider source");
+        };
+        completion_claim_sources.push(completion_claim_sources[0].clone());
+        assert_eq!(
+            call.validate_source(),
+            Err(TerminalLegalizedCallSourceError::CompletionEvidenceMismatch)
+        );
+
+        let mut wrong_ownership = installed.clone();
+        let call = wrong_ownership.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("installed call");
+        call.ownership = vec![OwnershipEvent::ClaimTransfer(vec![id(1), id(2)])];
+        assert_eq!(
+            call.validate_source(),
+            Err(TerminalLegalizedCallSourceError::OwnershipMismatch)
+        );
+
+        let mut wrong_provider = installed;
+        let call = wrong_provider.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("installed call");
+        let TerminalLegalizedCallUnitSource::InstalledProvider { provider, .. } = &mut call.source
+        else {
+            panic!("installed provider source");
+        };
+        provider.candidate = id(3);
+        assert_eq!(
+            call.validate_source(),
+            Err(TerminalLegalizedCallSourceError::ProviderIdentityMismatch)
+        );
     }
 
     fn assert_identity_drift(
