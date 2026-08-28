@@ -88,7 +88,8 @@ main_ready_require_shape:
         call exact_require_ambient_height
 
         imm r20, 51226
-        imm r21, 29619
+        imm r21, 41                  ; emit_prelude procedure identity
+        call exact_proc_entry_r21
         imm r22, 51235               ; checked first continuation
         call exact_require_call
         imm r20, 51235
