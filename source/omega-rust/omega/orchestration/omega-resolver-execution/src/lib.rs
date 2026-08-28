@@ -6,6 +6,15 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+mod network;
+
+pub use network::{
+    ResolverExecutionEndpointEvent, ResolverExecutionEndpointHost,
+    ResolverExecutionEndpointObservation, ResolverExecutionEndpointOutcome,
+    ResolverExecutionEndpointRoute, ResolverExecutionEndpointRoutePolicy,
+    ResolverExecutionRequestedEndpoint,
+};
+
 #[cfg(target_os = "macos")]
 use sha2::{Digest, Sha256};
 #[cfg(target_os = "macos")]
@@ -18,7 +27,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 3;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 4;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -198,6 +207,7 @@ pub struct ResolverExecutionPolicyObservation {
     backend: ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
     network_transport: Option<ResolverExecutionNetworkTransport>,
+    endpoint_route: Option<ResolverExecutionEndpointRoutePolicy>,
     generated_policy_sha256: Option<String>,
     resource_ceilings: ResolverExecutionResourceCeilings,
     executable: PathBuf,
@@ -217,6 +227,10 @@ impl ResolverExecutionPolicyObservation {
 
     pub const fn network_transport(&self) -> Option<ResolverExecutionNetworkTransport> {
         self.network_transport
+    }
+
+    pub const fn endpoint_route(&self) -> Option<&ResolverExecutionEndpointRoutePolicy> {
+        self.endpoint_route.as_ref()
     }
 
     pub fn generated_policy_sha256(&self) -> Option<&str> {
@@ -268,6 +282,13 @@ impl ResolverExecutionPolicyObservation {
             Some(transport) => {
                 bytes.push(1);
                 bytes.push(transport.tag());
+            }
+            None => bytes.push(0),
+        }
+        match &self.endpoint_route {
+            Some(route) => {
+                bytes.push(1);
+                route.encode(&mut bytes);
             }
             None => bytes.push(0),
         }
@@ -400,6 +421,16 @@ pub struct ResolverExecutionBackend {
     sandbox_metadata: ExecutableMetadataIdentity,
 }
 
+struct ResolverExecutionPolicyInputs<'a> {
+    phase: ResolverExecutionPhase,
+    network_transport: Option<ResolverExecutionNetworkTransport>,
+    endpoint_route: Option<&'a ResolverExecutionEndpointRoutePolicy>,
+    generated_policy_sha256: Option<String>,
+    executable: &'a Path,
+    additional_executables: &'a [PathBuf],
+    mutable_root: Option<&'a Path>,
+}
+
 impl ResolverExecutionBackend {
     pub fn open() -> io::Result<Self> {
         #[cfg(target_os = "macos")]
@@ -439,30 +470,41 @@ impl ResolverExecutionBackend {
         &self.identity
     }
 
+    /// Open a compiler-owned loopback broker for one already-validated remote
+    /// destination. This does not establish transport trust or acceptance.
+    pub fn open_endpoint_route(
+        &self,
+        requested_endpoint: ResolverExecutionRequestedEndpoint,
+    ) -> io::Result<ResolverExecutionEndpointRoute> {
+        self.verify()?;
+        ResolverExecutionEndpointRoute::open(requested_endpoint)
+    }
+
     fn policy_observation(
         &self,
-        phase: ResolverExecutionPhase,
-        network_transport: Option<ResolverExecutionNetworkTransport>,
-        generated_policy_sha256: Option<String>,
-        executable: &Path,
-        additional_executables: &[PathBuf],
-        mutable_root: Option<&Path>,
+        inputs: ResolverExecutionPolicyInputs<'_>,
     ) -> io::Result<ResolverExecutionPolicyObservation> {
         self.verify()?;
         let guarantees =
             ResolverExecutionGuarantee::ALL.map(|guarantee| ResolverExecutionGuaranteeRow {
                 guarantee,
-                disposition: guarantee_disposition(&self.identity, phase, guarantee),
+                disposition: guarantee_disposition(
+                    &self.identity,
+                    inputs.phase,
+                    inputs.endpoint_route.is_some(),
+                    guarantee,
+                ),
             });
         Ok(ResolverExecutionPolicyObservation {
             backend: self.identity.clone(),
-            phase,
-            network_transport,
-            generated_policy_sha256,
+            phase: inputs.phase,
+            network_transport: inputs.network_transport,
+            endpoint_route: inputs.endpoint_route.cloned(),
+            generated_policy_sha256: inputs.generated_policy_sha256,
             resource_ceilings: configured_resource_ceilings(),
-            executable: executable.to_path_buf(),
-            additional_executables: additional_executables.to_vec(),
-            mutable_root: mutable_root.map(Path::to_path_buf),
+            executable: inputs.executable.to_path_buf(),
+            additional_executables: inputs.additional_executables.to_vec(),
+            mutable_root: inputs.mutable_root.map(Path::to_path_buf),
             guarantees,
         })
     }
@@ -527,6 +569,28 @@ impl ResolverExecutionBackend {
         network_transport: Option<ResolverExecutionNetworkTransport>,
         mutable_root: Option<&Path>,
     ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.command_with_endpoint_route_observation(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            None,
+            mutable_root,
+        )
+    }
+
+    /// Construct one command and bind its native policy to an endpoint route.
+    /// Network phases require a route; nonnetwork phases reject one. Finish the
+    /// route after execution to obtain its separate endpoint observation.
+    pub fn command_with_endpoint_route_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
+        endpoint_route: Option<&ResolverExecutionEndpointRoute>,
+        mutable_root: Option<&Path>,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
         self.verify()?;
         require_absolute(executable, "resolver executable")?;
         if additional_executables.len() > RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT {
@@ -544,18 +608,30 @@ impl ResolverExecutionBackend {
         additional_executables.retain(|helper| helper != executable);
         additional_executables.sort();
         additional_executables.dedup();
-        match (phase.permits_network(), network_transport) {
-            (true, Some(_)) | (false, None) => {}
-            (true, None) => {
+        match (phase.permits_network(), network_transport, endpoint_route) {
+            (true, Some(_), Some(_)) | (false, None, None) => {}
+            (true, None, _) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "networked resolver phase has no closed transport authority",
                 ));
             }
-            (false, Some(_)) => {
+            (true, Some(_), None) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "networked resolver phase has no endpoint route",
+                ));
+            }
+            (false, Some(_), _) => {
                 return Err(io::Error::new(
                     io::ErrorKind::InvalidInput,
                     "nonnetwork resolver phase received transport authority",
+                ));
+            }
+            (false, None, Some(_)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "nonnetwork resolver phase received an endpoint route",
                 ));
             }
         }
@@ -585,6 +661,7 @@ impl ResolverExecutionBackend {
             &additional_executables,
             phase,
             network_transport,
+            endpoint_route.map(ResolverExecutionEndpointRoute::policy),
             mutable_root,
         )?;
         #[cfg(not(target_os = "macos"))]
@@ -593,14 +670,15 @@ impl ResolverExecutionBackend {
         let generated_policy_sha256 = None;
 
         configure_child_resource_limits(&mut command)?;
-        let observation = self.policy_observation(
+        let observation = self.policy_observation(ResolverExecutionPolicyInputs {
             phase,
             network_transport,
+            endpoint_route: endpoint_route.map(ResolverExecutionEndpointRoute::policy),
             generated_policy_sha256,
             executable,
-            &additional_executables,
+            additional_executables: &additional_executables,
             mutable_root,
-        )?;
+        })?;
         Ok((command, observation))
     }
 
@@ -611,6 +689,7 @@ impl ResolverExecutionBackend {
         additional_executables: &[PathBuf],
         phase: ResolverExecutionPhase,
         network_transport: Option<ResolverExecutionNetworkTransport>,
+        endpoint_route: Option<&ResolverExecutionEndpointRoutePolicy>,
         mutable_root: Option<&Path>,
     ) -> io::Result<(Command, Option<String>)> {
         let ResolverExecutionBackendIdentity::MacosSeatbelt {
@@ -632,8 +711,8 @@ impl ResolverExecutionBackend {
             profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
         }
         profile.push(')');
-        if network_transport.is_some() {
-            profile.push_str(" (allow network-outbound)");
+        if endpoint_route.is_some() {
+            profile.push_str(" (allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))");
         }
         if network_transport == Some(ResolverExecutionNetworkTransport::Ssh) {
             profile.push_str(&format!(
@@ -660,6 +739,12 @@ impl ResolverExecutionBackend {
                 .arg("-D")
                 .arg(definition_argument("MUTABLE_ROOT", root));
         }
+        if let Some(route) = endpoint_route {
+            command.arg("-D").arg(format!(
+                "BROKER_ENDPOINT=localhost:{}",
+                route.broker_endpoint().port()
+            ));
+        }
         let profile_sha256 = format_sha256(Sha256::digest(profile.as_bytes()).as_slice());
         command.arg("-p").arg(profile).arg(executable);
         Ok((command, Some(profile_sha256)))
@@ -669,6 +754,7 @@ impl ResolverExecutionBackend {
 fn guarantee_disposition(
     backend: &ResolverExecutionBackendIdentity,
     phase: ResolverExecutionPhase,
+    has_endpoint_route: bool,
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
     use ResolverExecutionBackendIdentity::{
@@ -699,6 +785,11 @@ fn guarantee_disposition(
         NetworkDenied if phase.permits_network() => NotRequired,
         NetworkDenied => Unavailable,
         NetworkEndpointsConfined if !phase.permits_network() => NotRequired,
+        NetworkEndpointsConfined
+            if matches!(backend, MacosSeatbelt { .. }) && has_endpoint_route =>
+        {
+            Enforced
+        }
         NetworkEndpointsConfined => Unavailable,
         CoreDumpsDenied | CpuTimeConfined | SingleFileSizeConfined | OpenFilesConfined => {
             match backend {
@@ -1015,12 +1106,22 @@ mod tests {
     use super::CHILD_OPEN_FILE_LIMIT;
     use super::{
         RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionBackend,
-        ResolverExecutionGuarantee, ResolverExecutionGuaranteeDisposition,
-        ResolverExecutionNetworkTransport, ResolverExecutionPhase,
+        ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
+        ResolverExecutionGuaranteeDisposition, ResolverExecutionNetworkTransport,
+        ResolverExecutionPhase, ResolverExecutionRequestedEndpoint,
     };
     use std::path::Path;
     #[cfg(target_os = "macos")]
     use std::process::Stdio;
+
+    fn loopback_route(backend: &ResolverExecutionBackend) -> ResolverExecutionEndpointRoute {
+        backend
+            .open_endpoint_route(
+                ResolverExecutionRequestedEndpoint::new("127.0.0.1", 9)
+                    .expect("construct loopback endpoint"),
+            )
+            .expect("open loopback endpoint route")
+    }
 
     #[test]
     fn mutability_is_derived_from_the_closed_phase() {
@@ -1048,6 +1149,69 @@ mod tests {
     }
 
     #[test]
+    fn endpoint_routes_are_required_exactly_for_network_phases() {
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let executable = if cfg!(windows) {
+            Path::new(r"C:\Windows\System32\cmd.exe")
+        } else {
+            Path::new("/bin/sh")
+        };
+        let mutable_root = std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary root");
+        let route = loopback_route(&backend);
+
+        for (phase, mutable_root) in [
+            (ResolverExecutionPhase::TransportDiscovery, None),
+            (ResolverExecutionPhase::Fetch, Some(mutable_root.as_path())),
+        ] {
+            assert!(
+                backend
+                    .command_with_endpoint_route_observation(
+                        executable,
+                        &[],
+                        phase,
+                        Some(ResolverExecutionNetworkTransport::Https),
+                        Some(&route),
+                        mutable_root,
+                    )
+                    .is_ok()
+            );
+            assert!(
+                backend
+                    .command_with_observation(
+                        executable,
+                        &[],
+                        phase,
+                        Some(ResolverExecutionNetworkTransport::Https),
+                        mutable_root,
+                    )
+                    .is_err()
+            );
+        }
+        for (phase, mutable_root) in [
+            (ResolverExecutionPhase::RepositoryInspection, None),
+            (
+                ResolverExecutionPhase::RepositoryInitialization,
+                Some(mutable_root.as_path()),
+            ),
+        ] {
+            assert!(
+                backend
+                    .command_with_endpoint_route_observation(
+                        executable,
+                        &[],
+                        phase,
+                        None,
+                        Some(&route),
+                        mutable_root,
+                    )
+                    .is_err()
+            );
+        }
+    }
+
+    #[test]
     fn policy_observation_is_complete_canonical_and_locally_fail_closed() {
         let backend = ResolverExecutionBackend::open().expect("open resolver backend");
         let executable = if cfg!(windows) {
@@ -1067,19 +1231,30 @@ mod tests {
                 None,
             )
             .expect("issue inspection policy observation");
+        let fetch_route = loopback_route(&backend);
         let (_, fetch) = backend
-            .command_with_observation(
+            .command_with_endpoint_route_observation(
                 executable,
                 &[],
                 ResolverExecutionPhase::Fetch,
                 Some(ResolverExecutionNetworkTransport::Ssh),
+                Some(&fetch_route),
                 Some(&mutable_root),
             )
             .expect("issue fetch policy observation");
         assert_eq!(inspection.network_transport(), None);
+        assert!(inspection.endpoint_route().is_none());
         assert_eq!(
             fetch.network_transport(),
             Some(ResolverExecutionNetworkTransport::Ssh)
+        );
+        assert_eq!(
+            fetch
+                .endpoint_route()
+                .expect("fetch route policy")
+                .requested_endpoint()
+                .port(),
+            9
         );
         assert!(
             backend
@@ -1104,6 +1279,19 @@ mod tests {
                 )
                 .is_err(),
             "nonnetwork phases reject transport authority"
+        );
+        assert!(
+            backend
+                .command_with_endpoint_route_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::RepositoryInspection,
+                    None,
+                    Some(&fetch_route),
+                    None,
+                )
+                .is_err(),
+            "nonnetwork phases reject endpoint routes"
         );
 
         assert_eq!(inspection.guarantees().len(), 13);
@@ -1241,30 +1429,36 @@ mod tests {
                 Some(&mutable_root),
             )
             .expect("issue initialization policy observation");
+        let discovery_route = loopback_route(&backend);
         let (discovery_command, discovery) = backend
-            .command_with_observation(
+            .command_with_endpoint_route_observation(
                 executable,
                 &[],
                 ResolverExecutionPhase::TransportDiscovery,
                 Some(ResolverExecutionNetworkTransport::Ssh),
+                Some(&discovery_route),
                 None,
             )
             .expect("issue discovery policy observation");
+        let https_discovery_route = loopback_route(&backend);
         let (https_discovery_command, https_discovery) = backend
-            .command_with_observation(
+            .command_with_endpoint_route_observation(
                 executable,
                 &[],
                 ResolverExecutionPhase::TransportDiscovery,
                 Some(ResolverExecutionNetworkTransport::Https),
+                Some(&https_discovery_route),
                 None,
             )
             .expect("issue HTTPS discovery policy observation");
+        let fetch_route = loopback_route(&backend);
         let (fetch_command, fetch) = backend
-            .command_with_observation(
+            .command_with_endpoint_route_observation(
                 executable,
                 &[],
                 ResolverExecutionPhase::Fetch,
                 Some(ResolverExecutionNetworkTransport::Ssh),
+                Some(&fetch_route),
                 Some(&mutable_root),
             )
             .expect("issue fetch policy observation");
@@ -1318,7 +1512,11 @@ mod tests {
         );
         let discovery_profile = profile(&discovery_command);
         assert!(!discovery_profile.contains("(import"));
-        assert!(discovery_profile.contains("network-outbound"));
+        assert!(
+            discovery_profile
+                .contains("(allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))")
+        );
+        assert!(!discovery_profile.contains("(allow network-outbound)"));
         assert!(!discovery_profile.contains("file-write*"));
         assert!(discovery_profile.contains(
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
@@ -1326,12 +1524,18 @@ mod tests {
         assert!(discovery_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
         assert!(!discovery_profile.contains("(allow sysctl-read)"));
         let https_discovery_profile = profile(&https_discovery_command);
-        assert!(https_discovery_profile.contains("network-outbound"));
+        assert!(
+            https_discovery_profile
+                .contains("(allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))")
+        );
         assert!(!https_discovery_profile.contains("mach-lookup"));
         assert!(!https_discovery_profile.contains("sysctl-read"));
         let fetch_profile = profile(&fetch_command);
         assert!(!fetch_profile.contains("(import"));
-        assert!(fetch_profile.contains("network-outbound"));
+        assert!(
+            fetch_profile
+                .contains("(allow network-outbound (remote tcp (param \"BROKER_ENDPOINT\")))")
+        );
         assert!(fetch_profile.contains("(allow file-write* (subpath (param \"MUTABLE_ROOT\")))"));
         assert!(fetch_profile.contains(
             "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
@@ -1393,7 +1597,7 @@ mod tests {
                 &discovery,
                 ResolverExecutionGuarantee::NetworkEndpointsConfined
             ),
-            ResolverExecutionGuaranteeDisposition::Unavailable
+            ResolverExecutionGuaranteeDisposition::Enforced
         );
         assert_eq!(
             disposition(
@@ -1419,7 +1623,7 @@ mod tests {
         );
         assert_eq!(
             disposition(&fetch, ResolverExecutionGuarantee::NetworkEndpointsConfined),
-            ResolverExecutionGuaranteeDisposition::Unavailable
+            ResolverExecutionGuaranteeDisposition::Enforced
         );
         assert_eq!(
             disposition(&fetch, ResolverExecutionGuarantee::ExecutablePathsConfined),
@@ -1662,7 +1866,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn seatbelt_denies_remote_tcp_in_nonnetwork_phases() {
+    fn seatbelt_denies_nonnetwork_tcp_and_confines_network_phases_to_the_broker() {
         use std::io::ErrorKind;
         use std::net::TcpListener;
 
@@ -1713,36 +1917,53 @@ mod tests {
         assert!(matches!(listener.accept(), Err(error) if error.kind() == ErrorKind::WouldBlock));
         std::fs::remove_dir(mutable_root).expect("remove network-denial mutable root");
 
-        let acceptance = std::thread::spawn(move || {
-            let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
-            loop {
-                match listener.accept() {
-                    Ok((_connection, _address)) => return,
-                    Err(error) if error.kind() == ErrorKind::WouldBlock => {
-                        assert!(
-                            std::time::Instant::now() < deadline,
-                            "network-enabled phase did not reach the loopback listener"
-                        );
-                        std::thread::sleep(std::time::Duration::from_millis(5));
-                    }
-                    Err(error) => panic!("loopback listener failed: {error}"),
-                }
-            }
-        });
-        let mut allowed = backend
-            .command(
+        let route = backend
+            .open_endpoint_route(
+                ResolverExecutionRequestedEndpoint::new("127.0.0.1", port)
+                    .expect("construct broker destination"),
+            )
+            .expect("open endpoint route");
+        let broker_port = route.policy().broker_endpoint().port();
+        let (mut allowed, _) = backend
+            .command_with_endpoint_route_observation(
                 Path::new("/usr/bin/nc"),
                 &[],
                 ResolverExecutionPhase::TransportDiscovery,
+                Some(ResolverExecutionNetworkTransport::Https),
+                Some(&route),
                 None,
             )
             .expect("build network-enabled sandbox");
         let status = allowed
+            .args(["127.0.0.1", &broker_port.to_string()])
+            .stdin(Stdio::null())
+            .status()
+            .expect("connect to exact loopback broker");
+        assert!(status.success());
+
+        let (mut direct, _) = backend
+            .command_with_endpoint_route_observation(
+                Path::new("/usr/bin/nc"),
+                &[],
+                ResolverExecutionPhase::TransportDiscovery,
+                Some(ResolverExecutionNetworkTransport::Https),
+                Some(&route),
+                None,
+            )
+            .expect("build endpoint-confined sandbox");
+        let status = direct
             .args(["127.0.0.1", &port.to_string()])
             .stdin(Stdio::null())
             .status()
-            .expect("connect to loopback canary");
-        assert!(status.success());
-        acceptance.join().expect("observe admitted connection");
+            .expect("attempt direct second-loopback connection");
+        assert!(!status.success());
+        assert!(matches!(listener.accept(), Err(error) if error.kind() == ErrorKind::WouldBlock));
+
+        let observation = route.finish().expect("finish endpoint route");
+        assert_eq!(observation.events().len(), 1);
+        assert_eq!(
+            observation.events()[0].outcome(),
+            super::ResolverExecutionEndpointOutcome::MalformedConnect
+        );
     }
 }

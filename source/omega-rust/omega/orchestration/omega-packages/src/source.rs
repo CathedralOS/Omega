@@ -1,5 +1,6 @@
 use crate::identity::{
-    GitObjectIdAlgorithm, GitTransport, IdentityError, SourceContentDigest, SourceLineage,
+    GitObjectIdAlgorithm, GitRequestedNetworkEndpoint, GitTransport, IdentityError,
+    SourceContentDigest, SourceLineage,
 };
 use crate::record_file::{RecordFileLimits, RecordFileRoot};
 use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
@@ -144,6 +145,7 @@ pub struct GitSourceRequest {
     requested_revision: String,
     lineage: SourceLineage,
     execution_transport: GitExecutionTransport,
+    requested_network_endpoint: GitRequestedNetworkEndpoint,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -249,8 +251,9 @@ impl GitSourceRequest {
                 IdentityError::MalformedGitLocator,
             ));
         }
-        let (lineage, locator_transport) = SourceLineage::git_with_transport(&locator)
-            .map_err(GitSourceRequestError::InvalidLocator)?;
+        let (lineage, locator_transport, requested_network_endpoint) =
+            SourceLineage::git_with_transport(&locator)
+                .map_err(GitSourceRequestError::InvalidLocator)?;
         let requested_revision = revision.unwrap_or_else(|| "HEAD".to_owned());
         validate_git_revision(&requested_revision)?;
         let locator_identity = canonical_git_locator(&lineage);
@@ -261,6 +264,7 @@ impl GitSourceRequest {
             requested_revision,
             lineage,
             execution_transport: GitExecutionTransport::from_locator_transport(locator_transport),
+            requested_network_endpoint,
         })
     }
 
@@ -291,6 +295,12 @@ impl GitSourceRequest {
 
     fn execution_transport(&self) -> GitExecutionTransport {
         self.execution_transport
+    }
+
+    // Retained for the later broker integration without exposing endpoint injection.
+    #[allow(dead_code)]
+    pub(crate) fn requested_network_endpoint(&self) -> &GitRequestedNetworkEndpoint {
+        &self.requested_network_endpoint
     }
 
     pub fn transport_profile(&self) -> GitTransportProfile {
@@ -8869,6 +8879,122 @@ mod tests {
                 ssh.execution_transport(),
             )
         );
+    }
+
+    #[test]
+    fn git_request_derives_requested_endpoint_from_accepted_lineage() {
+        for (locator, expected_host, expected_port) in [
+            (
+                "https://GitHub.com/CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                443,
+            ),
+            (
+                "ssh://git@GITHUB.COM/CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                22,
+            ),
+            (
+                "git@github.com:CathedralOS/Arithmetic-Kernels.git",
+                "github.com",
+                22,
+            ),
+            (
+                "https://GitLab.com/CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                443,
+            ),
+            (
+                "ssh://git@GITLAB.COM/CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                22,
+            ),
+            (
+                "git@gitlab.com:CathedralOS/libraries/Exact-Math.git",
+                "gitlab.com",
+                22,
+            ),
+            ("https://Git.Example/Group/tool.git", "git.example", 443),
+            (
+                "https://Git.Example:8443/Group/tool.git",
+                "git.example",
+                8443,
+            ),
+            ("ssh://deploy@Git.Example/Group/tool.git", "git.example", 22),
+            (
+                "ssh://deploy@Git.Example:2222/Group/tool.git",
+                "git.example",
+                2222,
+            ),
+            ("deploy@Git.Example:Group/tool.git", "git.example", 22),
+        ] {
+            let request = GitSourceRequest::new(locator, None).expect("accepted Git locator");
+            assert_eq!(
+                request.requested_network_endpoint().host(),
+                expected_host,
+                "wrong endpoint host for {locator:?}"
+            );
+            assert_eq!(
+                request.requested_network_endpoint().port(),
+                expected_port,
+                "wrong endpoint port for {locator:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn requested_endpoint_equality_is_sensitive_to_normalized_host_and_port() {
+        let first = GitSourceRequest::new("https://Git.Example/Group/first.git", None)
+            .expect("first request");
+        let same_endpoint = GitSourceRequest::new("https://git.example/Other/second.git", None)
+            .expect("same endpoint request");
+        let other_host = GitSourceRequest::new("https://other.example/Group/first.git", None)
+            .expect("other host request");
+        let other_port = GitSourceRequest::new("https://git.example:444/Group/first.git", None)
+            .expect("other port request");
+
+        assert_eq!(
+            first.requested_network_endpoint(),
+            same_endpoint.requested_network_endpoint()
+        );
+        assert_ne!(
+            first.requested_network_endpoint(),
+            other_host.requested_network_endpoint()
+        );
+        assert_ne!(
+            first.requested_network_endpoint(),
+            other_port.requested_network_endpoint()
+        );
+    }
+
+    #[test]
+    fn git_request_rejects_malformed_and_ambiguous_endpoint_ports() {
+        for locator in [
+            "https://git.example:/Group/tool.git",
+            "https://git.example:0/Group/tool.git",
+            "https://git.example:01/Group/tool.git",
+            "https://git.example:65536/Group/tool.git",
+            "https://git.example:-1/Group/tool.git",
+            "https://git.example:port/Group/tool.git",
+            "ssh://git@git.example:/Group/tool.git",
+            "ssh://git@git.example:0/Group/tool.git",
+            "ssh://git@git.example:01/Group/tool.git",
+            "ssh://git@git.example:65536/Group/tool.git",
+            "ssh://git@git.example:-1/Group/tool.git",
+            "ssh://git@git.example:port/Group/tool.git",
+            "https://github.com:443/CathedralOS/tool.git",
+            "ssh://git@github.com:22/CathedralOS/tool.git",
+            "https://gitlab.com:443/CathedralOS/tool.git",
+            "ssh://git@gitlab.com:22/CathedralOS/tool.git",
+        ] {
+            assert!(
+                matches!(
+                    GitSourceRequest::new(locator, None),
+                    Err(GitSourceRequestError::InvalidLocator(_))
+                ),
+                "accepted {locator:?}"
+            );
+        }
     }
 
     #[test]
