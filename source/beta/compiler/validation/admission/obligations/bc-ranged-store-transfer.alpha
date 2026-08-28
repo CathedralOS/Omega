@@ -37,323 +37,259 @@ transfer_require_selected_rows:
         imm r21, 0
         imm r22, 2
         imm r23, 0
-        imm r24, 125
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 3
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 297
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 4
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 446
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 7
         imm r21, 2
         imm r22, 1
         imm r23, 0
-        imm r24, 541
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 6
         imm r21, 2
         imm r22, 2
         imm r23, 0
-        imm r24, 608
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; declare snapshot, guard, two address uses, and NLOC increment input.
         imm r20, 70
         imm r21, 170
         imm r22, 2
         imm r23, 0
-        imm r24, 24190
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 71
         imm r21, 171
         imm r22, 1
         imm r23, 0
-        imm r24, 24209
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 72
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24443
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 73
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24606
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 74
         imm r21, 172
         imm r22, 1
         imm r23, 0
-        imm r24, 24769
-        call transfer_require_local
+        call exact_local_identity_pc
 
         ; Three ranged stores plus the complete machine-NLOC roots/update.
         imm r20, 0
         imm r21, 2
         imm r22, 2
         imm r23, 1
-        imm r24, 538
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r20, r0
+        imm r21, 1
+        call exact_require_pop_before
         imm r20, 3
         imm r21, 4
-        imm r22, 2
-        imm r23, 8
-        imm r24, 858
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 37
         imm r21, 170
-        imm r22, 1
-        imm r23, 8
-        imm r24, 24187
-        call transfer_require_memory
+        imm r25, 432
+        imm r26, 2097128
+        call exact_memory_load_pc
         imm r20, 39
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24577
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 41
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24740
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 43
         imm r21, 172
-        imm r22, 2
-        imm r23, 8
-        imm r24, 24852
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 83
         imm r21, 338
-        imm r22, 2
-        imm r23, 8
-        imm r24, 49077
-        call transfer_require_memory
+        call exact_memory_store_pc
 
         ; Guard/address/update primitives. Opcode values are Alpha opcodes.
         imm r20, 0
         imm r21, 0
         imm r22, 1
         imm r23, 0
-        imm r24, 115
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 3
         imm r21, 2
         imm r22, 3
         imm r23, 10
-        imm r24, 342
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 4
         imm r21, 2
         imm r22, 1
         imm r23, 1048576
-        imm r24, 332
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 5
         imm r21, 2
         imm r22, 1
         imm r23, 2097152
-        imm r24, 420
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 6
         imm r21, 2
         imm r22, 2
         imm r23, 3
-        imm r24, 465
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 7
         imm r21, 2
         imm r22, 2
         imm r23, 3
-        imm r24, 586
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 8
         imm r21, 2
         imm r22, 1
         imm r23, 1
-        imm r24, 576
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 13
         imm r21, 4
         imm r22, 1
         imm r23, 2097128
-        imm r24, 806
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 14
         imm r21, 4
         imm r22, 1
         imm r23, 0
-        imm r24, 832
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 432
         imm r21, 170
         imm r22, 1
         imm r23, 2097128
-        imm r24, 24177
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 433
         imm r21, 171
         imm r22, 3
         imm r23, 8
-        imm r24, 24254
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 434
         imm r21, 171
         imm r22, 1
         imm r23, 1024
-        imm r24, 24244
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 438
         imm r21, 172
         imm r22, 1
         imm r23, 3145728
-        imm r24, 24417
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 439
         imm r21, 172
         imm r22, 2
         imm r23, 3
-        imm r24, 24510
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 440
         imm r21, 172
         imm r22, 2
         imm r23, 5
-        imm r24, 24488
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 441
         imm r21, 172
         imm r22, 1
         imm r23, 8
-        imm r24, 24478
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 443
         imm r21, 172
         imm r22, 1
         imm r23, 3153920
-        imm r24, 24580
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 444
         imm r21, 172
         imm r22, 2
         imm r23, 3
-        imm r24, 24673
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 445
         imm r21, 172
         imm r22, 2
         imm r23, 5
-        imm r24, 24651
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 446
         imm r21, 172
         imm r22, 1
         imm r23, 8
-        imm r24, 24641
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 448
         imm r21, 172
         imm r22, 1
         imm r23, 2097128
-        imm r24, 24743
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 449
         imm r21, 172
         imm r22, 2
         imm r23, 3
-        imm r24, 24814
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 450
         imm r21, 172
         imm r22, 1
         imm r23, 1
-        imm r24, 24804
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 772
         imm r21, 338
         imm r22, 1
         imm r23, 2097128
-        imm r24, 49025
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 773
         imm r21, 338
         imm r22, 1
         imm r23, 0
-        imm r24, 49051
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         ; Address, arithmetic-left, and store-address staging roots.
         imm r20, 1
         imm r21, 2
-        imm r23, 316
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 2
         imm r21, 2
-        imm r23, 430
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 3
         imm r21, 2
-        imm r23, 560
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 371
         imm r21, 2
-        imm r23, 487
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 374
         imm r21, 4
-        imm r23, 816
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 112
         imm r21, 171
-        imm r23, 24228
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 113
         imm r21, 172
-        imm r23, 24427
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 114
         imm r21, 172
-        imm r23, 24462
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 115
         imm r21, 172
-        imm r23, 24590
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 116
         imm r21, 172
-        imm r23, 24625
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 117
         imm r21, 172
-        imm r23, 24788
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 385
         imm r21, 172
-        imm r23, 24532
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 386
         imm r21, 172
-        imm r23, 24695
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 387
         imm r21, 172
-        imm r23, 24753
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 400
         imm r21, 338
-        imm r23, 49035
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 ; Tie the table join to the exact two frame layouts, measured temporary peaks,

@@ -90,8 +90,8 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 63,654 lines; Checker A is 1,039,495 source bytes and the checker ROOT is
-  82,314 bytes. Shape, control, data, and
+  and 63,249 lines; Checker A is 1,022,427 source bytes and the checker ROOT is
+  81,727 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [ ] Finish identity localization before changing the shared compiler frame
@@ -99,8 +99,10 @@ admission, and optional stress evidence stay under the same compiler owner.
   continuation, epilogue, and shared macro identities are centralized. The r13
   word-size optimization still shifts many semantic consumers. The checked
   stable-row memory resolver has landed with the complete `gen_stmts` and
-  `gen_expr` memory families plus a same-block swapped-PC tooth; 14 further
-  consumer modules still call the coordinate-taking memory adapter.
+  `gen_expr` memory families plus a same-block swapped-PC tooth. The final 14
+  consumer modules now resolve all memory sites through checked identities and
+  semantic load/store rejoins; no semantic consumer calls the coordinate-taking
+  memory adapter.
   Synthetic `__write_str`, the sole missing shared owner found by the
   internal-site audit, now resolves from the checked prelude successor; effect
   custody owns its one exhaustive body check and the duplicate summary scan is
@@ -110,7 +112,10 @@ admission, and optional stress evidence stay under the same compiler owner.
   literals. The next memory, procedure/epilogue, and emit-layout tranches are
   also localized, including complete `gen_to` shape/rules and the remaining
   source-row-bound fixed emits. The earlier nine-module internal-site tranche is
-  closed. A fresh broad compatibility-API census still spans 58 modules before
+  closed. The memory-consumer closure localized `cursor`, `label`, `slurp`,
+  parse/data, ranged-store/resource, root-observation, and statement-label
+  families while deleting 352 net lines. A fresh broad compatibility-API census
+  still spans 45 modules before
   separating owner-internal or dynamically derived calls from literal semantic
   coordinates; classify and migrate the latter before r13. Source rows `259`
   and `391` are not artifact PCs. `gen_emit`'s three identical newline events

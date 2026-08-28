@@ -1,5 +1,5 @@
-; Exact p68 entry shape, from procedure entry48993 through the PLOP cutpoint
-; at49368.  This binds every selected row and exhausts every effect family.
+; Exact p68 entry shape through the entry of its parameter-loop block. This
+; binds every selected row and exhausts every effect family in that prefix.
 
 parse_proc_shape_init:
         call parse_proc_require_proc
@@ -34,64 +34,63 @@ parse_proc_require_proc:
 parse_proc_require_entry_block:
         imm r20, 338
         imm r21, 68                    ; parse_proc procedure identity
-        call exact_proc_entry_r21
-        call exact_require_block_pc
+        imm r22, 0
+        call exact_block_identity_pc
         ret
 
-; r20=event,r21=pc,r22=target,r23=continuation,r24=arity.
+; Source block/arity/target procedure in r21..r23.
 parse_proc_require_entry_call:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r20, r30
-        imm r21, 338
-        mov r22, r31
-        mov r23, r34
-        imm r24, 0
-        mov r25, r32
-        mov r26, r33
-        call summary_require_call_site
+        mov r24, r23
+        imm r23, 0
+        imm r20, 68                    ; parse_proc owning procedure identity
+        call summary_require_call_fallthrough_identity
+        ret
+
+; As above, with occurrence/cardinality in r24/r25 for a repeated complete key.
+parse_proc_require_entry_nth_call:
+        mov r26, r25
+        mov r25, r24
+        mov r24, r23
+        imm r23, 0
+        imm r20, 68                    ; parse_proc owning procedure identity
+        call summary_require_nth_call_fallthrough_identity
         ret
 
 parse_proc_require_entry_calls:
-        imm r20, 577
-        imm r21, 49080
-        imm r22, 4277                  ; skip_ws
-        imm r23, 49089
+        imm r21, 338
+        imm r22, 0
+        imm r23, 10                    ; first skip_ws
         imm r24, 0
-        call parse_proc_require_entry_call
-        imm r20, 578
-        imm r21, 49089
-        imm r22, 5217                  ; read_ident
-        imm r23, 49098                 ; first RIDS continuation
+        imm r25, 3
+        call parse_proc_require_entry_nth_call
+        imm r21, 338
+        imm r22, 0
+        imm r23, 12                    ; first read_ident
         imm r24, 0
+        imm r25, 2
+        call parse_proc_require_entry_nth_call
+        imm r21, 338
+        imm r22, 0
+        imm r23, 10                    ; second skip_ws
+        imm r24, 1
+        imm r25, 3
+        call parse_proc_require_entry_nth_call
+        imm r21, 338
+        imm r22, 0
+        imm r23, 12                    ; second read_ident
+        imm r24, 1
+        imm r25, 2
+        call parse_proc_require_entry_nth_call
+        imm r21, 338
+        imm r22, 1
+        imm r23, 24                    ; expect
         call parse_proc_require_entry_call
-        imm r20, 579
-        imm r21, 49098
-        imm r22, 4277
-        imm r23, 49107
-        imm r24, 0
-        call parse_proc_require_entry_call
-        imm r20, 580
-        imm r21, 49107
-        imm r22, 5217
-        imm r23, 49116
-        imm r24, 0
-        call parse_proc_require_entry_call
-        imm r20, 581
-        imm r21, 49350
-        imm r22, 17441                 ; expect
-        imm r23, 49359
-        imm r24, 1                     ; expect arity1
-        call parse_proc_require_entry_call
-        imm r20, 582
-        imm r21, 49359
-        imm r22, 4277
-        imm r23, 49368
-        imm r24, 0
-        call parse_proc_require_entry_call
+        imm r21, 338
+        imm r22, 0
+        imm r23, 10                    ; third skip_ws
+        imm r24, 2
+        imm r25, 3
+        call parse_proc_require_entry_nth_call
         ret
 
 parse_proc_require_entry_locals:
@@ -99,59 +98,44 @@ parse_proc_require_entry_locals:
         imm r21, 338
         imm r22, 2
         imm r23, 0
-        imm r24, 49129
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 224
         imm r21, 338
         imm r22, 2
         imm r23, 1
-        imm r24, 49161
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 225
         imm r21, 338
         imm r22, 1
         imm r23, 0
-        imm r24, 49206
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 226
         imm r21, 338
         imm r22, 1
         imm r23, 1
-        imm r24, 49270
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 parse_proc_require_entry_memory:
         imm r20, 83
         imm r21, 338
-        imm r22, 2
-        imm r23, 8
-        imm r24, 49077
-        call transfer_require_memory
+        call exact_memory_store_pc    ; NLOC = 0
         imm r20, 84
         imm r21, 338
-        imm r22, 1
-        imm r23, 8
-        imm r24, 49126
-        call transfer_require_memory
+        imm r25, 774
+        imm r26, 2097120             ; IDOFF snapshot
+        call exact_memory_load_pc
         imm r20, 85
         imm r21, 338
-        imm r22, 1
-        imm r23, 8
-        imm r24, 49158
-        call transfer_require_memory
+        imm r25, 775
+        imm r26, 2097112             ; IDLEN snapshot
+        call exact_memory_load_pc
         imm r20, 86
         imm r21, 338
-        imm r22, 2
-        imm r23, 8
-        imm r24, 49241
-        call transfer_require_memory
+        call exact_memory_store_pc    ; CURPROC name offset
         imm r20, 87
         imm r21, 338
-        imm r22, 2
-        imm r23, 8
-        imm r24, 49305
-        call transfer_require_memory
+        call exact_memory_store_pc    ; CURPROC name length
         ret
 
 parse_proc_require_entry_primitives:
@@ -159,63 +143,52 @@ parse_proc_require_entry_primitives:
         imm r21, 338
         imm r22, 1
         imm r23, 2097128
-        imm r24, 49025
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 773
         imm r21, 338
         imm r22, 1
         imm r23, 0
-        imm r24, 49051
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 774
         imm r21, 338
         imm r22, 1
         imm r23, 2097120
-        imm r24, 49116
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 775
         imm r21, 338
         imm r22, 1
         imm r23, 2097112
-        imm r24, 49148
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 776
         imm r21, 338
         imm r22, 1
         imm r23, 2097096
-        imm r24, 49180
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 777
         imm r21, 338
         imm r22, 1
         imm r23, 2097088
-        imm r24, 49244
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 778
         imm r21, 338
         imm r22, 1
         imm r23, 40
-        imm r24, 49308
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 parse_proc_require_entry_pushes:
         imm r20, 365
         imm r21, 338
-        imm r23, 49318
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 400
         imm r21, 338
-        imm r23, 49035
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 401
         imm r21, 338
-        imm r23, 49190
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r20, 402
         imm r21, 338
-        imm r23, 49254
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 parse_proc_require_entry_censuses:
@@ -244,9 +217,13 @@ parse_proc_require_entry_censuses:
         ret
 
 parse_proc_require_entry_decoded:
+        imm r20, 339
+        imm r21, 68
+        imm r22, 1
+        call exact_block_identity_pc
+        mov r21, r0                    ; p68 parameter-slice cutpoint
         imm r20, 68                    ; parse_proc procedure identity
         call exact_proc_entry_r20
-        imm r21, 49368
         imm r22, 6
         imm r23, 0
         imm r24, 10
