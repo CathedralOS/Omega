@@ -1,0 +1,40 @@
+// A statically selected trait requirement must expose the requirement's
+// public named proof surface after monomorphization. The satisfier may rename
+// its incoming alias and forward that local term, but the caller receives a
+// fresh opaque requirement-level `public_out` term rather than the satisfier's
+// private producer identity.
+
+trait Evidence {
+}
+
+proposition ready() evidence Evidence;
+
+trait Producer {
+    machine Self::produce(&self)
+    requires public_in: ready()
+    ensures public_out: ready();
+}
+
+data Token {
+}
+
+TokenProducer: Token satisfies Producer {
+    machine produce(&self)
+    requires local_in: ready()
+    ensures public_out: ready()
+    {
+        public_out = local_in;
+    }
+}
+
+machine invoke<Element, Order: Element satisfies Producer>(value: &Element)
+requires incoming: ready()
+{
+    let (; public_out: result) = Order::produce(value; incoming);
+}
+
+machine caller(value: &Token)
+requires incoming: ready()
+{
+    invoke<Token, TokenProducer>(value; incoming);
+}
