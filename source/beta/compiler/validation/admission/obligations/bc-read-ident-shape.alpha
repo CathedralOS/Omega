@@ -1,9 +1,10 @@
 ; Exact source/artifact shape for read_ident.
 ;
-; This module owns only procedure 12's four blocks, three transitions, calls,
+; The canonical procedure inventory owns procedure 12's total block span and
+; partition. This module owns only its three transitions, calls,
 ; return/epilogues, fixed-global word accesses, expression primitives, split
-; push families, frame, and decoded-region census.  The adjacent semantic
-; module owns termination and the identifier-slice relation.
+; push families, frame, and decoded-region census. The adjacent semantic module
+; owns termination and the identifier-slice relation.
 
 read_ident_require_shape:
         ; No parameters or locals: only the saved-frame word is live.
@@ -13,27 +14,6 @@ read_ident_require_shape:
         imm r23, 8
         call exact_require_proc_frame_identity
 
-read_ident_shape_blocks:
-        imm r20, 43
-        imm r21, 12
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 44
-        imm r21, 12
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 45
-        imm r21, 12
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 46
-        imm r21, 12
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 43
-        imm r21, 46
-        imm r22, 12
-        call exact_require_proc_blocks
         call read_ident_require_transitions
         call read_ident_require_events
         call read_ident_require_memory

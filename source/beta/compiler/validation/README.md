@@ -154,11 +154,11 @@ has one entry followed only by state blocks, and all 359 rows are consumed.
 It publishes only process-local first/exclusive block rows and entry/exclusive
 artifact PCs. Existing procedure-entry and block-range queries rejoin that
 structural product; frame, effect, memory, stack, and meaning remain separate.
-The first twenty single-procedure consumers have dropped census-only literal
-block listings and redundant private span scans while retaining every
+The first twenty-eight single-procedure consumers have dropped census-only
+literal block listings and redundant private span scans while retaining every
 PC-producing identity and semantic graph theorem. Exhaustive effect and fixed
-emitter scans read their canonical validated live counts rather than freezing a
-second, easily stale universe size.
+emitter scans read their canonical validated live counts rather than freezing
+a second, easily stale universe size.
 
 The whole-artifact frame summary retains one canonical per-PC reachability,
 relative-depth, frame-kind, and saved-frame product. Ranged-store transfer

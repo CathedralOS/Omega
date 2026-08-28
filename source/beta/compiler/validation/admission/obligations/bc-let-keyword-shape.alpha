@@ -1,9 +1,10 @@
 ; Exact source/artifact shape for id_char(k) and is_let().
 ;
+; The canonical procedure inventory owns both total block spans and partitions.
 ; This module owns only the identifier byte-load leaf and the four-stage `let`
-; keyword recognizer: CFG, calls/arguments, locals, memory, primitives, pushes,
-; frames, epilogues, and exhaustive row/decoded-region censuses. Relational
-; identifier-slice and keyword meaning lives in the adjacent module.
+; keyword recognizer: CFG edges, calls/arguments, locals, memory, primitives,
+; pushes, frames, epilogues, and exhaustive row/decoded-region censuses.
+; Relational identifier-slice and keyword meaning lives in the adjacent module.
 
 let_keyword_require_shape:
         ; id_char has one parameter; is_let has none.
@@ -19,44 +20,6 @@ let_keyword_shape_is_let_frame:
         imm r23, 8
         call exact_require_proc_frame_identity
 
-let_keyword_shape_blocks:
-        imm r20, 47
-        imm r21, 13
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 47
-        imm r21, 47
-        imm r22, 13
-        call exact_require_proc_blocks
-
-        imm r20, 48
-        imm r21, 14
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 49
-        imm r21, 14
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 50
-        imm r21, 14
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 51
-        imm r21, 14
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 52
-        imm r21, 14
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 53
-        imm r21, 14
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 48
-        imm r21, 53
-        imm r22, 14
-        call exact_require_proc_blocks
         call let_keyword_require_transitions
         call let_keyword_require_events
         call let_keyword_require_data

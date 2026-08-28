@@ -1,4 +1,5 @@
 ; Exact source/artifact shape for cmp_op() procedure59.
+; The canonical procedure inventory owns its total block span and partition.
 
 cmp_op_require_shape:
         imm r20, 59
@@ -7,59 +8,6 @@ cmp_op_require_shape:
         imm r23, 24
         call exact_require_proc_frame_identity
 
-cmp_op_shape_blocks:
-        imm r20, 273
-        imm r21, 59
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 274
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 275
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 276
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 277
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 278
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 279
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 280
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 281
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 282
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 283
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 284
-        imm r21, 59
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 273
-        imm r21, 284
-        imm r22, 59
-        call exact_require_proc_blocks
         call cmp_op_require_transitions
         call cmp_op_require_events
         call cmp_op_require_locals_memory

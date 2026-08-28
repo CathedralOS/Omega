@@ -1,9 +1,10 @@
 ; Exact control/effect shape for count_lets().
 ;
-; This module owns procedure 39's frame, eleven blocks, seventeen transitions,
-; ten ordinary calls, source and synthetic returns/epilogues, exhaustive effect
-; row intervals, and decoded-region call/return census. Local, memory, primitive,
-; and push row payloads are separated into bc-count-lets-data-shape.alpha.
+; The canonical procedure inventory owns procedure 39's total block span and
+; partition. This module owns its frame, seventeen transitions, ten ordinary
+; calls, source and synthetic returns/epilogues, exhaustive effect row intervals,
+; and decoded-region call/return census. Local, memory, primitive, and push row
+; payloads are separated into bc-count-lets-data-shape.alpha.
 
 count_lets_require_control_shape:
         imm r20, 39
@@ -12,55 +13,6 @@ count_lets_require_control_shape:
         imm r23, 40
         call exact_require_proc_frame_identity
 
-count_lets_shape_blocks:
-        imm r20, 193
-        imm r21, 39
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 194
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 195
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 196
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 197
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 198
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 199
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 200
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 201
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 202
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 203
-        imm r21, 39
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 193
-        imm r21, 203
-        imm r22, 39
-        call exact_require_proc_blocks
         call count_lets_require_transitions
         call count_lets_require_events
         call count_lets_require_control_census

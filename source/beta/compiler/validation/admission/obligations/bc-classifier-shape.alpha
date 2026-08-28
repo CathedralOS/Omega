@@ -1,8 +1,9 @@
 ; Exact source/artifact shape for the byte classifier family.
 ;
-; This module owns only the is_digit/is_alpha/is_alnum CFG, effect, frame,
-; primitive, push, and decoded-region joins. The adjacent relational module
-; owns the finite byte-domain meaning and public theorem tokens.
+; The canonical procedure inventory owns the is_digit/is_alpha/is_alnum total
+; block spans and partitions. This module owns only their CFG-edge, effect,
+; frame, primitive, push, and decoded-region joins. The adjacent relational
+; module owns the finite byte-domain meaning and public theorem tokens.
 
 classifier_require_shape:
         ; One parameter/slot and a 16-byte frame in every selected procedure.
@@ -12,82 +13,6 @@ classifier_require_shape:
         call classifier_require_proc_frame
         imm r20, 8
         call classifier_require_proc_frame
-
-        ; Exact blocks and exhaustive procedure ownership.
-        imm r20, 12
-        imm r21, 6
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 13
-        imm r21, 6
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 14
-        imm r21, 6
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 15
-        imm r21, 6
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 12
-        imm r21, 15
-        imm r22, 6
-        call exact_require_proc_blocks
-
-        imm r20, 16
-        imm r21, 7
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 17
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 18
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 19
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 20
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 21
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 22
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 23
-        imm r21, 7
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 16
-        imm r21, 23
-        imm r22, 7
-        call exact_require_proc_blocks
-
-        imm r20, 24
-        imm r21, 8
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 25
-        imm r21, 8
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 26
-        imm r21, 8
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 24
-        imm r21, 26
-        imm r22, 8
-        call exact_require_proc_blocks
 
         call classifier_require_transitions
         call classifier_require_events

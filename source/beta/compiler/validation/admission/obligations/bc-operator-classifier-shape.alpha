@@ -1,5 +1,6 @@
 ; Exact source/artifact shape for is_muldiv(c) and is_addsub(c), procedures
-; 53..54.  This module owns only blocks/edges, returns, parameter loads,
+; 53..54. The canonical procedure inventory owns their total block spans and
+; partitions. This module owns only edges, returns, parameter loads,
 ; equality/literal primitives, binary pushes, frames, and decoded quiet regions.
 
 operator_classifier_require_shape:
@@ -7,52 +8,6 @@ operator_classifier_require_shape:
         call operator_classifier_require_proc_frame
         imm r20, 54
         call operator_classifier_require_proc_frame
-
-        imm r20, 234
-        imm r21, 53
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 235
-        imm r21, 53
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 236
-        imm r21, 53
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 237
-        imm r21, 53
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 238
-        imm r21, 53
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 234
-        imm r21, 238
-        imm r22, 53
-        call exact_require_proc_blocks
-
-        imm r20, 239
-        imm r21, 54
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 240
-        imm r21, 54
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 241
-        imm r21, 54
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 242
-        imm r21, 54
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 239
-        imm r21, 242
-        imm r22, 54
-        call exact_require_proc_blocks
 
         call operator_classifier_require_transitions
         call operator_classifier_require_events
