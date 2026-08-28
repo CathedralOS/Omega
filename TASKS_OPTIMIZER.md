@@ -1124,12 +1124,13 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns eight
+  Current slice: the exact named `GlobalValueNumbering` selection owns nine
   rules in canonical order: obligation-free same-block CSE, proof-certified
   same-block CSE, obligation-free dominator GVN, and proof-certified dominator
   GVN, followed by obligation-free and proof-certified phi-translated GVN, then
-  proof-certified compatible-policy same-block CSE and dominator GVN. The last
-  two allow a redundant exact add/subtract/multiply to reuse an earlier
+  proof-certified compatible-policy same-block CSE and dominator GVN, and
+  proof-certified compatible-policy phi-translated GVN. The seventh and eighth
+  rules allow a redundant exact add/subtract/multiply to reuse an earlier
   obligation-free wrapping or saturating operation of the same integer family,
   domain, and operands, and a redundant exact shift to reuse the matching
   wrapping shift. They deliberately exclude division and remainder, and do not
@@ -1161,8 +1162,8 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v10, the named v6 pass, prephysical manifest v22,
-  and projection v23 bind this meaning; ledger v4 already represents the
+  optimization-unit identity v10, the named v7 pass, prephysical manifest v23,
+  and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
   The fifth and sixth rules admit a join expression only when it references at
@@ -1186,6 +1187,24 @@ dependency.
   rejects foreign redundant evidence or any detached leader fact. Partial
   redundancy elimination and cyclic-CFG GVN remain outside these rules;
   current admitted optimization units reject control cycles.
+
+  The ninth rule combines compatible-policy equality with phi translation at
+  an acyclic join. The redundant join computation must be a proof-certified
+  exact add, subtract, multiply, left shift, or right shift that references at
+  least one typed join parameter. Translating it through every incoming binding
+  must find the canonical available obligation-free compatible leader before the source
+  terminator or in a strict dominator: wrapping or saturating for arithmetic,
+  and wrapping for the same shift direction. Different arms may use wrapping
+  and saturating leaders because the redundant exact operation's accepted fact
+  proves their common exact value on the authored inputs. Add/multiply commute;
+  subtraction and shifts retain order. The rewrite appends the redundant
+  `ValueId` as one new join parameter and appends every leader binding, removes
+  the computation without global substitution, moves its provenance/fuel
+  forward, and removes only its active obligation reference. Independent replay
+  reconstructs the compatible relation, all translated arms, canonical
+  dominance choice, proof fact, edge custody, and immutable accepted catalog.
+  Division/remainder and the reverse obligation-free-to-exact relation remain
+  excluded.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
