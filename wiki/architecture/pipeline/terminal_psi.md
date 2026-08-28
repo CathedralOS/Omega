@@ -51,6 +51,13 @@ continuation still lacks ordinary frame/exit, object/image, and publication
 validation. The selected continuation must replace bounded assignment at that
 join; compilation never falls back or runs an alternate route.
 
+The ordinary realization graph no longer reaches the historical
+`omega-program-storage` implementation or `omega-backend-pipeline`. The
+source/target ProgramEntry declarations needed by build evaluation and native
+realization live in the data-only `omega-program-entry-plan` crate. Legacy
+storage-wrapper tests reuse those same identities from below; they do not own
+or provide an alternate compiler route.
+
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
 canonical semantic and proof sections plus an explicit admission profile,
 decode and verify them, and only then construct resumable execution state or
