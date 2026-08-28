@@ -415,6 +415,24 @@ complete.
   do not claim hostile same-user exclusion, during-write quotas, Windows DACL
   custody, or native process confinement.
 
+  Milestone 2026-08-27: local-package and exact-materialized source capture now
+  acquires the canonical source root by walking from its filesystem anchor and
+  opening every directory component no-follow, then walks only retained
+  directory capabilities. Child directories open without following the final
+  component; regular files open no-follow and are read immediately from that
+  retained handle, so a leaf reclassified as a symlink cannot redirect the
+  later read.
+  Symlink spelling and target validation are likewise rooted through the open
+  source capability; absolute local-link spellings reject because they cannot
+  remain rooted in the published snapshot. Canaries replace a previously
+  classified file, directory, and not-yet-opened root with symlinks and replace
+  the root pathname after opening; capture rejects the symlink substitutions
+  and remains bound to the original open root. This closes the concrete
+  classify-then-pathname-reopen gap. It does not make the complete
+  capture atomic, exclude a hostile same-user mutator, or close handle-relative
+  cache publication, native confinement, or resource quotas. Strict SSH trust
+  and credential custody is separately blocked on OWNER Q16.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary

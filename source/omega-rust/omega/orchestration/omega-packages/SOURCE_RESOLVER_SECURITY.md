@@ -1,6 +1,6 @@
 # Source resolver security boundary
 
-Status: engineering contract, revised 2026-08-26. This document refines
+Status: engineering contract, revised 2026-08-27. This document refines
 `HARDEN-SOURCE-RESOLVER`; it does not define package or Omega language syntax.
 
 ## Boundary
@@ -141,6 +141,21 @@ the remaining source-entry allowance plus only the toolchain-reserved names
 that may be excluded at that level. Resolver-owned materializations are checked
 under an exact-tree policy, so immutable Git snapshots still preserve every
 selected tree entry.
+
+Capture acquires the canonical source root by walking from its filesystem
+anchor and opening every directory component no-follow, then traverses relative
+to retained directory capabilities. Child directories and regular files open
+without following their final path component, and file bytes are read
+immediately from the retained handle rather than from a pathname saved during
+classification.
+Replacing a classified leaf with a symlink therefore cannot redirect capture;
+replacing the root pathname after it is opened does not redirect the open
+session either. Symlink spelling and target validation remain rooted in the
+same capability. Absolute local-link spellings reject because copying them
+would preserve authority to the mutable live pathname rather than the published
+snapshot. This narrows pathname substitution but does not make a
+multi-file capture atomic or defeat a hostile same-user process that mutates
+ordinary files and directories through its own credentials.
 
 Transport erasure now retains the original file, byte, and depth limits beside
 each package snapshot. Review orchestration checks canonical read-only modes
@@ -302,4 +317,5 @@ custody still belongs to the native resolver boundary and its receipt.
 Parent-owned selected-object-graph authentication supplies real evidence for a
 later strict receipt but does not itself make the resolver admissible. Native
 isolation, hostile same-user and Windows ACL cache custody, resource ceilings,
-explicit SSH trust/credential custody, and the opaque receipt remain open.
+explicit SSH trust/credential custody (OWNER Q16), and the opaque receipt remain
+open.
