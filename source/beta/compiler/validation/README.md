@@ -97,10 +97,11 @@ custody. Memory identity now returns a checked PC from the bounded source
 row/block/kind/width tuple instead of accepting a semantic caller's artifact
 coordinate. `gen_stmts` rejoins its loads to independently checked address
 literals and its stores to the shared pop-before-store macro; a seventh control
-swaps two valid same-block word-load PCs and rejects. The final ROOT tape is
-82,030 bytes for the current
+swaps two valid same-block word-load PCs and rejects. `gen_expr` now uses the
+same memory-owner rejoins for its complete memory family. The final ROOT tape is
+82,172 bytes for the current
 exact subjects, SHA-256
-`bf98cdb69e7853962bd1f58dd4794b7c570294633183b784f7b06021319b1220`.
+`7e3675449da2af21bd43d5374f2f1c8300c87dfaa998fa9491dfd06b1e4c001b`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is

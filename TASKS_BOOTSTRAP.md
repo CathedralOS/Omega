@@ -90,19 +90,26 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 65,015 lines; the checker ROOT is 82,030 bytes. Shape, control, data, and
+  and 64,990 lines; the checker ROOT is 82,172 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [ ] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
   word-size optimization still shifts 81 semantic modules. The checked
-  stable-row memory resolver has landed with the complete `gen_stmts` memory
-  family and a same-block swapped-PC tooth; 33 further modules must consume it.
-  Twenty-seven modules still need centralized internal-site or macro-extent
-  identity, leaving 47 modules in the remaining union. Complete the synthetic
-  `__write_str` owner, migrate the remaining memory consumers, then close the
-  internal sites.
+  stable-row memory resolver has landed with the complete `gen_stmts` and
+  `gen_expr` memory families plus a same-block swapped-PC tooth; 31 further
+  modules must consume it.
+  The 27-module internal-site audit found only one missing shared owner:
+  synthetic `__write_str`. The other consumers can migrate through the existing
+  procedure/block/transition/event/local/memory/primitive/push/epilogue APIs and
+  checked relative emit layout; source rows `259` and `391` must not be mistaken
+  for shifting artifact PCs. The memory and internal-site consumer sets leave
+  46 modules in their remaining union. First centralize the helper extent and
+  remove its duplicate shape checks, then migrate existing-identity consumers,
+  procedure/epilogue consumers, and relative emit-layout consumers in that
+  order. Add a same-complete-key emit-occurrence swap tooth after the
+  net-negative centralization.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated
@@ -160,15 +167,13 @@ The 2026-08-28 exact attempt was stopped after both parallel executions reached
   elaboration, packing, and repeated-execution commands. Retain the exact
   repeated assembly observation and receipt. A bounded smoke execution is not a
   substitute.
-- [ ] Complete realization replay in
-  `source/delta/compiler/validation/`. Current custody validates one stable
-  snapshot of the declared assembly, candidate Mach-O, diagnostics, SDK, and
-  tool inputs, but it does not prove that the literal declared command produced
-  the candidate bytes. Run the exact supplied tool paths and command profile to
-  a temporary output, require successful empty-diagnostic realization, validate
-  the replayed image, and require byte equality with the candidate artifact.
-  Handcrafted Mach-O fixtures may test the container validator but must not
-  receive reconstruction-bearing receipts.
+- [x] Complete realization replay in
+  `source/delta/compiler/validation/`. `generate` and `verify` now run the exact
+  supplied absolute tool paths and literal command profile against the captured
+  assembly, validate the fresh temporary Mach-O, require empty diagnostics and
+  byte equality with the candidate, and re-snapshot all inputs afterward.
+  Handcrafted Mach-O fixtures can test the container validator but cannot mint
+  reconstruction-bearing receipts.
 - [ ] Bind source identity, target identity, assembly identity, replayed
   executable identity, reconstruction obligations, and disclosed target/host
   admissions in the eventual publication receipt. Preserve `OPEN_REFINEMENT`
