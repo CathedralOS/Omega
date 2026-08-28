@@ -136,6 +136,18 @@ Remaining:
   CLI and an explicit target profile; it selects neither a cached CLI nor an
   ambient host target. Restore the lowering path and rerun all 45 cases against
   that same explicitly selected fresh CLI before extending the parser.
+  This is not a missing lookup or artifact-report switch. `Main::main` has two
+  real backedges, while the current structural-control producer, Terminal
+  verifier, ownership-frontier replay, and fixed-fuel path accept only acyclic
+  control. Close that general resource-bounded cyclic-control slice first with
+  retained rank/invariant evidence through codec, verifier, reconstruction,
+  interpreter, fuel, Omega lowering, native execution, and artifact custody.
+  Later product-required slices must then add persistent mutable receiver and
+  subplace custody, mixed operations in multi-state blocks, structural-result
+  boundary calls and payload cases, nested field/index reads and writes, and
+  Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
+  bypass Terminal Psi, revive the legacy backend, or route around the failure
+  in report/artifact policy.
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.
   Freeze the exact manifest and feature census only for the complete compiler
