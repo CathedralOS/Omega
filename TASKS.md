@@ -110,8 +110,13 @@ Remaining:
   manifests and profiles were retired with `source/omega/source-checkpoints/`;
   they are not current closure evidence and must not be recreated as a bridge
   dialect or file allowlist. The live authored slice under `source/psi/` plus
-  `source/omega/` currently reaches source/span, token, Unicode-table, and lexer
-  implementation only. Parsing and every later Psi/Omega phase remain open.
+  `source/omega/` currently reaches source/span custody, tokens, Unicode tables,
+  lexing, and fail-closed whole-file parsing for ordinary
+  `use path::member;` roots. The parser retains ordered source spans in
+  owner-local bounded tables and rejects every other root form; declarations,
+  resolution, checking, terminal Psi, and all later Psi/Omega phases remain
+  open. Extend this as live grammar/semantic slices, not checkpoint dialects,
+  private bridge IRs, or file-shape allowlists.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
@@ -167,6 +172,21 @@ Remaining:
   condition. Rust-specific maintenance stays in the explicit
   `source/omega-rust/` owner and never
   moves into `source/omega/{psi,omega}/`.
+
+- **OMEGA-RUST-DYNAMIC-COPY-HANDOFF.** Fix the hosted compiler's native
+  materialization of runtime-selected `[copy]` aggregates across machine
+  arguments/returns and its same-state observation of scalar scratch written by
+  a preceding mutable machine call. The live Psi parser currently scalarizes
+  the token header and crosses an explicit loaded-state boundary because the
+  aggregate form silently produced zero fields at runtime even though package
+  checking accepted it. This is an engineering defect, not a language-design
+  blocker and not permission to invent a parser bridge format.
+
+  Acceptance: focused native canaries retain every selected aggregate field
+  across argument and return positions, statement-order tests observe the
+  preceding mutable call before transition arguments, and the reference and
+  native paths agree. Then simplify the parser handoff where doing so preserves
+  the conservative compiler-source surface and its bounded input ownership.
 
 ## Execution order
 

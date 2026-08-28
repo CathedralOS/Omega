@@ -1,0 +1,78 @@
+use psi::source::source;
+
+// Bounded source-shaped storage for the first product parser slice. Handles
+// are dense indices into owner-local tables; no symbol or package meaning is
+// assigned here.
+
+pub data IdentifierSpan [copy] {
+    source_span: SourceSpan;
+}
+
+pub data UseItem [copy] {
+    first_member: u64 in Trapping;
+    member_count: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data RootItemKind [copy] {
+    case Use;
+}
+
+pub data RootItem [copy] {
+    kind: RootItemKind;
+    item_index: u64 in Trapping;
+    source_span: SourceSpan;
+}
+
+pub data ParseDiagnosticCode [copy] {
+    case None;
+    case LexicalInputRejected;
+    case UnsupportedRootItem;
+    case ExpectedPathMember;
+    case ExpectedPathSeparatorOrSemicolon;
+    case RootCapacityExceeded;
+    case UseCapacityExceeded;
+    case PathMemberCapacityExceeded;
+    case TokenInputCapacityExceeded;
+}
+
+pub data ParseDiagnostic [copy] {
+    code: ParseDiagnosticCode;
+    source_span: SourceSpan;
+}
+
+pub data SyntaxTrees {
+    roots: [RootItem; 256] in Trapping;
+    root_count: u64 [0..=256];
+    uses: [UseItem; 256] in Trapping;
+    use_count: u64 [0..=256];
+    members: [IdentifierSpan; 1024] in Trapping;
+    member_count: u64 [0..=1024];
+    diagnostic: ParseDiagnostic;
+    accepted: bool;
+}
+
+pub machine SyntaxTrees::clear(&mut self, source: SourceId) {
+    self.root_count = 0;
+    self.use_count = 0;
+    self.member_count = 0;
+    self.accepted = true;
+    self.diagnostic.code = ParseDiagnosticCode::None;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = 0;
+    self.diagnostic.source_span.span.end = 0;
+}
+
+pub machine SyntaxTrees::reject(
+    &mut self,
+    code: ParseDiagnosticCode,
+    source: SourceId,
+    start: u64 in Trapping,
+    end: u64 in Trapping
+) {
+    self.accepted = false;
+    self.diagnostic.code = code;
+    self.diagnostic.source_span.source = source;
+    self.diagnostic.source_span.span.start = start;
+    self.diagnostic.source_span.span.end = end;
+}
