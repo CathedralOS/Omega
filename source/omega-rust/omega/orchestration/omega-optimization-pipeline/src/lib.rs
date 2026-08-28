@@ -9401,7 +9401,7 @@ mod tests {
                 FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
             );
             let text_encoded = placed.manifest().record().encode();
-            assert_eq!(&text_encoded[8..12], &3_u32.to_le_bytes());
+            assert_eq!(&text_encoded[8..12], &4_u32.to_le_bytes());
             assert_eq!(text_encoded[45], 3);
             assert_eq!(
                 FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -9504,7 +9504,7 @@ mod tests {
             Err(FunctionFragmentTextSectionManifestDecodeError::IdentityMismatch)
         );
         let mut unknown_relocation = record.encode();
-        let relocation_tag = unknown_relocation.len() - 63;
+        let relocation_tag = unknown_relocation.len() - 127;
         unknown_relocation[relocation_tag] = 2;
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&unknown_relocation),
@@ -11823,6 +11823,12 @@ mod tests {
             validate_optimized_function_fragment_emission(&fragments),
             Err(FunctionFragmentEmissionError::ArtifactMismatch)
         ));
+        assert!(matches!(
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch)
+        ));
         fragments.fragments_mut().structural_unit_functions[0]
             .block
             .call
@@ -11831,10 +11837,141 @@ mod tests {
             .fixup
             .field_function_offset = original_field_offset;
         validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let original_template_byte = fragments.fragments().structural_unit_functions[0]
+            .block
+            .call
+            .as_ref()
+            .unwrap()
+            .bytes[0];
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] ^= 1;
         assert!(matches!(
-            stage_optimized_relocation_free_text_section(fragments),
-            Err(RelocationFreeTextSectionPlacementError::UnresolvedInternalMachineFixups)
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::StructuralUnitCallTemplate(
+                _,
+                omega_terminal_isa_x86_64::X86_64StructuralUnitCallTemplateError::MalformedTemplate
+            ))
         ));
+        fragments.fragments_mut().structural_unit_functions[0]
+            .block
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] = original_template_byte;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let callee_machine = fragments.fragments().structural_unit_functions[1].machine;
+        let caller_machine = fragments.fragments().structural_unit_functions[0].machine;
+        fragments.fragments_mut().structural_unit_functions[1].machine = caller_machine;
+        assert!(matches!(
+            crate::function_fragment_text_section::place_structural_unit_fragments_for_test(
+                &fragments
+            ),
+            Err(RelocationFreeTextSectionPlacementError::DuplicateFunction(machine))
+                if machine == caller_machine
+        ));
+        fragments.fragments_mut().structural_unit_functions[1].machine = callee_machine;
+        validate_optimized_function_fragment_emission(&fragments).unwrap();
+
+        let mut text = stage_optimized_relocation_free_text_section(fragments)
+            .expect("whole-text placement must discharge the internal MachineId call");
+        let placed = text.text_section();
+        assert_eq!(placed.byte_count, 91);
+        assert_eq!(placed.functions.len(), 2);
+        assert_eq!(
+            (
+                placed.functions[0].section_offset,
+                placed.functions[0].byte_count,
+                placed.functions[1].section_offset,
+                placed.functions[1].byte_count,
+            ),
+            (0, 90, 90, 1)
+        );
+        assert_eq!(&placed.bytes[81..85], &[5, 0, 0, 0]);
+        assert_eq!(placed.bytes[89], 0xc3);
+        assert_eq!(placed.bytes[90], 0xc3);
+        assert_eq!(placed.resolved_internal_machine_calls.len(), 1);
+        let resolved_call = placed.resolved_internal_machine_calls[0];
+        assert_eq!(resolved_call.call_section_offset, 0);
+        assert_eq!(resolved_call.opcode_section_offset, 80);
+        assert_eq!(resolved_call.field_section_offset, 81);
+        assert_eq!(resolved_call.next_instruction_section_offset, 85);
+        assert_eq!(resolved_call.callee_section_offset, 90);
+        assert_eq!(resolved_call.displacement, 5);
+        assert_eq!(
+            placed.relocation_requirements,
+            omega_object_file::TerminalTextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+        );
+        let text_manifest = text.manifest().record();
+        assert_eq!(text_manifest.statistics.functions, 0);
+        assert_eq!(text_manifest.statistics.bytes, 0);
+        assert_eq!(text_manifest.statistics.structural_unit_functions, 2);
+        assert_eq!(text_manifest.statistics.structural_unit_blocks, 2);
+        assert_eq!(
+            text_manifest.statistics.structural_unit_instruction_spans,
+            3
+        );
+        assert_eq!(text_manifest.statistics.structural_unit_bytes, 91);
+        assert_eq!(text_manifest.statistics.source_internal_machine_fixups, 1);
+        assert_eq!(text_manifest.statistics.resolved_internal_machine_fixups, 1);
+        assert_eq!(
+            text_manifest.statistics.remaining_internal_machine_fixups,
+            0
+        );
+        assert_eq!(
+            FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
+            Ok(text_manifest.clone())
+        );
+        for unsupported in [3_u32, 5_u32] {
+            let mut encoded = text_manifest.encode();
+            encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
+            assert_eq!(
+                FunctionFragmentTextSectionManifest::decode(&encoded),
+                Err(
+                    FunctionFragmentTextSectionManifestDecodeError::UnsupportedVersion(unsupported)
+                )
+            );
+        }
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement += 1;
+        assert!(matches!(
+            validate_optimized_relocation_free_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ArtifactMismatch)
+        ));
+        text.text_section_mut().resolved_internal_machine_calls[0].displacement = 5;
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+        text.manifest_mut()
+            .record_mut()
+            .statistics
+            .resolved_internal_machine_fixups = 0;
+        assert!(matches!(
+            validate_optimized_relocation_free_text_section(&text),
+            Err(RelocationFreeTextSectionPlacementError::ManifestMismatch)
+        ));
+        text.manifest_mut()
+            .record_mut()
+            .statistics
+            .resolved_internal_machine_fixups = 1;
+        validate_optimized_relocation_free_text_section(&text).unwrap();
+
+        let object = stage_optimized_relocation_free_terminal_object_container(text)
+            .expect("resolved structural text must require no object relocation");
+        assert_eq!(object.object().text_section.byte_count, 91);
+        assert_eq!(&object.object().text_section.bytes[81..85], &[5, 0, 0, 0]);
+        assert_eq!(object.object().symbols.len(), 2);
+        assert_eq!(object.object().symbols[0].section_offset, 0);
+        assert_eq!(object.object().symbols[0].byte_count, 90);
+        assert_eq!(object.object().symbols[1].section_offset, 90);
+        assert_eq!(object.object().symbols[1].byte_count, 1);
+        assert_eq!(object.object().relocation_record_count, 0);
+        validate_optimized_relocation_free_terminal_object_container(&object).unwrap();
     }
 
     #[test]
