@@ -17,17 +17,21 @@ lookup_require_shape:
 
 lookup_shape_blocks:
         imm r20, 179
-        imm r21, 26114                ; exact proc36 entry block
-        call exact_require_block_pc
+        imm r21, 36
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 180
-        imm r21, 26207
-        call exact_require_block_pc
+        imm r21, 36
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 181
-        imm r21, 26369
-        call exact_require_block_pc
+        imm r21, 36
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 182
-        imm r21, 26628
-        call exact_require_block_pc
+        imm r21, 36
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 179
         imm r21, 182
         imm r22, 36
@@ -41,98 +45,34 @@ lookup_require_transitions:
         imm r21, 180
         imm r22, 1
         imm r23, 181
-        imm r24, 26320                ; i<n branch root
-        call exact_require_transition
+        call exact_transition_identity_pc ; i<n branch root
         imm r20, 135
         imm r21, 181
         imm r22, 1
         imm r23, 182
-        imm r24, 26514                ; name_eq result-one branch root
-        call exact_require_transition
+        call exact_transition_identity_pc ; name_eq result-one branch root
         imm r20, 136
         imm r21, 181
         imm r22, 0
         imm r23, 180
-        imm r24, 26619                ; exact no-match backedge
-        call exact_require_transition
+        call exact_transition_identity_pc ; exact no-match backedge
         ret
 
 lookup_require_events:
-        imm r20, 278
+        imm r20, 36
         imm r21, 180
-        imm r22, 5
-        imm r23, 26368                ; exhausted return zero
-        call exact_require_event
-        imm r20, 279
+        call exact_require_event_epilogue ; exhausted return zero
+        imm r20, 36
         imm r21, 181
         imm r22, 1
-        imm r23, 26420                ; name_eq call
-        call exact_require_event
-        imm r20, 280
+        imm r23, 0
+        imm r24, 35                    ; name_eq procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 36
         imm r21, 182
-        imm r22, 5
-        imm r23, 26666                ; hit return i
-        call exact_require_event
-        imm r20, 279
-        imm r21, 1                    ; one argument
-        call lookup_require_event_arity
-        imm r20, 279
-        imm r21, 0                    ; zero ambient expression words
-        call lookup_require_ambient_height
-        imm r20, 26420
-        imm r21, 24914                ; exact name_eq target
-        imm r22, 26429                ; exact call continuation
-        call lookup_require_call
-        imm r20, 26349
-        imm r21, 26368
-        call exact_require_epilogue
-        imm r20, 26647
-        imm r21, 26666
-        call exact_require_epilogue
-        imm r20, 26667
-        imm r21, 26686
-        call exact_require_epilogue
-        ret
-
-lookup_require_event_arity:
-        mov r2, r20
-        imm r1, 8
-        mul r2, r1
-        imm r1, 7143424
-        add r1, r2
-        load r2, r1
-        jeq r2, r21, exact_shape_ok
-        jmp reject
-
-lookup_require_ambient_height:
-        mov r2, r20
-        imm r1, 8
-        mul r2, r1
-        imm r1, 10035200
-        add r1, r2
-        load r2, r1
-        jeq r2, r21, exact_shape_ok
-        jmp reject
-
-; Require call at r20 to target r21 and have exact continuation r22.
-lookup_require_call:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r2, r25
-        imm r1, 9
-        add r2, r1
-        jeq r2, r27, lookup_call_opcode
-        jmp reject
-lookup_call_opcode:
-        mov r20, r25
-        imm r21, 19
-        call require_tape_byte
-        mov r20, r25
-        imm r1, 1
-        add r20, r1
-        mov r21, r26
-        call require_tape_word
+        call exact_require_event_epilogue ; hit return i
+        imm r20, 37                    ; skip_char_lit identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 lookup_require_control_census:
@@ -147,8 +87,10 @@ lookup_require_control_census:
         imm r28, 278
         imm r29, 281                  ; exclusive event row
         call exact_require_effect_census
-        imm r20, 26114
-        imm r21, 26687
+        imm r20, 36
+        call exact_proc_entry_r20
+        imm r21, 37
+        call exact_proc_entry_r21
         imm r22, 1                    ; name_eq call
         imm r23, 3                    ; two source plus synthetic return
         imm r24, 8                    ; prologue/local/temporary stores

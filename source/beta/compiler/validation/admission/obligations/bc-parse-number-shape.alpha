@@ -22,14 +22,17 @@ parse_number_require_shape:
 
 parse_number_shape_blocks:
         imm r20, 167
-        imm r21, 23672
-        call exact_require_block_pc
+        imm r21, 33
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 168
-        imm r21, 23733
-        call exact_require_block_pc
+        imm r21, 33
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 169
-        imm r21, 23926
-        call exact_require_block_pc
+        imm r21, 33
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 167
         imm r21, 169
         imm r22, 33
@@ -47,61 +50,45 @@ parse_number_require_transitions:
         imm r21, 168
         imm r22, 1
         imm r23, 169
-        imm r24, 23868              ; checked digit-true guard
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked digit-true guard
         imm r20, 127
         imm r21, 169
         imm r22, 0
         imm r23, 168
-        imm r24, 24116              ; checked body backedge
-        call exact_require_transition
+        call exact_transition_identity_pc ; checked body backedge
         ret
 
 parse_number_require_events:
         ; Source nesting records is_digit before its cbyte argument.
-        imm r20, 269
+        imm r20, 33
         imm r21, 168
-        imm r22, 23733
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1609               ; cbyte
-        imm r26, 23742
-        call summary_require_call_site
-        imm r20, 268
+        imm r24, 4                  ; cbyte procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 33
         imm r21, 168
-        imm r22, 23774
-        imm r23, 1
-        imm r24, 0
-        imm r25, 2084               ; is_digit
-        imm r26, 23783
-        call summary_require_call_site
-        imm r20, 270
+        imm r22, 1
+        imm r23, 0
+        imm r24, 6                  ; is_digit procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 33
         imm r21, 168
-        imm r22, 5
-        imm r23, 23925              ; explicit return v
-        call exact_require_event
-        imm r20, 271
+        call exact_require_event_epilogue ; explicit return v
+        imm r20, 33
         imm r21, 169
-        imm r22, 24009
-        imm r23, 0
-        imm r24, 1                  ; outer addition left is live
-        imm r25, 1609               ; cbyte
-        imm r26, 24018
-        call summary_require_call_site
-        imm r20, 272
+        imm r22, 0
+        imm r23, 1                  ; outer addition left is live
+        imm r24, 4                  ; cbyte procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 33
         imm r21, 169
-        imm r22, 24107
+        imm r22, 0
         imm r23, 0
-        imm r24, 0
-        imm r25, 1939               ; adv
-        imm r26, 24116
-        call summary_require_call_site
-        imm r20, 23906
-        imm r21, 23925
-        call exact_require_epilogue
-        imm r20, 24125
-        imm r21, 24144
-        call exact_require_epilogue
+        imm r24, 5                  ; adv procedure identity
+        call summary_require_call_fallthrough_identity
+        imm r20, 34                 ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
         ret
 
 parse_number_require_locals:
@@ -109,26 +96,22 @@ parse_number_require_locals:
         imm r21, 167
         imm r22, 2
         imm r23, 0
-        imm r24, 23714              ; v=0
-        call transfer_require_local
+        call exact_local_identity_pc ; v=0
         imm r20, 67
         imm r21, 168
         imm r22, 1
         imm r23, 0
-        imm r24, 23887              ; returned v
-        call transfer_require_local
+        call exact_local_identity_pc ; returned v
         imm r20, 68
         imm r21, 169
         imm r22, 2
         imm r23, 0
-        imm r24, 24088              ; updated v
-        call transfer_require_local
+        call exact_local_identity_pc ; updated v
         imm r20, 69
         imm r21, 169
         imm r22, 1
         imm r23, 0
-        imm r24, 23926              ; prior v
-        call transfer_require_local
+        call exact_local_identity_pc ; prior v
         ret
 
 parse_number_require_primitives:
@@ -136,73 +119,60 @@ parse_number_require_primitives:
         imm r21, 167
         imm r22, 1
         imm r23, 0
-        imm r24, 23704              ; initial v
-        call transfer_require_primitive
+        call exact_primitive_identity_pc ; initial v
         imm r20, 425
         imm r21, 168
         imm r22, 3
         imm r23, 10                 ; is_digit result == 1
-        imm r24, 23809
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 426
         imm r21, 168
         imm r22, 1
         imm r23, 1
-        imm r24, 23799
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 427
         imm r21, 169
         imm r22, 2
         imm r23, 5                  ; wrapping v*10
-        imm r24, 23971
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 428
         imm r21, 169
         imm r22, 1
         imm r23, 10
-        imm r24, 23961
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 429
         imm r21, 169
         imm r22, 2
         imm r23, 3                  ; wrapping addition
-        imm r24, 24066
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 430
         imm r21, 169
         imm r22, 2
         imm r23, 4                  ; byte-'0'
-        imm r24, 24044
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 431
         imm r21, 169
         imm r22, 1
         imm r23, 48
-        imm r24, 24034
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 parse_number_require_pushes:
         imm r20, 108
         imm r21, 168
-        imm r23, 23783              ; classifier result
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; classifier result
         imm r20, 109
         imm r21, 169
-        imm r23, 23945              ; prior v
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; prior v
         imm r20, 110
         imm r21, 169
-        imm r23, 23993              ; second cbyte result
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; second cbyte result
         imm r20, 111
         imm r21, 169
-        imm r23, 24018              ; wrapped product
-        call exact_require_binary_push
+        call exact_require_binary_push_identity ; wrapped product
         imm r20, 314
         imm r21, 168
-        imm r23, 23742              ; cbyte-to-is_digit argument
-        call exact_require_argument_push
+        call exact_require_argument_push_identity ; cbyte-to-is_digit argument
         ret
 
 parse_number_require_censuses:
@@ -228,8 +198,10 @@ parse_number_require_censuses:
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
-        imm r20, 23672
-        imm r21, 24145
+        imm r20, 33                  ; parse_number procedure identity
+        call exact_proc_entry_r20
+        imm r21, 34                  ; declare procedure identity / region end
+        call exact_proc_entry_r21
         imm r22, 4                   ; cbyte/is_digit/cbyte/adv
         imm r23, 2                   ; parse_number explicit and synthetic return
         imm r24, 8                   ; prologue/local/argument/binary stores
