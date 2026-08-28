@@ -114,7 +114,14 @@ their load/store sites through the same checked identities: `cmp_op`,
 fixed-keyword procedure boundaries use procedure, call-fallthrough, and
 epilogue identities. Label/reference and statement-emitter modules derive
 their helper/literal layout from checked emit events instead of retaining a
-second absolute layout.
+second absolute layout. Expression-call rules, identifier indexing, expression
+resource handling, fixed-keyword tables, `let`, `parse_char`, `gen_stmt` data,
+`gen_factor`, `gen_emit`, `gen_state`, `gen_store`, and both `gen_to` modules now
+resolve their shifting semantic sites through those same owners. Repeated
+`gen_to` calls and emits use exact complete-key cardinality/occurrence, its word
+loads rejoin checked address literals, and its CUR store rejoins the canonical
+pop-before-store shape. Fourteen consumer modules still call the transitional
+coordinate-taking memory adapter.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
