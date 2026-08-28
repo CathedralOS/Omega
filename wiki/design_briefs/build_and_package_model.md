@@ -1277,7 +1277,7 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v75/row v33, recovery v11, conflict fingerprint v14, and renderer V13 bind
+Review v75/row v33, recovery v12, conflict fingerprint v15, and renderer V14 bind
 the current source schema. External executable leaves retain the exact authored
 `via` keyword beside the normalized binding identity on the same conformance.
 Projection requires binding/span parity and carries that occurrence under
@@ -1297,6 +1297,11 @@ custody, as does every fact beneath an authored public contract clause;
 source-free compiler synthesis receives no invented coordinate. Absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.
+Public trait rows additionally retain every exact machine-requirement
+declaration under `trait_requirement`; public data rows retain fields, sum
+cases, and payload fields under `data_member`. These roles consume the existing
+typed declaration symbols. Direct declarations use their authored spans;
+generated declarations expose only their real derivation origin.
 
 Proposition and named-evidence projection is the concrete model for this
 cross-representation rule. Typed proposition applications own structural

@@ -137,8 +137,11 @@ real package fixture demonstrates an irreducible external contract.
   full semantic-token extent under `proof_fact`, separately from its clause
   keyword; public domain/data facts and authored public contracts reject if
   that custody is missing. Source-free compiler synthesis receives no invented
-  fact location. Recovery envelope v11, conflict fingerprint v14, and renderer
-  V13 retain what review displays. Later nested carriers must come
+  fact location. Public trait requirements and public data fields/cases/payloads
+  retain exact declaration coordinates under `trait_requirement` and
+  `data_member`; generated declarations expose their real derivation origin.
+  Recovery envelope v12, conflict fingerprint v15, and renderer V14 retain what
+  review displays. Later nested carriers must come
   from existing compiler owners rather than package-layer source parsing.
 - Missing old source escalates code review but does not prevent comparison
   against the lock baseline. Missing lock evidence causes fresh graph
@@ -1276,7 +1279,7 @@ independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
 calls. Package review v75/row v33,
-canonical recovery v11, conflict fingerprint v14, and conflict renderer V13 bind
+canonical recovery v12, conflict fingerprint v15, and conflict renderer V14 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes

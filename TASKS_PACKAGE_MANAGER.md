@@ -2585,8 +2585,8 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v75/canonical row v33, conflict fingerprint v14, renderer V13, and
-  canonical-row recovery envelope v11 bind the appended roles; stale envelopes
+  review v75/canonical row v33, conflict fingerprint v15, renderer V14, and
+  canonical-row recovery envelope v12 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Any later nested source carriers
   remain incremental engineering work and require deliberate retention before
   their owning frontend stage erases them, not later source-text reconstruction.
@@ -2641,6 +2641,16 @@ complete.
   coordinates; semantic package-review bytes remain v75/canonical row v33.
   Vertical canaries cover expression and membership parsing, data/domain/trait
   projection, recovery, and changed-domain conflict rendering.
+  Milestone 2026-08-27: public trait rows now retain each exact machine-
+  requirement declaration under `trait_requirement`, and public data rows
+  retain every exact field, sum case, and sum payload-field declaration under
+  `data_member`. Both use the already-retained typed declaration symbol; a
+  source-backed symbol must resolve to its direct authored span, while a
+  compiler-derived declaration exposes only its real derivation origin rather
+  than a fictional nested anchor. Recovery envelope v12, conflict fingerprint
+  v15, and renderer V14 bind the roles and coordinates without changing review
+  v75/canonical row v33. Real-source canaries require exact identifier slices
+  and changed-row conflict rendering for both declaration families.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 
