@@ -36,7 +36,8 @@ pub use registry::{
 pub use rules::{
     AdjacentBlockMergeRule, BooleanEqualConstantsRule, BooleanNotConstantsRule,
     ConstantConditionalFoldRule, DeadScalarLiteralEliminationRule,
-    DeadUnconditionallyTotalScalarEliminationRule, DominatorProofCertifiedScalarGvnRule,
+    DeadUnconditionallyTotalScalarEliminationRule,
+    DominatorProofCertifiedCompatiblePolicyScalarGvnRule, DominatorProofCertifiedScalarGvnRule,
     DominatorTotalScalarGvnRule, ExactIntegerAddConstantsRule, ExactIntegerCastConstantsRule,
     ExactIntegerDivideConstantsRule, ExactIntegerMultiplyConstantsRule,
     ExactIntegerRemainderConstantsRule, ExactIntegerShiftLeftConstantsRule,
@@ -53,14 +54,15 @@ pub use rules::{
     LiveProofCertifiedIntegerZeroDividendEliminationRule, NonAdjacentBlockMergeRule,
     PhiTranslatedObligationFreeScalarGvnRule, PhiTranslatedProofCertifiedScalarGvnRule,
     ProofCertifiedDeadScalarEliminationRule, RedundantBlockParameterRule,
-    SameBlockProofCertifiedScalarCseRule, SameBlockTotalScalarCseRule,
-    SaturatingIntegerAddConstantsRule, SaturatingIntegerDivideConstantsRule,
-    SaturatingIntegerMultiplyConstantsRule, SaturatingIntegerRemainderConstantsRule,
-    SaturatingIntegerSubtractConstantsRule, SharedTerminalJumpFusionRule,
-    WrappingIntegerAddConstantsRule, WrappingIntegerDivideConstantsRule,
-    WrappingIntegerMultiplyConstantsRule, WrappingIntegerRemainderConstantsRule,
-    WrappingIntegerShiftLeftConstantsRule, WrappingIntegerShiftRightConstantsRule,
-    WrappingIntegerSubtractConstantsRule, built_in_psi_registries, built_in_psi_registry,
+    SameBlockProofCertifiedCompatiblePolicyScalarCseRule, SameBlockProofCertifiedScalarCseRule,
+    SameBlockTotalScalarCseRule, SaturatingIntegerAddConstantsRule,
+    SaturatingIntegerDivideConstantsRule, SaturatingIntegerMultiplyConstantsRule,
+    SaturatingIntegerRemainderConstantsRule, SaturatingIntegerSubtractConstantsRule,
+    SharedTerminalJumpFusionRule, WrappingIntegerAddConstantsRule,
+    WrappingIntegerDivideConstantsRule, WrappingIntegerMultiplyConstantsRule,
+    WrappingIntegerRemainderConstantsRule, WrappingIntegerShiftLeftConstantsRule,
+    WrappingIntegerShiftRightConstantsRule, WrappingIntegerSubtractConstantsRule,
+    built_in_psi_registries, built_in_psi_registry,
 };
 
 #[cfg(test)]

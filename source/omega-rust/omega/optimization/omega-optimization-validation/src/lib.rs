@@ -3836,9 +3836,19 @@ enum IndependentProofScalarExpressionKey {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum IndependentCompatiblePolicyScalarExpressionKey {
+    ShiftLeft(IntegerType, IntegerType, ValueId, ValueId),
+    ShiftRight(IntegerType, IntegerType, ValueId, ValueId),
+    Add(IntegerType, ValueId, ValueId),
+    Subtract(IntegerType, ValueId, ValueId),
+    Multiply(IntegerType, ValueId, ValueId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum IndependentScalarExpressionKey {
     ObligationFree(IndependentTotalScalarExpressionKey),
     ProofCertified(IndependentProofScalarExpressionKey),
+    CompatiblePolicy(IndependentCompatiblePolicyScalarExpressionKey),
 }
 
 fn independent_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
@@ -4352,6 +4362,235 @@ fn independent_proof_scalar_expression(
     })
 }
 
+fn independent_compatible_policy_scalar_leader(
+    operation: &O,
+) -> Option<(
+    IndependentScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
+    let row = match operation {
+        O::WrappingIntegerShiftLeft {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerShiftRight {
+            psi_operation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+        ),
+        O::WrappingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerAdd {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        O::WrappingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerSubtract {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+        ),
+        O::WrappingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        }
+        | O::SaturatingIntegerMultiply {
+            psi_operation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+            )
+        }
+        _ => return None,
+    };
+    Some((
+        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
+        row.1,
+        row.2,
+        row.3,
+        None,
+    ))
+}
+
+fn independent_compatible_policy_scalar_redundant(
+    operation: &O,
+) -> Option<(
+    IndependentScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
+    let row = match operation {
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftLeft(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::ShiftRight(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Add(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        O::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentCompatiblePolicyScalarExpressionKey::Subtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentCompatiblePolicyScalarExpressionKey::Multiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        _ => return None,
+    };
+    Some((
+        IndependentScalarExpressionKey::CompatiblePolicy(row.0),
+        row.1,
+        row.2,
+        row.3,
+        Some(row.4),
+    ))
+}
+
 fn independent_cse_expression(
     operation: &O,
     value_types: &BTreeMap<ValueId, ScalarType>,
@@ -4386,6 +4625,7 @@ fn independent_cse_expression(
                 Some(obligation),
             ))
         }
+        ScalarCseProofClass::CompatiblePolicy => None,
     }
 }
 
@@ -4466,7 +4706,9 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
     };
     let expected_safety = match proof_class {
         ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
+            OptimizationSafetyClass::ProofCertified
+        }
     };
     if !candidate
         .required_analyses()
@@ -4833,6 +5075,9 @@ pub fn validate_phi_translated_scalar_common_subexpression_candidate(
             ScalarCseProofClass::ProofCertified => {
                 b"omega.validator.phi-translated-proof-certified-total-scalar-gvn.v1"
             }
+            ScalarCseProofClass::CompatiblePolicy => {
+                b"omega.validator.phi-translated-proof-certified-compatible-policy-unreachable.v1"
+            }
         }),
         provenance: accepted_provenance,
     })
@@ -4848,6 +5093,7 @@ enum ScalarCseScope {
 enum ScalarCseProofClass {
     ObligationFree,
     ProofCertified,
+    CompatiblePolicy,
 }
 
 fn validate_scalar_common_subexpression_candidate(
@@ -4892,11 +5138,29 @@ fn validate_scalar_common_subexpression_candidate(
         {
             ScalarCseProofClass::ProofCertified
         }
+        (ScalarCseScope::SameBlock, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.same-block-proof-certified-compatible-policy-scalar-cse.v1",
+                ) =>
+        {
+            ScalarCseProofClass::CompatiblePolicy
+        }
+        (ScalarCseScope::Dominating, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.dominator-proof-certified-compatible-policy-scalar-gvn.v1",
+                ) =>
+        {
+            ScalarCseProofClass::CompatiblePolicy
+        }
         _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     };
     let expected_safety = match proof_class {
         ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
-        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+        ScalarCseProofClass::ProofCertified | ScalarCseProofClass::CompatiblePolicy => {
+            OptimizationSafetyClass::ProofCertified
+        }
     };
     if !candidate
         .required_analyses()
@@ -5016,7 +5280,12 @@ fn validate_scalar_common_subexpression_candidate(
         }))
         .collect::<BTreeMap<_, _>>();
     let admitted_expression = |operation: &O| {
-        let row = independent_cse_expression(operation, &value_types, proof_class)?;
+        let row = match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_leader(operation)?
+            }
+            _ => independent_cse_expression(operation, &value_types, proof_class)?,
+        };
         match (proof_class, row.4) {
             (ScalarCseProofClass::ObligationFree, None) => Some(row),
             (ScalarCseProofClass::ProofCertified, Some(obligation))
@@ -5025,20 +5294,38 @@ fn validate_scalar_common_subexpression_candidate(
             {
                 Some(row)
             }
+            (ScalarCseProofClass::CompatiblePolicy, None)
+                if !function.facts.iter().any(|fact| {
+                    matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                        if *support == row.1)
+                }) =>
+            {
+                Some(row)
+            }
             _ => None,
         }
     };
     let (leader_key, leader_operation, leader_result, leader_type, leader_obligation) =
-        independent_cse_expression(&leader.operation, &value_types, proof_class)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+        match proof_class {
+            ScalarCseProofClass::CompatiblePolicy => {
+                independent_compatible_policy_scalar_leader(&leader.operation)
+            }
+            _ => independent_cse_expression(&leader.operation, &value_types, proof_class),
+        }
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     let (
         redundant_key,
         redundant_operation,
         redundant_result,
         redundant_type,
         redundant_obligation,
-    ) = independent_cse_expression(&redundant.operation, &value_types, proof_class)
-        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    ) = match proof_class {
+        ScalarCseProofClass::CompatiblePolicy => {
+            independent_compatible_policy_scalar_redundant(&redundant.operation)
+        }
+        _ => independent_cse_expression(&redundant.operation, &value_types, proof_class),
+    }
+    .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if leader_key != redundant_key
         || leader_operation != patch.leader_operation
         || redundant_operation != patch.redundant_operation
@@ -5087,6 +5374,29 @@ fn validate_scalar_common_subexpression_candidate(
                 );
             }
             Some((leader_fact, redundant_fact))
+        }
+        (ScalarCseProofClass::CompatiblePolicy, None, Some(redundant)) => {
+            if function.facts.iter().any(|fact| {
+                matches!(fact, OptimizationFact::OperationObligationReference { support, .. }
+                    if *support == leader_operation)
+            }) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            let redundant_fact = independently_accepted_operation_fact(
+                input,
+                function,
+                redundant_operation,
+                redundant,
+            )
+            .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+            if candidate.accepted_obligation_witness() != Some(redundant_fact) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            None
         }
         _ => {
             return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
@@ -5286,6 +5596,12 @@ fn validate_scalar_common_subexpression_candidate(
                 }
                 (ScalarCseScope::Dominating, ScalarCseProofClass::ProofCertified) => {
                     b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1"
+                }
+                (ScalarCseScope::SameBlock, ScalarCseProofClass::CompatiblePolicy) => {
+                    b"omega.validator.same-block-proof-certified-compatible-policy-scalar-cse.v1"
+                }
+                (ScalarCseScope::Dominating, ScalarCseProofClass::CompatiblePolicy) => {
+                    b"omega.validator.dominator-proof-certified-compatible-policy-scalar-gvn.v1"
                 }
             },
         ),
