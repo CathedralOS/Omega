@@ -138,6 +138,15 @@ Unconstrained resource renegotiation needs an independently provisionable
 execution domain; a component-owned stack is one realization, not a language
 requirement.
 
+The current Terminal component candidate retains the first concrete resource
+column: the emitter-derived internal call-graph stack demand for the canonical
+object entry. Candidate admission independently rederives the complete demand
+and compares its full native target, Terminal identity, entry, byte ceiling,
+alignment, and contributing machines; equal-shaped evidence from another
+object format does not substitute. Deployment retries preserve the row. This
+is body-demand evidence only. It excludes external-entry adapter headroom and
+does not establish provision, a stack lease, or installed-root admission.
+
 Static selection remains more precise: whole-program analysis may use the
 selected realization's actual demand. A replaceable edge must remain valid for
 the admitted candidate and therefore composes through requirement promises and

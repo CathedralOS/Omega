@@ -4,9 +4,11 @@
 //! deployment.
 //!
 //! The universal native artifact lives in `omega-terminal-native-artifact`.
-//! This crate adds only component entry identity, the complete source-derived
-//! selected provider-plan facts needed by deployment, and any build-bound
-//! progress manifest.
+//! This crate adds the component entry label, the complete source-derived
+//! selected provider-plan facts needed by deployment, any build-bound progress
+//! manifest, and emitter-derived stack demand for the canonical object entry.
+//! The stack row describes the internal body closure only: it grants no
+//! provision, lease, installed-root admission, or external-entry headroom.
 
 pub use omega_terminal_native_artifact::{
     TerminalNativeArtifact, TerminalNativeArtifactParts, TerminalNativeProviderExecution,
@@ -21,6 +23,7 @@ pub struct TerminalComponentCandidate {
     entry_machine: String,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
+    stack_demand: omega_terminal_image_emission::TerminalStackDemand,
 }
 
 #[derive(Debug)]
@@ -29,12 +32,14 @@ pub struct TerminalComponentCandidateParts {
     pub entry_machine: String,
     pub selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
     pub component_progress: Option<omega_effects::ComponentProgressManifest>,
+    pub stack_demand: omega_terminal_image_emission::TerminalStackDemand,
 }
 
 impl TerminalComponentCandidate {
     /// Rejoin component policy to one already replayed native artifact.
     pub fn checked(parts: TerminalComponentCandidateParts) -> Result<Self, &'static str> {
         parts.native_artifact.validate()?;
+        validate_terminal_component_stack_demand(&parts.native_artifact, &parts.stack_demand)?;
         validate_selected_provider_closure(
             parts.native_artifact.selected_provider_closure_identity(),
             parts.native_artifact.selected_provider_plans(),
@@ -52,6 +57,7 @@ impl TerminalComponentCandidate {
             entry_machine: parts.entry_machine,
             selected_provider_plans: parts.selected_provider_plans,
             component_progress: parts.component_progress,
+            stack_demand: parts.stack_demand,
         })
     }
 
@@ -99,14 +105,42 @@ impl TerminalComponentCandidate {
         self.component_progress.as_ref()
     }
 
+    /// Exact target-specific internal call-graph stack demand for the selected
+    /// component entry. This is artifact evidence only; it is not runtime
+    /// provision, a stack lease, or installed-root admission.
+    pub const fn stack_demand(&self) -> &omega_terminal_image_emission::TerminalStackDemand {
+        &self.stack_demand
+    }
+
     pub fn into_parts(self) -> TerminalComponentCandidateParts {
         TerminalComponentCandidateParts {
             native_artifact: self.native_artifact,
             entry_machine: self.entry_machine,
             selected_provider_plans: self.selected_provider_plans,
             component_progress: self.component_progress,
+            stack_demand: self.stack_demand,
         }
     }
+}
+
+/// Independently rederive a component candidate's complete selected-entry
+/// stack demand. Equality includes the full native target, so equal-shaped
+/// ELF, Mach-O, and COFF closures cannot substitute for one another.
+fn validate_terminal_component_stack_demand(
+    native_artifact: &TerminalNativeArtifact,
+    supplied: &omega_terminal_image_emission::TerminalStackDemand,
+) -> Result<(), &'static str> {
+    let expected = omega_terminal_image_emission::derive_terminal_stack_demand(
+        native_artifact.object(),
+        native_artifact.object().entry(),
+    )
+    .map_err(|_| "component candidate could not derive its selected-entry stack demand")?;
+    if &expected != supplied {
+        return Err(
+            "component candidate stack demand disagrees with the exact selected-entry artifact closure",
+        );
+    }
+    Ok(())
 }
 
 fn validate_selected_provider_closure(

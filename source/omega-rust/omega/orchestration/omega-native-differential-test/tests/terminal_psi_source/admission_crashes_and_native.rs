@@ -925,6 +925,61 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let terminal_stack_demand =
         derive_terminal_stack_demand(&object_artifact, object_artifact.entry())
             .expect("source-produced terminal stack closure");
+    let alternate_same_architecture_target = match (
+        object_artifact.target().architecture,
+        object_artifact.target().object_format,
+    ) {
+        (omega_target::Architecture::X86_64, omega_target::ObjectFormat::Elf) => {
+            NativeTarget::windows_x64()
+        }
+        (omega_target::Architecture::X86_64, _) => NativeTarget::linux_x64(),
+        (omega_target::Architecture::Aarch64, omega_target::ObjectFormat::MachO) => {
+            NativeTarget::linux_arm64()
+        }
+        (omega_target::Architecture::Aarch64, _) => NativeTarget::macos_arm64(),
+    };
+    let alternate_target_operations =
+        lower_to_target_operations(&abstract_operations, alternate_same_architecture_target)
+            .expect("same semantics should select for another same-architecture object format");
+    let alternate_assigned = assign_registers(&alternate_target_operations)
+        .expect("alternate same-architecture target homes should assign");
+    let alternate_machine_code =
+        emit_machine_code(&alternate_assigned).expect("alternate target machine code should emit");
+    let alternate_object = build_terminal_object_artifact(&alternate_machine_code)
+        .expect("alternate target should retain an exact object artifact");
+    let alternate_stack_demand =
+        derive_terminal_stack_demand(&alternate_object, alternate_object.entry())
+            .expect("alternate target should derive the same-shaped stack closure");
+    assert_eq!(
+        alternate_stack_demand.target().architecture,
+        terminal_stack_demand.target().architecture
+    );
+    assert_ne!(
+        alternate_stack_demand.target(),
+        terminal_stack_demand.target(),
+        "the stack-demand replay test requires distinct full native targets"
+    );
+    assert_eq!(
+        alternate_stack_demand.terminal_psi(),
+        terminal_stack_demand.terminal_psi()
+    );
+    assert_eq!(
+        alternate_stack_demand.entry(),
+        terminal_stack_demand.entry()
+    );
+    assert_eq!(
+        alternate_stack_demand.ceiling_bytes(),
+        terminal_stack_demand.ceiling_bytes()
+    );
+    assert_eq!(
+        alternate_stack_demand.stack_alignment(),
+        terminal_stack_demand.stack_alignment()
+    );
+    assert_eq!(
+        alternate_stack_demand.contributing_machines(),
+        terminal_stack_demand.contributing_machines(),
+        "the substituted demand must differ only by its full native target"
+    );
     let entry = object_artifact.entry_function();
     assert_eq!(
         entry.provenance.operations,
@@ -1158,6 +1213,13 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         None,
     )
     .expect("deployment component artifact");
+    let substituted_stack_terminal_artifact =
+        psi_terminal_codec::CanonicalTerminalArtifact::from_parts(
+            &semantic_module,
+            &proof_bundle,
+            None,
+        )
+        .expect("independent deployment component artifact");
     drop(machine_code);
     drop(target_operations);
     drop(abstract_operations);
@@ -1517,24 +1579,49 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     let dynamic_admission_identity = RootAdmissionId::from_normalized_identity(0x6229).unwrap();
     let attribution_fingerprint = installed_attribution.fingerprint();
     let runtime_fingerprint = transfer_runtime.fingerprint();
+    let substituted_stack_native_artifact =
+        TerminalNativeArtifact::from_replayed_parts(TerminalNativeArtifactParts {
+            target: object_artifact.target(),
+            terminal_artifact: substituted_stack_terminal_artifact,
+            object: object_artifact.clone(),
+            image: image.clone(),
+            selected_provider_closure_identity: omega_effects::SelectedProviderPlanFacts::default()
+                .normalized_identity(),
+            selected_provider_plans: Vec::new(),
+            provider_executions: Vec::new(),
+        })
+        .expect("tamper fixture retains one exact Terminal-native artifact");
+    let stack_error = TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
+        native_artifact: substituted_stack_native_artifact,
+        entry_machine: "terminal_constant".into(),
+        selected_provider_plans: omega_effects::SelectedProviderPlanFacts::default(),
+        component_progress: None,
+        stack_demand: alternate_stack_demand,
+    })
+    .expect_err("another same-architecture target's stack demand must reject");
+    assert_eq!(
+        stack_error,
+        "component candidate stack demand disagrees with the exact selected-entry artifact closure"
+    );
+    let native_artifact =
+        TerminalNativeArtifact::from_replayed_parts(TerminalNativeArtifactParts {
+            target: object_artifact.target(),
+            terminal_artifact: deployment_terminal_artifact,
+            object: object_artifact,
+            image: image.clone(),
+            selected_provider_closure_identity: omega_effects::SelectedProviderPlanFacts::default()
+                .normalized_identity(),
+            selected_provider_plans: Vec::new(),
+            provider_executions: Vec::new(),
+        })
+        .expect("deployment fixture retains one exact Terminal-native artifact");
     let component_candidate =
         TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
-            native_artifact: TerminalNativeArtifact::from_replayed_parts(
-                TerminalNativeArtifactParts {
-                    target: object_artifact.target(),
-                    terminal_artifact: deployment_terminal_artifact,
-                    object: object_artifact,
-                    image: image.clone(),
-                    selected_provider_closure_identity:
-                        omega_effects::SelectedProviderPlanFacts::default().normalized_identity(),
-                    selected_provider_plans: Vec::new(),
-                    provider_executions: Vec::new(),
-                },
-            )
-            .expect("deployment fixture retains one exact Terminal-native artifact"),
+            native_artifact,
             entry_machine: "terminal_constant".into(),
             selected_provider_plans: omega_effects::SelectedProviderPlanFacts::default(),
             component_progress: None,
+            stack_demand: terminal_stack_demand.clone(),
         })
         .expect("deployment fixture retains matching component policy");
     let mut deployment_session = begin_terminal_component_deployment_with_claimed_registry(
@@ -1543,6 +1630,11 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
         deployment_ledger,
     )
     .expect("deployment reuses the exact empty claimed ledger");
+    assert_eq!(
+        deployment_session.candidate().stack_demand,
+        terminal_stack_demand,
+        "deployment custody must retain the exact candidate stack demand"
+    );
     let wrong_profile = match profile {
         TargetProfile::LinuxX64 => TargetProfile::UefiX64,
         TargetProfile::LinuxArm64 => TargetProfile::MacosArm64,
@@ -1572,6 +1664,11 @@ fn interpreted_terminal_source_matches_emitted_host_machine_code() {
     assert_eq!(
         returned.transfer_runtime().fingerprint(),
         runtime_fingerprint
+    );
+    assert_eq!(
+        deployment_session.candidate().stack_demand,
+        terminal_stack_demand,
+        "a rejected deployment operation must leave candidate stack custody intact"
     );
     let (
         admission_identity,

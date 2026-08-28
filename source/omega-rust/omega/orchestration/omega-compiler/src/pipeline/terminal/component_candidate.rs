@@ -31,6 +31,15 @@ pub fn stage_terminal_component(
         selected_provider_plans,
         settlements,
     )?;
+    let stack_demand = omega_terminal_image_emission::derive_terminal_stack_demand(
+        native_artifact.object(),
+        native_artifact.object().entry(),
+    )
+    .map_err(|error| {
+        vec![Diagnostic::error(format!(
+            "Terminal component stack-demand derivation failed: {error}"
+        ))]
+    })?;
     TerminalComponentCandidate::checked(TerminalComponentCandidateParts {
         native_artifact,
         entry_machine: entry_machine.to_owned(),
@@ -38,6 +47,7 @@ pub fn stage_terminal_component(
         component_progress: component_progress
             .filter(|manifest| !manifest.pending().is_empty())
             .cloned(),
+        stack_demand,
     })
     .map_err(|error| {
         vec![Diagnostic::error(format!(
