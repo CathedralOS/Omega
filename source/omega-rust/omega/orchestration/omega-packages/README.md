@@ -294,9 +294,9 @@ and directional broker-transfer ceiling and counts. The fixed outcome is
 explicitly `resolved-non-admitting`:
 unavailable native guarantees remain unavailable. Linux/Windows strict
 backends, TLS/SSH credential evidence, direct-egress prevention outside macOS,
-object-store and descendant aggregate-resource accounting, and the complete
-source receipt remain open, so this does not promote diagnostic source commands
-into admission.
+object-store and non-Windows descendant aggregate-resource accounting, and the
+complete source receipt remain open, so this does not promote diagnostic source
+commands into admission.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
@@ -360,7 +360,7 @@ snapshot publication lock waiting has a separate compiler-owned two-minute
 deadline and rejects explicitly instead of blocking indefinitely. Those
 post-helper checks can reject an oversized cache but cannot prevent
 temporary disk exhaustion during an unconfined fetch. Hostile same-user racing,
-Windows ownership/DACL enforcement, and native isolation remain open.
+Windows ownership/DACL enforcement, and complete native isolation remain open.
 Symbolic selectors use a bounded remote advertisement only to choose the
 quarantine's SHA-1/SHA-256 object format; malformed, absent, or mixed formats
 reject, and the advertisement never substitutes for parent authentication.
@@ -383,10 +383,10 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v26 separates entries
+and an unreadable ACL fails closed. Cache policy v27 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage,
 network-transfer, nonnetwork descendant-denial, content-read, and nonnetwork-
-metadata/HTTPS-network-metadata/deadline floor. HTTPS receives
+metadata/HTTPS-network-metadata/deadline/Windows-Job floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
 custodied `omega-resolver-connect` companion as a fixed ProxyCommand; compiler-
 authored environment fields carry the broker and normalized target without
@@ -399,8 +399,12 @@ resolution is now bounded to 64 Git launches, independent of package file
 count, ten minutes including cache-lock acquisition, cumulative parent-captured
 output, and broker-routed bidirectional bytes. Each byte ceiling is separately
 derived as `min(source-byte ceiling + 64 MiB, 576 MiB)`. Neither is an
-object-store or descendant aggregate-resource quota, and the transfer ceiling
-does not prevent direct egress on an unconfining backend.
+object-store or universal descendant aggregate-resource quota, and the transfer
+ceiling does not prevent direct egress on an unconfining backend. On Windows,
+the resolver-owned Job Object separately enforces 16 active processes, 2 GiB
+committed memory per process, 4 GiB aggregate committed memory, and 120 aggregate
+user-CPU seconds; filesystem, executable, and endpoint confinement remain
+unavailable there.
 Validated blobs use
 one exactly framed `cat-file --batch` launch; blob payloads are shared ranges
 over that bounded response and released before staged-source revalidation.

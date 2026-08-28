@@ -209,7 +209,8 @@ its identity. This closes the successful-result join that the narrower rows
 could not express. It deliberately remains below `SourceResolutionReceiptV1`:
 unavailable containment rows remain unavailable. Linux/Windows endpoint
 confinement, TLS/SSH trust, credential custody, object-store/during-write quotas,
-descendant aggregate resources, and strict acceptance are still absent. The
+non-Windows descendant aggregate resources, and strict acceptance are still
+absent. The
 transfer observation is universal for broker-routed bytes, but only macOS
 currently prevents the child from opening a direct connection around it.
 
@@ -487,13 +488,16 @@ launcher rejects on macOS.
 Every Unix resolver child inherits at most 120 CPU seconds, a zero core-file
 limit, a 1 GiB file-size ceiling, and at most 256 descriptors. Linux/Android
 also receive an 8 GiB address-space limit; Darwin does not expose a usable
-equivalent through this rlimit path. Each compiler ceiling intersects the inherited soft
-and hard limits and therefore never loosens a stricter host limit. These limits
-are inherited per process, not an
-aggregate descendant/process-count/object-store budget. The separate broker
-transfer budget spans the whole resolution, but Linux still
-lacks filesystem, executable, and network confinement; Windows still has only
-the existing kill-on-close process container. Native canaries exercise denied
+equivalent through this rlimit path. Each compiler ceiling intersects the
+inherited soft and hard limits and therefore never loosens a stricter host
+limit. These Unix limits are inherited per process, not an aggregate descendant,
+process-count, or object-store budget. The separate broker transfer budget spans
+the whole resolution, but Linux still lacks filesystem, executable, and network
+confinement. Windows creates each command suspended and assigns it to a resolver-
+owned Job Object before resume. That job kills on close and enforces 16 active
+processes, 2 GiB committed memory per process, 4 GiB aggregate committed memory,
+and 120 aggregate user-CPU seconds. It still lacks filesystem, executable, and
+network confinement. Native canaries exercise denied
 writes, denied unlisted descendant execution, denied inspection networking,
 and admitted discovery networking. Hermetic loopback canaries also exercise the
 selected production HTTPS helper and fixed shell/SSH executable chains through
@@ -521,7 +525,10 @@ framed `cat-file --batch` launch reads all validated blobs in tree order. Each
 subprocess starts in a fresh Unix process group or
 Windows Job Object. Completion and rejection paths attempt to terminate that
 container before returning; ordinary helper and SSH descendants therefore do
-not survive or hold capture pipes open in the tested cases. Each command
+not survive or hold capture pipes open in the tested cases. On Windows the
+resolver owns the Job handle, assignment occurs while the primary child is
+suspended, and completion requires an active-process-zero notification. Each
+command
 reserves cleanup/reaping inside its existing deadline, capped at two seconds and
 at one quarter of a smaller budget, and fails closed if portable process APIs do
 not finish within that reserve. A descendant escaping its Unix session remains
@@ -534,8 +541,9 @@ confinement but not endpoint, read-scope, or aggregate-resource custody.
 Depth-one fetch limits history amplification but does not enforce an object-
 store quota. The broker enforces its whole-resolution transfer ceiling on all
 routed traffic; Linux/Windows cannot yet prevent direct helper egress around
-that route. The launch ceiling and inherited rlimits are not an aggregate CPU,
-memory, process-count, or object-store budget.
+that route. The launch ceiling and inherited Unix rlimits are not aggregate CPU,
+memory, process-count, or object-store budgets; Windows has the separate Job
+CPU/memory/process limits above.
 Materialization remains trusted parent code rooted in retained filesystem
 capabilities rather than a separate sandboxed helper. A deliberately hostile
 same-user process can race
@@ -620,7 +628,8 @@ direct egress. None of this pins TLS or SSH host trust.
 Parent-owned selected-object-graph authentication and the current macOS native
 enforcement supply real evidence for a later strict receipt but do not by
 themselves make the resolver admissible. Linux/Windows strict isolation,
-hostile same-user and Windows ACL cache custody, aggregate/during-write resource
-ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
+hostile same-user and Windows ACL cache custody, non-Windows aggregate and all
+during-write resource ceilings, cross-platform endpoint confinement, explicit
+SSH trust/credential
 custody (OWNER Q16),
 and the opaque receipt remain open.

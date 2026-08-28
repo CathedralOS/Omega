@@ -7,6 +7,11 @@
 #![deny(unsafe_op_in_unsafe_fn)]
 
 mod network;
+#[cfg(windows)]
+mod windows;
+
+#[cfg(unix)]
+use command_group::CommandGroup;
 
 pub use network::{
     RESOLVER_CONNECT_BROKER_ENVIRONMENT, RESOLVER_CONNECT_HELPER_BASENAME,
@@ -29,9 +34,9 @@ use std::io;
 #[cfg(target_os = "macos")]
 use std::io::Read;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{ChildStderr, ChildStdout, Command, ExitStatus};
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 12;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 13;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -46,6 +51,14 @@ const CHILD_ADDRESS_SPACE_BYTES: u64 = 8 * 1024 * 1024 * 1024;
 const CHILD_FILE_SIZE_BYTES: u64 = 1024 * 1024 * 1024;
 #[cfg(unix)]
 const CHILD_OPEN_FILE_LIMIT: u64 = 256;
+#[cfg(windows)]
+const CHILD_PROCESS_LIMIT: u64 = 16;
+#[cfg(windows)]
+const CHILD_PROCESS_MEMORY_BYTES: u64 = 2 * 1024 * 1024 * 1024;
+#[cfg(windows)]
+const CHILD_AGGREGATE_MEMORY_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+#[cfg(windows)]
+const CHILD_AGGREGATE_CPU_SECONDS: u64 = 120;
 
 #[cfg(target_os = "macos")]
 const MACOS_SANDBOX_EXECUTABLE: &str = "/usr/bin/sandbox-exec";
@@ -371,6 +384,10 @@ pub struct ResolverExecutionResourceCeilings {
     single_file_bytes: Option<u64>,
     open_files: Option<u64>,
     address_space_bytes: Option<u64>,
+    process_count: Option<u64>,
+    per_process_memory_bytes: Option<u64>,
+    aggregate_memory_bytes: Option<u64>,
+    aggregate_cpu_seconds: Option<u64>,
 }
 
 impl ResolverExecutionResourceCeilings {
@@ -394,6 +411,22 @@ impl ResolverExecutionResourceCeilings {
         self.address_space_bytes
     }
 
+    pub const fn process_count(&self) -> Option<u64> {
+        self.process_count
+    }
+
+    pub const fn per_process_memory_bytes(&self) -> Option<u64> {
+        self.per_process_memory_bytes
+    }
+
+    pub const fn aggregate_memory_bytes(&self) -> Option<u64> {
+        self.aggregate_memory_bytes
+    }
+
+    pub const fn aggregate_cpu_seconds(&self) -> Option<u64> {
+        self.aggregate_cpu_seconds
+    }
+
     fn encode(&self, bytes: &mut Vec<u8>) {
         for ceiling in [
             self.core_dump_bytes,
@@ -401,6 +434,10 @@ impl ResolverExecutionResourceCeilings {
             self.single_file_bytes,
             self.open_files,
             self.address_space_bytes,
+            self.process_count,
+            self.per_process_memory_bytes,
+            self.aggregate_memory_bytes,
+            self.aggregate_cpu_seconds,
         ] {
             match ceiling {
                 Some(value) => {
@@ -450,6 +487,7 @@ pub enum ResolverExecutionBackendIdentity {
         content_sha256: String,
     },
     UnixResourceLimits,
+    WindowsJobObject,
     PortableProcessContainer,
 }
 
@@ -459,6 +497,64 @@ pub struct ResolverExecutionBackend {
     identity: ResolverExecutionBackendIdentity,
     #[cfg(target_os = "macos")]
     sandbox_metadata: ExecutableMetadataIdentity,
+}
+
+/// One resolver child whose complete platform process container remains owned
+/// until termination and reaping finish.
+#[derive(Debug)]
+pub struct ResolverExecutionChild {
+    #[cfg(unix)]
+    child: command_group::GroupChild,
+    #[cfg(windows)]
+    child: windows::WindowsJobChild,
+    #[cfg(not(any(unix, windows)))]
+    child: std::process::Child,
+}
+
+impl ResolverExecutionChild {
+    /// Spawn a configured resolver command inside the platform process
+    /// container before any child code may execute.
+    pub fn spawn(command: &mut Command) -> io::Result<Self> {
+        #[cfg(unix)]
+        let child = command.group_spawn()?;
+        #[cfg(windows)]
+        let child = windows::WindowsJobChild::spawn(command)?;
+        #[cfg(not(any(unix, windows)))]
+        let child = command.spawn()?;
+        Ok(Self { child })
+    }
+
+    pub fn take_stdout(&mut self) -> Option<ChildStdout> {
+        #[cfg(windows)]
+        return self.child.take_stdout();
+        #[cfg(not(windows))]
+        self.inner().stdout.take()
+    }
+
+    pub fn take_stderr(&mut self) -> Option<ChildStderr> {
+        #[cfg(windows)]
+        return self.child.take_stderr();
+        #[cfg(not(windows))]
+        self.inner().stderr.take()
+    }
+
+    pub fn kill(&mut self) -> io::Result<()> {
+        self.child.kill()
+    }
+
+    pub fn try_wait(&mut self) -> io::Result<Option<ExitStatus>> {
+        self.child.try_wait()
+    }
+
+    #[cfg(unix)]
+    fn inner(&mut self) -> &mut std::process::Child {
+        self.child.inner()
+    }
+
+    #[cfg(not(any(unix, windows)))]
+    fn inner(&mut self) -> &mut std::process::Child {
+        &mut self.child
+    }
 }
 
 struct ResolverExecutionPolicyInputs<'a> {
@@ -507,7 +603,13 @@ impl ResolverExecutionBackend {
                 identity: ResolverExecutionBackendIdentity::UnixResourceLimits,
             })
         }
-        #[cfg(not(unix))]
+        #[cfg(windows)]
+        {
+            Ok(Self {
+                identity: ResolverExecutionBackendIdentity::WindowsJobObject,
+            })
+        }
+        #[cfg(not(any(unix, windows)))]
         {
             Ok(Self {
                 identity: ResolverExecutionBackendIdentity::PortableProcessContainer,
@@ -613,7 +715,7 @@ impl ResolverExecutionBackend {
         .map(|(command, _observation)| command)
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, target_os = "macos"))]
     fn command_with_inspection_read_root(
         &self,
         executable: &Path,
@@ -1175,7 +1277,7 @@ fn guarantee_disposition(
     guarantee: ResolverExecutionGuarantee,
 ) -> ResolverExecutionGuaranteeDisposition {
     use ResolverExecutionBackendIdentity::{
-        MacosSeatbelt, PortableProcessContainer, UnixResourceLimits,
+        MacosSeatbelt, PortableProcessContainer, UnixResourceLimits, WindowsJobObject,
     };
     use ResolverExecutionGuarantee::{
         AddressSpaceConfined, AggregateResourcesConfined, CoreDumpsDenied, CpuTimeConfined,
@@ -1206,12 +1308,19 @@ fn guarantee_disposition(
         {
             Enforced
         }
-        FilesystemReadsConfined | ProcessCountConfined | AggregateResourcesConfined => Unavailable,
+        ProcessCountConfined | AggregateResourcesConfined
+            if matches!(backend, WindowsJobObject) =>
+        {
+            Enforced
+        }
+        ProcessCountConfined | AggregateResourcesConfined => Unavailable,
+        FilesystemReadsConfined => Unavailable,
         DescendantProcessesContained
             if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_descendant_processes() =>
         {
             Enforced
         }
+        DescendantProcessesContained if matches!(backend, WindowsJobObject) => Enforced,
         DescendantProcessesContained => Unavailable,
         NetworkDenied if matches!(backend, MacosSeatbelt { .. }) && !phase.permits_network() => {
             Enforced
@@ -1225,15 +1334,19 @@ fn guarantee_disposition(
             Enforced
         }
         NetworkEndpointsConfined => Unavailable,
+        CpuTimeConfined if matches!(backend, WindowsJobObject) => Enforced,
         CoreDumpsDenied | CpuTimeConfined | SingleFileSizeConfined | OpenFilesConfined => {
             match backend {
                 MacosSeatbelt { .. } | UnixResourceLimits => Enforced,
-                PortableProcessContainer => Unavailable,
+                WindowsJobObject | PortableProcessContainer => Unavailable,
             }
         }
         AddressSpaceConfined => match backend {
             UnixResourceLimits if cfg!(any(target_os = "linux", target_os = "android")) => Enforced,
-            MacosSeatbelt { .. } | UnixResourceLimits | PortableProcessContainer => Unavailable,
+            MacosSeatbelt { .. }
+            | UnixResourceLimits
+            | WindowsJobObject
+            | PortableProcessContainer => Unavailable,
         },
     }
 }
@@ -1251,9 +1364,13 @@ fn configured_resource_ceilings() -> ResolverExecutionResourceCeilings {
             single_file_bytes: Some(CHILD_FILE_SIZE_BYTES),
             open_files: Some(CHILD_OPEN_FILE_LIMIT),
             address_space_bytes,
+            process_count: None,
+            per_process_memory_bytes: None,
+            aggregate_memory_bytes: None,
+            aggregate_cpu_seconds: None,
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
     {
         ResolverExecutionResourceCeilings {
             core_dump_bytes: None,
@@ -1261,6 +1378,24 @@ fn configured_resource_ceilings() -> ResolverExecutionResourceCeilings {
             single_file_bytes: None,
             open_files: None,
             address_space_bytes: None,
+            process_count: Some(CHILD_PROCESS_LIMIT),
+            per_process_memory_bytes: Some(CHILD_PROCESS_MEMORY_BYTES),
+            aggregate_memory_bytes: Some(CHILD_AGGREGATE_MEMORY_BYTES),
+            aggregate_cpu_seconds: Some(CHILD_AGGREGATE_CPU_SECONDS),
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        ResolverExecutionResourceCeilings {
+            core_dump_bytes: None,
+            cpu_seconds: None,
+            single_file_bytes: None,
+            open_files: None,
+            address_space_bytes: None,
+            process_count: None,
+            per_process_memory_bytes: None,
+            aggregate_memory_bytes: None,
+            aggregate_cpu_seconds: None,
         }
     }
 }
@@ -1276,7 +1411,8 @@ fn encode_backend_identity(bytes: &mut Vec<u8>, identity: &ResolverExecutionBack
             encode_bytes(bytes, content_sha256.as_bytes());
         }
         ResolverExecutionBackendIdentity::UnixResourceLimits => bytes.push(2),
-        ResolverExecutionBackendIdentity::PortableProcessContainer => bytes.push(3),
+        ResolverExecutionBackendIdentity::WindowsJobObject => bytes.push(3),
+        ResolverExecutionBackendIdentity::PortableProcessContainer => bytes.push(4),
     }
 }
 
@@ -1538,6 +1674,8 @@ fn format_sha256(digest: &[u8]) -> String {
 mod tests {
     #[cfg(unix)]
     use super::CHILD_OPEN_FILE_LIMIT;
+    #[cfg(windows)]
+    use super::ResolverExecutionBackendIdentity;
     #[cfg(target_os = "macos")]
     use super::{
         MACOS_CONFINED_METADATA_PATH_LIMIT, MACOS_TLS_CONFIGURATION_ALIAS_ROOT,
@@ -1960,6 +2098,49 @@ mod tests {
                 Some(1024 * 1024 * 1024)
             );
             assert_eq!(inspection.resource_ceilings().open_files(), Some(256));
+        }
+        #[cfg(windows)]
+        {
+            assert!(matches!(
+                backend.identity(),
+                ResolverExecutionBackendIdentity::WindowsJobObject
+            ));
+            assert_eq!(inspection.resource_ceilings().process_count(), Some(16));
+            assert_eq!(
+                inspection.resource_ceilings().per_process_memory_bytes(),
+                Some(2 * 1024 * 1024 * 1024)
+            );
+            assert_eq!(
+                inspection.resource_ceilings().aggregate_memory_bytes(),
+                Some(4 * 1024 * 1024 * 1024)
+            );
+            assert_eq!(
+                inspection.resource_ceilings().aggregate_cpu_seconds(),
+                Some(120)
+            );
+            let disposition = |guarantee| {
+                inspection
+                    .guarantees()
+                    .iter()
+                    .find(|row| row.guarantee() == guarantee)
+                    .expect("complete Windows guarantee row")
+                    .disposition()
+            };
+            for guarantee in [
+                ResolverExecutionGuarantee::DescendantProcessesContained,
+                ResolverExecutionGuarantee::CpuTimeConfined,
+                ResolverExecutionGuarantee::ProcessCountConfined,
+                ResolverExecutionGuarantee::AggregateResourcesConfined,
+            ] {
+                assert_eq!(
+                    disposition(guarantee),
+                    ResolverExecutionGuaranteeDisposition::Enforced
+                );
+            }
+            assert_eq!(
+                disposition(ResolverExecutionGuarantee::FilesystemReadsConfined),
+                ResolverExecutionGuaranteeDisposition::Unavailable
+            );
         }
         assert!(inspection.require_strict().is_err());
         assert!(fetch.require_strict().is_err());
