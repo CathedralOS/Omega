@@ -144,12 +144,14 @@ impl ProcessLifetimeGatewayAdmissionError {
 }
 
 /// Provider evidence that an opaque provider accepted an unregister contract
-/// for one exact reclaimable external root.
+/// for one exact reclaimable external root using one exact live-registration
+/// capacity occurrence.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OpaqueCallbackRegistrationReceipt {
     identity: OpaqueCallbackRegistrationReceiptId,
     registration: OpaqueCallbackRegistrationId,
     provider: OpaqueCallbackProviderId,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrenceId,
     unregistration_contract: OpaqueCallbackUnregistrationContractId,
     installed_root: InstalledRootEvidence,
     callback_registered: bool,
@@ -162,12 +164,14 @@ impl OpaqueCallbackRegistrationReceipt {
         provider: OpaqueCallbackProviderId,
         unregistration_contract: OpaqueCallbackUnregistrationContractId,
         root: &InstalledExternalRoot<'_>,
+        capacity: &OpaqueCallbackRegistrationCapacityOccurrence,
         callback_registered: bool,
     ) -> Self {
         Self {
             identity,
             registration,
             provider,
+            capacity: capacity.identity,
             unregistration_contract,
             installed_root: root.evidence.clone(),
             callback_registered,
@@ -175,15 +179,47 @@ impl OpaqueCallbackRegistrationReceipt {
     }
 }
 
+/// One exact provider-owned unit of live callback-registration capacity.
+///
+/// This occurrence is neither a lifetime budget nor a count of emitted callback
+/// thunks. It moves into one successful runtime registration and returns only
+/// after that exact registration is unregistered and its external root is
+/// quiescent. It is deliberately non-clonable.
+#[derive(Debug)]
+#[must_use = "live-registration capacity must be retained or transferred into a registration"]
+pub struct OpaqueCallbackRegistrationCapacityOccurrence {
+    identity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+    provider: OpaqueCallbackProviderId,
+}
+
+impl OpaqueCallbackRegistrationCapacityOccurrence {
+    pub const fn from_provider(
+        identity: OpaqueCallbackRegistrationCapacityOccurrenceId,
+        provider: OpaqueCallbackProviderId,
+    ) -> Self {
+        Self { identity, provider }
+    }
+
+    pub const fn identity(&self) -> OpaqueCallbackRegistrationCapacityOccurrenceId {
+        self.identity
+    }
+
+    pub const fn provider(&self) -> OpaqueCallbackProviderId {
+        self.provider
+    }
+}
+
 /// Linear registration path for an opaque callback that targets replaceable
 /// code directly. Reclamation can occur only by consuming this value through
 /// both provider unregistration and the existing exact-root quiescence gate.
 #[derive(Debug)]
+#[must_use = "a reclaimable callback retains registration capacity until unregister and quiescence complete"]
 pub struct ReclaimableOpaqueCallback<'code> {
     registration: OpaqueCallbackRegistrationId,
     provider: OpaqueCallbackProviderId,
     unregistration_contract: OpaqueCallbackUnregistrationContractId,
     registration_receipt: OpaqueCallbackRegistrationReceiptId,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     root: InstalledExternalRoot<'code>,
 }
 
@@ -207,18 +243,26 @@ impl ReclaimableOpaqueCallback<'_> {
     pub const fn installed_code(&self) -> InstalledCodeId {
         self.root.installed_code()
     }
+
+    pub const fn capacity(&self) -> &OpaqueCallbackRegistrationCapacityOccurrence {
+        &self.capacity
+    }
 }
 
 pub fn admit_reclaimable_opaque_callback<'code>(
     root: InstalledExternalRoot<'code>,
     receipt: OpaqueCallbackRegistrationReceipt,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
 ) -> Result<ReclaimableOpaqueCallback<'code>, Box<OpaqueCallbackRegistrationError<'code>>> {
-    if receipt.installed_root != root.evidence || !receipt.callback_registered {
+    let exact_capacity =
+        receipt.capacity == capacity.identity && receipt.provider == capacity.provider;
+    if receipt.installed_root != root.evidence || !exact_capacity || !receipt.callback_registered {
         return Err(Box::new(OpaqueCallbackRegistrationError {
             root,
             receipt,
+            capacity,
             diagnostic: ExternalRootDiagnostic(
-                "opaque callback registration receipt does not bind the exact installed external root and completed registration"
+                "opaque callback registration receipt does not bind the exact installed external root, provider capacity occurrence, and completed registration"
                     .into(),
             ),
         }));
@@ -228,6 +272,7 @@ pub fn admit_reclaimable_opaque_callback<'code>(
         provider: receipt.provider,
         unregistration_contract: receipt.unregistration_contract,
         registration_receipt: receipt.identity,
+        capacity,
         root,
     })
 }
@@ -236,6 +281,7 @@ pub fn admit_reclaimable_opaque_callback<'code>(
 pub struct OpaqueCallbackRegistrationError<'code> {
     root: InstalledExternalRoot<'code>,
     receipt: OpaqueCallbackRegistrationReceipt,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
     diagnostic: ExternalRootDiagnostic,
 }
 
@@ -249,8 +295,9 @@ impl<'code> OpaqueCallbackRegistrationError<'code> {
     ) -> (
         InstalledExternalRoot<'code>,
         OpaqueCallbackRegistrationReceipt,
+        OpaqueCallbackRegistrationCapacityOccurrence,
     ) {
-        (self.root, self.receipt)
+        (self.root, self.receipt, self.capacity)
     }
 }
 
@@ -264,6 +311,7 @@ pub struct OpaqueCallbackUnregistrationReceipt {
     provider: OpaqueCallbackProviderId,
     unregistration_contract: OpaqueCallbackUnregistrationContractId,
     registration_receipt: OpaqueCallbackRegistrationReceiptId,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrenceId,
     installed_root: InstalledRootEvidence,
     callback_unregistered: bool,
 }
@@ -280,6 +328,7 @@ impl OpaqueCallbackUnregistrationReceipt {
             provider: registration.provider,
             unregistration_contract: registration.unregistration_contract,
             registration_receipt: registration.registration_receipt,
+            capacity: registration.capacity.identity,
             installed_root: registration.root.evidence.clone(),
             callback_unregistered,
         }
@@ -287,11 +336,13 @@ impl OpaqueCallbackUnregistrationReceipt {
 }
 
 #[derive(Debug)]
+#[must_use = "completed callback unregistration returns root-slot and live-registration capacity authority"]
 pub struct CompletedOpaqueCallbackUnregistration {
     registration: OpaqueCallbackRegistrationId,
     provider_receipt: OpaqueCallbackUnregistrationReceiptId,
     root_removal_receipt: RootRemovalReceiptId,
     slot: RootSlotAuthority,
+    capacity: OpaqueCallbackRegistrationCapacityOccurrence,
 }
 
 impl CompletedOpaqueCallbackUnregistration {
@@ -307,8 +358,17 @@ impl CompletedOpaqueCallbackUnregistration {
         self.root_removal_receipt
     }
 
-    pub fn into_slot_authority(self) -> RootSlotAuthority {
-        self.slot
+    pub const fn capacity(&self) -> &OpaqueCallbackRegistrationCapacityOccurrence {
+        &self.capacity
+    }
+
+    pub fn into_parts(
+        self,
+    ) -> (
+        RootSlotAuthority,
+        OpaqueCallbackRegistrationCapacityOccurrence,
+    ) {
+        (self.slot, self.capacity)
     }
 }
 
@@ -324,6 +384,7 @@ impl<'code> ReclaimableOpaqueCallback<'code> {
             && provider_receipt.provider == self.provider
             && provider_receipt.unregistration_contract == self.unregistration_contract
             && provider_receipt.registration_receipt == self.registration_receipt
+            && provider_receipt.capacity == self.capacity.identity
             && provider_receipt.installed_root == self.root.evidence;
         if !exact_provider_receipt || !provider_receipt.callback_unregistered {
             return Err(Box::new(OpaqueCallbackUnregistrationError {
@@ -342,6 +403,7 @@ impl<'code> ReclaimableOpaqueCallback<'code> {
             provider,
             unregistration_contract,
             registration_receipt,
+            capacity,
             root,
         } = self;
         let root_removal_identity = root_removal_receipt.identity();
@@ -355,6 +417,7 @@ impl<'code> ReclaimableOpaqueCallback<'code> {
                         provider,
                         unregistration_contract,
                         registration_receipt,
+                        capacity,
                         root,
                     },
                     provider_receipt,
@@ -371,6 +434,7 @@ impl<'code> ReclaimableOpaqueCallback<'code> {
             provider_receipt: provider_receipt.identity,
             root_removal_receipt: root_removal_identity,
             slot,
+            capacity,
         })
     }
 }

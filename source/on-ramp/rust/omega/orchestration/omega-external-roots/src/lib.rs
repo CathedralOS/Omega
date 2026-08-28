@@ -117,6 +117,10 @@ normalized_id!(
 normalized_id!(OpaqueCallbackRegistrationId, "opaque callback registration");
 normalized_id!(OpaqueCallbackProviderId, "opaque callback provider");
 normalized_id!(
+    OpaqueCallbackRegistrationCapacityOccurrenceId,
+    "opaque callback live-registration capacity occurrence"
+);
+normalized_id!(
     ProcessLifetimeGatewayId,
     "process-lifetime callback gateway"
 );
