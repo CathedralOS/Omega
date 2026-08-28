@@ -163,6 +163,14 @@ out-of-range count as an executable trap condition. Thus the invalid-count
 condition named above is policy-sensitive, not a common partiality of all four
 shift denotations.
 
+The first proof-ledger migration slice now projects that exact count law
+directly for fixed integer carriers. Literal counts normalize to `Truth` or
+`Falsehood`; symbolic counts retain only the lower or upper bounds not already
+implied by their carrier, in canonical order. Exact right shift may use a
+kernel-checked prior-fact certificate for this unchanged goal, while a missing
+proof retains the explicitly versioned trusted reduction dependency. Exact
+left-shift result representability remains a separate, unprojected obligation.
+
 `Float::meaning32` and `Float::meaning64` are the corresponding explicit total
 projections for floats. They produce `FloatMeaning`, retaining signed zero,
 infinity, and NaN as distinct cases and representing each finite nonzero value

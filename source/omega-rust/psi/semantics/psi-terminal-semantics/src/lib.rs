@@ -245,6 +245,12 @@ pub enum OperationSemanticError {
         left: ScalarType,
         right: ScalarType,
     },
+    ExactShiftCountRequiresFixedValueInteger(IntegerType),
+    ExactShiftCountRequiresFixedCountInteger(IntegerType),
+    ExactShiftCountTypeMismatch {
+        declared: IntegerType,
+        actual: ScalarType,
+    },
     InvalidProposition(PropositionError),
 }
 

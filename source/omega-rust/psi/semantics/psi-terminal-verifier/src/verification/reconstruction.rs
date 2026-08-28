@@ -273,17 +273,27 @@ pub(super) fn reconstruct_machine_semantics(
     })
 }
 
+/// Test entry for canonical goals whose proof closes without value-root
+/// custody or operation-definition authority.
+#[cfg(test)]
+fn canonical_goal_has_closed_prior_certificate(
+    goal: &CanonicalScalarGoal,
+    semantic_axioms: &[Proposition],
+    requirements: &[Proposition],
+) -> bool {
+    certificate_entry::retained(None, goal, semantic_axioms, requirements)
+}
+
 /// The complete prior-fact exact divide/remainder families whose canonical
 /// proofs need only exact citations, closed integer order, substitution, and
-/// transitivity. No value-root custody or operation-definition authority
-/// participates.
+/// transitivity.
 #[cfg(test)]
 fn exact_division_has_closed_prior_certificate(
     goal: &CanonicalScalarGoal,
     semantic_axioms: &[Proposition],
     requirements: &[Proposition],
 ) -> bool {
-    certificate_entry::retained(None, goal, semantic_axioms, requirements)
+    canonical_goal_has_closed_prior_certificate(goal, semantic_axioms, requirements)
 }
 
 #[cfg(test)]

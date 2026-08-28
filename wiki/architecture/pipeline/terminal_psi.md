@@ -2423,15 +2423,29 @@ wrapping/saturating divide/remainder rows instead select their canonical
 proposition directly from their exact operation tags. This does not certify the
 remaining reducers, and the current closure remains `fully-derived false`.
 
-`NonzeroDivisor` and `ExactDivisionDefined` currently have exact
-kernel-proposition projections. Unsigned fixed integers use `1 <= d` for both.
+`NonzeroDivisor`, `ExactDivisionDefined`, and `ExactShiftCount` currently have
+exact kernel-proposition projections. Unsigned fixed integers use `1 <= d` for both.
 Signed nonzero uses the ordered disjunction `(d <= -1) OR (1 <= d)`. Signed
 exact division/remainder uses the ordered disjunction `(d <= -2) OR (1 <= d)
 OR ((d <= -1) AND (MIN + 1 <= n))`, where `n` is the dividend. Signed one-bit
 nonzero uses only `d <= -1`; its exact-definedness goal is `(d <= -1) AND (0 <=
-n)`, because neither `-2` nor `+1` inhabits that carrier. Address carriers and
-mismatched operand types reject. The other four canonical goal shapes remain
-deliberately unprojected.
+n)`, because neither `-2` nor `+1` inhabits that carrier. Exact shift counts
+project the settled `[0, width)` law: known literals become `Truth` or
+`Falsehood`, symbolic signed counts retain the ordered lower and upper bounds,
+symbolic unsigned counts omit the carrier-implied lower bound, and a narrow
+count carrier may imply the whole goal. Address carriers and mismatched operand
+types reject. The other three canonical goal shapes remain deliberately
+unprojected.
+
+Exact right shift is the first shift-count production pilot. Reconstruction
+selects the unchanged canonical proposition only when prior machine
+requirements and pre-site semantic facts close every retained bound; the
+generic untrusted producer builds exact citations and ordered conjunction
+introduction, then the kernel checks the result. A missing bound or redirected
+count identity does not gain canonical status and retains the versioned trusted
+sufficient-reduction fallback. The operation's post-discharge result equation
+is unavailable to its own proof. Exact left-shift representability is a
+separate goal and remains unprojected.
 
 For the four whole-row wrapping and saturating divide/remainder pilots,
 reconstruction selects the nonzero goal solely from the exact operation tag.
