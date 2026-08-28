@@ -2573,12 +2573,18 @@ installation custody retains the complete settlement row. Installation format
 41 binds the added realization tag. It is not a fake call, port effect, or
 selected instruction.
 
+Optimized legalization v8 and selected identity v11 retain these settlements as
+ordered metadata rows. Independent derivation and replay reconstruct the exact
+boundary declaration, whole-root owned linear ABI, canonical caller entry-
+claim sources (including unrelated still-live sources), receipt set, admitted
+provider execution, fuel, sequential effect links, and `ClaimCompletion`
+ownership. The rows receive no selected instruction IDs; a settlement-only
+provider body selects only its `ReturnUnit`, numbered 0.
+
 The first positive three-way settlement/object/wrapper test still waits for
-the optimized structural lane to retain the provider body's two no-code claim-
-completion rows through legalization and selection, then for orchestration to
-own the opaque installation alongside both functions through canonical object
-custody. That is an implementation prerequisite, not a language-design
-question, and does not add an owner question.
+orchestration to own the opaque installation alongside both selected functions
+through canonical object custody. That is an implementation prerequisite, not
+a language-design question, and does not add an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime

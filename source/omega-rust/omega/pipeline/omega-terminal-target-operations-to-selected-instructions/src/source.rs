@@ -9,10 +9,11 @@ use omega_terminal_abstract_operations::{
 use omega_terminal_legalized_operations::{
     TerminalLegalizationRecipe, TerminalLegalizationTheorem,
     TerminalLegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
-    TerminalLegalizedCallUnit, TerminalLegalizedCallUnitArgument,
-    TerminalLegalizedCallUnitParameter, TerminalLegalizedExactAdd as SourceExactAdd,
-    TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
-    TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
+    TerminalLegalizedBoundarySettlement, TerminalLegalizedCallUnit,
+    TerminalLegalizedCallUnitArgument, TerminalLegalizedCallUnitParameter,
+    TerminalLegalizedExactAdd as SourceExactAdd, TerminalLegalizedFunction as SourceFunction,
+    TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
+    TerminalLegalizedLeafValue as SourceLeafValue,
     TerminalLegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
     TerminalLegalizedTemporaryId, TerminalLegalizedUnitFunction as SourceUnitFunction,
 };
@@ -222,6 +223,7 @@ fn derive_source_structural_unit_function(
         abstract_return,
         optimized_call,
         optimized_return,
+        settlement_rows,
     ) = match (
         body.operations.as_slice(),
         abstracted.operations.as_slice(),
@@ -238,6 +240,7 @@ fn derive_source_structural_unit_function(
             abstract_return,
             None,
             optimized_return,
+            None,
         ),
         (
             [
@@ -256,6 +259,7 @@ fn derive_source_structural_unit_function(
             abstract_return,
             Some(optimized_call),
             optimized_return,
+            None,
         ),
         (
             [
@@ -274,7 +278,33 @@ fn derive_source_structural_unit_function(
             abstract_return,
             Some(optimized_call),
             optimized_return,
+            None,
         ),
+        (
+            [target_settlements @ .., target_return @ TerminalTargetUnitOperation::Return { .. }],
+            [abstract_settlements @ .., abstract_return @ TerminalAbstractOperation::ReturnUnit { .. }],
+            [optimized_settlements @ .., optimized_return],
+        ) if !target_settlements.is_empty()
+            && target_settlements.len() == abstract_settlements.len()
+            && target_settlements.len() == optimized_settlements.len()
+            && target_settlements.iter().all(|operation| matches!(
+                operation,
+                TerminalTargetUnitOperation::BoundarySettlement {
+                    realization: omega_terminal_target_operations::TerminalBoundaryRealization::ClaimCompletionOnly(_),
+                    ..
+                }
+            ))
+            && abstract_settlements
+                .iter()
+                .all(|operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { .. })) => (
+                None,
+                target_return,
+                None,
+                abstract_return,
+                None,
+                optimized_return,
+                Some((target_settlements, abstract_settlements, optimized_settlements)),
+            ),
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let TerminalTargetUnitOperation::Return {
@@ -285,19 +315,34 @@ fn derive_source_structural_unit_function(
         unreachable!()
     };
     let expected_provenance = TerminalPsiProvenance {
-        operations: abstract_call
-            .and_then(|operation| match operation {
-                TerminalAbstractOperation::CallUnit { psi_operation, .. }
-                | TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
-                    Some(*psi_operation)
-                }
-                _ => None,
-            })
-            .into_iter()
-            .collect(),
+        operations: if let Some((_, abstract_settlements, _)) = settlement_rows {
+            abstract_settlements
+                .iter()
+                .filter_map(|operation| match operation {
+                    TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                })
+                .collect()
+        } else {
+            abstract_call
+                .and_then(|operation| match operation {
+                    TerminalAbstractOperation::CallUnit { psi_operation, .. }
+                    | TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                })
+                .into_iter()
+                .collect()
+        },
         edges: vec![*psi_edge],
     };
-    let expected_return_effect_input = u64::from(abstract_call.is_some());
+    let expected_return_effect_input = settlement_rows.map_or_else(
+        || u64::from(abstract_call.is_some()),
+        |(rows, _, _)| rows.len() as u64,
+    );
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -403,6 +448,29 @@ fn derive_source_structural_unit_function(
         }
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
+    let boundary_settlements = settlement_rows
+        .map(|(target_rows, abstract_rows, optimized_rows)| {
+            target_rows
+                .iter()
+                .zip(abstract_rows)
+                .zip(optimized_rows)
+                .enumerate()
+                .map(|(index, ((target, abstract_row), optimized))| {
+                    derive_boundary_settlement(
+                        function,
+                        index,
+                        target,
+                        abstract_row,
+                        optimized,
+                        &parameters,
+                        &abstracted.entry_claims,
+                        abstract_plan,
+                    )
+                })
+                .collect::<Result<Vec<_>, _>>()
+        })
+        .transpose()?
+        .unwrap_or_default();
 
     Ok(SourceStructuralUnitFunction {
         machine: target.machine,
@@ -415,11 +483,172 @@ fn derive_source_structural_unit_function(
         entry_claims: abstracted.entry_claims.clone(),
         published_service_ceiling: abstracted.published_service_ceiling.clone(),
         entry_block: optimized_block.id,
+        boundary_settlements,
         call,
         return_edge: *psi_edge,
         return_fuel: optimized_return.fuel.clone(),
         return_effect: optimized_return.effect,
         return_ownership: optimized_return.ownership.clone(),
+    })
+}
+
+fn derive_boundary_settlement(
+    function: usize,
+    index: usize,
+    target: &TerminalTargetUnitOperation,
+    abstracted: &TerminalAbstractOperation,
+    optimized: &omega_optimization_unit::OptimizationNode,
+    caller_parameters: &[TerminalLegalizedCallUnitParameter],
+    caller_claims: &[psi_terminal::EntryClaim],
+    abstract_plan: &TerminalAbstractOperationPlan,
+) -> Result<TerminalLegalizedBoundarySettlement, TerminalLegalizationError> {
+    let TerminalTargetUnitOperation::BoundarySettlement {
+        psi_operation: target_operation,
+        boundary: target_boundary,
+        provider_execution,
+        realization:
+            omega_terminal_target_operations::TerminalBoundaryRealization::ClaimCompletionOnly(
+                realization,
+            ),
+        scalar_arguments,
+        arguments: target_arguments,
+        byte_sequence_arguments,
+        completion_claim_sources: target_sources,
+        completion_receipts: target_receipts,
+    } = target
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalAbstractOperation::BoundaryCall {
+        psi_operation,
+        result: None,
+        boundary,
+        arguments,
+        structural_arguments,
+        completion_claim_sources,
+        completion_receipts,
+    } = abstracted
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let boundary_declarations = abstract_plan
+        .boundary_machines
+        .iter()
+        .filter(|declaration| declaration.id == *boundary)
+        .collect::<Vec<_>>();
+    let [declaration] = boundary_declarations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let expected_evidence = structural_arguments
+        .iter()
+        .enumerate()
+        .map(|(argument_index, argument)| {
+            let matching_claims = caller_claims
+                .iter()
+                .filter(|claim| claim.input == argument.place && claim.path.is_empty())
+                .collect::<Vec<_>>();
+            let [claim] = matching_claims.as_slice() else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            Ok((
+                omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                    claim: claim.claim,
+                    entry: Some((*claim).clone()),
+                    content: None,
+                },
+                psi_terminal::CompletionReceipt {
+                    claim: claim.claim,
+                    argument_index: argument_index as u32,
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let expected_receipts = expected_evidence
+        .iter()
+        .map(|(_, receipt)| *receipt)
+        .collect::<Vec<_>>();
+    let completed_claims = expected_receipts
+        .iter()
+        .map(|receipt| receipt.claim)
+        .collect::<Vec<_>>();
+    if target_operation != psi_operation
+        || target_boundary != boundary
+        || !scalar_arguments.is_empty()
+        || !arguments.is_empty()
+        || !byte_sequence_arguments.is_empty()
+        || target_arguments != structural_arguments
+        || target_sources != completion_claim_sources
+        || target_receipts != completion_receipts
+        || structural_arguments.is_empty()
+        || !declaration.scalar_parameters.is_empty()
+        || declaration.result.is_some()
+        || !declaration.program_local_root_introductions.is_empty()
+        || !declaration.content_guarantees.is_empty()
+        || !declaration.published_service_ceiling.is_empty()
+        || declaration.structural_parameters.len() != structural_arguments.len()
+        || completion_receipts != &expected_receipts
+        || completion_claim_sources
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || completion_claim_sources.iter().any(|source| {
+            let Some(entry) = &source.entry else {
+                return true;
+            };
+            source.content.is_some()
+                || entry.claim != source.claim
+                || caller_claims.iter().filter(|claim| *claim == entry).count() != 1
+        })
+        || expected_evidence.iter().any(|(expected_source, _)| {
+            completion_claim_sources
+                .iter()
+                .filter(|source| *source == expected_source)
+                .count()
+                != 1
+        })
+        || optimized.operation != *abstracted
+        || optimized.provenance != [PsiProvenance::Operation(*psi_operation)]
+        || optimized.effect.input != index as u64
+        || optimized.effect.output != index as u64 + 1
+        || !optimized.definitions.is_empty()
+        || !optimized.uses.is_empty()
+        || !optimized.successors.is_empty()
+        || optimized.ownership != [OwnershipEvent::ClaimCompletion(completed_claims)]
+        || structural_arguments
+            .iter()
+            .enumerate()
+            .any(|(index, argument)| {
+                let caller_matches = caller_parameters
+                    .iter()
+                    .filter(|parameter| parameter.semantic.place == argument.place)
+                    .collect::<Vec<_>>();
+                let [caller] = caller_matches.as_slice() else {
+                    return true;
+                };
+                let boundary_parameter = &declaration.structural_parameters[index];
+                !argument.path.is_empty()
+                    || argument.access != psi_terminal::StructuralAccess::Owned
+                    || caller.semantic.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                    || caller.semantic.access != psi_terminal::StructuralAccess::Owned
+                    || boundary_parameter.position != index as u32
+                    || boundary_parameter.structural_type != caller.semantic.structural_type
+                    || boundary_parameter.multiplicity != caller.semantic.multiplicity
+                    || boundary_parameter.access != caller.semantic.access
+                    || boundary_parameter.qualifications != caller.semantic.qualifications
+            })
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    Ok(TerminalLegalizedBoundarySettlement {
+        operation: *psi_operation,
+        boundary: *boundary,
+        provider_execution: *provider_execution,
+        realization: *realization,
+        arguments: structural_arguments.clone(),
+        completion_claim_sources: completion_claim_sources.clone(),
+        completion_receipts: completion_receipts.clone(),
+        fuel: optimized.fuel.clone(),
+        effect: optimized.effect,
+        ownership: optimized.ownership.clone(),
     })
 }
 

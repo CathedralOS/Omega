@@ -19,6 +19,9 @@ use omega_optimization_unit::{
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations::{TerminalCompletionClaimSource, TerminalValueBinding};
 use omega_terminal_target_operations::{MachineRegister, TerminalPsiProvenance};
+use omega_terminal_target_operations::{
+    TerminalClaimCompletionOnlyRealization, TerminalProviderExecutionBinding,
+};
 use psi_core::{
     BlockId, BoundaryMachineId, ContentAlgebra, ContentAlgebraKind, ContentPlaceSegment,
     ContentPlaceVersion, EdgeId, FuelScheduleIdentity, IeeeFloatFormat, IntegerType, IntegerValue,
@@ -142,6 +145,9 @@ pub struct TerminalLegalizedStructuralUnitFunction {
     /// requires this to be empty, but legalization must not erase it.
     pub published_service_ceiling: Vec<ServiceId>,
     pub entry_block: BlockId,
+    /// Ordered metadata-only provider settlements. These consume claims and
+    /// effects but select no instruction.
+    pub boundary_settlements: Vec<TerminalLegalizedBoundarySettlement>,
     /// Optional sole structural call. `None` represents the terminal callee
     /// needed to close an acyclic `[CallUnit, ReturnUnit]` program while still
     /// retaining its nonempty structural ABI.
@@ -150,6 +156,20 @@ pub struct TerminalLegalizedStructuralUnitFunction {
     pub return_fuel: Vec<FuelSettlement>,
     pub return_effect: EffectLink,
     pub return_ownership: Vec<OwnershipEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalLegalizedBoundarySettlement {
+    pub operation: OperationId,
+    pub boundary: BoundaryMachineId,
+    pub provider_execution: TerminalProviderExecutionBinding,
+    pub realization: TerminalClaimCompletionOnlyRealization,
+    pub arguments: Vec<StructuralArgument>,
+    pub completion_claim_sources: Vec<TerminalCompletionClaimSource>,
+    pub completion_receipts: Vec<CompletionReceipt>,
+    pub fuel: Vec<FuelSettlement>,
+    pub effect: EffectLink,
+    pub ownership: Vec<OwnershipEvent>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -419,7 +439,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v7\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v8\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -547,6 +567,10 @@ fn encode_structural_unit_function(
             .map(|service| service.get()),
     );
     bytes.extend_from_slice(&function.entry_block.get().to_le_bytes());
+    encode_len(bytes, function.boundary_settlements.len());
+    for settlement in &function.boundary_settlements {
+        encode_boundary_settlement(bytes, settlement);
+    }
     match &function.call {
         Some(call) => {
             bytes.push(1);
@@ -573,6 +597,37 @@ fn encode_structural_unit_function(
     encode_fuel(bytes, &function.return_fuel);
     encode_effect(bytes, function.return_effect);
     encode_ownership_roster(bytes, &function.return_ownership);
+}
+
+fn encode_boundary_settlement(
+    bytes: &mut Vec<u8>,
+    settlement: &TerminalLegalizedBoundarySettlement,
+) {
+    bytes.extend_from_slice(&settlement.operation.get().to_le_bytes());
+    bytes.extend_from_slice(&settlement.boundary.get().to_le_bytes());
+    let execution = settlement.provider_execution;
+    bytes.extend_from_slice(&execution.provider_plan().get().to_le_bytes());
+    bytes.extend_from_slice(&execution.provider_execution_identity().to_le_bytes());
+    bytes.extend_from_slice(&execution.provider_execution_fingerprint().to_le_bytes());
+    bytes.extend_from_slice(&execution.normalized_root_identity().to_le_bytes());
+    bytes.extend_from_slice(&execution.boundary_contract_fingerprint().to_le_bytes());
+    bytes.push(1);
+    encode_len(bytes, settlement.arguments.len());
+    for argument in &settlement.arguments {
+        encode_structural_argument(bytes, argument);
+    }
+    encode_len(bytes, settlement.completion_claim_sources.len());
+    for source in &settlement.completion_claim_sources {
+        encode_completion_claim_source(bytes, source);
+    }
+    encode_len(bytes, settlement.completion_receipts.len());
+    for receipt in &settlement.completion_receipts {
+        bytes.extend_from_slice(&receipt.claim.get().to_le_bytes());
+        bytes.extend_from_slice(&receipt.argument_index.to_le_bytes());
+    }
+    encode_fuel(bytes, &settlement.fuel);
+    encode_effect(bytes, settlement.effect);
+    encode_ownership_roster(bytes, &settlement.ownership);
 }
 
 fn encode_call_source(bytes: &mut Vec<u8>, source: &TerminalLegalizedCallUnitSource) {
@@ -1644,6 +1699,7 @@ mod tests {
                 ],
                 published_service_ceiling: Vec::new(),
                 entry_block: id(1),
+                boundary_settlements: Vec::new(),
                 call: Some(TerminalLegalizedCallUnit {
                     source: TerminalLegalizedCallUnitSource::AuthoredCallUnit,
                     operation: call,

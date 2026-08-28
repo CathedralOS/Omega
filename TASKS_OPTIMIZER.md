@@ -441,12 +441,18 @@ These facts constrain the work below.
   execution, arguments, sources, and receipts, and produces no scalar or byte-
   sequence inputs. Legacy emission records zero bytes without erasing the
   settlement; object/install replay retains it under installation format 41.
+  Optimized legalization v8 and selected identity v11 now retain one-or-more
+  ordered completion settlements as metadata, independently replaying the
+  boundary declaration, caller signature and entry claims, provider execution,
+  arguments, sources, receipts, fuel, sequential effects, and
+  `ClaimCompletion`. Unrelated still-live claim sources remain retained, while
+  every receipt must have one exact source. These rows own no selected
+  instruction identifiers; the provider's `ReturnUnit` remains instruction 0.
   Pairing either synthetic fixture with the other's custody must still reject.
   A positive three-way settlement/object/wrapper regression remains an
-  engineering prerequisite: the optimized structural lane must carry the two
-  no-code completion rows through legalization and selection, then join both
-  functions and the opaque installation into object custody. This does not
-  require a new owner question.
+  engineering prerequisite: the optimized target carrier must own the opaque
+  installation by value, then join both selected functions into object custody.
+  This does not require a new owner question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2644,10 +2650,10 @@ dependency.
   and retains the canonical boundary occurrence, complete provider conformance
   row, source/target structural arguments, claim transfers, completion evidence,
   and `ClaimCompletion` ownership. The provider body's two pure claim
-  settlements now also have an exact zero-code target realization and legacy
-  object/install custody. Remaining here is to retain those two metadata rows
-  through optimized legalization/selection and complete the final object-
-  custody join.
+  settlements now also have an exact zero-code target realization, ordered
+  legalized/selected metadata custody, and legacy object/install custody. They
+  consume no selected instruction IDs. Remaining here is the installation-
+  owning optimized-target carrier and final object-custody join.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify

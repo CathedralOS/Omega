@@ -123,9 +123,15 @@ pub struct TerminalSelectedStructuralUnitFunction {
     pub published_service_ceiling: Vec<ServiceId>,
     pub entry_block: TerminalSelectedBlockId,
     pub source_entry_block: BlockId,
+    /// Ordered claim-completion settlements. Each row is metadata and owns no
+    /// selected instruction identifier.
+    pub boundary_settlements: Vec<TerminalSelectedBoundarySettlement>,
     pub call: Option<TerminalSelectedStructuralUnitCallInstruction>,
     pub terminator: TerminalSelectedStructuralUnitReturn,
 }
+
+pub type TerminalSelectedBoundarySettlement =
+    omega_terminal_legalized_operations::TerminalLegalizedBoundarySettlement;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalSelectedStructuralUnitAbiRecipe {

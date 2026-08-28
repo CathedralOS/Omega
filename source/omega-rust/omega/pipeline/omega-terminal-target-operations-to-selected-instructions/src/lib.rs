@@ -59,11 +59,11 @@ use source::{derive_source_functions, derive_source_unit_functions};
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v7",
+        b"omega.terminal-target-legalization-independent-replay.v8",
     )
 }
 
-/// Opaque custody of the canonical V7 target-legal projection.
+/// Opaque custody of the canonical V8 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -304,7 +304,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V7
+/// Canonicalize the bounded target-operation input into the mandatory V8
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -328,7 +328,7 @@ pub fn legalize_terminal_target_operations(
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V7 projection from the raw target,
+/// Independently replay the exact admitted V8 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -798,6 +798,7 @@ fn build_structural_unit_function(
         published_service_ceiling: source.published_service_ceiling.clone(),
         entry_block: TerminalSelectedBlockId(0),
         source_entry_block: source.entry_block,
+        boundary_settlements: source.boundary_settlements.clone(),
         call,
         terminator: TerminalSelectedStructuralUnitReturn {
             instruction: return_instruction,
@@ -1984,6 +1985,7 @@ fn validate_structural_unit_function(
         || selected.published_service_ceiling != source.published_service_ceiling
         || selected.entry_block != TerminalSelectedBlockId(0)
         || selected.source_entry_block != source.entry_block
+        || selected.boundary_settlements != source.boundary_settlements
     {
         return Err(SelectedInstructionError::FunctionProjectionMismatch {
             function: function_index,
@@ -3637,7 +3639,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v10\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v11\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -3772,6 +3774,7 @@ fn selected_structural_legalized_identity(
                 entry_claims: function.entry_claims.clone(),
                 published_service_ceiling: function.published_service_ceiling.clone(),
                 entry_block: function.source_entry_block,
+                boundary_settlements: function.boundary_settlements.clone(),
                 call: function
                     .call
                     .as_ref()
@@ -4479,6 +4482,113 @@ mod structural_unit_tests {
         (abstract_plan, target, unit)
     }
 
+    fn claim_completion_settlement_fixture() -> (
+        TerminalAbstractOperationPlan,
+        TerminalTargetOperationPlan,
+        PsiOptimizationUnit,
+    ) {
+        let (mut abstract_plan, mut target, _) = installed_provider_legalization_fixture();
+        abstract_plan.provider_candidates.clear();
+        abstract_plan.boundary_machines[0]
+            .structural_parameters
+            .truncate(1);
+        abstract_plan.boundary_machines[0].structural_parameters[0].is_self = true;
+        let TerminalAbstractOperation::BoundaryCall {
+            boundary,
+            structural_arguments,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } = abstract_plan.functions[0].operations[0].clone()
+        else {
+            panic!("boundary-call fixture");
+        };
+        let return_operation = abstract_plan.functions[0].operations[1].clone();
+        let second_operation = OperationId::new(2).unwrap();
+        abstract_plan.functions[0].operations = vec![
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation: OperationId::new(1).unwrap(),
+                result: None,
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: vec![structural_arguments[0].clone()],
+                completion_claim_sources: completion_claim_sources.clone(),
+                completion_receipts: vec![completion_receipts[0]],
+            },
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation: second_operation,
+                result: None,
+                boundary,
+                arguments: Vec::new(),
+                structural_arguments: vec![structural_arguments[1].clone()],
+                completion_claim_sources: vec![completion_claim_sources[1].clone()],
+                completion_receipts: vec![CompletionReceipt {
+                    claim: completion_receipts[1].claim,
+                    argument_index: 0,
+                }],
+            },
+            return_operation,
+        ];
+        let omega_terminal_target_operations::TerminalTargetOperation::UnitBody(body) =
+            &mut target.functions[0].operation
+        else {
+            panic!("caller Unit body");
+        };
+        let return_operation = body.operations[1].clone();
+        let settlement = |psi_operation, argument, sources, receipts, seed| {
+            omega_terminal_target_operations::TerminalTargetUnitOperation::BoundarySettlement {
+                psi_operation,
+                boundary,
+                provider_execution:
+                    omega_terminal_target_operations::TerminalProviderExecutionBinding::from_execution_record(
+                        omega_terminal_target_operations::TerminalProviderPlanIdentity::new(seed)
+                            .unwrap(),
+                        seed + 1,
+                        seed + 2,
+                        seed + 3,
+                        seed + 4,
+                    )
+                    .unwrap(),
+                realization:
+                    omega_terminal_target_operations::TerminalClaimCompletionOnlyRealization
+                        .into(),
+                scalar_arguments: Vec::new(),
+                arguments: vec![argument],
+                byte_sequence_arguments: Vec::new(),
+                completion_claim_sources: sources,
+                completion_receipts: receipts,
+            }
+        };
+        body.operations = vec![
+            settlement(
+                OperationId::new(1).unwrap(),
+                structural_arguments[0].clone(),
+                completion_claim_sources.clone(),
+                vec![completion_receipts[0]],
+                7,
+            ),
+            settlement(
+                second_operation,
+                structural_arguments[1].clone(),
+                vec![completion_claim_sources[1].clone()],
+                vec![CompletionReceipt {
+                    claim: completion_receipts[1].claim,
+                    argument_index: 0,
+                }],
+                17,
+            ),
+            return_operation,
+        ];
+        target.functions[0].provenance.operations =
+            vec![OperationId::new(1).unwrap(), second_operation];
+        let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &abstract_plan,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .expect("claim-completion settlement optimization seed");
+        (abstract_plan, target, unit)
+    }
+
     fn microsoft_selection_environment() -> (
         ValidatedPhysicalRegisterModel,
         ValidatedRegisterConstraintCatalog,
@@ -4683,6 +4793,90 @@ mod structural_unit_tests {
                 &physical,
                 &catalog,
                 receipt_tamper,
+            )
+            .is_err()
+        );
+    }
+
+    #[test]
+    fn claim_completion_settlement_is_ordered_metadata_without_instruction_ids() {
+        let (abstract_plan, target, unit) = claim_completion_settlement_fixture();
+        let legalized = legalize_terminal_target_operations(&target, &abstract_plan, &unit)
+            .expect("two-Extent claim-completion settlement legalizes and replays");
+        let caller = &legalized.plan().structural_unit_functions[0];
+        assert!(caller.call.is_none());
+        assert_eq!(caller.boundary_settlements.len(), 2);
+        assert_eq!(
+            caller.boundary_settlements[0]
+                .completion_claim_sources
+                .len(),
+            2
+        );
+        assert_eq!(caller.boundary_settlements[0].completion_receipts.len(), 1);
+        assert_eq!(
+            caller.boundary_settlements[0].ownership,
+            [omega_optimization_unit::OwnershipEvent::ClaimCompletion(
+                vec![ClaimId::new(1).unwrap()]
+            )]
+        );
+        assert_eq!(
+            caller.boundary_settlements[1].ownership,
+            [omega_optimization_unit::OwnershipEvent::ClaimCompletion(
+                vec![ClaimId::new(2).unwrap()]
+            )]
+        );
+
+        let legalized_identity = legalized.receipt().identity();
+        let mut corrupted = legalized.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .boundary_settlements
+            .swap(0, 1);
+        assert_ne!(
+            terminal_legalized_operation_plan_identity(&corrupted),
+            legalized_identity
+        );
+        assert!(
+            validate_terminal_legalized_operations(&target, &abstract_plan, &unit, corrupted)
+                .is_err()
+        );
+
+        let (physical, catalog, constraints) = microsoft_selection_environment();
+        let selected = select_terminal_instructions(&legalized, &constraints, &physical, &catalog)
+            .expect("metadata settlement selects with only the return instruction");
+        let selected_caller = &selected.plan().structural_unit_functions[0];
+        assert!(selected_caller.call.is_none());
+        assert_eq!(
+            selected_caller.boundary_settlements,
+            caller.boundary_settlements
+        );
+        assert_eq!(
+            selected_caller.terminator.instruction.id,
+            TerminalSelectedInstructionId(0)
+        );
+
+        let selected_identity = selected.receipt().identity();
+        let mut corrupted = selected.plan().clone();
+        corrupted.structural_unit_functions[0].boundary_settlements[0]
+            .provider_execution =
+            omega_terminal_target_operations::TerminalProviderExecutionBinding::from_execution_record(
+                omega_terminal_target_operations::TerminalProviderPlanIdentity::new(23).unwrap(),
+                29,
+                31,
+                37,
+                41,
+            )
+            .unwrap();
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted,
             )
             .is_err()
         );
