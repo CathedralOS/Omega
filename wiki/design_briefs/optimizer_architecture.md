@@ -1322,9 +1322,17 @@ independent validation. The fourth rule,
 width signed/unsigned multiplication only, with canonical left selection for
 `0 * 0`. Wrapping/saturating multiplication is obligation-free and deliberately
 not hidden under `ProofCheckElision`; float multiplication remains outside this
-exact law. Candidate v24, optimization-unit content identity v10, the named v4
-pass, prephysical manifest v17, and optimized-plan projection validation v18
-bind the current meaning; ledger v4 already represents the relocation. Runtime
+exact law. The fifth rule,
+`live-proof-certified-integer-zero-dividend-elimination.v1`, handles the closed
+fixed-width signed/unsigned family `0 / x -> 0` and `0 % x -> 0` for exact,
+wrapping, and saturating operations. The zero must be the direct typed left
+literal and the operation must retain its exact accepted obligation; production
+and replay consume both fact identities while retaining the historical accepted
+catalog. Candidate schema remains v24, so extending the closed identity-kind
+tags does not rehash or change tie breaks for existing candidates. Optimization-
+unit identity remains v10; the named v5 pass, prephysical manifest v18, and
+optimized-plan projection validation v19 bind the expanded schedule. Ledger v4
+already represents the relocation. Runtime
 policy events, other live proof-bearing identities, and physical checks not
 represented by these exact Psi contracts remain open.
 
@@ -1649,13 +1657,16 @@ validator reconstructs selected instruction order, CFG successors, operand
 roles, machine-state effects, fixed positions, canonical exact sets, and the
 full content identity before an opaque result is issued. Orchestration nests
 that result with the complete selected carrier and revalidates both layers.
-The v2 slice admits one exact tied topology,
+The v3 slice admits two exact constraint topologies. The first,
 `DistinctUseToDefTiedHomesV1`: a distinct earlier Use and later Def in the same
 instruction, with each VReg in at most one pair per function. It preserves a
-canonical tied-pair row through liveness and block-domain ranges. General ties,
-UseDef, early-clobber, overlapping/repeated pairs, spills, loops, calls, crashes,
-cleanup, and suspension remain refused until they have explicit selected-IR
-frontiers and dedicated validation rules.
+canonical tied-pair row through liveness and block-domain ranges. The second,
+`SingleDistinctDefAgainstUsesEarlyClobberV1`, permits at most one instruction
+per function with exactly one early Def and one or more distinct Uses, excluding
+UseDef, ties, other Defs, and repeated participants. General ties, UseDef,
+early-clobber compositions, spills, loops, calls, crashes, cleanup, and
+suspension remain refused until they have explicit selected-IR frontiers and
+dedicated validation rules.
 
 A two-machine disconnected fixture exercises the complete current vertical on
 x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
@@ -1684,6 +1695,16 @@ all domains, fragments, connectors, occurrences, fixed sites, actions, pairs,
 and the content identity. The orchestration carrier nests complete liveness
 custody and grants no splitting, physical-home, spill, frame, emission, or
 publication authority.
+
+Early clobber is not modeled by moving the Def's semantic live range backward.
+The Def still begins at the after point, while a separate canonical phase-
+hazard row binds its before point and every same-instruction Use. Legality
+derives an additional before-phase Def candidate row under the same fixed-view,
+reservation, architectural-state, and availability checks. Home assignment and
+its independent replay then require the selected Def view's complete write
+footprint to be disjoint from every Use view, including a dying Use already
+expired from the ordinary active set. Spill-choice rejects this topology until
+it has an equally phase-aware recovery strategy.
 
 Before allocation, a separate legality artifact joins those ranges to the
 identity-bound register environment. For every occupied VReg point it publishes
@@ -1994,11 +2015,28 @@ binds the source realization and every selected, post-allocation, layout, exit,
 target, and fragment root while explicitly marking section placement, symbols,
 object relocations, executable image, installation, and publication unavailable.
 
+The following required boundary places those fragments into one immutable
+relocation-free text section under
+`DenseValidatedFragmentOrderNoPaddingV1`. It preserves validated source
+function order, inserts no padding, uses section alignment one for x86-64 and
+four for AArch64, and retains both function-relative and section-relative
+coordinates for every function, block, and instruction—including zero-byte
+CBNZ compare spans. The semantic entry machine and section offset remain
+custody facts, not an invented `main`/`_main` process symbol. An exhaustive
+classification of the current alternative families proves scalar/fallthrough/
+return forms contain no address-bearing target and every relative conditional
+branch is already resolved to blocks in its owned function. Production and a
+separately coded replay reconstruct the byte concatenation, coordinates,
+alignment, entry, statistics, and closed no-relocation conclusion. The strict
+`OMGTSP` v1 manifest binds all upstream roots while marking symbols, object
+container and serialization, external entry bridge, executable image,
+installation, and publication unavailable.
+
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The next
-join carries these function fragments through section/relocation and native
-artifact custody; the compiler gate can be removed only together with
-selected-build publication tests.
+join gives the validated text section symbol/entry and object-container custody,
+then carries it into the native artifact; the compiler gate can be removed only
+together with selected-build publication tests.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and
@@ -2245,11 +2283,16 @@ marks frame, section, relocation, image, installation, and publication fields
 unavailable. The separate strict v1 function-fragment manifest additionally
 binds completed x86 rel8 or AArch64 CBNZ realization custody to relocation-free
 per-function bytes and exact span/provenance/fuel statistics while retaining the
-same later-boundary unavailability. The pre-physical, post-allocation, and
-function-relative records have strict self-authenticating codecs and are joined
-by the pipeline-owned cumulative report carrier; neither that carrier nor the
-new fragment manifest is yet wired into a compiler-owned artifact or
-rebuild-metadata section.
+same later-boundary unavailability. The strict v1 text-section manifest then
+binds deterministic no-padding placement, section coordinates, aggregate
+bytes, the semantic-entry coordinate, and the independently proved absence of
+relocation requirements for the current inventory. It still declares symbols,
+object container/serialization, external entry bridge, image, installation,
+and publication unavailable. The pre-physical, post-allocation, and function-
+relative records have strict self-authenticating codecs and are joined by the
+pipeline-owned cumulative report carrier; that carrier, the fragment manifest,
+and the text-section manifest are not yet wired into a compiler-owned artifact
+or rebuild-metadata section.
 `OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
 publication records and enter that metadata path; successful native compiler
 publication must then materialize the already-retained report request.
