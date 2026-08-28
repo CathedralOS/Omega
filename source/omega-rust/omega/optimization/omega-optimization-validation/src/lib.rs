@@ -337,6 +337,37 @@ pub enum OptimizationUnitValidationError {
         machine: MachineId,
         block: BlockId,
     },
+    CurrentOwnedPlaceJoinMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    CurrentOwnedPlaceNotLive {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        place: PlaceId,
+    },
+    CurrentWholePlacePartiallyMoved {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        place: PlaceId,
+    },
+    CurrentProjectedMoveOverlap {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        place: PlaceId,
+    },
+    CurrentCleanupMismatch {
+        machine: MachineId,
+        block: BlockId,
+    },
+    CurrentStructuralReturnSourcePartiallyMoved {
+        machine: MachineId,
+        block: BlockId,
+        place: PlaceId,
+    },
     TerminalIdentityMismatch,
     ProofFingerprintMismatch,
     AcceptedObligationMismatch(psi_core::ObligationId),
@@ -11914,7 +11945,14 @@ fn validate_function(
         structural_domains,
     )?;
     validate_places_and_claims(function)?;
-    current_ownership::validate_current_claim_frontier(function, &blocks, &successors)?;
+    current_ownership::validate_current_ownership_frontier(
+        function,
+        &blocks,
+        &successors,
+        functions,
+        boundary_machines,
+        structural_types,
+    )?;
     Ok(())
 }
 
@@ -15267,6 +15305,16 @@ mod tests {
             claim,
             argument_index: 0,
         });
+        refresh_node_derivatives(&mut unit, 0, 0, 0);
+        unit
+    }
+
+    fn affine_place_transfer_unit() -> PsiOptimizationUnit {
+        let mut unit = structural_call_unit();
+        for function in &mut unit.functions {
+            function.structural_parameters[0].multiplicity =
+                psi_terminal::StructuralMultiplicity::Affine;
+        }
         let callee_place = unit.functions[1].structural_parameters[0].place;
         let TerminalAbstractOperation::ReturnUnit {
             cleanup_actions, ..
@@ -15277,8 +15325,160 @@ mod tests {
         cleanup_actions.push(psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
             callee_place,
         ));
-        refresh_node_derivatives(&mut unit, 0, 0, 0);
         refresh_node_derivatives(&mut unit, 1, 0, 0);
+        refresh_identity(&mut unit);
+        unit
+    }
+
+    fn partial_affine_place_unit() -> PsiOptimizationUnit {
+        let caller = id(4_850, MachineId::new);
+        let callee = id(4_851, MachineId::new);
+        let caller_block = id(4_852, BlockId::new);
+        let callee_block = id(4_853, BlockId::new);
+        let left = id(4_854, StructuralTypeId::new);
+        let right = id(4_855, StructuralTypeId::new);
+        let pair = id(4_856, StructuralTypeId::new);
+        let caller_place = id(4_857, PlaceId::new);
+        let callee_place = id(4_858, PlaceId::new);
+        let empty_record =
+            |id: StructuralTypeId, identity: &str| psi_terminal::StructuralTypeDeclaration {
+                id,
+                identity: identity.into(),
+                shape: psi_terminal::StructuralTypeShape::Record { fields: Vec::new() },
+            };
+        let parameter = |place, structural_type| psi_terminal::StructuralParameterDeclaration {
+            place,
+            position: 0,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+            access: psi_terminal::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([49; 32]),
+            },
+            entry: caller,
+            structural_types: vec![
+                empty_record(left, "validation::partial-left"),
+                empty_record(right, "validation::partial-right"),
+                psi_terminal::StructuralTypeDeclaration {
+                    id: pair,
+                    identity: "validation::partial-pair".into(),
+                    shape: psi_terminal::StructuralTypeShape::Record {
+                        fields: vec![
+                            psi_terminal::StructuralFieldDeclaration {
+                                id: id(1, psi_core::StructuralFieldId::new),
+                                identity: "left".into(),
+                                relevance: psi_terminal::BindingRelevance::Relevant,
+                                field_type: psi_terminal::StructuralFieldType::Structural(left),
+                            },
+                            psi_terminal::StructuralFieldDeclaration {
+                                id: id(2, psi_core::StructuralFieldId::new),
+                                identity: "right".into(),
+                                relevance: psi_terminal::BindingRelevance::Relevant,
+                                field_type: psi_terminal::StructuralFieldType::Structural(right),
+                            },
+                        ],
+                    },
+                },
+            ],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: caller_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_place, pair)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: caller_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::CallUnit {
+                            psi_operation: id(4_859, OperationId::new),
+                            callee,
+                            structural_arguments: vec![psi_terminal::StructuralArgument {
+                                place: caller_place,
+                                path: vec![psi_terminal::StructuralPathSegment::Field(
+                                    "right".into(),
+                                )],
+                                access: psi_terminal::StructuralAccess::Owned,
+                            }],
+                            claim_transfers: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(4_860, EdgeId::new),
+                            cleanup_actions: vec![
+                                psi_terminal::TerminalAffineCleanupAction::DiscardResidual(
+                                    psi_terminal::StructuralAffineDiscard {
+                                        place: caller_place,
+                                        path: vec![psi_terminal::StructuralPathSegment::Field(
+                                            "left".into(),
+                                        )],
+                                        structural_type: left,
+                                    },
+                                ),
+                            ],
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: callee_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_place, right)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: callee_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: id(4_861, EdgeId::new),
+                        cleanup_actions: vec![
+                            psi_terminal::TerminalAffineCleanupAction::DiscardRoot(callee_place),
+                        ],
+                    }],
+                },
+            ],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
+    fn affine_place_join_unit(settle_false_arm: bool) -> PsiOptimizationUnit {
+        let mut unit = affine_claim_join_unit(settle_false_arm);
+        let function = &mut unit.functions[0];
+        function.entry_claim_declarations.clear();
+        function.entry_claims.clear();
+        for node in function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.nodes)
+        {
+            if let TerminalAbstractOperation::BoundaryCall {
+                completion_claim_sources,
+                completion_receipts,
+                ..
+            } = &mut node.operation
+            {
+                completion_claim_sources.clear();
+                completion_receipts.clear();
+            }
+        }
+        refresh_function_derivatives(&mut unit, 0);
         unit
     }
 
@@ -15447,6 +15647,8 @@ mod tests {
         let field = id(4_704, psi_core::StructuralFieldId::new);
         let scalar_parameter = id(4_705, ValueId::new);
         let result = id(4_706, ValueId::new);
+        let cleanup_machine = id(4_709, MachineId::new);
+        let cleanup_block = id(4_710, BlockId::new);
         reconstruct_psi_optimization_unit_seed(
             &TerminalAbstractOperationPlan {
                 terminal_psi: TerminalPsiIdentity {
@@ -15470,60 +15672,81 @@ mod tests {
                 }],
                 boundary_machines: Vec::new(),
                 provider_candidates: Vec::new(),
-                functions: vec![TerminalAbstractFunction {
-                    machine,
-                    attachment: None,
-                    entry: block,
-                    parameters: vec![TerminalAbstractParameter {
-                        value: scalar_parameter,
-                        scalar_type: ScalarType::Boolean,
-                    }],
-                    structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
-                        place,
-                        position: 0,
-                        is_self: false,
-                        structural_type,
-                        multiplicity: psi_terminal::StructuralMultiplicity::Affine,
-                        access: psi_terminal::StructuralAccess::Owned,
-                        qualifications: Vec::new(),
-                    }],
-                    result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
-                        value: result,
-                        scalar_type: ScalarType::Boolean,
-                    }),
-                    entry_claims: Vec::new(),
-                    published_service_ceiling: Vec::new(),
-                    block_entries: vec![TerminalAbstractBlockEntry {
-                        block,
-                        parameters: Vec::new(),
-                        operation_offset: 0,
-                    }],
-                    operations: vec![
-                        TerminalAbstractOperation::BooleanStructuralField {
-                            psi_operation: id(4_707, OperationId::new),
-                            result,
-                            source: place,
-                            field,
-                        },
-                        TerminalAbstractOperation::Return {
-                            psi_edge: id(4_708, EdgeId::new),
-                            result,
+                functions: vec![
+                    TerminalAbstractFunction {
+                        machine,
+                        attachment: None,
+                        entry: block,
+                        parameters: vec![TerminalAbstractParameter {
+                            value: scalar_parameter,
+                            scalar_type: ScalarType::Boolean,
+                        }],
+                        structural_parameters: vec![psi_terminal::StructuralParameterDeclaration {
+                            place,
+                            position: 0,
+                            is_self: false,
+                            structural_type,
+                            multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+                            access: psi_terminal::StructuralAccess::Owned,
+                            qualifications: Vec::new(),
+                        }],
+                        result: TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
                             value: result,
                             scalar_type: ScalarType::Boolean,
-                            cleanup_actions: vec![
-                                psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
-                                    psi_terminal::NominalAffineCleanup {
-                                        place,
-                                        structural_type,
-                                        cleanup_machine: id(4_709, MachineId::new),
-                                        cleanup_receiver: None,
-                                        requirement_obligations: Vec::new(),
-                                    },
-                                ),
-                            ],
-                        },
-                    ],
-                }],
+                        }),
+                        entry_claims: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                        block_entries: vec![TerminalAbstractBlockEntry {
+                            block,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        }],
+                        operations: vec![
+                            TerminalAbstractOperation::BooleanStructuralField {
+                                psi_operation: id(4_707, OperationId::new),
+                                result,
+                                source: place,
+                                field,
+                            },
+                            TerminalAbstractOperation::Return {
+                                psi_edge: id(4_708, EdgeId::new),
+                                result,
+                                value: result,
+                                scalar_type: ScalarType::Boolean,
+                                cleanup_actions: vec![
+                                    psi_terminal::TerminalAffineCleanupAction::InvokeNominal(
+                                        psi_terminal::NominalAffineCleanup {
+                                            place,
+                                            structural_type,
+                                            cleanup_machine,
+                                            cleanup_receiver: None,
+                                            requirement_obligations: Vec::new(),
+                                        },
+                                    ),
+                                ],
+                            },
+                        ],
+                    },
+                    TerminalAbstractFunction {
+                        machine: cleanup_machine,
+                        attachment: Some(structural_type),
+                        entry: cleanup_block,
+                        parameters: Vec::new(),
+                        structural_parameters: Vec::new(),
+                        result: TerminalAbstractFunctionResult::Unit,
+                        entry_claims: Vec::new(),
+                        published_service_ceiling: Vec::new(),
+                        block_entries: vec![TerminalAbstractBlockEntry {
+                            block: cleanup_block,
+                            parameters: Vec::new(),
+                            operation_offset: 0,
+                        }],
+                        operations: vec![TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(4_711, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        }],
+                    },
+                ],
             },
             FuelScheduleIdentity::new(1).expect("nonzero schedule"),
         )
@@ -19749,6 +19972,141 @@ mod tests {
                 claim: actual,
                 ..
             }) if actual == claim
+        ));
+    }
+
+    #[test]
+    fn current_owned_place_replay_rejects_double_moves_unequal_joins_and_bad_residuals() {
+        let baseline = affine_place_transfer_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("one claim-free affine whole-root transfer is exact");
+
+        let mut double_move = baseline;
+        let mut repeated = double_move.functions[0].blocks[0].nodes[0].clone();
+        let TerminalAbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation
+        else {
+            unreachable!("fixture begins with a Unit call")
+        };
+        *psi_operation = id(4_862, OperationId::new);
+        double_move.functions[0].blocks[0].nodes.insert(1, repeated);
+        refresh_function_derivatives(&mut double_move, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&double_move),
+            Err(OptimizationUnitValidationError::CurrentOwnedPlaceNotLive { node: 1, .. })
+        ));
+
+        validate_psi_optimization_unit(&affine_place_join_unit(true))
+            .expect("equal whole-root settlement on both arms joins exactly");
+        assert!(matches!(
+            validate_psi_optimization_unit(&affine_place_join_unit(false)),
+            Err(OptimizationUnitValidationError::CurrentOwnedPlaceJoinMismatch { .. })
+        ));
+
+        let baseline = partial_affine_place_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("one projected move and its exact residual cleanup validate");
+
+        let mut overlap = baseline.clone();
+        let mut repeated = overlap.functions[0].blocks[0].nodes[0].clone();
+        let TerminalAbstractOperation::CallUnit { psi_operation, .. } = &mut repeated.operation
+        else {
+            unreachable!("fixture begins with a projected Unit call")
+        };
+        *psi_operation = id(4_863, OperationId::new);
+        overlap.functions[0].blocks[0].nodes.insert(1, repeated);
+        refresh_function_derivatives(&mut overlap, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&overlap),
+            Err(OptimizationUnitValidationError::CurrentProjectedMoveOverlap { node: 1, .. })
+        ));
+
+        let mutate_residual =
+            |unit: &mut PsiOptimizationUnit,
+             mutate: &dyn Fn(&mut psi_terminal::StructuralAffineDiscard)| {
+                let return_node = unit.functions[0].blocks[0].nodes.len() - 1;
+                let TerminalAbstractOperation::ReturnUnit {
+                    cleanup_actions, ..
+                } = &mut unit.functions[0].blocks[0].nodes[return_node].operation
+                else {
+                    unreachable!("fixture returns Unit")
+                };
+                let [psi_terminal::TerminalAffineCleanupAction::DiscardResidual(residual)] =
+                    cleanup_actions.as_mut_slice()
+                else {
+                    unreachable!("fixture has one residual cleanup")
+                };
+                mutate(residual);
+                refresh_node_derivatives(unit, 0, 0, return_node);
+            };
+
+        let mut wrong_path = baseline.clone();
+        mutate_residual(&mut wrong_path, &|residual| {
+            residual.path = vec![psi_terminal::StructuralPathSegment::Field("right".into())];
+        });
+        assert!(matches!(
+            validate_psi_optimization_unit(&wrong_path),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let mut wrong_type = baseline.clone();
+        let pair_type = wrong_type.functions[0].structural_parameters[0].structural_type;
+        mutate_residual(&mut wrong_type, &|residual| {
+            residual.structural_type = pair_type;
+        });
+        assert!(matches!(
+            validate_psi_optimization_unit(&wrong_type),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let mut missing = baseline;
+        let return_node = missing.functions[0].blocks[0].nodes.len() - 1;
+        let TerminalAbstractOperation::ReturnUnit {
+            cleanup_actions, ..
+        } = &mut missing.functions[0].blocks[0].nodes[return_node].operation
+        else {
+            unreachable!("fixture returns Unit")
+        };
+        cleanup_actions.clear();
+        refresh_node_derivatives(&mut missing, 0, 0, return_node);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let nominal = boolean_structural_field_unit();
+        let mut missing_target = nominal.clone();
+        missing_target.functions.pop();
+        refresh_identity(&mut missing_target);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing_target),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let mut wrong_attachment = nominal.clone();
+        wrong_attachment.functions[1].attachment = None;
+        refresh_identity(&mut wrong_attachment);
+        assert!(matches!(
+            validate_psi_optimization_unit(&wrong_attachment),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
+        ));
+
+        let mut unnormalized = nominal;
+        let TerminalAbstractOperation::Return {
+            cleanup_actions, ..
+        } = &mut unnormalized.functions[0].blocks[0].nodes[1].operation
+        else {
+            unreachable!("nominal fixture returns a scalar")
+        };
+        let [psi_terminal::TerminalAffineCleanupAction::InvokeNominal(cleanup)] =
+            cleanup_actions.as_mut_slice()
+        else {
+            unreachable!("nominal fixture has one cleanup")
+        };
+        cleanup.cleanup_receiver = Some(id(4_864, PlaceId::new));
+        refresh_node_derivatives(&mut unnormalized, 0, 0, 1);
+        assert!(matches!(
+            validate_psi_optimization_unit(&unnormalized),
+            Err(OptimizationUnitValidationError::CurrentCleanupMismatch { .. })
         ));
     }
 

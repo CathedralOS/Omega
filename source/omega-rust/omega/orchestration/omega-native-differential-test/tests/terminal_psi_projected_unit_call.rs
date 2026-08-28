@@ -1,4 +1,6 @@
 use omega_calling_conventions::ValueShape;
+use omega_optimization_unit::reconstruct_psi_optimization_unit_seed;
+use omega_optimization_validation::validate_psi_optimization_unit;
 use omega_target::NativeTarget;
 use omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations;
 use omega_terminal_image_emission::{
@@ -23,6 +25,7 @@ use psi_terminal::{
     TerminalAffineCleanupAction, Terminator,
 };
 use psi_terminal_codec::{encode_module, encode_proof_bundle};
+use psi_terminal_fuel::TerminalFuelSchedule;
 use psi_tokens_to_syntax_trees::parse_syntax_trees;
 use psi_typed_trees_to_checked_trees::lower_typed_trees;
 
@@ -871,6 +874,40 @@ fn literal_element_calls_retain_native_and_installed_custody_on_all_targets() {
         changed_installation[source_offset..source_offset + 4]
             .copy_from_slice(&0_u32.to_le_bytes());
         assert!(decode_terminal_installation_record(&changed_installation).is_err());
+    }
+}
+
+#[test]
+fn source_partial_and_nominal_affine_plans_reach_current_optimizer_ownership_replay() {
+    for plan in [
+        partial_affine_plan(),
+        partial_affine_pair_plan(),
+        fully_consumed_affine_pair_plan(FULLY_CONSUMED_AFFINE_PAIR_SOURCE),
+        fully_consumed_affine_pair_plan(FORWARD_FULLY_CONSUMED_AFFINE_PAIR_SOURCE),
+        partial_affine_triple_plan(),
+        wide_partial_affine_plan(),
+        multiple_move_partial_affine_plan(),
+        nested_partial_affine_plan(),
+        mixed_depth_partial_affine_plan(),
+    ] {
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&plan, TerminalFuelSchedule::CURRENT.identity())
+                .expect("verified partial-affine plan reconstructs an optimization unit");
+        validate_psi_optimization_unit(&unit)
+            .expect("current ownership replay accepts verified partial-affine source custody");
+    }
+
+    for plan in [
+        nominal_affine_plan(),
+        contextual_nominal_affine_plan(),
+        ordered_contextual_nominal_affine_plan(),
+        two_empty_nominal_affine_plan(),
+    ] {
+        let unit =
+            reconstruct_psi_optimization_unit_seed(&plan, TerminalFuelSchedule::CURRENT.identity())
+                .expect("verified nominal-affine plan reconstructs an optimization unit");
+        validate_psi_optimization_unit(&unit)
+            .expect("current ownership replay accepts verified nominal-affine source custody");
     }
 }
 

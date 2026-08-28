@@ -633,16 +633,19 @@ These facts constrain the work below.
   the catalog one-for-one and rejects omission, duplication, reordering, or
   self-consistently re-identified forgery. Unit content identity is v16. These
   rows remain exact source-site authority, not function-wide range facts.
-  Total validation now also replays the live claim map over the current CFG
-  without consulting cached ownership events or immutable source snapshots. It
-  consumes internal transfers and boundary completions before structural-result
-  establishment, requires exact joins, rejects live linear claims at scalar or
-  Unit returns, checks exact structural-return claims and empty remainder, and
-  matches crash lower bounds to the current roster. `OPT-UNIT-BUILDER` and
+  Total validation now also replays one combined ownership automaton over the
+  current CFG without consulting cached ownership events or immutable source
+  snapshots. It
+  tracks the unified live-claim namespace, owned-place multiplicities, and
+  projected moved paths. It consumes whole-root and projected arguments,
+  internal claim transfers, and boundary completions before structural-result
+  establishment; requires exact joins; applies current edge cleanup; and
+  independently checks normalized scalar, Unit, structural, residual, and
+  nominal cleanup/return forms. Source-derived partial, fully consumed, and
+  nominal affine programs cross this boundary. `OPT-UNIT-BUILDER` and
   `OPT-UNIT-VALIDATOR` remain open until proof-derived current-region range
-  evidence, current owned-place/partial-custody/cleanup replay, and the crash/
-  requirement and remaining effect vocabulary also remain across the
-  Terminal-Psi lowering boundary.
+  evidence plus the crash/requirement and remaining effect vocabulary survive
+  the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -1344,17 +1347,23 @@ dependency.
   empty-block threading, block merge, and shared-terminal fusion decline
   nonempty removed-edge cleanup until composition has an admitted proof.
   Target lowering explicitly acknowledges the verified ownership-only erasure.
-  Current-CFG claim replay is now complete for the admitted acyclic vocabulary:
-  ordinary and content claims initialize one live namespace; internal transfers
-  and boundary completions consume exact live rows before structural results
-  establish returned claims; joins require exact maps; scalar/Unit returns are
-  linear-claim-free; structural returns transfer exactly the source-rooted set
-  and leave no remainder; and crash frontiers equal the current canonical
-  roster. Focused self-consistent corruptions cover unequal branch settlement,
-  repeated transfer, stale crash state, missing returned claims, and live-linear
-  Unit return, while content-custody and structural-result source programs cross
-  admission. Current owned-place, partial-custody, and cleanup replay plus the
-  crash/requirement and remaining effect vocabulary remain open. The
+  Current-CFG ownership replay is now complete for the admitted acyclic
+  vocabulary: ordinary and content claims initialize one live namespace;
+  internal transfers and boundary completions consume exact live rows before
+  structural results establish returned claims; non-Unrestricted parameters
+  initialize owned custody; whole-root and projected owned calls consume it without overlap;
+  bounded fixed-array closure settles fully moved roots; joins require exact
+  claim/place/path maps; and edge cleanup applies Terminal's eligible ordered
+  subsequence. Scalar, Unit, and structural exits independently replay their
+  exact normalized root, residual, nominal, returned-claim, and trivial-affine
+  cleanup forms, while crash frontiers equal the current canonical claim roster.
+  Focused self-consistent corruptions cover unequal branch settlement, repeated
+  transfers and moves, stale crash state, missing returned claims, bad residual
+  paths/types, missing or malformed nominal targets, and live-linear Unit
+  return. Content-custody, structural-result, partial-affine, fully-consumed,
+  and nominal source programs cross admission. Proof-derived current-region
+  range evidence plus the crash/requirement and remaining effect vocabulary
+  remain open. The
   exact payloadless-callee classifier is complete: optimizer-only lowering
   retains the case producer and complete call/contract/evidence-lane surface,
   independent replay matches Terminal's bounded predicate, and ordinary and

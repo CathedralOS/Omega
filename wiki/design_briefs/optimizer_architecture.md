@@ -820,9 +820,10 @@ each hidden establishment identity into the structural-return node's
 provenance and fuel immediately after the return edge, in tuple/declaration
 order. Independent validation requires the matching immutable operation-entry/
 operation-exit frontier pair to establish exactly that affine local. This
-remains catalog, source-site authority, and current compressed-return
-correspondence rather than authority to synthesize locals or a complete
-current-CFG consume/cleanup replay.
+remains catalog and source-site authority rather than authority to synthesize
+locals. A separate current-CFG ownership automaton, described below,
+reconstructs current consume and cleanup legality without treating those
+immutable rows as current-state proof.
 Provider-backed attachments independently replay Terminal's complete closed
 specialization rule. An attached function has exactly one relevant erased
 Record provider field, no structural `self`, and a nonempty unique root roster
@@ -890,17 +891,29 @@ identity; any other stale or forged closure fails total validation. This keeps
 future effect elimination honest without freezing the original over-approximate
 closure forever. Real ordinary-boundary and installation-bound source canaries
 cover the concrete and installation axes.
-Total validation now also runs a private current-CFG claim automaton. It starts
-from the exact ordinary/content entry-claim union, consumes internal-call
-transfers and boundary completions before establishing structural-result
-claims, requires exact claim state at every join, rejects live linear claims at
-scalar or Unit returns, checks the exact structural-return claim set and empty
-remainder, and requires each crash lower bound to equal the current live claim
-roster. Replay reads current operation payloads and signatures only; neither
-cached `OwnershipEvent` metadata nor immutable source-frontier rows can make a
-forged transition valid. The acyclic current vocabulary is traversed in a
-canonical topological order. Current owned-place, partial-custody, and cleanup
-state replay remains the next ownership rung.
+Total validation now also runs a private current-CFG ownership automaton. It
+starts from the exact ordinary/content entry-claim union and every
+non-Unrestricted structural parameter, then tracks claims, owned-place
+multiplicities, and projected moved paths as one state. Internal transfers,
+boundary completions, whole-root arguments, and projected owned arguments are
+consumed before structural results establish their returned custody;
+overlapping projections and whole-root use after a partial move reject. Exact
+bounded fixed arrays close when every element is moved. Every join requires
+identical claim/place/path state, and each successor applies the current edge's
+eligible ordered trivial-affine cleanup before joining.
+
+Scalar and Unit exits replay normalized cleanup in Terminal order, including
+reverse trivial locals and parameters, exactly derived residual paths, and
+nominal cleanup targets with their attachment, empty signature, Unit result,
+service ceiling, claim, place, requirement, and retained-contract constraints.
+Structural exits require a live, unpartitioned source, the exact source-rooted
+claim set, no claim remainder, and exact trivial-affine cleanup; crash lower
+bounds equal the current live claim roster. Replay reads current operation
+payloads and immutable signatures/catalog declarations only. Neither cached
+`OwnershipEvent` metadata nor immutable source-frontier rows can make a forged
+transition valid. The admitted acyclic vocabulary is traversed in canonical
+topological order, and source-derived partial, fully consumed, and nominal
+affine programs exercise the boundary.
 
 The bounded retained-ownership rung also preserves every Jump and Conditional
 successor's exact ordered trivial-affine discard vector. Unit identity binds
@@ -911,12 +924,11 @@ leaving claims and partial custody unchanged. Constant-condition folding copies
 the selected edge's vector. Empty-block threading, block merge, and shared-
 terminal fusion currently decline nonempty removed-edge cleanup until
 composition has an admitted proof. Target lowering names the already verified
-ownership-only erasure explicitly and emits no runtime instruction. This is
-exact source-site retention plus current claim replay, not yet a complete
-current-CFG owned-place/partial-custody/cleanup solver. Remaining current-state
-place and cleanup replay, proof-derived current-region range facts, and the
-wider crash/requirement and remaining effect vocabulary remain explicit unfinished
-validator layers. It
+ownership-only erasure explicitly and emits no runtime instruction. The
+independent current-CFG automaton now consumes these rows as executable cleanup,
+while immutable frontier facts remain source-site custody. Proof-derived
+current-region range facts and the wider crash/requirement and remaining effect
+vocabulary remain explicit unfinished validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
