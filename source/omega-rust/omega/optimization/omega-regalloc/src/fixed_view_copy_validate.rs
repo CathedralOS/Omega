@@ -18,8 +18,8 @@ use omega_terminal_target_operations_to_selected_instructions::{
 use psi_core::{IntegerSign, ScalarType};
 
 use crate::{
-    TerminalFixedViewCopy, TerminalFixedViewCopyError, TerminalFixedViewCopyPlan,
-    TerminalFixedViewCopyPolicy, TerminalFixedViewCopyValidationReceipt,
+    TerminalFixedViewCopy, TerminalFixedViewCopyDestination, TerminalFixedViewCopyError,
+    TerminalFixedViewCopyPlan, TerminalFixedViewCopyPolicy, TerminalFixedViewCopyValidationReceipt,
     TerminalVirtualFixedConstraintSite, ValidatedTerminalAllocationLegality,
     ValidatedTerminalFixedViewCopies, ValidatedTerminalLiveRanges,
     terminal_fixed_view_copy_identity,
@@ -48,11 +48,8 @@ pub fn validate_terminal_fixed_view_copies(
         selected_keys,
         &plan,
     )?;
-    if plan.policy != TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 {
-        return Err(TerminalFixedViewCopyError::UnsupportedPolicy);
-    }
     let row = validated_copy_row(constraints, selected_keys)?;
-    let expected_usage = replay_usage(selected, legality)?;
+    let expected_usage = replay_usage(selected, legality, plan.policy)?;
     if plan.usage != expected_usage {
         return Err(TerminalFixedViewCopyError::ReceiptMismatch);
     }
@@ -63,7 +60,7 @@ pub fn validate_terminal_fixed_view_copies(
         });
     }
     let (expected_copies, expected_transformed) =
-        replay_transformation(selected, legality, selected_keys, row)?;
+        replay_transformation(selected, legality, selected_keys, row, plan.policy)?;
     if plan.copies != expected_copies {
         let index = plan
             .copies
@@ -171,6 +168,7 @@ fn validated_copy_row(
 fn replay_usage(
     selected: &ValidatedTerminalSelectedInstructions,
     legality: &ValidatedTerminalAllocationLegality,
+    policy: TerminalFixedViewCopyPolicy,
 ) -> Result<OptimizationWorkUsage, TerminalFixedViewCopyError> {
     let functions = u64::try_from(selected.plan().functions.len())
         .map_err(|_| TerminalFixedViewCopyError::WorkOverflow)?;
@@ -182,11 +180,27 @@ fn replay_usage(
         .flat_map(|register| &register.entry_transitions)
         .try_fold(0_u64, |count, _| count.checked_add(1))
         .ok_or(TerminalFixedViewCopyError::WorkOverflow)?;
+    let commits = match policy {
+        TerminalFixedViewCopyPolicy::LeafLocalBeforeFixedUseV1 => requirements,
+        TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 => legality
+            .plan()
+            .functions
+            .iter()
+            .try_fold(0_u64, |count, function| {
+                count.checked_add(u64::from(
+                    function
+                        .virtual_registers
+                        .iter()
+                        .any(|r| !r.entry_transitions.is_empty()),
+                ))
+            })
+            .ok_or(TerminalFixedViewCopyError::WorkOverflow)?,
+    };
     Ok(OptimizationWorkUsage {
         rule_evaluations: functions,
         candidates: requirements,
         validation_steps: requirements,
-        commits: requirements,
+        commits,
         iterations: 1,
     })
 }
@@ -196,6 +210,7 @@ fn replay_transformation(
     legality: &ValidatedTerminalAllocationLegality,
     keys: TargetRegisterEnvironmentConstraintKeys,
     row: &RegisterInstructionConstraint,
+    policy: TerminalFixedViewCopyPolicy,
 ) -> Result<
     (
         Vec<TerminalFixedViewCopy>,
@@ -248,6 +263,26 @@ fn replay_transformation(
                     function: function_index,
                 }
             })?;
+        if policy == TerminalFixedViewCopyPolicy::SharedEntryAfterCompareBeforeBranchV1 {
+            if let Some(copy) = replay_shared_entry_copy(
+                function_index,
+                source_function,
+                legality_function,
+                row,
+                keys.copy_i64,
+                next_instruction,
+                next_register,
+            )? {
+                replay_apply(
+                    function_index,
+                    &mut output.functions[function_index],
+                    &copy,
+                    row,
+                )?;
+                expected.push(copy);
+            }
+            continue;
+        }
         let mut seen = BTreeSet::new();
         for legality_register in &legality_function.virtual_registers {
             for transition in &legality_register.entry_transitions {
@@ -311,10 +346,14 @@ fn replay_transformation(
                     source_value,
                     source_definition_site: source.definition_site,
                     from_view: transition.from_view,
-                    destination_site: transition.to_site,
                     to_view: transition.to_view,
-                    block,
+                    insertion_block: block,
                     before_instruction: instruction,
+                    destinations: vec![TerminalFixedViewCopyDestination {
+                        site: transition.to_site,
+                        block,
+                        view: transition.to_view,
+                    }],
                     copy_instruction: TerminalSelectedInstructionId(next_instruction),
                     result_virtual_register: TerminalVirtualRegisterId(next_register),
                     copy_constraint: keys.copy_i64,
@@ -322,10 +361,8 @@ fn replay_transformation(
                 replay_apply(
                     function_index,
                     &mut output.functions[function_index],
-                    source,
-                    copy,
+                    &copy,
                     row,
-                    operand,
                 )?;
                 expected.push(copy);
                 next_instruction = next_instruction.checked_add(1).ok_or(
@@ -387,37 +424,241 @@ fn replay_leaf_block(
     Ok(block.id)
 }
 
+#[allow(clippy::too_many_arguments)]
+fn replay_shared_entry_copy(
+    function_index: usize,
+    function: &omega_terminal_selected_instructions::TerminalSelectedFunction,
+    legality: &crate::TerminalFunctionAllocationLegality,
+    row: &RegisterInstructionConstraint,
+    constraint: omega_register_model::RegisterConstraintKey,
+    instruction_id: u32,
+    register_id: u32,
+) -> Result<Option<TerminalFixedViewCopy>, TerminalFixedViewCopyError> {
+    let mut requirements = Vec::new();
+    for register in &legality.virtual_registers {
+        for transition in &register.entry_transitions {
+            requirements.push((register, transition));
+        }
+    }
+    if requirements.is_empty() {
+        return Ok(None);
+    }
+    if requirements.len() != 2
+        || requirements[0].0.virtual_register != requirements[1].0.virtual_register
+        || requirements[0].1.from_view != requirements[1].1.from_view
+        || requirements[0].1.to_view != requirements[1].1.to_view
+    {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    }
+    let requirement = requirements[0].0;
+    let source = function
+        .virtual_registers
+        .iter()
+        .find(|candidate| candidate.id == requirement.virtual_register)
+        .ok_or(TerminalFixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: requirement.virtual_register.0,
+        })?;
+    let TerminalVirtualRegisterOrigin::EntryParameter { source_value, .. } = source.origin else {
+        return Err(TerminalFixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: source.id.0,
+        });
+    };
+    if source.class != requirement.class
+        || source.entry_fixed_view != Some(requirements[0].1.from_view)
+        || !replay_is_u64(source.scalar_type)
+        || row.operands[0].class != source.class
+        || row.operands[1].class != source.class
+    {
+        return Err(TerminalFixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: source.id.0,
+        });
+    }
+    let entry = function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == function.entry_block)
+        .ok_or(TerminalFixedViewCopyError::FunctionMismatch {
+            function: function_index,
+        })?;
+    let [compare] = entry.instructions.as_slice() else {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    };
+    if compare.kind != TerminalSelectedInstructionKind::CompareI64Zero {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    }
+    let TerminalSelectedTerminator::ConditionalBranch {
+        instruction: branch,
+        when_nonzero,
+        when_zero,
+    } = &entry.terminator
+    else {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    };
+    let expected_leaves = BTreeSet::from([when_nonzero.block, when_zero.block]);
+    if expected_leaves.len() != 2 {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    }
+    let mut actual_leaves = BTreeSet::new();
+    let mut destinations = Vec::new();
+    let from_view = requirements[0].1.from_view;
+    for (_, transition) in requirements {
+        let TerminalVirtualFixedConstraintSite::Operand {
+            instruction,
+            operand,
+            access,
+            ..
+        } = transition.to_site
+        else {
+            return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+                function: function_index,
+            });
+        };
+        if access != RegisterOperandAccess::Use {
+            return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+                function: function_index,
+            });
+        }
+        let block = replay_leaf_block(
+            function_index,
+            function,
+            instruction,
+            operand,
+            source.id,
+            transition.to_view,
+        )?;
+        let leaf = function
+            .blocks
+            .iter()
+            .find(|candidate| candidate.id == block)
+            .unwrap();
+        if !leaf.instructions.is_empty() || !actual_leaves.insert(block) {
+            return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+                function: function_index,
+            });
+        }
+        destinations.push(TerminalFixedViewCopyDestination {
+            site: transition.to_site,
+            block,
+            view: transition.to_view,
+        });
+    }
+    if actual_leaves != expected_leaves {
+        return Err(TerminalFixedViewCopyError::UnsupportedSharedTransitionSet {
+            function: function_index,
+        });
+    }
+    destinations.sort_by_key(|destination| match destination.site {
+        TerminalVirtualFixedConstraintSite::Operand {
+            instruction,
+            operand,
+            ..
+        } => (instruction.0, operand),
+        TerminalVirtualFixedConstraintSite::Entry => (u32::MAX, u16::MAX),
+    });
+    Ok(Some(TerminalFixedViewCopy {
+        function: u32::try_from(function_index).map_err(|_| {
+            TerminalFixedViewCopyError::IdentifierOverflow {
+                function: function_index,
+            }
+        })?,
+        machine: function.machine,
+        source_virtual_register: source.id,
+        source_value,
+        source_definition_site: source.definition_site,
+        from_view,
+        to_view: destinations[0].view,
+        insertion_block: entry.id,
+        before_instruction: branch.id,
+        destinations,
+        copy_instruction: TerminalSelectedInstructionId(instruction_id),
+        result_virtual_register: TerminalVirtualRegisterId(register_id),
+        copy_constraint: constraint,
+    }))
+}
+
 fn replay_apply(
     function_index: usize,
     function: &mut omega_terminal_selected_instructions::TerminalSelectedFunction,
-    source: &TerminalVirtualRegister,
-    copy: TerminalFixedViewCopy,
+    copy: &TerminalFixedViewCopy,
     row: &RegisterInstructionConstraint,
-    operand_number: u16,
 ) -> Result<(), TerminalFixedViewCopyError> {
+    let source = function
+        .virtual_registers
+        .iter()
+        .find(|register| register.id == copy.source_virtual_register)
+        .cloned()
+        .ok_or(TerminalFixedViewCopyError::UnsupportedSourceRegister {
+            function: function_index,
+            register: copy.source_virtual_register.0,
+        })?;
+    for destination in &copy.destinations {
+        let TerminalVirtualFixedConstraintSite::Operand {
+            instruction,
+            operand,
+            access: RegisterOperandAccess::Use,
+            ..
+        } = destination.site
+        else {
+            return Err(TerminalFixedViewCopyError::UnsupportedTransitionSite {
+                function: function_index,
+                register: copy.source_virtual_register.0,
+            });
+        };
+        let block = function
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == destination.block)
+            .ok_or(TerminalFixedViewCopyError::MissingDestination {
+                function: function_index,
+                instruction: instruction.0,
+            })?;
+        let TerminalSelectedTerminator::Return {
+            instruction: return_instruction,
+            ..
+        } = &mut block.terminator
+        else {
+            return Err(TerminalFixedViewCopyError::NonLeafDestination {
+                function: function_index,
+                instruction: instruction.0,
+            });
+        };
+        return_instruction
+            .operands
+            .iter_mut()
+            .find(|candidate| candidate.operand == operand)
+            .ok_or(TerminalFixedViewCopyError::MissingDestination {
+                function: function_index,
+                instruction: instruction.0,
+            })?
+            .virtual_register = copy.result_virtual_register;
+    }
     let block = function
         .blocks
         .iter_mut()
-        .find(|block| block.id == copy.block)
+        .find(|block| block.id == copy.insertion_block)
         .ok_or(TerminalFixedViewCopyError::MissingDestination {
             function: function_index,
             instruction: copy.before_instruction.0,
         })?;
-    let TerminalSelectedTerminator::Return { instruction, .. } = &mut block.terminator else {
-        return Err(TerminalFixedViewCopyError::NonLeafDestination {
+    if terminator(&block.terminator).id != copy.before_instruction {
+        return Err(TerminalFixedViewCopyError::InvalidInsertionSite {
             function: function_index,
             instruction: copy.before_instruction.0,
         });
-    };
-    instruction
-        .operands
-        .iter_mut()
-        .find(|operand| operand.operand == operand_number)
-        .ok_or(TerminalFixedViewCopyError::MissingDestination {
-            function: function_index,
-            instruction: copy.before_instruction.0,
-        })?
-        .virtual_register = copy.result_virtual_register;
+    }
     function.virtual_registers.push(TerminalVirtualRegister {
         id: copy.result_virtual_register,
         scalar_type: source.scalar_type,
