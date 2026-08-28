@@ -427,12 +427,26 @@ These facts constrain the work below.
   their exact `ClaimTransfer` interpretation. External settlement overlap and
   partial installation fail closed. The provider-signature wire now includes
   structural access, so Terminal vocabulary 36 and its frozen fixtures bind
-  ownership rather than allowing an owned/borrowed catalog substitution.
+  ownership rather than allowing an owned/borrowed catalog substitution. Target
+  legalization v7 and selected-instruction identity v10 retain a distinct
+  installed-provider source row, its full evidence, and `ClaimCompletion`
+  ownership while reusing only the physical internal-call ABI and receipt-
+  derived transfers. Independent replay rejects installed/authored source
+  substitution. The legacy assigned route fails explicitly instead of silently
+  consuming this optimizer-only operation.
+
+  The provider body's pure `Extent::settle` boundary now has a separately named
+  `ClaimCompletionOnly` realization. Exact target lowering admits only canonical
+  nonempty whole-root owned linear claim completion, retains its provider
+  execution, arguments, sources, and receipts, and produces no scalar or byte-
+  sequence inputs. Legacy emission records zero bytes without erasing the
+  settlement; object/install replay retains it under installation format 41.
   Pairing either synthetic fixture with the other's custody must still reject.
   A positive three-way settlement/object/wrapper regression remains an
-  engineering prerequisite: legalization and concrete provider/native
-  realization must carry this installed call and its claim completions into the
-  object lane without erasing them. This does not require a new owner question.
+  engineering prerequisite: the optimized structural lane must carry the two
+  no-code completion rows through legalization and selection, then join both
+  functions and the opaque installation into object custody. This does not
+  require a new owner question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2624,12 +2638,16 @@ dependency.
   semantic entry, and the final object contains no relocation records.
 
   The checked installed-provider half of that join now has opaque admission,
-  exact two-root linear claim execution, and installation-aware target
-  projection. `InstalledProviderCall` is intentionally distinct from an
-  authored `CallUnit` and retains the canonical boundary occurrence, complete
-  provider conformance row, source/target structural arguments, claim transfers,
-  and completion evidence. Remaining here is the downstream legalization,
-  selection, claim-completion realization, and final object-custody join.
+  exact two-root linear claim execution, installation-aware target projection,
+  independent legalization replay, and selected-plan custody.
+  `InstalledProviderCall` is intentionally distinct from an authored `CallUnit`
+  and retains the canonical boundary occurrence, complete provider conformance
+  row, source/target structural arguments, claim transfers, completion evidence,
+  and `ClaimCompletion` ownership. The provider body's two pure claim
+  settlements now also have an exact zero-code target realization and legacy
+  object/install custody. Remaining here is to retain those two metadata rows
+  through optimized legalization/selection and complete the final object-
+  custody join.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify

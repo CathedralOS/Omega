@@ -1167,6 +1167,230 @@ fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
 }
 
 #[test]
+fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inputs() {
+    use omega_terminal_abstract_operations::TerminalCompletionClaimSource;
+    use omega_terminal_target_operations::{
+        TerminalClaimCompletionOnlyRealization, TerminalProviderExecutionBinding,
+        TerminalProviderPlanIdentity,
+    };
+    use psi_core::{ClaimId, StructuralDomainId};
+    use psi_terminal::{CompletionReceipt, EntryClaim};
+
+    let machine = MachineId::new(31).unwrap();
+    let boundary = BoundaryMachineId::new(31).unwrap();
+    let extent = StructuralTypeId::new(31).unwrap();
+    let boundary_place = PlaceId::new(31).unwrap();
+    let image = PlaceId::new(32).unwrap();
+    let storage = PlaceId::new(33).unwrap();
+    let image_claim = ClaimId::new(31).unwrap();
+    let storage_claim = ClaimId::new(32).unwrap();
+    let granted = StructuralDomainId::new(31).unwrap();
+    let image_settle = OperationId::new(31).unwrap();
+    let storage_settle = OperationId::new(32).unwrap();
+    let return_edge = EdgeId::new(31).unwrap();
+    let provider_execution = TerminalProviderExecutionBinding::from_execution_record(
+        TerminalProviderPlanIdentity::new(31).unwrap(),
+        32,
+        33,
+        34,
+        35,
+    )
+    .unwrap();
+    let entry_claims = vec![
+        EntryClaim {
+            claim: image_claim,
+            input: image,
+            path: Vec::new(),
+        },
+        EntryClaim {
+            claim: storage_claim,
+            input: storage,
+            path: Vec::new(),
+        },
+    ];
+    let claim_sources = entry_claims
+        .iter()
+        .cloned()
+        .map(|entry| TerminalCompletionClaimSource {
+            claim: entry.claim,
+            entry: Some(entry),
+            content: None,
+        })
+        .collect::<Vec<_>>();
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type: extent,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: vec![granted],
+    };
+    let settle = |operation, place, claim| TerminalAbstractOperation::BoundaryCall {
+        psi_operation: operation,
+        result: None,
+        boundary,
+        arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place,
+            access: StructuralAccess::Owned,
+            path: Vec::new(),
+        }],
+        completion_claim_sources: claim_sources.clone(),
+        completion_receipts: vec![CompletionReceipt {
+            claim,
+            argument_index: 0,
+        }],
+    };
+    let plan = TerminalAbstractOperationPlan {
+        terminal_psi: identity(),
+        entry: machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: extent,
+            identity: "Extent".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(31).unwrap(),
+                        identity: "base".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::address(64).unwrap(),
+                        )),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(32).unwrap(),
+                        identity: "length".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                        )),
+                    },
+                ],
+            },
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Extent::settle".into(),
+            attachment: Some(extent),
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: boundary_place,
+                position: 0,
+                is_self: true,
+                structural_type: extent,
+                multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
+                qualifications: vec![granted],
+            }],
+            result: None,
+            requires: vec![psi_terminal::StructuralDomainRequirement {
+                argument_index: 0,
+                domain: granted,
+            }],
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![TerminalAbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(31).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![parameter(image, 0), parameter(storage, 1)],
+            result: TerminalAbstractFunctionResult::Unit,
+            entry_claims,
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![TerminalAbstractBlockEntry {
+                block: BlockId::new(31).unwrap(),
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                settle(image_settle, image, image_claim),
+                settle(storage_settle, storage, storage_claim),
+                TerminalAbstractOperation::ReturnUnit {
+                    psi_edge: return_edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+    let binding = TerminalBoundarySettlementBinding {
+        boundary,
+        provider_execution,
+        realization: TerminalClaimCompletionOnlyRealization.into(),
+    };
+
+    let lowered =
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::uefi_x64(), &[binding])
+            .expect("claim completion is an evidence-bearing zero-input target settlement");
+    let TerminalTargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("Unit body")
+    };
+    assert_eq!(body.operations.len(), 3);
+    for (index, (operation, claim)) in
+        [(image_settle, image_claim), (storage_settle, storage_claim)]
+            .into_iter()
+            .enumerate()
+    {
+        let TerminalTargetUnitOperation::BoundarySettlement {
+            psi_operation,
+            provider_execution: actual_provider,
+            realization: TerminalBoundaryRealization::ClaimCompletionOnly(_),
+            scalar_arguments,
+            byte_sequence_arguments,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } = &body.operations[index]
+        else {
+            panic!("claim-completion-only settlement")
+        };
+        assert_eq!(*psi_operation, operation);
+        assert_eq!(*actual_provider, provider_execution);
+        assert!(scalar_arguments.is_empty());
+        assert!(byte_sequence_arguments.is_empty());
+        assert_eq!(completion_claim_sources, &claim_sources);
+        assert_eq!(
+            completion_receipts,
+            &[CompletionReceipt {
+                claim,
+                argument_index: 0,
+            }]
+        );
+    }
+    assert!(matches!(
+        body.operations[2],
+        TerminalTargetUnitOperation::Return { psi_edge, ref cleanup_actions }
+            if psi_edge == return_edge && cleanup_actions.is_empty()
+    ));
+
+    let mut missing_receipt = plan.clone();
+    let TerminalAbstractOperation::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &mut missing_receipt.functions[0].operations[0]
+    else {
+        unreachable!()
+    };
+    completion_receipts.clear();
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &missing_receipt,
+            NativeTarget::uefi_x64(),
+            &[binding],
+        ),
+        Err(LoweringError::InvalidClaimCompletionOnlyShape {
+            machine,
+            operation: image_settle,
+            boundary,
+        })
+    );
+}
+
+#[test]
 fn selects_native_register_and_stack_locations_for_runtime_parameters() {
     let register_cases = [
         (

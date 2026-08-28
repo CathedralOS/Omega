@@ -9,8 +9,9 @@ use omega_terminal_machine_code::{
 };
 use omega_terminal_target_operations::{
     TerminalBoundaryRealization, TerminalBoundaryScalarArgument,
-    TerminalDirectPortReadU8Realization, TerminalLinuxExitGroupI32Realization,
-    TerminalLinuxWriteLineRealization, TerminalMetadataOnlyPortRealization,
+    TerminalClaimCompletionOnlyRealization, TerminalDirectPortReadU8Realization,
+    TerminalLinuxExitGroupI32Realization, TerminalLinuxWriteLineRealization,
+    TerminalMetadataOnlyPortRealization,
 };
 use psi_core::{
     BoundaryMachineId, ClaimId, EdgeId, IntegerValue, MachineId, OperationId, ServiceId, ValueId,
@@ -66,6 +67,13 @@ pub(super) fn encode_boundary_settlements(
             }
             TerminalBoundaryRealization::LinuxWriteLine(_) => {
                 bytes.push(3);
+                push_u64(bytes, 0);
+                push_u64(bytes, 0);
+                push_u16(bytes, 0);
+                bytes.push(0);
+            }
+            TerminalBoundaryRealization::ClaimCompletionOnly(_) => {
+                bytes.push(4);
                 push_u64(bytes, 0);
                 push_u64(bytes, 0);
                 push_u16(bytes, 0);
@@ -245,6 +253,11 @@ pub(super) fn decode_boundary_settlements(
             }
             3 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
                 TerminalBoundaryRealization::LinuxWriteLine(TerminalLinuxWriteLineRealization)
+            }
+            4 if effect_operation == 0 && service == 0 && port == 0 && value == 0 => {
+                TerminalBoundaryRealization::ClaimCompletionOnly(
+                    TerminalClaimCompletionOnlyRealization,
+                )
             }
             _ => return Err(TerminalInstallationError::InvalidBoundaryRealizationTag),
         };

@@ -77,7 +77,7 @@ use structural_scalar_codec::{
 };
 use wire_codec::{Reader, decode_boolean, push_u16, push_u32, push_u64};
 
-pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 40;
+pub const TERMINAL_INSTALLATION_FORMAT_MARKER: u16 = 41;
 
 fn direct_structural_return_placement(placement: &ValuePlacement) -> bool {
     if placement.shape.class != ValueClass::Integer
@@ -2367,6 +2367,12 @@ fn validate_record_shape(
                         })
                         .count()
                         == 1
+            }
+            TerminalBoundaryRealization::ClaimCompletionOnly(_) => {
+                installed.settlement.scalar_arguments.is_empty()
+                    && installed.settlement.byte_sequence_arguments.is_empty()
+                    && installed.settlement.native_result.is_none()
+                    && installed.settlement.byte_count == 0
             }
             TerminalBoundaryRealization::DirectPortReadU8(_) => {
                 let exact_return_edge =

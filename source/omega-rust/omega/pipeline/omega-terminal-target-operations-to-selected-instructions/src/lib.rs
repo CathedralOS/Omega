@@ -59,11 +59,11 @@ use source::{derive_source_functions, derive_source_unit_functions};
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v6",
+        b"omega.terminal-target-legalization-independent-replay.v7",
     )
 }
 
-/// Opaque custody of the canonical V6 target-legal projection.
+/// Opaque custody of the canonical V7 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -304,7 +304,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V6
+/// Canonicalize the bounded target-operation input into the mandatory V7
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -328,7 +328,7 @@ pub fn legalize_terminal_target_operations(
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V6 projection from the raw target,
+/// Independently replay the exact admitted V7 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -733,6 +733,7 @@ fn build_structural_unit_function(
             let row = structural_call_row(function, keys, catalog)?;
             Ok(TerminalSelectedStructuralUnitCallInstruction {
                 id: TerminalSelectedInstructionId(0),
+                source: call.source.clone(),
                 operation: call.operation,
                 callee: call.callee,
                 caller_call_plan: source.call_plan.clone(),
@@ -2036,6 +2037,7 @@ fn validate_structural_unit_function(
                 || callee_layout != layout
                 || !call_shape_valid
                 || selected_call.id != TerminalSelectedInstructionId(0)
+                || selected_call.source != source_call.source
                 || selected_call.operation != source_call.operation
                 || selected_call.callee != source_call.callee
                 || selected_call.caller_call_plan != source.call_plan
@@ -3635,7 +3637,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v9\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v10\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -3774,6 +3776,7 @@ fn selected_structural_legalized_identity(
                     .call
                     .as_ref()
                     .map(|call| TerminalLegalizedCallUnit {
+                        source: call.source.clone(),
                         operation: call.operation,
                         callee: call.callee,
                         arguments: call
@@ -4141,7 +4144,7 @@ mod structural_unit_tests {
     use omega_register_model::validate_physical_register_model;
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
-        TerminalAbstractOperation,
+        TerminalAbstractOperation, TerminalCompletionClaimSource,
     };
     use omega_terminal_isa_x86_64::{
         X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO,
@@ -4152,14 +4155,16 @@ mod structural_unit_tests {
         x86_64_register_constraint_catalog,
     };
     use psi_core::{
-        BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ScalarType,
-        StructuralFieldId, StructuralTypeId,
+        BlockId, BoundaryMachineId, ClaimId, EdgeId, FuelScheduleIdentity, MachineId, OperationId,
+        PlaceId, ScalarType, StructuralFieldId, StructuralTypeId,
     };
     use psi_terminal::{
-        BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralArgument,
-        StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
-        StructuralParameterDeclaration, StructuralTypeDeclaration, StructuralTypeShape,
-        TerminalPsiIdentity, VocabularyMarker,
+        BindingRelevance, BoundaryMachineDeclaration, CompletionReceipt, EntryClaim,
+        ProviderCandidateConformance, ProviderParameterRefinement, ProviderSignatureParameter,
+        ProviderUnitRefinement, ProviderUnitSignature, SemanticFingerprint, StructuralAccess,
+        StructuralArgument, StructuralFieldDeclaration, StructuralFieldType,
+        StructuralMultiplicity, StructuralParameterDeclaration, StructuralTypeDeclaration,
+        StructuralTypeShape, TerminalPsiIdentity, VocabularyMarker,
     };
 
     fn structural_call_fixture() -> (
@@ -4296,6 +4301,184 @@ mod structural_unit_tests {
         (abstract_plan, target, unit)
     }
 
+    fn installed_provider_legalization_fixture() -> (
+        TerminalAbstractOperationPlan,
+        TerminalTargetOperationPlan,
+        PsiOptimizationUnit,
+    ) {
+        let (mut abstract_plan, mut target, _) = structural_call_fixture();
+        let boundary = BoundaryMachineId::new(1).unwrap();
+        let callee = abstract_plan.functions[1].machine;
+        let operation = OperationId::new(1).unwrap();
+        let caller_parameters = abstract_plan.functions[0].structural_parameters.clone();
+        let structural_type = caller_parameters[0].structural_type;
+        for function in &mut abstract_plan.functions {
+            for parameter in &mut function.structural_parameters {
+                parameter.multiplicity = StructuralMultiplicity::Linear;
+            }
+        }
+        let caller_claims = caller_parameters
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| EntryClaim {
+                claim: ClaimId::new(index as u64 + 1).unwrap(),
+                input: parameter.place,
+                path: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let callee_claims = abstract_plan.functions[1]
+            .structural_parameters
+            .iter()
+            .enumerate()
+            .map(|(index, parameter)| EntryClaim {
+                claim: ClaimId::new(index as u64 + 3).unwrap(),
+                input: parameter.place,
+                path: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let arguments = caller_parameters
+            .iter()
+            .map(|parameter| StructuralArgument {
+                place: parameter.place,
+                access: parameter.access,
+                path: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let completion_sources = caller_claims
+            .iter()
+            .cloned()
+            .map(|entry| TerminalCompletionClaimSource {
+                claim: entry.claim,
+                entry: Some(entry),
+                content: None,
+            })
+            .collect::<Vec<_>>();
+        let receipts = caller_claims
+            .iter()
+            .enumerate()
+            .map(|(index, claim)| CompletionReceipt {
+                claim: claim.claim,
+                argument_index: index as u32,
+            })
+            .collect::<Vec<_>>();
+        let provider = ProviderCandidateConformance {
+            boundary,
+            requirement_identity: "ProgramEntry::enter".into(),
+            provider_identity: "UefiProgramProvider".into(),
+            candidate_identity: "UefiProgramProvider::enter".into(),
+            candidate: callee,
+            signature: ProviderUnitSignature {
+                parameters: caller_parameters
+                    .iter()
+                    .map(|parameter| ProviderSignatureParameter {
+                        position: parameter.position,
+                        is_self: parameter.is_self,
+                        structural_type: parameter.structural_type,
+                        multiplicity: StructuralMultiplicity::Linear,
+                        access: parameter.access,
+                        qualifications: parameter.qualifications.clone(),
+                    })
+                    .collect(),
+            },
+            refinement: ProviderUnitRefinement {
+                positional_parameters: vec![
+                    ProviderParameterRefinement {
+                        boundary_index: 0,
+                        candidate_index: 0,
+                    },
+                    ProviderParameterRefinement {
+                        boundary_index: 1,
+                        candidate_index: 1,
+                    },
+                ],
+                required_domains: Vec::new(),
+                realized_service_ceiling: Vec::new(),
+            },
+        };
+        abstract_plan.boundary_machines = vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "ProgramEntry::enter".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: caller_parameters
+                .iter()
+                .enumerate()
+                .map(|(index, parameter)| StructuralParameterDeclaration {
+                    place: PlaceId::new(index as u64 + 5).unwrap(),
+                    position: parameter.position,
+                    is_self: parameter.is_self,
+                    structural_type,
+                    multiplicity: StructuralMultiplicity::Linear,
+                    access: parameter.access,
+                    qualifications: parameter.qualifications.clone(),
+                })
+                .collect(),
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }];
+        abstract_plan.provider_candidates = vec![provider.clone()];
+        abstract_plan.functions[0].entry_claims = caller_claims.clone();
+        abstract_plan.functions[0].operations[0] = TerminalAbstractOperation::BoundaryCall {
+            psi_operation: operation,
+            result: None,
+            boundary,
+            arguments: Vec::new(),
+            structural_arguments: arguments.clone(),
+            completion_claim_sources: completion_sources.clone(),
+            completion_receipts: receipts.clone(),
+        };
+        abstract_plan.functions[1].entry_claims = callee_claims;
+
+        for function in &mut target.functions {
+            let omega_terminal_target_operations::TerminalTargetOperation::UnitBody(body) =
+                &mut function.operation
+            else {
+                continue;
+            };
+            for parameter in &mut body.parameters {
+                parameter.multiplicity = StructuralMultiplicity::Linear;
+            }
+        }
+        let omega_terminal_target_operations::TerminalTargetOperation::UnitBody(caller_body) =
+            &mut target.functions[0].operation
+        else {
+            panic!("caller Unit body");
+        };
+        let omega_terminal_target_operations::TerminalTargetUnitOperation::Call {
+            arguments: target_arguments,
+            ..
+        } = caller_body.operations[0].clone()
+        else {
+            panic!("authored structural call fixture");
+        };
+        caller_body.operations[0] =
+            omega_terminal_target_operations::TerminalTargetUnitOperation::InstalledProviderCall {
+                psi_operation: operation,
+                boundary,
+                provider,
+                source_arguments: arguments,
+                arguments: target_arguments,
+                claim_transfers: receipts
+                    .iter()
+                    .map(|receipt| psi_terminal::ClaimTransfer {
+                        claim: receipt.claim,
+                        argument_index: receipt.argument_index,
+                    })
+                    .collect(),
+                completion_claim_sources: completion_sources,
+                completion_receipts: receipts,
+            };
+        let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &abstract_plan,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .expect("installed provider optimization seed");
+        (abstract_plan, target, unit)
+    }
+
     fn microsoft_selection_environment() -> (
         ValidatedPhysicalRegisterModel,
         ValidatedRegisterConstraintCatalog,
@@ -4346,6 +4529,10 @@ mod structural_unit_tests {
         let call = caller.call.as_ref().unwrap();
         assert_eq!(call.id, TerminalSelectedInstructionId(0));
         assert_eq!(
+            call.source,
+            omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::AuthoredCallUnit
+        );
+        assert_eq!(
             call.constraint,
             X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
         );
@@ -4360,6 +4547,145 @@ mod structural_unit_tests {
         assert_eq!(selected.receipt().block_count(), 2);
         assert_eq!(selected.receipt().virtual_register_count(), 0);
         assert_eq!(selected.receipt().instruction_count(), 3);
+    }
+
+    #[test]
+    fn installed_provider_call_legalization_retains_source_and_completion_custody() {
+        let (abstract_plan, target, unit) = installed_provider_legalization_fixture();
+        let legalized = legalize_terminal_target_operations(&target, &abstract_plan, &unit)
+            .expect("installed provider call derives and independently replays");
+        let call = legalized.plan().structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("installed provider call");
+        let omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::InstalledProvider {
+            boundary,
+            provider,
+            completion_claim_sources,
+            completion_receipts,
+        } = &call.source
+        else {
+            panic!("installed provider source kind");
+        };
+        assert_eq!(*boundary, BoundaryMachineId::new(1).unwrap());
+        assert_eq!(provider.candidate, MachineId::new(2).unwrap());
+        assert_eq!(completion_claim_sources.len(), 2);
+        assert_eq!(completion_receipts.len(), 2);
+        assert_eq!(
+            call.ownership,
+            [omega_optimization_unit::OwnershipEvent::ClaimCompletion(
+                vec![ClaimId::new(1).unwrap(), ClaimId::new(2).unwrap(),]
+            )]
+        );
+        call.validate_source()
+            .expect("retained installed source remains internally valid");
+    }
+
+    #[test]
+    fn installed_provider_call_selection_retains_and_hashes_exact_source_custody() {
+        let (abstract_plan, target, unit) = installed_provider_legalization_fixture();
+        let legalized = legalize_terminal_target_operations(&target, &abstract_plan, &unit)
+            .expect("installed provider call legalizes");
+        let legalized_source = legalized.plan().structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("legalized installed call")
+            .source
+            .clone();
+        let (physical, catalog, constraints) = microsoft_selection_environment();
+        let selected = select_terminal_instructions(&legalized, &constraints, &physical, &catalog)
+            .expect("installed provider call selects through the shared physical ABI");
+        let selected_call = selected.plan().structural_unit_functions[0]
+            .call
+            .as_ref()
+            .expect("selected installed call");
+        assert_eq!(selected_call.source, legalized_source);
+        assert_eq!(
+            selected_call.ownership,
+            [omega_optimization_unit::OwnershipEvent::ClaimCompletion(
+                vec![ClaimId::new(1).unwrap(), ClaimId::new(2).unwrap()]
+            )]
+        );
+        assert_eq!(selected_call.claim_transfers.len(), 2);
+
+        let selected_identity = selected.receipt().identity();
+        let mut corrupted = selected.plan().clone();
+        let call = corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("selected installed call");
+        let omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::InstalledProvider {
+            provider,
+            ..
+        } = &mut call.source
+        else {
+            panic!("installed provider source")
+        };
+        provider.candidate_identity.push_str("::substituted");
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(matches!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted,
+            ),
+            Err(SelectedInstructionError::InstructionProjectionMismatch { .. })
+        ));
+
+        let mut wrong_kind = selected.plan().clone();
+        wrong_kind.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("selected installed call")
+            .source =
+            omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::AuthoredCallUnit;
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&wrong_kind),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                wrong_kind,
+            )
+            .is_err()
+        );
+
+        let mut receipt_tamper = selected.plan().clone();
+        let call = receipt_tamper.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .expect("selected installed call");
+        let omega_terminal_legalized_operations::TerminalLegalizedCallUnitSource::InstalledProvider {
+            completion_receipts,
+            ..
+        } = &mut call.source
+        else {
+            panic!("installed provider source")
+        };
+        completion_receipts[0].argument_index = 1;
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&receipt_tamper),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                receipt_tamper,
+            )
+            .is_err()
+        );
     }
 
     #[test]

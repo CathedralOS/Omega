@@ -1704,6 +1704,7 @@ mod tests {
             .unwrap();
         let call = TerminalSelectedStructuralUnitCallInstruction {
             id: omega_terminal_selected_instructions::TerminalSelectedInstructionId(0),
+            source: omega_terminal_selected_instructions::TerminalSelectedStructuralUnitCallSource::AuthoredCallUnit,
             operation: OperationId::new(1).unwrap(),
             callee: MachineId::new(2).unwrap(),
             caller_call_plan: structural_call_plan(),

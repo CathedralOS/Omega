@@ -182,12 +182,23 @@ pub struct TerminalLinuxExitGroupI32Realization;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct TerminalLinuxWriteLineRealization;
 
+/// A provider execution whose complete native effect is the successful
+/// completion of the boundary call's retained ownership claims.
+///
+/// This realization has no scalar input, result, byte-sequence payload, or
+/// target instruction. The boundary occurrence, admitted provider execution,
+/// structural arguments, and completion receipts remain explicit in the
+/// surrounding [`TerminalTargetUnitOperation::BoundarySettlement`] row.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct TerminalClaimCompletionOnlyRealization;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalBoundaryRealization {
     MetadataOnlyPort(TerminalMetadataOnlyPortRealization),
     DirectPortReadU8(TerminalDirectPortReadU8Realization),
     LinuxWriteLine(TerminalLinuxWriteLineRealization),
     LinuxExitGroupI32(TerminalLinuxExitGroupI32Realization),
+    ClaimCompletionOnly(TerminalClaimCompletionOnlyRealization),
 }
 
 impl From<TerminalMetadataOnlyPortRealization> for TerminalBoundaryRealization {
@@ -205,6 +216,12 @@ impl From<TerminalLinuxExitGroupI32Realization> for TerminalBoundaryRealization 
 impl From<TerminalLinuxWriteLineRealization> for TerminalBoundaryRealization {
     fn from(realization: TerminalLinuxWriteLineRealization) -> Self {
         Self::LinuxWriteLine(realization)
+    }
+}
+
+impl From<TerminalClaimCompletionOnlyRealization> for TerminalBoundaryRealization {
+    fn from(realization: TerminalClaimCompletionOnlyRealization) -> Self {
+        Self::ClaimCompletionOnly(realization)
     }
 }
 
