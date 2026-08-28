@@ -148,9 +148,17 @@ These facts constrain the work below.
   returns to one fresh VReg, and records both destination sites in canonical
   order. Production and a separately coded replay require the exact diamond,
   source, fixed views, insertion site, and target-owned flag-transparent copy
-  row. Its fixed-view-copy identity is v3. General orchestration still uses the
-  leaf-local policy until an explicit selection/scheduling contract chooses
-  between these two exact strategies.
+  row. Its fixed-view-copy identity is v3. A strict `OMGFCV` v3 codec now binds
+  both closed policy tags, every source root and work counter, insertion and
+  ordered destination sites, the transformed selected-plan identity, and the
+  complete transformed CFG including provenance and fuel. Decode returns only
+  an unchecked plan; independent validation remains mandatory. The exact,
+  default-off root-build selection
+  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` routes the shared-entry
+  policy through its own closed `AllocationRecovery` phase, complete selected
+  reanalysis, fresh homes, and post-allocation machine reconstruction. It
+  currently rejects composition with other physical phases until their order
+  and custody contract are admitted.
 
   The first post-allocation combine is also present as the exact build-visible,
   default-off
@@ -162,8 +170,12 @@ These facts constrain the work below.
   instruction identities and edge custody, and owns no displacement or layout.
   Target-owned AArch64 code independently encodes and decodes the exact 64-bit
   CBNZ form. Orchestration binds the artifact to the full suite and supports it
-  alone or after selected lowering; compiler publication remains closed and
-  installs no output.
+  alone or after selected lowering. The symbolic disposition now also reaches
+  an independently replayed pre-layout and resolved-layout route: the compare
+  retains a zero-byte roster row, the target encoder realizes the fused branch,
+  and the resolved function shrinks by exactly four bytes while decoded effects
+  prove the physical X-register/PC footprint and absence of NZCV use. Compiler
+  emission and publication remain closed and install no output.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -1165,11 +1177,19 @@ dependency.
   verifier-owned accepted-obligation catalog remains byte-for-byte intact as
   historical proof custody. A verified Terminal artifact projects the removed
   exact add, its manifest evidence, and its source/fuel relocation through the
-  lowering boundary. Candidate v19, optimization-unit identity v10, the named
-  v1 pass, prephysical manifest v13, and projection v14 bind this meaning;
-  ledger v4 already represents the relocation. General check elision whose
-  result remains live, runtime policy events, and physical check recognition
-  remain open.
+  lowering boundary. The same selection now also owns
+  `live-proof-certified-integer-identity-elimination.v1`. It substitutes a live
+  exact result with the non-identity operand and removes only these closed
+  identities: add zero on either side, subtract zero on the right, multiply one
+  on either side, and left/right shift by zero. Every candidate consumes both a
+  literal constant fact and an accepted-obligation fact; independent replay
+  reconstructs the exact operation, type, literal definition, obligation row,
+  substitution, accounting, provenance, and fuel. The active obligation
+  reference disappears while the accepted catalog remains immutable. Candidate
+  v22, optimization-unit identity v10, the named v2 pass, prephysical manifest
+  v15, and projection validator v16 bind the current meaning; ledger v4 already
+  represents the relocations. Runtime policy events, other live proof-bearing
+  identities, and physical check recognition remain open.
 
 - **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
   Define the canonical target-neutral schedule for
@@ -1627,8 +1647,10 @@ dependency.
   Current boundary: `LeafLocalBeforeFixedUseV1` and
   `SharedEntryAfterCompareBeforeBranchV1` are two exact scalar-u64
   entry-to-leaf-return base cases. The latter proves one shared
-  flag-transparent entry copy can serve both return arms, but is not yet chosen
-  by orchestration. Neither closes general fixed-use, call, pressure,
+  flag-transparent entry copy can serve both return arms and is selected only
+  by the exact, default-off
+  `SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` build choice in the
+  `AllocationRecovery` phase. Neither closes general fixed-use, call, pressure,
   rematerialization, or address-stability splitting.
 
 - **OPT-SPILLS-RELOADS.** Insert typed spills/reloads and rematerialize cheap
@@ -1901,12 +1923,15 @@ dependency.
   with ordered attempts/actions, source-qualified physical read, compare
   elision, fused-branch disposition, exact successor identities, and complete
   replay. The target encoder separately validates canonical CBNZ bytes once a
-  displacement exists; the optimizer itself owns no displacement, layout,
-  emission, or publication authority. The root build vocabulary is explicit
-  and default-off, and the compiler continues to reject selected native output
-  without installation. Remaining here includes consuming this disposition in
-  resolved layout/emission, general redundant move/spill/reload rules, and
-  additional independently validated target combines.
+  displacement exists; pre-layout and resolved-layout custody now consume the
+  symbolic disposition, elide the compare to a zero-byte roster row, and emit a
+  validated four-byte CBNZ row with decoded X-register/PC effects and no NZCV
+  dependency. The optimizer still owns no emission, relocation, image, or
+  publication authority. The root build vocabulary is explicit and default-
+  off, and the compiler continues to reject selected native output without
+  installation. Remaining here includes joining this layout to the emission
+  boundary, general redundant move/spill/reload rules, and additional
+  independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

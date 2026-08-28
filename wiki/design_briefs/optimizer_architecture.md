@@ -511,7 +511,12 @@ fixed return operand, preserves the return's provenance and logical fuel, and
 gives the native copy source-value provenance with zero logical fuel. Its
 explicit work budget is checked for the whole plan before any artifact is
 published. Independent replay reconstructs the complete transformed selected
-CFG and a domain-separated transformation identity.
+CFG and a domain-separated transformation identity. A strict `OMGFCV` v3 codec
+binds either closed policy, every source root and work counter, insertion and
+ordered destination sites, constraints, the transformed selected identity, and
+the complete transformed CFG including provenance and fuel. Decoding
+authenticates bytes into a plain unchecked plan; the independent validator is
+still required before custody can advance.
 
 Because the selected CFG changed, a sealed validated-analysis boundary reruns
 liveness, ranges, interference, architectural state, and candidate legality
@@ -530,8 +535,14 @@ and rewritten to one fresh VReg. Production and independent replay separately
 reconstruct the exact source, insertion point, two successors, fixed views,
 provenance, fuel, and flag footprint. The v3 copy identity binds the policy,
 insertion block/instruction, and every ordered destination. This is a legal
-strategy artifact, not an implicit profitability choice; orchestration remains
-on the leaf-local route until a named scheduling contract selects it.
+strategy artifact, not an implicit profitability choice. The exact, default-
+off root-build selection
+`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` projects into the closed
+`AllocationRecovery` phase and chooses only this policy. Orchestration then
+reruns the full selected analyses, requires zero remaining transitions, assigns
+fresh homes, and reconstructs post-allocation machine facts. Composition with
+other physical phases is fail-closed until an explicit ordering/custody
+contract is admitted.
 
 The carrier exposes the projected abstract plan only by borrow while retaining
 the verified input and complete optimization run. A second optimized-only
@@ -1274,12 +1285,22 @@ rebuild as obligation-free dead scalar work. The active
 `OperationObligationReference` leaves the function fact index with its removed
 owner, but the verifier-owned accepted-obligation catalog remains byte-for-byte
 intact as historical proof custody. A verified artifact carries the exact
-accepted fact through projection after removing an unused exact add. Candidate
-v19, optimization-unit content identity v10, the named v1 pass, prephysical
-manifest v13, and optimized-plan projection validation v14 bind this meaning;
-ledger v4 already represents the relocation. This first slice does not remove
-live computations, runtime policy events, or physical checks not represented
-by this exact Psi contract.
+accepted fact through projection after removing an unused exact add. The same
+selection also owns
+`live-proof-certified-integer-identity-elimination.v1`. It rewrites a live exact
+result to the non-identity operand only for add zero on either side, subtract
+zero on the right, multiply one on either side, and left/right shift by zero.
+The candidate carries both the exact literal constant fact and accepted
+obligation fact. Independent replay reconstructs the operation, identity kind,
+integer types, literal definition and fact, active obligation reference,
+accepted row, substitution, accounting, output, provenance, and fuel. The
+active obligation reference is removed with the operation while the accepted
+catalog remains immutable history. Candidate v22, optimization-unit content
+identity v10, the named v2 pass, prephysical manifest v15, and optimized-plan
+projection validation v16 bind the current meaning; ledger v4 already
+represents the relocation. Runtime policy events, other live proof-bearing
+identities, and physical checks not represented by these exact Psi contracts
+remain open.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
@@ -1805,8 +1826,14 @@ The AArch64 ISA owner separately encodes and independently decodes the exact
 64-bit `CBNZ` imm19 form, reporting the qualified X-register read and PC
 use/definition without inventing an NZCV dependency. Current orchestration
 retains the symbolic completion alone or after selected lowering and rejects
-publication. A later realization milestone must thread that disposition into
-pre-layout/layout identities before any fused byte can be emitted.
+publication. Explicit sibling realization APIs now thread that custody through
+layout-independent encoding and resolved layout. The compare remains in the
+instruction roster as a zero-byte row; the fused branch is target-encoded and
+independently decoded as `CBNZ`; source-register, successor, PC, and absent-NZCV
+effects are replayed; and the function shrinks by exactly four bytes.
+Pre-layout identity v3 and resolved-layout identity v2 bind the full/phase
+selection custody and symbolic dispositions. Emission, relocation, image, and
+publication remain later boundaries.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
@@ -1995,6 +2022,8 @@ data Optimization {
     case SelectedIncomingU12ExactAddImmediate;
     case X86RelaxConditionalBranchesToRel8V1;
     case SelectedIncomingU12ExactSubtractImmediate;
+    case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
+    case SharedEntryFixedViewCopyAfterCompareBeforeBranchV1;
 }
 
 data Optimizations {
@@ -2038,6 +2067,11 @@ post-allocation machine transformation: it is absent unless named by the root
 build, and its custody receipt binds both the complete suite and that exact
 phase projection. This is an individual transformation selection, not an
 optimization level or a debug/release profile.
+`SharedEntryFixedViewCopyAfterCompareBeforeBranchV1` belongs only to
+`AllocationRecovery`; naming it chooses that exact copy policy and no hidden
+allocator intensity or companion transformation. Until a composition contract
+is admitted, orchestration rejects suites that combine it with another physical
+phase.
 
 Rules:
 
