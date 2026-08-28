@@ -187,8 +187,16 @@ These facts constrain the work below.
   policies under one shared budget. Exactly one sweep and at least one action
   are required. The route then rebuilds liveness, ranges, legality, and homes
   and retains its machine, encoding, resolved-layout, and function-relative
-  custody. The selection codec/identity is v7. The function-relative v5
-  manifest records the exact allocation-recovery phase projection. The two
+  custody. It now continues through relocation-free fragments and text,
+  private-symbol object serialization, the canonical Terminal semantic/proof-
+  to-object artifact, ordinary-callable ABI classification, and the cumulative
+  opaque report on all four supported target/format combinations. The fresh
+  rematerialization span, transformed selected root and homes, sole typed
+  post-allocation row, and exact singleton selection survive every join. The
+  selection codec/identity is v7. The function-relative v5 manifest records the
+  exact allocation-recovery phase projection; the downstream object/artifact/
+  callable schemas remain v1 because their generic parent-root vocabularies did
+  not change. The two
   allocation-recovery selections cannot be combined, and neither composes with
   another unfinished physical phase. Ordinary and dependency builds remain
   empty and do not enter this route; compiler publication remains unavailable.
@@ -1932,11 +1940,13 @@ dependency.
   multi-use schedule and no companions. The compiler route derives only the
   target-owned caller-saved two-view availability, requires one sweep with at
   least one action, rebuilds every invalidated allocation fact, and retains the
-  result through function-relative realization. A no-candidate source shape,
-  missing required view, second allocation-recovery family, or another
-  unfinished physical phase rejects rather than falling back. This closes the
-  explicit opt-in hook, not general spilling, framing, emission, or
-  publication.
+  result through function-relative realization and the existing generic
+  fragment, text, object, canonical Terminal artifact, ordinary-callable, and
+  opaque-report boundaries. A no-candidate source shape, missing required view,
+  second allocation-recovery family, or another unfinished physical phase
+  rejects rather than falling back. This closes the explicit opt-in and current
+  relocation-free scalar-callable custody hook, not general spilling, framing,
+  process-entry bridging, image construction, installation, or publication.
 
   `SelectedIncomingU12ExactAddImmediateV1` and
   `SelectedIncomingU12ExactSubtractImmediateV1` each close one physical-form
@@ -2288,6 +2298,18 @@ dependency.
   image, installation, and publication are explicitly unavailable. Reports can
   gain this record only from the new opaque carrier.
 
+  The exact compiler-selected active-resident route now exercises those three
+  generic downstream boundaries on System V AMD64, Microsoft x64, Linux
+  AAPCS64, and Darwin AAPCS64. Replay retains the fresh nonempty
+  `MaterializeI64` section span, transformed selected root and homes, sole
+  `PressureRematerialization` ledger row, exact Terminal semantic/proof roots,
+  private entry symbol, both return-edge result rows, and target ABI parameter/
+  result registers. `OMGOTA`/`OMGOTM` and `OMGOER`/`OMGOEM` remain v1: the v2
+  fragment/text manifests already authenticate the route-specific source kind,
+  while these later records bind generic child identities. The artifact report
+  still cannot expose callable metadata, and only the opaque callable carrier
+  adds it. This is current scalar-callable custody, not process-entry authority.
+
   The real process-entry bridge is an engineering join, not an unresolved
   language-design question. Existing target/program-storage vocabulary already
   makes `ProgramEntry` target-owned, records its selected source signature,
@@ -2299,10 +2321,10 @@ dependency.
   then join target-owned ProgramEntry/root/source-signature/program-storage
   custody without weakening this classifier.
 
-  Remaining for the named rel8 rule: replace the current compiler execution
-  gate with an end-to-end selected-build path that carries the validated object
-  artifact through ordinary-callable classification, an authoritative process
-  entry bridge, native image, and publication custody.
+  Remaining for selected native output: replace the current compiler execution
+  gate with an end-to-end selected-build path that carries an applicable
+  validated object artifact through an authoritative process-entry bridge,
+  native image, and publication custody.
   Until those downstream authorities exist, a build that explicitly selects
   the rule is parsed and identified but still fails without installing output.
 

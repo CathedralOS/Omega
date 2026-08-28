@@ -409,8 +409,13 @@ program through fresh allocation evidence, post-allocation machine planning,
 canonical encoding, resolved layout, and function-relative realization. A
 missing required view, no-candidate shape, second allocation-recovery family,
 or unfinished physical-phase composition fails closed. Empty ordinary and
-dependency builds never enter this route, and the carrier still grants no
-frame, emission, image, installation, or publication authority.
+dependency builds never enter this route. The physical carrier itself grants
+no frame, emission, image, installation, or publication authority; subsequent
+generic custody carriers now advance its exact root-build result through
+relocation-free fragments and text, private-symbol object serialization,
+canonical Terminal semantic/proof-to-object joining, ordinary-callable ABI
+classification, and the opaque cumulative report without weakening that
+boundary.
 
 Other exact transformations consuming that evidence are the separately named
 `SelectedIncomingU12ExactAddImmediateV1` and
@@ -2277,6 +2282,21 @@ every Terminal/selection/home/symbol/exit join. Its explicit disposition is
 grant no process symbol, wrapper bytes, relocations, image, installation, or
 publication. The cumulative report gains this record only from the opaque
 carrier that owns the source artifact.
+
+The compiler-selected active-resident route now proves that these generic
+downstream joins accept a newly transformed allocation source without a new
+schema or route-specific shortcut. Tests cover System V AMD64, Microsoft x64,
+Linux AAPCS64, and Darwin AAPCS64 from the exact singleton build selection.
+They retain the fresh nonempty `MaterializeI64` section span, transformed
+selected root and homes, sole `PressureRematerialization` ledger row, Terminal
+semantic/proof roots, private entry symbol, both return-edge result rows, and
+target ABI parameter/result registers through independent replay. The
+route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v2;
+`OMGTRO`/`OMGTOM`, `OMGOTA`/`OMGOTM`, and `OMGOER`/`OMGOEM` remain v1 because
+their generic child-identity vocabularies did not change. Artifact reporting
+still omits callable metadata until the opaque callable carrier owns the
+artifact. The final disposition remains
+`ExternalProcessEntryBridgeRequiredV1`.
 
 The real process bridge is an engineering join rather than an unresolved
 language-design decision. Target and program-storage vocabulary already make
