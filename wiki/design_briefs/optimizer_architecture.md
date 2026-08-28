@@ -1344,14 +1344,14 @@ registers in ways that hide interference from the allocator.
 The first production slice makes that boundary concrete without claiming a
 general selector. `omega-terminal-legalized-operations` is a data-only,
 target-bound representation below raw target operations. A mandatory checked
-canonicalizer reconstructs one exact V1 projection from the target plan,
+canonicalizer reconstructs one exact V3 projection from the target plan,
 optimized abstract plan, and verified optimization unit. Its canonical identity
 binds Terminal-Psi, optimization-unit and fuel-schedule roots, exact native
 target, entry/function roster, attachments, one closed recipe, source
 blocks/values/definition sites, target provenance, branch/return edges and
 bindings, accepted exact-operation facts, and every operation/edge fuel
-settlement. Its receipt says zero decompositions: V1 recognizes already-legal
-forms and cannot masquerade as width expansion.
+settlement. Identity recipes report zero decompositions; the first non-identity
+recipe reports its independently replayed occurrence count.
 
 A separate plan-driven replay validates that projection without calling the
 canonicalizer, importing its producer helpers, or constructing a second
@@ -1371,7 +1371,7 @@ existing `omega-terminal-target-operations-to-selected-instructions` pipeline
 currently owns both checked legalization and selection mechanics, but the type
 boundary is mandatory and explicit.
 
-The closed V1 has four exact three-block runtime conditional forms. The first
+The closed V3 has six exact three-block runtime conditional forms. The first
 has leaves that materialize unsigned 64-bit constants and return. The second
 carries a shared unsigned 64-bit entry parameter across both branch edges and
 returns it directly, exposing genuine virtual interference and different
@@ -1381,7 +1381,21 @@ or subtraction. Their selected semantic kinds retain the exact obligation and
 accepted-fact identity. Addition uses the target-owned flag-neutral
 three-address `add_i64` row. AArch64 subtraction uses flag-transparent `SUB`;
 x86-64 retains the honest RFLAGS clobber of its alias-safe subtraction pseudo.
-Each virtual register retains its exact Psi value and definition site; each
+The fifth and sixth accept two immediate unsigned-u8 exact additions or exact
+subtractions followed by u8-to-u64 widening. Closed theorems record that zero-
+extension commutes with the overflow- or underflow-proven unsigned operation;
+independent replay checks the concrete arithmetic instance as well as the
+original u8 accepted-fact owner. Subtraction preserves the authored left/right
+order rather than applying addition's commutative reasoning. Each arm's narrow
+operation and widen become one selected i64 operation with ordered two-
+operation/two-fuel custody. Its promoted operands receive dense function-local
+legalization-temporary identities, and selected virtual-register origins
+preserve those identities instead of attributing a u64 value directly to a u8
+Psi definition.
+The receipt therefore reports two non-identity legalization groups for either
+two-arm recipe. Source-derived virtual registers retain their exact Psi value
+and definition site; legalized temporaries retain their function-local identity
+plus exact source lineage and definition site. Each
 instruction retains its catalog constraint, explicit and implicit state
 footprint, and semantic provenance; branch-edge fuel remains attached to the
 corresponding selected successor so only the taken edge is charged. ISA-owned
@@ -1395,21 +1409,16 @@ shape. A nested liveness carrier may consume it, but cannot weaken or detach
 that custody.
 
 This is not completion of target legalization. The general representation must
-become CFG-shaped, give decomposition temporaries identities that do not
-fabricate Psi `ValueId`s, record an exact source-occurrence-to-legal-program-
-point expansion map, and partition proof/effect/provenance/fuel custody across
-one-to-many recipes. The legality profile must eventually bind target profile,
-ABI, ISA feature/capability, and applicable semantic catalogs rather than only
-`NativeTarget`. The first credible current-vocabulary decomposition is an
-accepted overflow-free unsigned-u8 exact add followed by a u8-to-u64 widen.
-Legalization may commute the widen through that exact add into the existing u64
-materialize/add sequence only when independent replay re-derives the unsigned
-theorem and retains both source operations, the accepted obligation, definition
-sites, provenance, and fuel. A plain constant widen would only be a many-to-one
-canonicalization, while a direct narrow return would silently choose ABI
-extension semantics and therefore remains unsupported. This mandatory
-normalization is not a named build optimization; optional target combines
-remain explicit selections.
+become CFG-shaped, apply the new non-Psi temporary identity model across a
+general legalized value/operation vocabulary, record an exact source-
+occurrence-to-legal-program-point expansion map, and partition proof/effect/
+provenance/fuel custody across general one-to-many recipes. The legality profile
+must eventually bind target profile, ABI, ISA feature/capability, and applicable
+semantic catalogs rather than only `NativeTarget`. A plain constant widen would
+only be a many-to-one canonicalization, while a direct narrow return would
+silently choose ABI extension semantics and therefore remains unsupported.
+This mandatory normalization is not a named build optimization; optional target
+combines remain explicit selections.
 
 ## Register allocation
 

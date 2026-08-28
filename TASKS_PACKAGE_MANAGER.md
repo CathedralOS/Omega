@@ -2890,6 +2890,28 @@ complete.
   Its observations are correctly Volatile and retain the six rooted filesystem
   attempts plus the replayable staged tree.
 
+  Milestone 2026-08-27: review orchestration now retains one opaque compiler-
+  issued generated-source bundle from every dependency-first checked package
+  and supplies the complete set, including explicit empty bundles, to each
+  later consumer. A bundle binds the exact producer package, target, source-
+  path-free dependency closure, source-consumption commitment, and only that
+  producer's explicit retained handoffs. Initial frontend loading gives those
+  bytes the producer's exact package identity and logical
+  `.omega/generated/...` path, resolves imports from retained custody without
+  physical output access, commits them in the consumer's source consumption,
+  and never reruns the dependency build. Missing, duplicate, foreign, root-
+  self, wrong-closure, wrong-target, and review/custody substitution reject.
+  Isolated compiler tests exercise a real consumer import with no physical
+  generated file plus those structural tamper cases.
+
+  The filesystem-producing `generated-table -> generated-consumer` package-
+  review canary is retained but ignored at the already-open OWNER Q7 seam:
+  after std relocation, the physical bundled `FilesystemHost` source is no
+  longer authenticated as ordinary-package staging authority. Do not restore
+  it with a name or path exception. Ratifying Q7 and switching that service to
+  exact graph-role authority should make the canary executable without any
+  generated-source design change.
+
   Completed 2026-08-26: direct Source-read and Output-create canaries place an
   intermediate symlink inside the corresponding grant and its target outside
   every permitted root. Following either link rejects as
@@ -2901,7 +2923,7 @@ complete.
   result, source-mutation, unrooted/noncanonical, handoff, and sponsored-
   publication canaries, this closes the rooted path surface itself.
 
-- [ ] **PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.** Route native-image
+- [ ] **BLOCKED — OWNER Q3/Q8: PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION.** Route native-image
   production through the same sponsored package transaction as package review,
   without rerunning `build.omg` or reopening source discovery.
 
@@ -3258,7 +3280,7 @@ debt in this section, not a reason to preserve the old tree.
       selecting std from this multi-package Git repository, and Q3 blocks final
       application-root CLI integration. Neither makes package-root/local-path
       migration engineering ambiguous.
-- [ ] **Resolve git dependencies by package name.** `declaration.rs` reads
+- [ ] **BLOCKED — OWNER Q2: resolve git dependencies by package name.** `declaration.rs` reads
       `build.omg` at the fetched root only, so one git URL means one package at
       the repository root. Read the root manifest, consult its members, and
       select by name — the model Cargo uses, and the one that lets this
@@ -3268,7 +3290,7 @@ debt in this section, not a reason to preserve the old tree.
       revision but no expected package-name selector. The selected member's own
       declaration remains identity authority; the request still needs
       unambiguous selection intent for a lockless first resolution.
-- [ ] **`omega fetch <package>` minimal checkout.** Once members declare paths,
+- [ ] **BLOCKED — OWNER Q2: `omega fetch <package>` minimal checkout.** Once members declare paths,
       partial Git object acquisition plus parent-authenticated selective
       materialization can retrieve one subtree. This must not use Git checkout,
       which the resolver contract deliberately excludes. Consuming the standard

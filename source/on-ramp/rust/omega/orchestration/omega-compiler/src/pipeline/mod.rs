@@ -84,6 +84,7 @@ pub use build_replay_record::{
 };
 pub use build_staged_output::{
     BuildStagedOutputMaterializationError, BuildStagedOutputTree, BuildStagedOutputTreeCommitment,
+    PackageGeneratedSource,
 };
 pub use calling_policy_plans::evaluate_calling_policy_plan;
 pub use checked_entry::{
@@ -114,7 +115,7 @@ pub use output::{
 };
 pub use package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
-    PackageDependencyClosure, PackageSourceBinding,
+    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
 };
 pub use package_review::{
     CheckedPackageCallableReview, CheckedPackageProviderReview, CheckedPackageReviewProjection,

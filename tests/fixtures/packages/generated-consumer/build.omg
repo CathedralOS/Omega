@@ -1,0 +1,11 @@
+target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+
+machine build(builder: &mut Build) {
+    builder.package("generated-consumer");
+    builder.depend(Source::Path {
+        location: "../generated-table"
+    });
+}

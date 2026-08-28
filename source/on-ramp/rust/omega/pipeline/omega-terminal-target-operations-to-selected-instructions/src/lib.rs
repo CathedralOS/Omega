@@ -44,11 +44,11 @@ use source::derive_source_functions;
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v1",
+        b"omega.terminal-target-legalization-independent-replay.v3",
     )
 }
 
-/// Opaque custody of the canonical V1 target-legal projection.
+/// Opaque custody of the canonical V3 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -104,9 +104,7 @@ impl TerminalLegalizationValidationReceipt {
         self.function_count
     }
 
-    /// V1 admits only already-legal shapes, so this is always zero. Keeping the
-    /// count explicit prevents an identity recipe from masquerading as future
-    /// width or shape decomposition.
+    /// Independently replayed non-identity legalization occurrence groups.
     pub const fn decomposition_count(self) -> usize {
         self.decomposition_count
     }
@@ -291,7 +289,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V1
+/// Canonicalize the bounded target-operation input into the mandatory V3
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -309,7 +307,7 @@ pub fn legalize_terminal_target_operations(
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V1 projection from the raw target,
+/// Independently replay the exact admitted V3 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -318,7 +316,7 @@ pub fn validate_terminal_legalized_operations(
     unit: &PsiOptimizationUnit,
     plan: TerminalLegalizedOperationPlan,
 ) -> Result<ValidatedTerminalLegalizedOperations, TerminalLegalizationError> {
-    replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
+    let decomposition_count = replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
     let receipt = TerminalLegalizationValidationReceipt {
         identity: terminal_legalized_operation_plan_identity(&plan),
         validator: terminal_legalization_validator_identity(),
@@ -326,7 +324,7 @@ pub fn validate_terminal_legalized_operations(
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
         function_count: plan.functions.len(),
-        decomposition_count: 0,
+        decomposition_count,
     };
     Ok(ValidatedTerminalLegalizedOperations { plan, receipt })
 }
@@ -463,8 +461,12 @@ fn build_function(
                 .ok_or(SelectedInstructionError::MissingInputRegisterView { function })?
                 .class
         }
-        SourceLeafValue::ExactAdd { .. } => row(catalog, keys.add_i64)?.operands[2].class,
-        SourceLeafValue::ExactSubtract { .. } => row(catalog, keys.subtract_i64)?.operands[2].class,
+        SourceLeafValue::ExactAdd { .. } | SourceLeafValue::WidenedExactAdd { .. } => {
+            row(catalog, keys.add_i64)?.operands[2].class
+        }
+        SourceLeafValue::ExactSubtract { .. } | SourceLeafValue::WidenedExactSubtract { .. } => {
+            row(catalog, keys.subtract_i64)?.operands[2].class
+        }
     };
     let u64_type =
         ScalarType::Integer(psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64"));
@@ -546,6 +548,94 @@ fn build_function(
                         definition_site: *definition_site,
                         entry_fixed_view: Some(fixed.fixed_view),
                     });
+                }
+                (
+                    SourceLeafValue::WidenedExactAdd {
+                        widen_definition_site: true_site,
+                        left_temporary: true_left_temporary,
+                        right_temporary: true_right_temporary,
+                        left: true_left,
+                        right: true_right,
+                        ..
+                    }
+                    | SourceLeafValue::WidenedExactSubtract {
+                        widen_definition_site: true_site,
+                        left_temporary: true_left_temporary,
+                        right_temporary: true_right_temporary,
+                        left: true_left,
+                        right: true_right,
+                        ..
+                    },
+                    SourceLeafValue::WidenedExactAdd {
+                        widen_definition_site: false_site,
+                        left_temporary: false_left_temporary,
+                        right_temporary: false_right_temporary,
+                        left: false_left,
+                        right: false_right,
+                        ..
+                    }
+                    | SourceLeafValue::WidenedExactSubtract {
+                        widen_definition_site: false_site,
+                        left_temporary: false_left_temporary,
+                        right_temporary: false_right_temporary,
+                        left: false_left,
+                        right: false_right,
+                        ..
+                    },
+                ) => {
+                    for (id, instruction, source_value, definition_site, legalized_temporary) in [
+                        (
+                            1,
+                            2,
+                            true_left.source_value,
+                            true_left.definition_site,
+                            Some(*true_left_temporary),
+                        ),
+                        (
+                            2,
+                            3,
+                            true_right.source_value,
+                            true_right.definition_site,
+                            Some(*true_right_temporary),
+                        ),
+                        (3, 4, source.when_true.source_value, *true_site, None),
+                        (
+                            4,
+                            6,
+                            false_left.source_value,
+                            false_left.definition_site,
+                            Some(*false_left_temporary),
+                        ),
+                        (
+                            5,
+                            7,
+                            false_right.source_value,
+                            false_right.definition_site,
+                            Some(*false_right_temporary),
+                        ),
+                        (6, 8, source.when_false.source_value, *false_site, None),
+                    ] {
+                        registers.push(TerminalVirtualRegister {
+                            id: TerminalVirtualRegisterId(id),
+                            scalar_type: u64_type,
+                            class: result_class,
+                            origin: match legalized_temporary {
+                                Some(temporary) => {
+                                    TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                                        instruction: TerminalSelectedInstructionId(instruction),
+                                        temporary,
+                                        source_value,
+                                    }
+                                }
+                                None => TerminalVirtualRegisterOrigin::InstructionResult {
+                                    instruction: TerminalSelectedInstructionId(instruction),
+                                    source_value,
+                                },
+                            },
+                            definition_site,
+                            entry_fixed_view: None,
+                        });
+                    }
                 }
                 (
                     SourceLeafValue::ExactAdd {
@@ -650,6 +740,73 @@ fn build_function(
                 ]
             }
             (SourceLeafValue::ExactAdd { .. }, SourceLeafValue::ExactAdd { .. }) => vec![
+                build_entry_block(source, keys, catalog)?,
+                build_exact_binary_return_block(
+                    function,
+                    TerminalSelectedBlockId(1),
+                    source.true_block,
+                    [2, 3, 4, 5],
+                    [
+                        TerminalVirtualRegisterId(1),
+                        TerminalVirtualRegisterId(2),
+                        TerminalVirtualRegisterId(3),
+                    ],
+                    &source.when_true,
+                    keys,
+                    catalog,
+                )?,
+                build_exact_binary_return_block(
+                    function,
+                    TerminalSelectedBlockId(2),
+                    source.false_block,
+                    [6, 7, 8, 9],
+                    [
+                        TerminalVirtualRegisterId(4),
+                        TerminalVirtualRegisterId(5),
+                        TerminalVirtualRegisterId(6),
+                    ],
+                    &source.when_false,
+                    keys,
+                    catalog,
+                )?,
+            ],
+            (SourceLeafValue::WidenedExactAdd { .. }, SourceLeafValue::WidenedExactAdd { .. }) => {
+                vec![
+                    build_entry_block(source, keys, catalog)?,
+                    build_exact_binary_return_block(
+                        function,
+                        TerminalSelectedBlockId(1),
+                        source.true_block,
+                        [2, 3, 4, 5],
+                        [
+                            TerminalVirtualRegisterId(1),
+                            TerminalVirtualRegisterId(2),
+                            TerminalVirtualRegisterId(3),
+                        ],
+                        &source.when_true,
+                        keys,
+                        catalog,
+                    )?,
+                    build_exact_binary_return_block(
+                        function,
+                        TerminalSelectedBlockId(2),
+                        source.false_block,
+                        [6, 7, 8, 9],
+                        [
+                            TerminalVirtualRegisterId(4),
+                            TerminalVirtualRegisterId(5),
+                            TerminalVirtualRegisterId(6),
+                        ],
+                        &source.when_false,
+                        keys,
+                        catalog,
+                    )?,
+                ]
+            }
+            (
+                SourceLeafValue::WidenedExactSubtract { .. },
+                SourceLeafValue::WidenedExactSubtract { .. },
+            ) => vec![
                 build_entry_block(source, keys, catalog)?,
                 build_exact_binary_return_block(
                     function,
@@ -869,49 +1026,110 @@ fn build_exact_binary_return_block(
     keys: TerminalSelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedBlock, SelectedInstructionError> {
-    let (obligation, operation, operation_fuel, left, right, kind, key) = match &source.value {
-        SourceLeafValue::ExactAdd {
-            obligation,
-            accepted_fact,
-            add_operation,
-            add_fuel,
-            left,
-            right,
-            ..
-        } => (
-            obligation,
-            add_operation,
-            add_fuel,
-            left,
-            right,
-            TerminalSelectedInstructionKind::ExactAddI64 {
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-            keys.add_i64,
-        ),
-        SourceLeafValue::ExactSubtract {
-            obligation,
-            accepted_fact,
-            subtract_operation,
-            subtract_fuel,
-            left,
-            right,
-            ..
-        } => (
-            obligation,
-            subtract_operation,
-            subtract_fuel,
-            left,
-            right,
-            TerminalSelectedInstructionKind::ExactSubtractI64 {
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-            keys.subtract_i64,
-        ),
-        _ => return Err(SelectedInstructionError::UnsupportedSourceShape { function }),
-    };
+    let (obligation, operations, values, operation_fuel, left, right, kind, key) =
+        match &source.value {
+            SourceLeafValue::ExactAdd {
+                obligation,
+                accepted_fact,
+                add_operation,
+                add_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*add_operation],
+                vec![left.source_value, right.source_value, source.source_value],
+                add_fuel.clone(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.add_i64,
+            ),
+            SourceLeafValue::WidenedExactAdd {
+                obligation,
+                accepted_fact,
+                add_operation,
+                narrow_result,
+                add_fuel,
+                widen_operation,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*add_operation, *widen_operation],
+                vec![
+                    left.source_value,
+                    right.source_value,
+                    *narrow_result,
+                    source.source_value,
+                ],
+                add_fuel.iter().chain(widen_fuel).copied().collect(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.add_i64,
+            ),
+            SourceLeafValue::ExactSubtract {
+                obligation,
+                accepted_fact,
+                subtract_operation,
+                subtract_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*subtract_operation],
+                vec![left.source_value, right.source_value, source.source_value],
+                subtract_fuel.clone(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.subtract_i64,
+            ),
+            SourceLeafValue::WidenedExactSubtract {
+                obligation,
+                accepted_fact,
+                subtract_operation,
+                narrow_result,
+                subtract_fuel,
+                widen_operation,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*subtract_operation, *widen_operation],
+                vec![
+                    left.source_value,
+                    right.source_value,
+                    *narrow_result,
+                    source.source_value,
+                ],
+                subtract_fuel.iter().chain(widen_fuel).copied().collect(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.subtract_i64,
+            ),
+            _ => return Err(SelectedInstructionError::UnsupportedSourceShape { function }),
+        };
     let materialize = |id, register, immediate: &SourceImmediate| {
         instruction(
             TerminalSelectedInstructionId(id),
@@ -941,10 +1159,10 @@ fn build_exact_binary_return_block(
                 key,
                 &registers,
                 TerminalSelectedInstructionProvenance {
-                    operations: vec![*operation],
-                    values: vec![left.source_value, right.source_value, source.source_value],
+                    operations,
+                    values,
                     obligations: vec![*obligation],
-                    fuel: operation_fuel.clone(),
+                    fuel: operation_fuel,
                     ..Default::default()
                 },
                 catalog,
@@ -1201,6 +1419,108 @@ fn validate_virtual_registers(
             ));
         }
         (
+            SourceLeafValue::WidenedExactAdd {
+                widen_definition_site: true_site,
+                left_temporary: true_left_temporary,
+                right_temporary: true_right_temporary,
+                left: true_left,
+                right: true_right,
+                ..
+            }
+            | SourceLeafValue::WidenedExactSubtract {
+                widen_definition_site: true_site,
+                left_temporary: true_left_temporary,
+                right_temporary: true_right_temporary,
+                left: true_left,
+                right: true_right,
+                ..
+            },
+            SourceLeafValue::WidenedExactAdd {
+                widen_definition_site: false_site,
+                left_temporary: false_left_temporary,
+                right_temporary: false_right_temporary,
+                left: false_left,
+                right: false_right,
+                ..
+            }
+            | SourceLeafValue::WidenedExactSubtract {
+                widen_definition_site: false_site,
+                left_temporary: false_left_temporary,
+                right_temporary: false_right_temporary,
+                left: false_left,
+                right: false_right,
+                ..
+            },
+        ) => {
+            let binary_key = match &source.when_true.value {
+                SourceLeafValue::WidenedExactAdd { .. } => constraints.keys.add_i64,
+                SourceLeafValue::WidenedExactSubtract { .. } => constraints.keys.subtract_i64,
+                _ => unreachable!("matched widened exact binary leaves"),
+            };
+            let binary = row(catalog, binary_key)?;
+            let materialize = row(catalog, constraints.keys.materialize_i64)?;
+            if binary.operands.len() != 3
+                || materialize.operands.len() != 1
+                || binary
+                    .operands
+                    .iter()
+                    .any(|operand| operand.class != binary.operands[2].class)
+                || materialize.operands[0].class != binary.operands[2].class
+            {
+                return Err(SelectedInstructionError::ConstraintOperandMismatch {
+                    function: function_index,
+                    instruction: 4,
+                });
+            }
+            for (instruction, source_value, definition_site, temporary) in [
+                (
+                    2,
+                    true_left.source_value,
+                    true_left.definition_site,
+                    Some(*true_left_temporary),
+                ),
+                (
+                    3,
+                    true_right.source_value,
+                    true_right.definition_site,
+                    Some(*true_right_temporary),
+                ),
+                (4, source.when_true.source_value, *true_site, None),
+                (
+                    6,
+                    false_left.source_value,
+                    false_left.definition_site,
+                    Some(*false_left_temporary),
+                ),
+                (
+                    7,
+                    false_right.source_value,
+                    false_right.definition_site,
+                    Some(*false_right_temporary),
+                ),
+                (8, source.when_false.source_value, *false_site, None),
+            ] {
+                let instruction = TerminalSelectedInstructionId(instruction);
+                expected.push((
+                    u64_type,
+                    binary.operands[2].class,
+                    match temporary {
+                        Some(temporary) => TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                            instruction,
+                            temporary,
+                            source_value,
+                        },
+                        None => TerminalVirtualRegisterOrigin::InstructionResult {
+                            instruction,
+                            source_value,
+                        },
+                    },
+                    definition_site,
+                    None,
+                ));
+            }
+        }
+        (
             SourceLeafValue::ExactAdd {
                 definition_site: true_site,
                 left: true_left,
@@ -1450,6 +1770,65 @@ fn validate_selected_blocks(
                 catalog,
             )
         }
+        (SourceLeafValue::WidenedExactAdd { .. }, SourceLeafValue::WidenedExactAdd { .. }) => {
+            validate_exact_binary_return_block_projection(
+                function_index,
+                &function.blocks[1],
+                [2, 3, 4, 5],
+                [
+                    TerminalVirtualRegisterId(1),
+                    TerminalVirtualRegisterId(2),
+                    TerminalVirtualRegisterId(3),
+                ],
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            validate_exact_binary_return_block_projection(
+                function_index,
+                &function.blocks[2],
+                [6, 7, 8, 9],
+                [
+                    TerminalVirtualRegisterId(4),
+                    TerminalVirtualRegisterId(5),
+                    TerminalVirtualRegisterId(6),
+                ],
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
+        (
+            SourceLeafValue::WidenedExactSubtract { .. },
+            SourceLeafValue::WidenedExactSubtract { .. },
+        ) => {
+            validate_exact_binary_return_block_projection(
+                function_index,
+                &function.blocks[1],
+                [2, 3, 4, 5],
+                [
+                    TerminalVirtualRegisterId(1),
+                    TerminalVirtualRegisterId(2),
+                    TerminalVirtualRegisterId(3),
+                ],
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            validate_exact_binary_return_block_projection(
+                function_index,
+                &function.blocks[2],
+                [6, 7, 8, 9],
+                [
+                    TerminalVirtualRegisterId(4),
+                    TerminalVirtualRegisterId(5),
+                    TerminalVirtualRegisterId(6),
+                ],
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
         (SourceLeafValue::ExactSubtract { .. }, SourceLeafValue::ExactSubtract { .. }) => {
             validate_exact_binary_return_block_projection(
                 function_index,
@@ -1621,53 +2000,114 @@ fn validate_exact_binary_return_block_projection(
     keys: TerminalSelectedConstraintKeys,
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<(), SelectedInstructionError> {
-    let (obligation, operation, operation_fuel, left, right, kind, key) = match &source.value {
-        SourceLeafValue::ExactAdd {
-            obligation,
-            accepted_fact,
-            add_operation,
-            add_fuel,
-            left,
-            right,
-            ..
-        } => (
-            obligation,
-            add_operation,
-            add_fuel,
-            left,
-            right,
-            TerminalSelectedInstructionKind::ExactAddI64 {
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-            keys.add_i64,
-        ),
-        SourceLeafValue::ExactSubtract {
-            obligation,
-            accepted_fact,
-            subtract_operation,
-            subtract_fuel,
-            left,
-            right,
-            ..
-        } => (
-            obligation,
-            subtract_operation,
-            subtract_fuel,
-            left,
-            right,
-            TerminalSelectedInstructionKind::ExactSubtractI64 {
-                obligation: *obligation,
-                accepted_fact: *accepted_fact,
-            },
-            keys.subtract_i64,
-        ),
-        _ => {
-            return Err(SelectedInstructionError::UnsupportedSourceShape {
-                function: function_index,
-            });
-        }
-    };
+    let (obligation, operations, values, operation_fuel, left, right, kind, key) =
+        match &source.value {
+            SourceLeafValue::ExactAdd {
+                obligation,
+                accepted_fact,
+                add_operation,
+                add_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*add_operation],
+                vec![left.source_value, right.source_value, source.source_value],
+                add_fuel.clone(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.add_i64,
+            ),
+            SourceLeafValue::WidenedExactAdd {
+                obligation,
+                accepted_fact,
+                add_operation,
+                narrow_result,
+                add_fuel,
+                widen_operation,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*add_operation, *widen_operation],
+                vec![
+                    left.source_value,
+                    right.source_value,
+                    *narrow_result,
+                    source.source_value,
+                ],
+                add_fuel.iter().chain(widen_fuel).copied().collect(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactAddI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.add_i64,
+            ),
+            SourceLeafValue::ExactSubtract {
+                obligation,
+                accepted_fact,
+                subtract_operation,
+                subtract_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*subtract_operation],
+                vec![left.source_value, right.source_value, source.source_value],
+                subtract_fuel.clone(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.subtract_i64,
+            ),
+            SourceLeafValue::WidenedExactSubtract {
+                obligation,
+                accepted_fact,
+                subtract_operation,
+                narrow_result,
+                subtract_fuel,
+                widen_operation,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => (
+                obligation,
+                vec![*subtract_operation, *widen_operation],
+                vec![
+                    left.source_value,
+                    right.source_value,
+                    *narrow_result,
+                    source.source_value,
+                ],
+                subtract_fuel.iter().chain(widen_fuel).copied().collect(),
+                left,
+                right,
+                TerminalSelectedInstructionKind::ExactSubtractI64 {
+                    obligation: *obligation,
+                    accepted_fact: *accepted_fact,
+                },
+                keys.subtract_i64,
+            ),
+            _ => {
+                return Err(SelectedInstructionError::UnsupportedSourceShape {
+                    function: function_index,
+                });
+            }
+        };
     if block.instructions.len() != 3 {
         return Err(SelectedInstructionError::BlockProjectionMismatch {
             function: function_index,
@@ -1701,10 +2141,10 @@ fn validate_exact_binary_return_block_projection(
         key,
         &registers,
         &TerminalSelectedInstructionProvenance {
-            operations: vec![*operation],
-            values: vec![left.source_value, right.source_value, source.source_value],
+            operations,
+            values,
             obligations: vec![*obligation],
-            fuel: operation_fuel.clone(),
+            fuel: operation_fuel,
             ..Default::default()
         },
         catalog,
@@ -1803,6 +2243,13 @@ fn validate_dense(
                 (2, 4)
             }
             (SourceLeafValue::ExactAdd { .. }, SourceLeafValue::ExactAdd { .. }) => (7, 10),
+            (SourceLeafValue::WidenedExactAdd { .. }, SourceLeafValue::WidenedExactAdd { .. }) => {
+                (7, 10)
+            }
+            (
+                SourceLeafValue::WidenedExactSubtract { .. },
+                SourceLeafValue::WidenedExactSubtract { .. },
+            ) => (7, 10),
             (SourceLeafValue::ExactSubtract { .. }, SourceLeafValue::ExactSubtract { .. }) => {
                 (7, 10)
             }
@@ -2051,6 +2498,52 @@ fn validate_provenance_partition(
                     });
                 }
             }
+            SourceLeafValue::WidenedExactAdd {
+                add_fuel,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => {
+                let legal_fuel = add_fuel
+                    .iter()
+                    .chain(widen_fuel)
+                    .copied()
+                    .collect::<Vec<_>>();
+                if block.instructions.len() != 3
+                    || block.instructions[0].provenance.fuel != left.fuel
+                    || block.instructions[1].provenance.fuel != right.fuel
+                    || block.instructions[2].provenance.fuel != legal_fuel
+                    || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
+            SourceLeafValue::WidenedExactSubtract {
+                subtract_fuel,
+                widen_fuel,
+                left,
+                right,
+                ..
+            } => {
+                let legal_fuel = subtract_fuel
+                    .iter()
+                    .chain(widen_fuel)
+                    .copied()
+                    .collect::<Vec<_>>();
+                if block.instructions.len() != 3
+                    || block.instructions[0].provenance.fuel != left.fuel
+                    || block.instructions[1].provenance.fuel != right.fuel
+                    || block.instructions[2].provenance.fuel != legal_fuel
+                    || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
             SourceLeafValue::ExactSubtract {
                 subtract_fuel,
                 left,
@@ -2118,7 +2611,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v4\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v5\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -2164,6 +2657,16 @@ pub fn terminal_selected_instruction_plan_identity(
                 } => {
                     bytes.push(1);
                     bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&source_value.get().to_le_bytes());
+                }
+                TerminalVirtualRegisterOrigin::LegalizationTemporary {
+                    instruction,
+                    temporary,
+                    source_value,
+                } => {
+                    bytes.push(2);
+                    bytes.extend_from_slice(&instruction.0.to_le_bytes());
+                    bytes.extend_from_slice(&temporary.0.to_le_bytes());
                     bytes.extend_from_slice(&source_value.get().to_le_bytes());
                 }
             }

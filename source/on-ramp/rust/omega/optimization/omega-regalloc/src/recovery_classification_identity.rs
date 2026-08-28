@@ -15,7 +15,7 @@ pub fn terminal_recovery_classification_identity(
     plan: &TerminalRecoveryClassificationPlan,
 ) -> TerminalRecoveryClassificationIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v2\0");
+    bytes.extend_from_slice(b"omega.terminal-recovery-classification.v3\0");
     bytes.extend_from_slice(&encode_terminal_recovery_classification_content(plan));
     TerminalRecoveryClassificationIdentity(Sha256::digest(bytes).into())
 }
@@ -145,6 +145,16 @@ fn encode_origin(bytes: &mut Vec<u8>, origin: TerminalVirtualRegisterOrigin) {
         } => {
             bytes.push(1);
             bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&source_value.get().to_le_bytes());
+        }
+        TerminalVirtualRegisterOrigin::LegalizationTemporary {
+            instruction,
+            temporary,
+            source_value,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&temporary.0.to_le_bytes());
             bytes.extend_from_slice(&source_value.get().to_le_bytes());
         }
     }
@@ -388,10 +398,33 @@ mod tests {
         );
 
         let mut wrong_version = encoded;
-        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             TerminalRecoveryClassificationPlan::decode(&wrong_version),
-            Err(TerminalRecoveryClassificationDecodeError::UnsupportedVersion(3))
+            Err(TerminalRecoveryClassificationDecodeError::UnsupportedVersion(4))
+        );
+    }
+
+    #[test]
+    fn canonical_codec_binds_legalization_temporary_origins() {
+        let baseline = plan();
+        let mut legalized = baseline.clone();
+        legalized.functions[0]
+            .classification
+            .as_mut()
+            .unwrap()
+            .origin = TerminalVirtualRegisterOrigin::LegalizationTemporary {
+            instruction: TerminalSelectedInstructionId(7),
+            temporary: omega_terminal_legalized_operations::TerminalLegalizedTemporaryId(17),
+            source_value: ValueId::new(9).unwrap(),
+        };
+        assert_ne!(
+            terminal_recovery_classification_identity(&baseline),
+            terminal_recovery_classification_identity(&legalized)
+        );
+        assert_eq!(
+            TerminalRecoveryClassificationPlan::decode(&legalized.encode()),
+            Ok(legalized)
         );
     }
 }

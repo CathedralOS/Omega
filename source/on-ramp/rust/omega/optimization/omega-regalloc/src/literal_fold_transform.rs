@@ -427,10 +427,13 @@ fn redensify(
 ) -> Result<(), TerminalLiteralFoldError> {
     for register in &mut function.virtual_registers {
         register.id = lower_register(function_index, register.id, removed_register)?;
-        if let TerminalVirtualRegisterOrigin::InstructionResult { instruction, .. } =
-            &mut register.origin
-        {
-            *instruction = lower_instruction(function_index, *instruction, removed_instruction)?;
+        match &mut register.origin {
+            TerminalVirtualRegisterOrigin::InstructionResult { instruction, .. }
+            | TerminalVirtualRegisterOrigin::LegalizationTemporary { instruction, .. } => {
+                *instruction =
+                    lower_instruction(function_index, *instruction, removed_instruction)?;
+            }
+            TerminalVirtualRegisterOrigin::EntryParameter { .. } => {}
         }
     }
     for block in &mut function.blocks {

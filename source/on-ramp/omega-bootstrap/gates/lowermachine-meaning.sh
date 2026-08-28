@@ -66,20 +66,9 @@ LOWERMACHINE_GAMMA_BYTES=$(wc -c < "$T/lowermachine.gamma" | tr -d ' ')
   exit 1
 }
 
-python3 - "$T/lowermachine.gamma" "$OMEGA_PATH_DELTA/samples/arith.alp" \
-  "$T/lowermachine-arith.gamma" <<'PY'
-import pathlib
-import sys
-
-program = pathlib.Path(sys.argv[1]).read_text(encoding="ascii")
-source = pathlib.Path(sys.argv[2]).read_bytes()
-stdin = "Nil"
-for byte in reversed(source):
-    stdin = f"(Cons {byte} {stdin})"
-if program.count("STDIN") != 1:
-    raise SystemExit("lowermachine meaning: expected one STDIN placeholder")
-pathlib.Path(sys.argv[3]).write_text(program.replace("STDIN", stdin), encoding="ascii")
-PY
+python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/encode-gamma-input.py" inject \
+  "$T/lowermachine.gamma" "$OMEGA_PATH_DELTA/samples/arith.alp" \
+  "$T/lowermachine-arith.gamma"
 
 set +e
 perl -e 'alarm 60; exec @ARGV' "$T/interp.exe" \

@@ -8,8 +8,8 @@ use crate::{
 use omega_compiler::{
     BuildObservationSummary, CheckedPackageReviewProjection, CompilerExecutableCommitment,
     CompilerExecutableCommitmentError, FilesystemSponsor, FilesystemSponsorError,
-    OrdinaryPackageObligationLedger, PackageCompilationInputError, PackageReviewCanonicalRow,
-    PackageReviewEncodingError, PackageSourceConsumptionCommitment,
+    OrdinaryPackageObligationLedger, PackageCompilationInputError, PackageGeneratedSourceBundle,
+    PackageReviewCanonicalRow, PackageReviewEncodingError, PackageSourceConsumptionCommitment,
     compile_to_checked_with_packages_in_sponsored_build_dir,
     ordinary_package_obligation_ledger_from_compiler_rows, project_checked_package_review,
     validate_ordinary_package_obligation_ledger,
@@ -37,6 +37,7 @@ pub struct CompilerIssuedPackageReview {
     compiler_executable_commitment: CompilerExecutableCommitment,
     source_consumption_commitment: PackageSourceConsumptionCommitment,
     build_observation_summary: Option<BuildObservationSummary>,
+    generated_source_bundle: PackageGeneratedSourceBundle,
     projection: CheckedPackageReviewProjection,
     canonical_review_bytes: Vec<u8>,
     canonical_rows: Vec<PackageReviewCanonicalRow>,
@@ -65,6 +66,13 @@ impl CompilerIssuedPackageReview {
     /// separate from canonical capability/API comparison bytes.
     pub const fn build_observation_summary(&self) -> Option<&BuildObservationSummary> {
         self.build_observation_summary.as_ref()
+    }
+
+    /// Exact explicit generated-source handoffs from the same checked run as
+    /// this review. This is replay input for later dependency compilation, not
+    /// an accepted source or package instance.
+    pub const fn generated_source_bundle(&self) -> &PackageGeneratedSourceBundle {
+        &self.generated_source_bundle
     }
 
     pub fn projection(&self) -> &CheckedPackageReviewProjection {
@@ -323,7 +331,7 @@ fn compile_resolved_package_reviews_in_session(
                 error,
             }
         })?;
-    let mut reviews = Vec::with_capacity(closure.custodies().len());
+    let mut reviews = Vec::<CompilerIssuedPackageReview>::with_capacity(closure.custodies().len());
     let mut retained_obligation_ledger_total = 0usize;
     for key in dependency_first_package_order(closure) {
         verify_transitive_source_custody(
@@ -340,6 +348,50 @@ fn compile_resolved_package_reviews_in_session(
                 errors,
             }
         })?;
+        let dependency_bundles = reachable_package_keys(closure, &key)
+            .into_iter()
+            .filter(|dependency| dependency != &key)
+            .map(|dependency| {
+                let review = reviews
+                    .iter()
+                    .find(|review| review.key() == &dependency)
+                    .ok_or(PackageCompilationInputError::MissingGeneratedSourceBundle {
+                        package: dependency.identity(),
+                    })?;
+                let custody = closure.custody(&dependency).ok_or(
+                    PackageCompilationInputError::ForeignGeneratedSourceBundle {
+                        package: dependency.identity(),
+                    },
+                )?;
+                let bundle = review.generated_source_bundle();
+                if review.resolution() != custody.resolution()
+                    || bundle.package() != dependency.identity()
+                    || bundle.source_consumption_commitment()
+                        != review.source_consumption_commitment()
+                {
+                    return Err(
+                        PackageCompilationInputError::GeneratedSourceBundleCustodyMismatch {
+                            package: dependency.identity(),
+                        },
+                    );
+                }
+                Ok(bundle.clone())
+            })
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(
+                |error| CompileResolvedPackageReviewsError::CompilationInputs {
+                    package: key.clone(),
+                    errors: vec![error],
+                },
+            )?;
+        let inputs = inputs
+            .with_complete_dependency_generated_sources(dependency_bundles)
+            .map_err(
+                |errors| CompileResolvedPackageReviewsError::CompilationInputs {
+                    package: key.clone(),
+                    errors,
+                },
+            )?;
         let checked = compile_to_checked_with_packages_in_sponsored_build_dir(
             &custody.snapshot_root().join("main.omg"),
             &package_build_root(build_session_root, &key, custody.resolution()),
@@ -373,6 +425,19 @@ fn compile_resolved_package_reviews_in_session(
                 }
             })?;
         let build_observation_summary = checked.build_observation_summary().cloned();
+        let generated_source_bundle =
+            checked.package_generated_source_bundle().map_err(|error| {
+                CompileResolvedPackageReviewsError::Projection {
+                    package: key.clone(),
+                    diagnostics: vec![Diagnostic::error(error)],
+                }
+            })?;
+        if generated_source_bundle.package() != key.identity()
+            || generated_source_bundle.source_consumption_commitment()
+                != source_consumption_commitment
+        {
+            return Err(CompileResolvedPackageReviewsError::IdentityMismatch { package: key });
+        }
         let projection = project_checked_package_review(&checked).map_err(|diagnostics| {
             CompileResolvedPackageReviewsError::Projection {
                 package: key.clone(),
@@ -440,11 +505,12 @@ fn compile_resolved_package_reviews_in_session(
             .map(ReviewOnlyCanonicalRow::from_compiler_issued)
             .collect();
         reviews.push(CompilerIssuedPackageReview {
-            key,
+            key: key.clone(),
             resolution: custody.resolution().clone(),
             compiler_executable_commitment,
             source_consumption_commitment,
             build_observation_summary,
+            generated_source_bundle: generated_source_bundle.clone(),
             projection,
             canonical_review_bytes,
             canonical_rows,

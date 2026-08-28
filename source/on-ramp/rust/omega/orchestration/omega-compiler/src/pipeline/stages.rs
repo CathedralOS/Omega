@@ -1,7 +1,8 @@
 use crate::pipeline::PackageCompilationInputs;
 use crate::pipeline::frontend::{
     discover_imports, discover_imports_with_packages, extend_source_storage, lex_sources,
-    load_injected_source, load_sources, parse_sources, read_bundled_std_source,
+    load_injected_source, load_package_generated_source, load_sources, parse_sources,
+    read_bundled_std_source,
 };
 use crate::pipeline::project::{project_roots, validate_selected_target};
 use crate::pipeline::source::{ImportQueue, SourceStorage};
@@ -38,17 +39,21 @@ pub(super) struct AssembledSyntax {
     /// filename after imports have expanded the source frontier.
     pub(super) build_source_id: Option<psi_source::SourceId>,
     pub(super) source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+    pub(super) generated_source_custody: Vec<(
+        psi_source::SourceId,
+        crate::pipeline::build_staged_output::PackageGeneratedSource,
+    )>,
 }
 
 pub(super) fn append_retained_generated_sources(
     assembled: &mut AssembledSyntax,
     package_root: &Path,
     package_identity: Option<psi_core::PackageKeyIdentity>,
-    generated_sources: &[crate::pipeline::build_staged_output::BuildStagedSource],
+    generated_sources: &[crate::pipeline::build_staged_output::PackageGeneratedSource],
 ) -> Result<
     Vec<(
         psi_source::SourceId,
-        crate::pipeline::build_staged_output::BuildStagedSource,
+        crate::pipeline::build_staged_output::PackageGeneratedSource,
     )>,
     Vec<Diagnostic>,
 > {
@@ -121,6 +126,9 @@ pub(super) fn append_retained_generated_sources(
         });
         retained.push((source_id, generated.clone()));
     }
+    assembled
+        .generated_source_custody
+        .extend(retained.iter().cloned());
     Ok(retained)
 }
 
@@ -252,6 +260,16 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
             SourceStorage::for_compilation(root_package, toolchain_root)
         }
     };
+    let generated_source_custody = match package_inputs {
+        Some(package_inputs) => append_dependency_generated_sources_to_storage(
+            &mut source_storage,
+            &mut imports,
+            target_name,
+            package_inputs,
+            timings,
+        )?,
+        None => Vec::new(),
+    };
     load_pending_imports(
         &mut source_storage,
         &mut imports,
@@ -285,9 +303,7 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
     let (build_requires_filesystem_layout, source_scoped_top_level_bindings) =
         inject_build_prelude(&mut source_storage, build_source_id, timings)?;
     if build_requires_filesystem_layout {
-        imports.seed(
-            crate::pipeline::frontend::bundled_omega_root().join("std/filesystem.omg"),
-        );
+        imports.seed(crate::pipeline::frontend::bundled_omega_root().join("std/filesystem.omg"));
         load_pending_imports(
             &mut source_storage,
             &mut imports,
@@ -315,9 +331,107 @@ pub(super) fn source_files_to_syntax_trees_for_engine(
         source_storage,
         build_source_id,
         source_scoped_top_level_bindings,
+        generated_source_custody,
     )?;
 
     Ok((source_file_count, syntax))
+}
+
+fn append_dependency_generated_sources_to_storage(
+    source_storage: &mut SourceStorage,
+    imports: &mut ImportQueue,
+    target_name: Option<&str>,
+    package_inputs: &PackageCompilationInputs,
+    timings: &mut CompileTimings,
+) -> Result<
+    Vec<(
+        psi_source::SourceId,
+        crate::pipeline::build_staged_output::PackageGeneratedSource,
+    )>,
+    Vec<Diagnostic>,
+> {
+    let selected_target = target_name
+        .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
+    package_inputs
+        .validate_dependency_generated_source_target(selected_target)
+        .map_err(|errors| {
+            errors
+                .into_iter()
+                .map(|error| Diagnostic::error(error.to_string()))
+                .collect::<Vec<_>>()
+        })?;
+    let mut entries = Vec::new();
+    for bundle in package_inputs.dependency_generated_source_bundles() {
+        let package_root = package_inputs
+            .package_root(bundle.package())
+            .expect("validated generated-source bundle retains its package root");
+        for source in bundle.sources() {
+            let logical_path = generated_source_logical_path(package_root, source)?;
+            if logical_path.exists()
+                || entries
+                    .iter()
+                    .any(|(existing, _): &(PathBuf, _)| existing == &logical_path)
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "generated dependency source logical path `{}` collides with another source",
+                    logical_path.display(),
+                ))]);
+            }
+            entries.push((logical_path, source.clone()));
+        }
+    }
+
+    for (logical_path, _) in &entries {
+        imports.mark_loaded(logical_path.clone());
+    }
+
+    let mut retained = Vec::with_capacity(entries.len());
+    for (logical_path, source) in entries {
+        let text = std::str::from_utf8(source.bytes()).map_err(|_| {
+            vec![Diagnostic::error(format!(
+                "included generated source `{}` is not UTF-8 Omega source",
+                logical_path.display(),
+            ))]
+        })?;
+        let source_id = psi_source::SourceId(source_storage.next_source_id());
+        let lexed = timings.record(SOURCE_FILES_TO_TOKENS, || {
+            lex_sources(load_package_generated_source(
+                logical_path,
+                text,
+                source_id.0,
+            ))
+        })?;
+        let parsed = timings.record(TOKENS_TO_SYNTAX_TREES, || {
+            parse_sources(lexed, &mut source_storage.syntax_trees)
+        })?;
+        let discovered = discover_imports_with_packages(
+            &parsed,
+            &source_storage.syntax_trees,
+            target_name,
+            package_inputs,
+        )?;
+        imports.enqueue(discovered)?;
+        extend_source_storage(source_storage, parsed)?;
+        retained.push((source_id, source));
+    }
+    Ok(retained)
+}
+
+fn generated_source_logical_path(
+    package_root: &Path,
+    source: &crate::pipeline::build_staged_output::PackageGeneratedSource,
+) -> Result<PathBuf, Vec<Diagnostic>> {
+    let mut logical_path = package_root.join(".omega/generated");
+    for component in source.relative_path().split(|byte| *byte == b'/') {
+        logical_path.push(std::str::from_utf8(component).map_err(|_| {
+            vec![Diagnostic::error(
+                "generated dependency source path is not canonical UTF-8",
+            )]
+        })?);
+    }
+    Ok(logical_path)
 }
 
 /// Require the exact selected free build root to declare its project role
@@ -896,6 +1010,10 @@ fn assemble_syntax(
     sources: SourceStorage,
     build_source_id: Option<psi_source::SourceId>,
     source_scoped_top_level_bindings: Vec<psi_symbols::SourceScopedTopLevelBinding>,
+    generated_source_custody: Vec<(
+        psi_source::SourceId,
+        crate::pipeline::build_staged_output::PackageGeneratedSource,
+    )>,
 ) -> Result<AssembledSyntax, Vec<Diagnostic>> {
     let files = sources.files.storage_slice().to_vec();
     Ok(AssembledSyntax {
@@ -904,6 +1022,7 @@ fn assemble_syntax(
         sources: Arc::new(sources.sources),
         build_source_id,
         source_scoped_top_level_bindings,
+        generated_source_custody,
     })
 }
 

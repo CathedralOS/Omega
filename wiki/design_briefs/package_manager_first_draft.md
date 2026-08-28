@@ -239,6 +239,21 @@ native-image command remains gated until
 `PACKAGE-NATIVE-GENERATED-SOURCE-TRANSACTION` consumes the same sponsored
 package transaction.
 
+When a later package consumes that dependency, review orchestration does not
+reopen Output or rerun `build.omg`. Dependency-first compilation retains one
+opaque compiler-issued bundle per package, including explicit empty bundles,
+bound to the producer identity, exact target, producer dependency closure,
+producer source-consumption commitment, and that producer's own generated
+paths and bytes. The consumer's initial frontend loads the complete bundle set
+under the original producer identities and compiler-owned logical paths, so
+generated imports participate in ordinary resolution and in the consumer's
+source-consumption commitment. The orchestration join rejects missing,
+duplicate, foreign, root-self, wrong-target, wrong-closure, and mismatched
+review/custody bundles. This handoff is ephemeral compiler custody, not lock or
+admission evidence. The real filesystem-producing package canary remains
+blocked on OWNER Q7's exact staging-authority package role after std relocation;
+no name/path compatibility exception is admitted.
+
 Psi's target-neutral const-generic, fixed-array, const-domain, laid/placed
 layout, wire-policy, and calling-policy evaluators consume the same reconciled
 direct-dependency authority through a package-neutral compiler interface. Each
