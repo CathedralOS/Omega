@@ -20,7 +20,14 @@ use std::process::Command;
 fn compile(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+    let requested_product = if options.write_output {
+        omega_compiler::RequestedCompileProduct::InstalledOutput
+    } else {
+        omega_compiler::RequestedCompileProduct::Check
+    };
+    omega_compiler::compile(
+        omega_compiler::CompileRequest::new(options).with_requested_product(requested_product),
+    )
 }
 
 fn repo_root() -> PathBuf {

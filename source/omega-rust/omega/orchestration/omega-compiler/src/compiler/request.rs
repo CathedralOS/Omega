@@ -10,16 +10,6 @@ pub enum RequestedCompileProduct {
     InstalledOutput,
 }
 
-impl RequestedCompileProduct {
-    pub(crate) const fn from_legacy_write_output(write_output: bool) -> Self {
-        if write_output {
-            Self::InstalledOutput
-        } else {
-            Self::Check
-        }
-    }
-}
-
 /// One typed production compiler invocation.
 ///
 /// Test-only entry overrides and worker ceilings deliberately remain on the
@@ -36,12 +26,14 @@ pub struct CompileRequest {
 }
 
 impl CompileRequest {
+    /// Creates a checking request.
+    ///
+    /// Product selection is never inferred from compatibility options such as
+    /// `write_output`; callers requesting another product must name it.
     pub fn new(options: CompileOptions) -> Self {
-        let requested_product =
-            RequestedCompileProduct::from_legacy_write_output(options.write_output);
         Self {
             options,
-            requested_product,
+            requested_product: RequestedCompileProduct::Check,
             executable_tcb_policy: ExecutableTcbBuildPolicy::default(),
             artifact_policy: ArtifactEmissionPolicy::Full,
             terminal_admission_profile: psi_proof_admission::AdmissionProfile::default(),
@@ -89,5 +81,23 @@ impl CompileRequest {
 
     pub const fn requested_product(&self) -> RequestedCompileProduct {
         self.requested_product
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+
+    #[test]
+    fn request_product_is_not_inferred_from_write_output() {
+        let request = CompileRequest::new(CompileOptions {
+            root_path: PathBuf::from("main.omg"),
+            build_dir: None,
+            target_name: None,
+            write_output: true,
+        });
+
+        assert_eq!(request.requested_product(), RequestedCompileProduct::Check);
     }
 }
