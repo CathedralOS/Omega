@@ -108,6 +108,7 @@ pub(crate) fn lower_machine(
                     .map(crate::name::lower_name),
                 alias: conformance.alias.as_ref().map(crate::name::lower_name),
                 external_binding: conformance.external_binding,
+                external_binding_source_span: conformance.external_binding_source_span,
             },
         );
     }

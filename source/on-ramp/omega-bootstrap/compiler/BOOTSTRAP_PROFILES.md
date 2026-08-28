@@ -130,14 +130,14 @@ separate byte backing. Checked exhaustion cannot compile a retained prefix.
 This file does not define `Ωself`. It freezes the executable D0, O0, O1, and
 profile-neutral scalar-call regression contracts below. `Ωself` is instead
 the open, compositional ordinary-Omega profile of the complete production
-compiler source. It is derived from product-source checkpoints and measured
+compiler source. It is derived from the live resolver-selected closure and measured
 bridge cost, not by extending the numbered canaries.
 
 The single architectural policy and feature-disposition table live in
 [`compiler_source_profile.md`](../../../../wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
-Checkpoint 000001's exact closure and provisional census live under
-[`source/omega/source-checkpoints/`](../../../omega/source-checkpoints/), while
-the first Delta frontend cost measurement and its exact resource observations
+The live resolver-selected closure supplies the source census; no authored
+numbered checkpoint is a current bootstrap input. The first Delta frontend cost
+measurement and its exact resource observations
 live in [`SOURCE_CUSTODY_FRONTEND_PROBE.md`](SOURCE_CUSTODY_FRONTEND_PROBE.md).
 The versioned checked-IR and refinement contracts own later selected artifact
 paths. None of those bounded measurements changes the canary contracts below,

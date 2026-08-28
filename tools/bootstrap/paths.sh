@@ -49,7 +49,6 @@ fi
 : "${OMEGA_PATH_OMEGA_RUST:=$OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT/omega}"
 : "${OMEGA_PATH_PSI_PRODUCT:=$OMEGA_PATH_SOURCE_ROOT/psi}"
 : "${OMEGA_PATH_OMEGA_PRODUCT:=$OMEGA_PATH_SOURCE_ROOT/omega}"
-: "${OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS:=$OMEGA_PATH_OMEGA_PRODUCT/source-checkpoints}"
 
 export OMEGA_REPO_ROOT OMEGA_PATH_SOURCE_ROOT OMEGA_PATH_ON_RAMP_ROOT
 export OMEGA_PATH_REFINEMENT_ROOT OMEGA_PATH_LATTICE_TEST_ROOT OMEGA_PATH_BOOTSTRAP_TOOLS_ROOT
@@ -64,7 +63,7 @@ export OMEGA_PATH_OMEGA_BOOTSTRAP_GATES OMEGA_PATH_OMEGA_BOOTSTRAP_REFINEMENT
 export OMEGA_PATH_OMEGA0 OMEGA_PATH_OMEGA0_MEANING OMEGA_PATH_OMEGA0_COMPILER
 export OMEGA_PATH_OMEGA0_GATES OMEGA_PATH_OMEGA0_REFINEMENT
 export OMEGA_PATH_OMEGA_RUST_ONRAMP_ROOT OMEGA_PATH_PSI_RUST OMEGA_PATH_OMEGA_RUST
-export OMEGA_PATH_PSI_PRODUCT OMEGA_PATH_OMEGA_PRODUCT OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS
+export OMEGA_PATH_PSI_PRODUCT OMEGA_PATH_OMEGA_PRODUCT
 
 # omega_bootstrap_path ROLE
 # Print a canonical role path.  Subpaths on product roots are accepted for the
@@ -103,8 +102,6 @@ omega_bootstrap_path() {
     psi/*) printf '%s/%s\n' "$OMEGA_PATH_PSI_PRODUCT" "${1#psi/}" ;;
     omega) printf '%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" ;;
     omega/*) printf '%s/%s\n' "$OMEGA_PATH_OMEGA_PRODUCT" "${1#omega/}" ;;
-    source-checkpoints) printf '%s\n' "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" ;;
-    source-checkpoints/*) printf '%s/%s\n' "$OMEGA_PATH_PRODUCT_SOURCE_CHECKPOINTS" "${1#source-checkpoints/}" ;;
     /*) printf '%s\n' "$1" ;;
     *)
       echo "bootstrap paths: unknown repository role: $1" >&2

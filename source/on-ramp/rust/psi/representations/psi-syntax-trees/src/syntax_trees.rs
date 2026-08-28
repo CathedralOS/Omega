@@ -467,6 +467,7 @@ impl SyntaxTrees {
                     requirement: clause.requirement,
                     alias: clause.alias,
                     via: clause.via,
+                    via_keyword_source_span: clause.via_keyword_source_span,
                 },
                 |this, clause| this.items.append_satisfies_clause(clause),
             ),

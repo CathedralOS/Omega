@@ -28,7 +28,6 @@ source/
   omega/                       Omega-written target realization and product owner
     build.omg                  hosted product build/composition entrypoint
     main.omg                   hosted product machine entrypoint
-    source-checkpoints/        exact product closures + provisional Ωself evidence
 
   proof-kernel/
     implementations/           Beta, Gamma, and untrusted reference checkers
@@ -89,12 +88,12 @@ on-ramp owner rather than replacing or renaming those paths.
   Psi ends at terminal Psi; Omega begins by consuming terminal Psi and owns
   target realization. The first Psi lexical checkpoint has landed; later Psi
   phases and the Omega backend remain open.
-- `source/omega/source-checkpoints/` owns exact deterministic product
-  closures and provisional `Ωself` censuses.
 - `source/omega/{build.omg,main.omg}` owns the hosted product entrypoint. Its
   declared `psi` dependency points at the sibling `source/psi/` owner.
-  Compilation and source-checkpoint inspection both reconcile that dependency
-  through `build.omg`; no nested compatibility path exists.
+  Compilation reconciles that dependency through `build.omg`; no nested
+  compatibility path exists. Exact product identity comes from Git, package
+  resolution, and the accepted source closure rather than authored numbered
+  checkpoints.
 - The Rust producer's `psi-proof-admission` crate checks product-local Psi
   judgments and has no bootstrap-lattice authority.
 - Shared corpora belong at the narrowest common owner. Cross-rung fixtures live
@@ -132,7 +131,6 @@ rejects new sibling-relative cross-owner references.
 | bridge reconstruction and refinement | `source/refinement/delta-omega-bootstrap/` | placement complete; bridge assurance remains open |
 | shared lattice inputs | `tests/lattice/{corpus,lattice-cache-deps}/` | complete |
 | Omega-written Psi/Omega compiler | `source/{psi,omega}/` | first Psi lexical checkpoint landed |
-| product source checkpoints | `source/omega/source-checkpoints/` | active |
 | hosted product entrypoint | `source/omega/{build.omg,main.omg}` | active |
 | language libraries | `source/library/` | placement complete; bundled-std reader retirement remains in P8 |
 

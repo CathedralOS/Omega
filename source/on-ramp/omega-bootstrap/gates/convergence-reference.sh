@@ -1,9 +1,8 @@
 #!/usr/bin/env sh
 # RUST-FREE REFERENCE-ROUTE CONVERGENCE — the proof-carrying loop with NO Rust anywhere.
 #
-# delta-rust/convergence-reference.sh runs a certifier down the MEANING route, but its delta->gamma
-# translator is `DELTA_EMIT=gamma` (Rust gamma_emit.rs). This is the same loop with that last Rust step
-# removed: `omega2gamma.beta` (Rust-free, alpha->beta->bc) translates the certifier to gamma,
+# `omega2gamma.beta` (Rust-free, Alpha->Beta->bc) translates each Delta
+# certifier to Gamma,
 # `gamma/interp.beta` (Rust-free) EXECUTES it and emits the certificate, and `proof-kernel/check.beta` (Rust-free)
 # accepts it. Every artifact in the loop is in the hand-audited alpha-rooted lineage — so a real delta
 # program's MEANING is computed, and its emitted proof checked, with zero Rust in the chain.
@@ -53,7 +52,7 @@ _emit() {
   bytes=$(printf '%s' "$2" | od -An -tu1 | tr ' ' '\n' | grep -vE '^$')
   rev=""; for x in $bytes; do rev="$x $rev"; done
   list="Nil"; for x in $rev; do list="(Cons $x $list)"; done
-  "$T/omega2gamma.exe" < "${OMEGA_PATH_DELTA_RUST}/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
+  "$T/omega2gamma.exe" < "${OMEGA_PATH_DELTA}/samples/$1.alp" 2>/dev/null | sed "s/STDIN/$list/" | "$T/interp.exe" 2>/dev/null \
     | grep -oE '[0-9]+' | awk '{printf "%c",$1}'
 }
 # ref SAMPLE "ascii" EXPECT : the cert check.beta emits must be EXPECT.

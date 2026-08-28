@@ -125,8 +125,9 @@ real package fixture demonstrates an irreducible external contract.
   and operational acknowledgement must agree at capture. Legitimate late-bound
   targets do not invalidate location custody, which proves authorship location
   rather than target finalization. Generated calls retain neither occurrence
-  nor location. Recovery envelope v7, conflict
-  fingerprint v10, and renderer V9 retain what review displays. Later nested
+  nor location. External executable-supply rows additionally retain their exact
+  authored `via` occurrence under `external_binding`. Recovery envelope v8,
+  conflict fingerprint v11, and renderer V10 retain what review displays. Later nested
   carriers must come from existing compiler owners rather than package-layer
   source parsing.
 - Missing old source escalates code review but does not prevent comparison
@@ -1232,7 +1233,7 @@ none independently motivates nominal Chi. Checked invocation facts retain exact
 symbolic published and inferred targets before provider settlement, and package
 review consumes those facts rather than re-inferring from transformed typed
 calls. Package review v74/row v32,
-canonical recovery v7, conflict fingerprint v10, and conflict renderer V9 bind
+canonical recovery v8, conflict fingerprint v11, and conflict renderer V10 bind
 the current source-role vocabulary. The package layer
 does now validate a complete in-memory
 root-policy disposition for every exact blocking fingerprint. It canonicalizes
@@ -1389,6 +1390,16 @@ only selection claim and must exactly rejoin the operator, realization, package,
 normalized machine identity, and binding. Compiler-known intrinsics are the
 first executable mechanism. Ordinary or private operators, aliases, generic/
 lifetime applications, and fixed-token operators remain fail closed.
+
+External binding selection now has exact source custody. The parser retains
+the authored `via` keyword on the same conformance that owns the normalized
+binding identity, and resolution plus typed lowering preserve it without a
+name-based rejoin. Every public or private trait- or operator-based external
+supply row carries one `external_binding` location in addition to its machine
+declaration. Binding/span disagreement, missing custody, and invalid source
+coordinates reject. These locations remain outside semantic review bytes, so
+review v74/row v32 are unchanged; recovery envelope v8, conflict fingerprint
+v11, and renderer V10 bind the explanatory vocabulary.
 
 ## Fixtures
 

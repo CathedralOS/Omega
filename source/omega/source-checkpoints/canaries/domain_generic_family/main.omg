@@ -1,5 +1,0 @@
-domain<T, const I: u64> T::Indexed<I>;
-
-data Main {}
-
-machine Main::main(&mut self) {}
