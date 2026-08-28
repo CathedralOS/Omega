@@ -360,83 +360,11 @@ fixed_decimal_shape_censuses:
         imm r22, 8                   ; seven WSTR + one DECS
         imm r23, 3                   ; two source + synthetic return
         imm r24, 5                   ; frame/parameter/push stores
-        call fixed_decimal_scan_region
+        call exact_quiet_scan_region
         imm r20, 30596
         imm r21, 31151
         imm r22, 8                   ; six WSTR + two DECS
         imm r23, 1                   ; synthetic return
         imm r24, 6                   ; frame/parameter/push stores
-        call fixed_decimal_scan_region
-        ret
-
-; Region [r20,r21) has exact call/return/store counts r22..r24 and no direct
-; I/O, halt, byte memory, division, or remainder. Earlier ownership phases bind
-; each admitted call/store to its exact source family.
-fixed_decimal_scan_region:
-        mov r25, r20
-        mov r26, r21
-        mov r27, r22
-        mov r28, r23
-        mov r29, r24
-        imm r10, 0
-        imm r11, 0
-        imm r12, 0
-fixed_decimal_scan_loop:
-        jlt r25, r26, fixed_decimal_scan_pc
-        jeq r10, r27, fixed_decimal_scan_returns
-        jmp reject
-fixed_decimal_scan_returns:
-        jeq r11, r28, fixed_decimal_scan_stores
-        jmp reject
-fixed_decimal_scan_stores:
-        jeq r12, r29, fixed_decimal_scan_done
-        jmp reject
-fixed_decimal_scan_pc:
-        imm r1, 4194304
-        add r1, r25
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, fixed_decimal_scan_start
-        jmp fixed_decimal_scan_next
-fixed_decimal_scan_start:
-        imm r1, 2097152
-        add r1, r25
-        loadb r2, r1
-        imm r3, 19
-        jeq r2, r3, fixed_decimal_scan_call
-        imm r3, 20
-        jeq r2, r3, fixed_decimal_scan_return
-        imm r3, 11
-        jeq r2, r3, fixed_decimal_scan_store
-        imm r3, 0
-        jeq r2, r3, reject
-        imm r3, 6
-        jeq r2, r3, reject
-        imm r3, 7
-        jeq r2, r3, reject
-        imm r3, 8
-        jeq r2, r3, reject
-        imm r3, 9
-        jeq r2, r3, reject
-        imm r3, 17
-        jeq r2, r3, reject
-        imm r3, 18
-        jeq r2, r3, reject
-        jmp fixed_decimal_scan_next
-fixed_decimal_scan_call:
-        imm r1, 1
-        add r10, r1
-        jmp fixed_decimal_scan_next
-fixed_decimal_scan_return:
-        imm r1, 1
-        add r11, r1
-        jmp fixed_decimal_scan_next
-fixed_decimal_scan_store:
-        imm r1, 1
-        add r12, r1
-fixed_decimal_scan_next:
-        imm r1, 1
-        add r25, r1
-        jmp fixed_decimal_scan_loop
-fixed_decimal_scan_done:
+        call exact_quiet_scan_region
         ret
