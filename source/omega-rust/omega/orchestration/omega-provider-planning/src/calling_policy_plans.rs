@@ -1392,7 +1392,7 @@ pub fn selected_program_storage_source_extent_value_layout(
     typed: &TypedTrees,
     slot: omega_target::ProgramEntrySlotDeclaration,
     type_reference: TypeReferenceHandle,
-) -> Result<omega_program_storage::ProgramEntrySourceExtentValueLayout, String> {
+) -> Result<omega_program_entry_plan::ProgramEntrySourceExtentValueLayout, String> {
     if slot.owner != omega_target::TargetProfile::UefiX64
         || slot.schema != omega_target::ProgramEntrySchema::ProgramStorageApplication
         || slot.visible_parameters
@@ -1481,7 +1481,7 @@ pub fn selected_program_storage_source_extent_value_layout(
         }
         Ok(ValueShape::integer(child.byte_size, child.alignment))
     };
-    omega_program_storage::ProgramEntrySourceExtentValueLayout::from_checked_record(
+    omega_program_entry_plan::ProgramEntrySourceExtentValueLayout::from_checked_record(
         *data_symbol,
         base.symbol,
         base_field.byte_offset,

@@ -17,7 +17,7 @@ omega-external-roots = { path = "../omega-external-roots" }
 omega-instruction-selection = { path = "../../backend/omega-instruction-selection" }
 omega-layout = { path = "../../backend/omega-layout" }
 omega-package-compilation = { path = "../omega-package-compilation" }
-omega-program-storage = { path = "../omega-program-storage" }
+omega-program-entry-plan = { path = "../omega-program-entry-plan" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-task-plans = { path = "../../foundation/omega-task-plans" }
 omega-trust-ledger = { path = "../omega-trust-ledger" }

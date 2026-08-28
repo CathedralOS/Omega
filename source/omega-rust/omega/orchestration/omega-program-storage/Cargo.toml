@@ -22,6 +22,7 @@ omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-i
 omega-layout = { path = "../../backend/omega-layout" }
 omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
 omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-program-entry-plan = { path = "../omega-program-entry-plan" }
 omega-runtime-storage = { path = "../../backend/omega-runtime-storage" }
 omega-target = { path = "../../foundation/omega-target" }
 psi-arena = { path = "../../../psi/foundation/psi-arena" }

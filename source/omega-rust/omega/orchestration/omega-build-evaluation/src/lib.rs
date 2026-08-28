@@ -1185,7 +1185,7 @@ pub fn selected_program_entry_machine<'config>(
 pub fn validate_selected_program_entry_shape(
     typed: &TypedTrees,
     selected: SelectedProgramEntry<'_>,
-) -> Result<omega_program_storage::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
+) -> Result<omega_program_entry_plan::SelectedProgramEntrySourceSignature, Vec<Diagnostic>> {
     let machine_name = selected.machine_name;
     let Some(machine) = typed
         .machines()
@@ -1313,11 +1313,13 @@ pub fn validate_selected_program_entry_shape(
         return Err(diagnostics);
     }
     let receiver = self_parameters.first().map_or(
-        omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
-        |receiver| omega_program_storage::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
-            normalized_type_identity: typed
-                .normalized_type_identity(receiver.type_reference)
-                .into_string(),
+        omega_program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
+        |receiver| {
+            omega_program_entry_plan::ProgramEntrySourceReceiverSignature::ProvisionedMutable {
+                normalized_type_identity: typed
+                    .normalized_type_identity(receiver.type_reference)
+                    .into_string(),
+            }
         },
     );
     let visible_parameters = visible
@@ -1325,8 +1327,8 @@ pub fn validate_selected_program_entry_shape(
         .enumerate()
         .map(|(index, parameter)| -> Result<_, Diagnostic> {
             let role = match index {
-                0 => omega_program_storage::ProgramStorageEntryRootRole::Image,
-                1 => omega_program_storage::ProgramStorageEntryRootRole::InitialStorage,
+                0 => omega_program_entry_plan::ProgramStorageEntryRootRole::Image,
+                1 => omega_program_entry_plan::ProgramStorageEntryRootRole::InitialStorage,
                 _ => unreachable!("selected source shape validation fixed visible arity"),
             };
             let extent_value_layout =
@@ -1341,7 +1343,7 @@ pub fn validate_selected_program_entry_shape(
                 ))
             })?;
             let value_shape = extent_value_layout.shape();
-            Ok(omega_program_storage::SelectedProgramEntrySourceSignature::visible_parameter(
+            Ok(omega_program_entry_plan::SelectedProgramEntrySourceSignature::visible_parameter(
                 role,
                 index,
                 typed
@@ -1355,7 +1357,7 @@ pub fn validate_selected_program_entry_shape(
         })
         .collect::<Result<Vec<_>, _>>()
         .map_err(|diagnostic| vec![diagnostic])?;
-    omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+    omega_program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
         selected.slot,
         machine.symbol,
         entry.symbol,
@@ -1374,7 +1376,7 @@ pub fn validate_selected_program_entry_shape(
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedProgramEntryCallingPlans {
     pub semantic_boundary_entry_plan: omega_calling_conventions::BoundaryEntryPlan,
-    pub storage_entry: omega_program_storage::SelectedProgramStorageEntryPlan,
+    pub storage_entry: omega_program_entry_plan::SelectedProgramStorageEntryPlan,
 }
 
 /// Complete build-owned settlement for one target-selected `ProgramEntry`.
@@ -1386,13 +1388,13 @@ pub struct SelectedProgramEntryCallingPlans {
 /// authority through this carrier.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SelectedCompilerProgramEntry {
-    source_signature: omega_program_storage::SelectedProgramEntrySourceSignature,
+    source_signature: omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     calling_plans: Option<SelectedProgramEntryCallingPlans>,
 }
 
 impl SelectedCompilerProgramEntry {
     fn new(
-        source_signature: omega_program_storage::SelectedProgramEntrySourceSignature,
+        source_signature: omega_program_entry_plan::SelectedProgramEntrySourceSignature,
         calling_plans: Option<SelectedProgramEntryCallingPlans>,
     ) -> Self {
         Self {
@@ -1407,7 +1409,7 @@ impl SelectedCompilerProgramEntry {
 
     pub const fn source_signature(
         &self,
-    ) -> &omega_program_storage::SelectedProgramEntrySourceSignature {
+    ) -> &omega_program_entry_plan::SelectedProgramEntrySourceSignature {
         &self.source_signature
     }
 
@@ -1418,7 +1420,7 @@ impl SelectedCompilerProgramEntry {
     pub fn into_parts(
         self,
     ) -> (
-        omega_program_storage::SelectedProgramEntrySourceSignature,
+        omega_program_entry_plan::SelectedProgramEntrySourceSignature,
         Option<SelectedProgramEntryCallingPlans>,
     ) {
         (self.source_signature, self.calling_plans)
@@ -1569,18 +1571,19 @@ pub fn validate_selected_program_entry_calling_plan(
                 "target entry schema `{schema_name}` is not a boundary service schema"
             ))]
         })?;
-    let storage_entry = omega_program_storage::SelectedProgramStorageEntryPlan::from_target_slot(
-        selected.slot,
-        service_schema,
-        semantic.requirement_identity,
-    )
-    .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
+    let storage_entry =
+        omega_program_entry_plan::SelectedProgramStorageEntryPlan::from_target_slot(
+            selected.slot,
+            service_schema,
+            semantic.requirement_identity,
+        )
+        .map_err(|diagnostic| vec![Diagnostic::error(diagnostic.to_string())])?;
     let result_type_identity = physical.result_type_identity.ok_or_else(|| {
         vec![Diagnostic::error(format!(
             "physical entry requirement `{physical_requirement}` has no result"
         ))]
     })?;
-    let physical_contract = omega_program_storage::ProgramEntryPhysicalContractPlan::new(
+    let physical_contract = omega_program_entry_plan::ProgramEntryPhysicalContractPlan::new(
         selected.slot,
         physical.requirement_identity,
         physical_source.package,
@@ -3526,14 +3529,14 @@ mod tests {
 
     fn source_only_program_entry_settlement() -> SelectedCompilerProgramEntry {
         let source_signature =
-            omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            omega_program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
                 omega_target::TargetProfile::WindowsX64.program_entry_slot(),
                 psi_symbols::SymbolHandle::from_arena_index(1),
                 psi_symbols::SymbolHandle::from_arena_index(2),
                 "Application::start".into(),
                 "entry".into(),
                 "Application::start::entry() -> Unit".into(),
-                omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
+                omega_program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
                 Vec::new(),
             )
             .expect("exact source-only ProgramEntry fixture");

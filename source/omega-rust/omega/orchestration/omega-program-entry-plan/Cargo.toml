@@ -1,0 +1,24 @@
+[package]
+name = "omega-program-entry-plan"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_program_entry_plan"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
+omega-control-flow = { path = "../../representations/omega-control-flow" }
+omega-effects = { path = "../../representations/omega-effects" }
+omega-external-roots = { path = "../omega-external-roots" }
+omega-layout = { path = "../../backend/omega-layout" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+sha2 = "0.10.9"
+
+[dev-dependencies]
+psi-arena = { path = "../../../psi/foundation/psi-arena" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }

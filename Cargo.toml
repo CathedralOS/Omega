@@ -47,6 +47,7 @@ members = [
     "source/omega-rust/omega/foundation/omega-calling-conventions",
     "source/omega-rust/omega/foundation/omega-executable-installation",
     "source/omega-rust/omega/orchestration/omega-external-roots",
+    "source/omega-rust/omega/orchestration/omega-program-entry-plan",
     "source/omega-rust/omega/orchestration/omega-component-publication",
     "source/omega-rust/omega/orchestration/omega-terminal-native-artifact",
     "source/omega-rust/omega/orchestration/omega-terminal-native-realization",

@@ -14,7 +14,7 @@ omega-calling-conventions = { path = "../../foundation/omega-calling-conventions
 omega-object-file = { path = "../../backend/object/omega-object-file" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
 omega-optimization-pipeline = { path = "../omega-optimization-pipeline" }
-omega-program-storage = { path = "../omega-program-storage" }
+omega-program-entry-plan = { path = "../omega-program-entry-plan" }
 omega-target = { path = "../../foundation/omega-target" }
 omega-terminal-abstract-operations = { path = "../../representations/omega-terminal-abstract-operations" }
 omega-terminal-abstract-operations-to-target-operations = { path = "../../pipeline/omega-terminal-abstract-operations-to-target-operations" }

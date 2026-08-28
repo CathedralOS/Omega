@@ -497,7 +497,7 @@ dependencies = [
  "omega-effects",
  "omega-optimization-core",
  "omega-optimization-pipeline",
- "omega-program-storage",
+ "omega-program-entry-plan",
  "omega-provider-planning",
  "omega-target",
  "psi-build-time-evaluation",
@@ -1378,6 +1378,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-program-entry-plan"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-effects",
+ "omega-external-roots",
+ "omega-layout",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-language-semantics",
+ "psi-symbols",
+ "sha2",
+]
+
+[[package]]
 name = "omega-program-storage"
 version = "0.1.0"
 dependencies = [
@@ -1394,6 +1411,7 @@ dependencies = [
  "omega-layout",
  "omega-machine-bytes",
  "omega-object-file",
+ "omega-program-entry-plan",
  "omega-runtime-storage",
  "omega-target",
  "psi-arena",
@@ -1418,7 +1436,7 @@ dependencies = [
  "omega-instruction-selection",
  "omega-layout",
  "omega-package-compilation",
- "omega-program-storage",
+ "omega-program-entry-plan",
  "omega-target",
  "omega-task-plans",
  "omega-trust-ledger",
@@ -1979,7 +1997,7 @@ dependencies = [
  "omega-object-file",
  "omega-optimization-core",
  "omega-optimization-pipeline",
- "omega-program-storage",
+ "omega-program-entry-plan",
  "omega-target",
  "omega-terminal-abstract-operations",
  "omega-terminal-abstract-operations-to-target-operations",

@@ -24,7 +24,7 @@ use omega_optimization_pipeline::{
     OptimizedTerminalObjectArtifactError, StagedValidatedOptimizedTerminalObjectArtifact,
     validate_optimized_terminal_object_artifact,
 };
-use omega_program_storage::{
+use omega_program_entry_plan::{
     OptimizedProgramStorageSemanticEntryContract,
     bind_optimized_program_storage_semantic_entry_contract,
     plan_optimized_program_storage_semantic_wrapper,
@@ -60,7 +60,7 @@ const PLAN_SCHEMA: &[u8] = b"omega.optimized-program-storage-semantic-wrapper-ob
 const CONTAINER_MAGIC: &[u8; 8] = b"OMGPSO\0\0";
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGPSM\0\0";
 const CODEC_VERSION: u32 = 1;
-const WRAPPER_SYMBOL_NAME: &str = "__omega_program_storage_semantic_wrapper_v1";
+const WRAPPER_SYMBOL_NAME: &str = "__omega_program_entry_plan_semantic_wrapper_v1";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum OptimizedProgramStorageSemanticWrapperObjectSymbolRole {
@@ -1604,7 +1604,7 @@ mod tests {
         TerminalRelocationFreeObjectSymbolLinkage, TerminalRelocationFreeObjectSymbolPolicy,
         TerminalRelocationFreeObjectTextSection,
     };
-    use omega_program_storage::{
+    use omega_program_entry_plan::{
         ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentValueLayout,
         ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
         SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,

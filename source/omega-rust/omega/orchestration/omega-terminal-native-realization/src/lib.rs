@@ -48,17 +48,17 @@ pub struct TerminalNativeProviderSettlement<'execution> {
 /// roots and cannot authorize a physical bootstrap, image, or publication.
 #[derive(Debug, Clone, Copy)]
 pub struct TerminalNativeProgramEntrySettlement<'entry> {
-    source: &'entry omega_program_storage::SelectedProgramEntrySourceSignature,
+    source: &'entry omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     semantic_boundary_entry_plan: Option<&'entry omega_calling_conventions::BoundaryEntryPlan>,
-    storage_entry: Option<&'entry omega_program_storage::SelectedProgramStorageEntryPlan>,
+    storage_entry: Option<&'entry omega_program_entry_plan::SelectedProgramStorageEntryPlan>,
 }
 
 impl<'entry> TerminalNativeProgramEntrySettlement<'entry> {
     pub const fn new(
-        source: &'entry omega_program_storage::SelectedProgramEntrySourceSignature,
+        source: &'entry omega_program_entry_plan::SelectedProgramEntrySourceSignature,
         calling_plans: Option<(
             &'entry omega_calling_conventions::BoundaryEntryPlan,
-            &'entry omega_program_storage::SelectedProgramStorageEntryPlan,
+            &'entry omega_program_entry_plan::SelectedProgramStorageEntryPlan,
         )>,
     ) -> Self {
         let (semantic_boundary_entry_plan, storage_entry) = match calling_plans {
@@ -74,7 +74,7 @@ impl<'entry> TerminalNativeProgramEntrySettlement<'entry> {
 
     pub const fn source(
         self,
-    ) -> &'entry omega_program_storage::SelectedProgramEntrySourceSignature {
+    ) -> &'entry omega_program_entry_plan::SelectedProgramEntrySourceSignature {
         self.source
     }
 
@@ -86,7 +86,7 @@ impl<'entry> TerminalNativeProgramEntrySettlement<'entry> {
 
     pub const fn storage_entry(
         self,
-    ) -> Option<&'entry omega_program_storage::SelectedProgramStorageEntryPlan> {
+    ) -> Option<&'entry omega_program_entry_plan::SelectedProgramStorageEntryPlan> {
         self.storage_entry
     }
 
@@ -121,9 +121,9 @@ impl<'entry> TerminalNativeProgramEntrySettlement<'entry> {
 }
 
 fn validate_paired_calling_plans(
-    source: &omega_program_storage::SelectedProgramEntrySourceSignature,
+    source: &omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     semantic: &omega_calling_conventions::BoundaryEntryPlan,
-    storage: &omega_program_storage::SelectedProgramStorageEntryPlan,
+    storage: &omega_program_entry_plan::SelectedProgramStorageEntryPlan,
 ) -> Result<(), String> {
     let slot = source.target_slot();
     let (Some(expected_semantic), Some(expected_physical)) = (
@@ -220,9 +220,9 @@ fn validate_paired_calling_plans(
 pub struct ValidatedTerminalNativeProgramEntrySettlement {
     checked_entry: CheckedProgramEntryTerminalReceipt,
     target: omega_target::NativeTarget,
-    source: omega_program_storage::SelectedProgramEntrySourceSignature,
+    source: omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     semantic_boundary_entry_plan: Option<omega_calling_conventions::BoundaryEntryPlan>,
-    storage_entry: Option<omega_program_storage::SelectedProgramStorageEntryPlan>,
+    storage_entry: Option<omega_program_entry_plan::SelectedProgramStorageEntryPlan>,
 }
 
 impl ValidatedTerminalNativeProgramEntrySettlement {
@@ -234,7 +234,7 @@ impl ValidatedTerminalNativeProgramEntrySettlement {
         self.target
     }
 
-    pub const fn source(&self) -> &omega_program_storage::SelectedProgramEntrySourceSignature {
+    pub const fn source(&self) -> &omega_program_entry_plan::SelectedProgramEntrySourceSignature {
         &self.source
     }
 
@@ -246,7 +246,7 @@ impl ValidatedTerminalNativeProgramEntrySettlement {
 
     pub const fn storage_entry(
         &self,
-    ) -> Option<&omega_program_storage::SelectedProgramStorageEntryPlan> {
+    ) -> Option<&omega_program_entry_plan::SelectedProgramStorageEntryPlan> {
         self.storage_entry.as_ref()
     }
 }
@@ -743,7 +743,7 @@ mod tests {
     fn hosted_custody() -> (
         psi_terminal_codec::CanonicalTerminalArtifact,
         CheckedProgramEntryTerminalReceipt,
-        omega_program_storage::SelectedProgramEntrySourceSignature,
+        omega_program_entry_plan::SelectedProgramEntrySourceSignature,
     ) {
         let checked = checked(
             r#"
@@ -760,14 +760,14 @@ mod tests {
             .find(|machine| machine.name == "Main::launch")
             .expect("terminal selection");
         let source =
-            omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            omega_program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
                 omega_target::TargetProfile::WindowsX64.program_entry_slot(),
                 selection.machine,
                 selection.machine,
                 selection.name.clone(),
                 "entry".into(),
                 "test::Main::launch() -> Unit".into(),
-                omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
+                omega_program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
                 Vec::new(),
             )
             .expect("hosted source signature");
@@ -986,14 +986,14 @@ mod tests {
     fn rejects_source_signature_target_and_terminal_artifact_substitution() {
         let (artifact, receipt, source) = hosted_custody();
         let substituted =
-            omega_program_storage::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
+            omega_program_entry_plan::SelectedProgramEntrySourceSignature::from_checked_typed_entry(
                 source.target_slot(),
                 source.machine_symbol(),
                 source.state_symbol(),
                 source.machine_name().into(),
                 source.state_name().into(),
                 "test::substituted::launch() -> Unit".into(),
-                omega_program_storage::ProgramEntrySourceReceiverSignature::Free,
+                omega_program_entry_plan::ProgramEntrySourceReceiverSignature::Free,
                 Vec::new(),
             )
             .expect("substituted source signature");
