@@ -2737,6 +2737,28 @@ enum IndependentTotalScalarExpressionKey {
     SaturatingMultiply(IntegerType, ValueId, ValueId),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum IndependentProofScalarExpressionKey {
+    ExactCast(IntegerType, IntegerType, ValueId),
+    ExactShiftLeft(IntegerType, IntegerType, ValueId, ValueId),
+    ExactShiftRight(IntegerType, IntegerType, ValueId, ValueId),
+    ExactAdd(IntegerType, ValueId, ValueId),
+    ExactSubtract(IntegerType, ValueId, ValueId),
+    ExactMultiply(IntegerType, ValueId, ValueId),
+    ExactDivide(IntegerType, ValueId, ValueId),
+    ExactRemainder(IntegerType, ValueId, ValueId),
+    WrappingDivide(IntegerType, ValueId, ValueId),
+    WrappingRemainder(IntegerType, ValueId, ValueId),
+    SaturatingDivide(IntegerType, ValueId, ValueId),
+    SaturatingRemainder(IntegerType, ValueId, ValueId),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum IndependentScalarExpressionKey {
+    ObligationFree(IndependentTotalScalarExpressionKey),
+    ProofCertified(IndependentProofScalarExpressionKey),
+}
+
 fn independent_pair(left: ValueId, right: ValueId) -> (ValueId, ValueId) {
     if left <= right {
         (left, right)
@@ -3048,6 +3070,275 @@ fn independent_total_scalar_expression(
     })
 }
 
+fn independent_proof_scalar_expression(
+    operation: &O,
+) -> Option<(
+    IndependentProofScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    psi_core::ObligationId,
+)> {
+    Some(match operation {
+        O::IntegerExactCast {
+            psi_operation,
+            obligation,
+            result,
+            source_type,
+            target_type,
+            operand,
+        } => (
+            IndependentProofScalarExpressionKey::ExactCast(*source_type, *target_type, *operand),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*target_type),
+            *obligation,
+        ),
+        O::ExactIntegerShiftLeft {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentProofScalarExpressionKey::ExactShiftLeft(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerShiftRight {
+            psi_operation,
+            obligation,
+            result,
+            value_type,
+            count_type,
+            value,
+            count,
+        } => (
+            IndependentProofScalarExpressionKey::ExactShiftRight(
+                *value_type,
+                *count_type,
+                *value,
+                *count,
+            ),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*value_type),
+            *obligation,
+        ),
+        O::ExactIntegerAdd {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentProofScalarExpressionKey::ExactAdd(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        O::ExactIntegerSubtract {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::ExactSubtract(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::ExactIntegerMultiply {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => {
+            let (left, right) = independent_pair(*left, *right);
+            (
+                IndependentProofScalarExpressionKey::ExactMultiply(*scalar_type, left, right),
+                *psi_operation,
+                *result,
+                ScalarType::Integer(*scalar_type),
+                *obligation,
+            )
+        }
+        O::ExactIntegerDivide {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::ExactDivide(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::ExactIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::ExactRemainder(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::WrappingIntegerDivide {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::WrappingDivide(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::WrappingIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::WrappingRemainder(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::SaturatingIntegerDivide {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::SaturatingDivide(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        O::SaturatingIntegerRemainder {
+            psi_operation,
+            obligation,
+            result,
+            scalar_type,
+            left,
+            right,
+        } => (
+            IndependentProofScalarExpressionKey::SaturatingRemainder(*scalar_type, *left, *right),
+            *psi_operation,
+            *result,
+            ScalarType::Integer(*scalar_type),
+            *obligation,
+        ),
+        _ => return None,
+    })
+}
+
+fn independent_cse_expression(
+    operation: &O,
+    value_types: &BTreeMap<ValueId, ScalarType>,
+    proof_class: ScalarCseProofClass,
+) -> Option<(
+    IndependentScalarExpressionKey,
+    OperationId,
+    ValueId,
+    ScalarType,
+    Option<psi_core::ObligationId>,
+)> {
+    match proof_class {
+        ScalarCseProofClass::ObligationFree => {
+            let (key, operation, result, scalar_type) =
+                independent_total_scalar_expression(operation, value_types)?;
+            Some((
+                IndependentScalarExpressionKey::ObligationFree(key),
+                operation,
+                result,
+                scalar_type,
+                None,
+            ))
+        }
+        ScalarCseProofClass::ProofCertified => {
+            let (key, operation, result, scalar_type, obligation) =
+                independent_proof_scalar_expression(operation)?;
+            Some((
+                IndependentScalarExpressionKey::ProofCertified(key),
+                operation,
+                result,
+                scalar_type,
+                Some(obligation),
+            ))
+        }
+    }
+}
+
+fn independently_accepted_operation_fact(
+    input: &PsiOptimizationUnit,
+    function: &PsiOptimizationFunction,
+    operation: OperationId,
+    obligation: psi_core::ObligationId,
+) -> Option<omega_optimization_core::AcceptedObligationFactIdentity> {
+    function
+        .facts
+        .iter()
+        .any(|fact| {
+            matches!(
+                fact,
+                OptimizationFact::OperationObligationReference {
+                    obligation: reference,
+                    support,
+                } if *support == operation && *reference == obligation
+            )
+        })
+        .then(|| {
+            input
+                .accepted_obligation_facts
+                .iter()
+                .find(|fact| {
+                    fact.machine == function.machine
+                        && fact.operation == operation
+                        && fact.obligation == obligation
+                })
+                .map(|fact| fact.identity)
+        })
+        .flatten()
+}
+
 /// Independently validate and apply one same-block common-subexpression elimination.
 pub fn validate_local_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
@@ -3071,6 +3362,12 @@ enum ScalarCseScope {
     Dominating,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ScalarCseProofClass {
+    ObligationFree,
+    ProofCertified,
+}
+
 fn validate_scalar_common_subexpression_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
@@ -3080,17 +3377,45 @@ fn validate_scalar_common_subexpression_candidate(
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(match scope {
-        ScalarCseScope::SameBlock => {
-            b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1"
+    let proof_class = match (scope, candidate.rule()) {
+        (ScalarCseScope::SameBlock, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.same-block-obligation-free-total-scalar-cse.v1",
+                ) =>
+        {
+            ScalarCseProofClass::ObligationFree
         }
-        ScalarCseScope::Dominating => {
-            b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1"
+        (ScalarCseScope::Dominating, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.dominator-obligation-free-total-scalar-gvn.v1",
+                ) =>
+        {
+            ScalarCseProofClass::ObligationFree
         }
-    });
-    if candidate.rule() != expected_rule {
-        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
-    }
+        (ScalarCseScope::SameBlock, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.same-block-proof-certified-total-scalar-cse.v1",
+                ) =>
+        {
+            ScalarCseProofClass::ProofCertified
+        }
+        (ScalarCseScope::Dominating, rule)
+            if rule
+                == OptimizationRuleIdentity::from_canonical_bytes(
+                    b"omega.psi-rule.dominator-proof-certified-total-scalar-gvn.v1",
+                ) =>
+        {
+            ScalarCseProofClass::ProofCertified
+        }
+        _ => return Err(OptimizationUnitValidationError::CandidatePatchMismatch),
+    };
+    let expected_safety = match proof_class {
+        ScalarCseProofClass::ObligationFree => OptimizationSafetyClass::ExactOperationSemantics,
+        ScalarCseProofClass::ProofCertified => OptimizationSafetyClass::ProofCertified,
+    };
     if !candidate
         .required_analyses()
         .contains(AnalysisKind::UseDefinition)
@@ -3103,7 +3428,7 @@ fn validate_scalar_common_subexpression_candidate(
         || !candidate
             .invalidated_analyses()
             .contains(AnalysisKind::EffectSummaries)
-        || candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics
+        || candidate.safety_class() != expected_safety
         || (scope == ScalarCseScope::Dominating
             && (!candidate
                 .required_analyses()
@@ -3208,12 +3533,30 @@ fn validate_scalar_common_subexpression_candidate(
             })
         }))
         .collect::<BTreeMap<_, _>>();
-    let (leader_key, leader_operation, leader_result, leader_type) =
-        independent_total_scalar_expression(&leader.operation, &value_types)
+    let admitted_expression = |operation: &O| {
+        let row = independent_cse_expression(operation, &value_types, proof_class)?;
+        match (proof_class, row.4) {
+            (ScalarCseProofClass::ObligationFree, None) => Some(row),
+            (ScalarCseProofClass::ProofCertified, Some(obligation))
+                if independently_accepted_operation_fact(input, function, row.1, obligation)
+                    .is_some() =>
+            {
+                Some(row)
+            }
+            _ => None,
+        }
+    };
+    let (leader_key, leader_operation, leader_result, leader_type, leader_obligation) =
+        independent_cse_expression(&leader.operation, &value_types, proof_class)
             .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
-    let (redundant_key, redundant_operation, redundant_result, redundant_type) =
-        independent_total_scalar_expression(&redundant.operation, &value_types)
-            .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
+    let (
+        redundant_key,
+        redundant_operation,
+        redundant_result,
+        redundant_type,
+        redundant_obligation,
+    ) = independent_cse_expression(&redundant.operation, &value_types, proof_class)
+        .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if leader_key != redundant_key
         || leader_operation != patch.leader_operation
         || redundant_operation != patch.redundant_operation
@@ -3225,6 +3568,66 @@ fn validate_scalar_common_subexpression_candidate(
         || leader_operation == redundant_operation
     {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
+    let _proof_facts = match (proof_class, leader_obligation, redundant_obligation) {
+        (ScalarCseProofClass::ObligationFree, None, None) => {
+            if candidate.accepted_obligation_witness().is_some()
+                || function.facts.iter().any(|fact| {
+                    matches!(
+                        fact,
+                        OptimizationFact::OperationObligationReference { support, .. }
+                            if *support == leader_operation || *support == redundant_operation
+                    )
+                })
+            {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            None
+        }
+        (ScalarCseProofClass::ProofCertified, Some(leader), Some(redundant)) => {
+            let leader_fact =
+                independently_accepted_operation_fact(input, function, leader_operation, leader)
+                    .ok_or(
+                        OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                    )?;
+            let redundant_fact = independently_accepted_operation_fact(
+                input,
+                function,
+                redundant_operation,
+                redundant,
+            )
+            .ok_or(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch)?;
+            if candidate.accepted_obligation_witness() != Some(redundant_fact) {
+                return Err(
+                    OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch,
+                );
+            }
+            Some((leader_fact, redundant_fact))
+        }
+        _ => {
+            return Err(OptimizationUnitValidationError::CandidateAcceptedObligationFactMismatch);
+        }
+    };
+    if scope == ScalarCseScope::SameBlock {
+        let canonical_leader = leader_block
+            .nodes
+            .iter()
+            .take(redundant_index)
+            .enumerate()
+            .filter_map(|(node, candidate)| {
+                let (key, _, _, scalar_type, _) = admitted_expression(&candidate.operation)?;
+                (key == redundant_key && scalar_type == patch.scalar_type).then_some(NodeLocation {
+                    machine: function.machine,
+                    block: leader_block.id,
+                    node: u32::try_from(node).ok()?,
+                })
+            })
+            .next();
+        if canonical_leader != Some(patch.leader) {
+            return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+        }
     }
     if scope == ScalarCseScope::Dominating {
         let dominators = independent_reachable_dominators(function);
@@ -3249,10 +3652,8 @@ fn validate_scalar_common_subexpression_candidate(
                     .iter()
                     .enumerate()
                     .filter_map(|(node, candidate)| {
-                        let (key, _, _, scalar_type) = independent_total_scalar_expression(
-                            &candidate.operation,
-                            &value_types,
-                        )?;
+                        let (key, _, _, scalar_type, _) =
+                            admitted_expression(&candidate.operation)?;
                         (key == redundant_key && scalar_type == patch.scalar_type).then_some(
                             NodeLocation {
                                 machine: function.machine,
@@ -3290,12 +3691,37 @@ fn validate_scalar_common_subexpression_candidate(
             return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
         }
     }
-    if leader.definitions != [ValueDefinition { value: leader_result, scalar_type: leader_type, site: ValueDefinitionSite::Node { block: leader_block.id, node: patch.leader.node } }]
-        || redundant.definitions != [ValueDefinition { value: redundant_result, scalar_type: redundant_type, site: ValueDefinitionSite::Node { block: redundant_block.id, node: patch.redundant.node } }]
-        || !leader.successors.is_empty() || !redundant.successors.is_empty() || !leader.ownership.is_empty() || !redundant.ownership.is_empty()
-        || !function.blocks.iter().flat_map(|row| &row.nodes).flat_map(|row| &row.uses).any(|row| row.value == redundant_result)
-        || function.facts.iter().any(|fact| matches!(fact, OptimizationFact::OperationObligationReference { support, .. } if *support == leader_operation || *support == redundant_operation))
-    { return Err(OptimizationUnitValidationError::CandidatePatchMismatch); }
+    if leader.definitions
+        != [ValueDefinition {
+            value: leader_result,
+            scalar_type: leader_type,
+            site: ValueDefinitionSite::Node {
+                block: leader_block.id,
+                node: patch.leader.node,
+            },
+        }]
+        || redundant.definitions
+            != [ValueDefinition {
+                value: redundant_result,
+                scalar_type: redundant_type,
+                site: ValueDefinitionSite::Node {
+                    block: redundant_block.id,
+                    node: patch.redundant.node,
+                },
+            }]
+        || !leader.successors.is_empty()
+        || !redundant.successors.is_empty()
+        || !leader.ownership.is_empty()
+        || !redundant.ownership.is_empty()
+        || !function
+            .blocks
+            .iter()
+            .flat_map(|row| &row.nodes)
+            .flat_map(|row| &row.uses)
+            .any(|row| row.value == redundant_result)
+    {
+        return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+    }
     let (expected_blocks, accepted_provenance) = reconstruct_local_cse_accounting(function, patch)
         .ok_or(OptimizationUnitValidationError::CandidateProvenanceMismatch)?;
     if candidate.affected_blocks() != expected_blocks
@@ -3365,12 +3791,22 @@ fn validate_scalar_common_subexpression_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(match scope {
-            ScalarCseScope::SameBlock => {
-                b"omega.validator.same-block-obligation-free-total-scalar-cse.v1"
-            }
-            ScalarCseScope::Dominating => b"omega.validator.dominator-total-scalar-cse.v1",
-        }),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(
+            match (scope, proof_class) {
+                (ScalarCseScope::SameBlock, ScalarCseProofClass::ObligationFree) => {
+                    b"omega.validator.same-block-obligation-free-total-scalar-cse.v1"
+                }
+                (ScalarCseScope::Dominating, ScalarCseProofClass::ObligationFree) => {
+                    b"omega.validator.dominator-total-scalar-cse.v1"
+                }
+                (ScalarCseScope::SameBlock, ScalarCseProofClass::ProofCertified) => {
+                    b"omega.validator.same-block-proof-certified-total-scalar-cse.v1"
+                }
+                (ScalarCseScope::Dominating, ScalarCseProofClass::ProofCertified) => {
+                    b"omega.validator.dominator-proof-certified-total-scalar-gvn.v1"
+                }
+            },
+        ),
         provenance: accepted_provenance,
     })
 }

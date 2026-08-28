@@ -1034,26 +1034,38 @@ dependency.
   semantics; potentially trapping, effectful, placed, atomic, or observation-
   dependent work is excluded unless its exact contract proves equivalence.
 
-  Current slice: the exact named `GlobalValueNumbering` selection owns local
-  `same-block-obligation-free-total-scalar-cse.v1` followed by cross-block
-  `dominator-obligation-free-total-scalar-gvn.v1`. The first replaces a later result
-  with the earliest equivalent same-block leader over the complete
-  obligation-free total scalar vocabulary: literals, Boolean operations,
-  integer comparisons/bitwise/widening, wrapping shifts, and wrapping or
-  saturating add/subtract/multiply. Keys bind the exact policy, integer domains,
-  literal payload, and operands. Only equality, bitwise and/or/xor, and
-  wrapping or saturating add/multiply canonicalize swapped operands. The
-  second selects the earliest outer expression in a strictly dominating block,
-  independently of canonical block-roster order, and proves that leader
-  dominates every rewritten use. The independent validators rebuild the key,
-  reachable CFG/dominators, definitions, uses, dense effects,
-  fact/place indexes, substitution, and custody accounting. Redundant
-  provenance/fuel moves forward to the next co-executed node, never backward
-  to the leader. Candidate v19, optimization-unit identity v10, the named v2
-  pass, prephysical manifest v13, and projection v14 bind this meaning; ledger
-  v4 already represents the relocation and substitution. Phi translation,
-  partial redundancy elimination, and cyclic-CFG GVN remain outside this rule;
-  current admitted optimization units reject control cycles.
+  Current slice: the exact named `GlobalValueNumbering` selection owns four
+  rules in canonical order: obligation-free same-block CSE, proof-certified
+  same-block CSE, obligation-free dominator GVN, and proof-certified dominator
+  GVN. The obligation-free rules cover literals, Boolean operations, integer
+  comparisons/bitwise/widening, wrapping shifts, and wrapping or saturating
+  add/subtract/multiply. The proof-certified rules add exact integer casts,
+  shifts, add/subtract/multiply/divide/remainder, plus wrapping or saturating
+  divide/remainder. Each proof-bearing leader and redundant operation must have
+  its own exact active obligation reference and verifier-owned accepted fact;
+  the candidate consumes the redundant operation's fact while the accepted-fact
+  catalog remains immutable historical custody. A missing fact makes that
+  expression ineligible, while a foreign or detached fact in a proposed
+  candidate fails independent validation.
+
+  Every key binds the exact policy, complete integer domains, literal payload,
+  and operands. Only semantically commutative forms canonicalize swapped
+  operands; among proof-bearing forms that is exact add and multiply, while
+  casts, shifts, subtraction, division, and remainder retain authored order.
+  The local rules select the earliest admitted same-block leader. The
+  cross-block rules select the earliest admitted outer expression in a strictly
+  dominating block, independently of canonical block-roster order, and prove
+  that leader dominates every rewritten use. Independent validators rebuild
+  the expression vocabulary, proof custody, reachable CFG/dominators,
+  definitions, uses, dense effects, fact/place indexes, substitution, and
+  custody accounting. Redundant provenance/fuel moves forward to the next
+  co-executed node, never backward to the leader; its active obligation
+  reference disappears with the node. Candidate v19, optimization-unit
+  identity v10, the named v3 pass, prephysical manifest v13, and projection v14
+  bind this meaning; ledger v4 already represents the relocation and
+  substitution. Phi translation, partial redundancy elimination, and
+  cyclic-CFG GVN remain outside these rules; current admitted optimization
+  units reject control cycles.
 
 - **OPT-DEAD-SCALAR-WORK.** Remove unused pure and total scalar operations.
 
