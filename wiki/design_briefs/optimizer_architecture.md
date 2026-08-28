@@ -1630,7 +1630,7 @@ has an effect, trap, fuel charge, cleanup, or observable state transition.
 
 The first implemented machine layer is deliberately a sidecar over the sealed
 selected CFG, not a second mutable instruction IR. Target-owned catalogs name
-all eight currently admitted selected semantics and bind each to its exact
+all nine currently admitted selected semantics and bind each to its exact
 register-constraint row, explicit effect classifications, control-barrier
 status, ordered target alternatives, and size/latency knowledge. The generic
 structural validator checks roster and applicability closure; x86-64 and
@@ -1700,7 +1700,20 @@ distinction is material: x86's XOR-zero subtraction reads no external source
 operand even though it realizes a semantic subtraction, while a return's ABI
 result remains live in RAX/X0 even though the return opcode does not read that
 operand. Catalog, pre-allocation, and post-allocation identities bind this
-contract; the strict pre-allocation codec is v3 for the same reason.
+contract; the strict pre-allocation codec is v4 after exact-subtract immediate
+selection joined the encoded-realization vocabulary.
+
+The post-allocation sidecar crosses a durable boundary through a distinct
+strict v1 codec. Its framed content binds all joined roots, the named choice
+rule, the complete selected roster, chosen alternatives, physical views and
+access-qualified footprints, and canonical unit actions. The decoder rejects
+unknown closed-vocabulary tags, invalid machine identities, truncation,
+trailing bytes, and stale content identities. It returns only a plain unchecked
+plan: content authentication proves which bytes were stored, not that their
+machine claims are legal. Orchestration therefore independently reconstructs
+decoded plans against selected instructions, effects, allocation facts, homes,
+the register model, and target catalogs on both x86-64 and AArch64. Even a
+tampered plan with a freshly recomputed content identity is rejected by replay.
 
 Orchestration reconstructs this sidecar for ordinary selected homes,
 fixed-view-copy output, an explicit literal-fold sequence, and named selected-
