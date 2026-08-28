@@ -41,7 +41,7 @@ use crate::{
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGTSP\0\0";
-const MANIFEST_VERSION: u32 = 4;
+const MANIFEST_VERSION: u32 = 5;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentTextSectionStage {
@@ -106,7 +106,7 @@ pub struct FunctionFragmentTextSectionManifest {
 
 impl FunctionFragmentTextSectionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentTextSectionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-text-section-manifest.v4\0".to_vec();
+        let mut canonical = b"omega.function-fragment-text-section-manifest.v5\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentTextSectionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -142,7 +142,7 @@ impl FunctionFragmentTextSectionManifest {
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
-            5 => FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
+            5 => FunctionFragmentEmissionSourceKind::StructuralUnitV1,
             tag => {
                 return Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(tag));
             }
@@ -521,8 +521,9 @@ fn place_fragments(
         (
             true,
             false,
-            FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
-            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
+            FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
+            | FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
+            FunctionFragmentEmissionSourceKind::StructuralUnitV1,
         ) => place_structural_unit_fragments(source),
         _ => Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch),
     }
@@ -604,7 +605,7 @@ fn place_structural_unit_fragments(
     source: &StagedOptimizedFunctionFragmentEmission,
 ) -> Result<TerminalRelocationFreeTextSectionPlacement, RelocationFreeTextSectionPlacementError> {
     let fragments = source.fragments();
-    let StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(realization) =
+    let StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(realization) =
         source.source()
     else {
         return Err(RelocationFreeTextSectionPlacementError::SourceShapeMismatch);
@@ -1259,7 +1260,7 @@ fn encode_manifest_content(record: &FunctionFragmentTextSectionManifest) -> Vec<
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
-        FunctionFragmentEmissionSourceKind::StructuralUnitCallV1 => 5,
+        FunctionFragmentEmissionSourceKind::StructuralUnitV1 => 5,
     });
     bytes.extend_from_slice(&record.source_fragment_manifest.bytes());
     bytes.extend_from_slice(&record.source_realization.bytes());

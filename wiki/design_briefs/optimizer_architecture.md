@@ -199,7 +199,7 @@ canonical Terminal Psi semantic + proof sections
           -> zero-relocation two-Machine object (generic codegen proof)
           -> settled Terminal continuation object/artifact
           -> compiler-owned wrapper encoding selection and replay
-          -> one-function structural Unit continuation custody (next)
+          -> one-function structural Unit continuation custody
           -> separate semantic ProgramStorage wrapper object (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
@@ -2269,8 +2269,8 @@ baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8 or CBNZ.
 It never concatenates functions into a globally placed section. Production and
 an independently coded replay reconstruct source custody, offsets, row bytes,
 aggregate bytes, statistics, receipt, and the content identity. The strict
-`OMGFFE` v4 manifest binds the closed five-kind source vocabulary, including
-Unit baseline and structural-Unit-call custody, source realization, and every selected, post-allocation,
+`OMGFFE` v5 manifest binds the generalized five-kind source vocabulary, including
+Unit baseline and structural-Unit custody, source realization, and every selected, post-allocation,
 layout, exit, target, and fragment root while explicitly marking section
 placement, symbols, object
 relocations, executable image, installation, and publication unavailable.
@@ -2288,7 +2288,7 @@ return forms contain no address-bearing target and every relative conditional
 branch is already resolved to blocks in its owned function. Production and a
 separately coded replay reconstruct the byte concatenation, coordinates,
 alignment, entry, statistics, and closed no-relocation conclusion. The strict
-`OMGTSP` v4 manifest binds the five-kind source vocabulary and all upstream
+`OMGTSP` v5 manifest binds the generalized five-kind source vocabulary and all upstream
 roots while marking symbols, object container and serialization, external entry
 bridge, executable image,
 installation, and publication unavailable.
@@ -2346,9 +2346,10 @@ They retain the fresh nonempty `MaterializeI64` section span, transformed
 selected root and homes, sole `PressureRematerialization` ledger row, Terminal
 semantic/proof roots, private entry symbol, both return-edge result rows, and
 target ABI parameter/result registers through independent replay. The
-route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v4;
-`OMGTRO`/`OMGTOM`, `OMGOTA`/`OMGOTM`, and `OMGOER`/`OMGOEM` remain v1 because
-their generic child-identity vocabularies did not change. Artifact reporting
+route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v5;
+`OMGTRO`/`OMGTOM` and `OMGOTA`/`OMGOTM` remain v1 because their generic
+child-identity vocabularies did not change. `OMGOER`/`OMGOEM` advance to v3
+because their closed exit-policy codec now names the structural leaf. Artifact reporting
 still omits callable metadata until the opaque callable carrier owns the
 artifact. The final disposition remains
 `ExternalProcessEntryBridgeRequiredV1`.
@@ -2461,14 +2462,14 @@ the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
 distinct balanced Microsoft-x64 structural-call policy, and a separate owning
 function-relative carrier publishes `OMGFRM` v7 statistics with zero ordinary
 rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup.
-Machine-code fragment schema v3 and `OMGFFE` v4 now retain that exact parallel
+Machine-code fragment schema v3 and `OMGFFE` v5 now retain that exact parallel
 structural roster, 90/1-byte aggregate spans, call/return provenance, and a
-target-neutral typed fixup. Their stage is explicitly not relocation-free; the
-existing relocation-free text API rejects it. The target-owned x86 resolver
+target-neutral typed fixup. That call-bearing fixture remains explicitly
+distinct from the relocation-free leaf stage. The target-owned x86 resolver
 computes checked signed rel32 fields and independently replays the complete
 patched call, including the canonical `+5` forward fixture and negative calls.
 Two-pass whole-text placement now constructs the complete `MachineId` offset
-map before resolving calls. Text-section schema v3 and `OMGTSP` v4 retain the
+map before resolving calls. Text-section schema v3 and `OMGTSP` v5 retain the
 patched 91-byte section, caller/callee spans `0/90` and `90/1`, exact opcode,
 field, next-IP and callee coordinates, the canonical `+5` displacement, and
 zero remaining internal fixups. Independent replay reconstructs the target
@@ -2501,14 +2502,16 @@ checks the signed target equation and every byte outside the field. The older
 compatibility emitter remains a distinct 143-byte full-frame encoding with
 coordinates `113/114/118`; neither layout impersonates the other.
 
-The immediate prerequisite for the object join is a real one-function
-structural two-Extent `ReturnUnit` continuation. Selection, machine effects,
-encoding, and resolved layout already admit the call-free structural shape,
-but whole-function exit currently requires exactly the generic two-Machine
-caller/leaf topology. A separately named, independently replayed structural
-Unit leaf exit policy must carry that settled entry through fragments, text,
-object, and canonical artifact custody. This is an engineering representation
-task, not a language-design dependency.
+The immediate prerequisite for the object join has landed as a real
+one-function structural two-Extent `ReturnUnit` continuation. Whole-function
+exit v6 independently admits exactly either the existing two-Machine
+entry-caller-to-leaf graph or one call-free entry leaf, and assigns the latter
+the separately named `MicrosoftX64FramelessStructuralUnitLeafV1` policy.
+Generalized `OMGFFE` v5 structural fragments classify its zero-fixup output as
+relocation-free; `OMGTSP` v5 places one `C3` with no resolution rows; the object
+owns one semantic-entry private symbol and no relocations; and canonical
+artifact replay rejoins the exact semantic and proof inputs. No fabricated
+wrapper `MachineId` or parameterless signature substitution is involved.
 
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the settled internal continuation is MachineId-rooted. The checked-source

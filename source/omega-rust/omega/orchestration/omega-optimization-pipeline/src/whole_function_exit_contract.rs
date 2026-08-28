@@ -39,7 +39,7 @@ use crate::{
     validate_optimized_x86_branch_relaxation,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v5\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v6\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalWholeFunctionExitContractIdentity([u8; 32]);
@@ -64,6 +64,10 @@ pub enum TerminalWholeFunctionExitPolicy {
     /// and its Unit leaf. This is deliberately not a frameless-leaf policy:
     /// the caller owns a canonical 72-byte outgoing frame around its call.
     MicrosoftX64BalancedStructuralUnitCallV1,
+    /// Exact Microsoft-x64 custody for one structural-signature Unit leaf.
+    /// The function owns no call frame and consists solely of its validated
+    /// `ReturnUnit` encoding.
+    MicrosoftX64FramelessStructuralUnitLeafV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -554,6 +558,14 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
             &callee_saved,
             &link_units,
         )?;
+        let policy = if structural_unit_functions
+            .iter()
+            .any(|function| function.call.is_some())
+        {
+            TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1
+        } else {
+            TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
+        };
         let mut contract = TerminalWholeFunctionExitContract {
             identity: TerminalWholeFunctionExitContractIdentity([0; 32]),
             selected: machine.selected,
@@ -565,7 +577,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
             resolved_layout: layout.identity(),
             layout_custody,
             target,
-            policy: TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1,
+            policy,
             hardening: TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
             entry_assumption,
             stack_pointer,
@@ -763,10 +775,11 @@ fn validate_structural_unit_functions(
     Vec<TerminalWholeFunctionStructuralUnitExitEvidence>,
     TerminalWholeFunctionExitContractError,
 > {
-    if selected.structural_unit_functions.len() != 2
-        || machine.structural_unit_functions.len() != 2
-        || encoding.structural_unit_functions().len() != 2
-        || layout.structural_unit_functions().len() != 2
+    let structural_function_count = selected.structural_unit_functions.len();
+    if !matches!(structural_function_count, 1 | 2)
+        || machine.structural_unit_functions.len() != structural_function_count
+        || encoding.structural_unit_functions().len() != structural_function_count
+        || layout.structural_unit_functions().len() != structural_function_count
     {
         return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
     }
@@ -814,7 +827,7 @@ fn validate_structural_unit_functions(
     let mut selected_machines = BTreeSet::new();
     let mut caller = None;
     let mut leaf = None;
-    let mut evidence = Vec::with_capacity(2);
+    let mut evidence = Vec::with_capacity(structural_function_count);
     for selected_function in &selected.structural_unit_functions {
         if !selected_machines.insert(selected_function.machine) {
             return Err(
@@ -1026,6 +1039,12 @@ fn validate_structural_unit_functions(
         });
     }
 
+    if structural_function_count == 1 {
+        if caller.is_some() || leaf != Some(selected.entry) {
+            return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
+        }
+        return Ok(evidence);
+    }
     let (Some(caller), Some(leaf)) = (caller, leaf) else {
         return Err(TerminalWholeFunctionExitContractError::StructuralCallTopologyMismatch);
     };
@@ -1630,6 +1649,7 @@ fn policy_tag(policy: TerminalWholeFunctionExitPolicy) -> u8 {
         TerminalWholeFunctionExitPolicy::Aapcs64FramelessLeafV1 => 3,
         TerminalWholeFunctionExitPolicy::DarwinAapcs64FramelessLeafV1 => 4,
         TerminalWholeFunctionExitPolicy::MicrosoftX64BalancedStructuralUnitCallV1 => 5,
+        TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1 => 6,
     }
 }
 
@@ -1787,9 +1807,16 @@ mod tests {
         let mut changed_return = contract.clone();
         changed_return.structural_unit_functions[0].returned.offset -= 1;
         changed_return.identity = contract_identity(&changed_return);
+        let mut structural_leaf = contract.clone();
+        structural_leaf.policy =
+            TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1;
+        *structural_leaf.structural_unit_functions =
+            vec![structural_leaf.structural_unit_functions[1].clone()];
+        structural_leaf.identity = contract_identity(&structural_leaf);
 
         assert_ne!(contract.identity, changed_frame.identity);
         assert_ne!(contract.identity, changed_fixup.identity);
         assert_ne!(contract.identity, changed_return.identity);
+        assert_ne!(contract.identity, structural_leaf.identity);
     }
 }
