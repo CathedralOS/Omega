@@ -1,4 +1,4 @@
-use omega_compiler::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
+use omega_build_evaluation::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
 use omega_package_review::{
     CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
