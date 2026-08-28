@@ -21,7 +21,7 @@ use psi_terminal::StructuralPlaceDeclaration;
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
-/// Independently replay a proposed V7 legal projection against all three raw
+/// Independently replay a proposed V8 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -154,6 +154,7 @@ fn replay_structural_unit_function(
         abstract_return,
         optimized_call,
         optimized_return,
+        settlement_rows,
     ) = match (
         body.operations.as_slice(),
         abstracted.operations.as_slice(),
@@ -170,6 +171,7 @@ fn replay_structural_unit_function(
             abstract_return,
             None,
             optimized_return,
+            None,
         ),
         (
             [
@@ -188,6 +190,7 @@ fn replay_structural_unit_function(
             abstract_return,
             Some(optimized_call),
             optimized_return,
+            None,
         ),
         (
             [
@@ -206,7 +209,33 @@ fn replay_structural_unit_function(
             abstract_return,
             Some(optimized_call),
             optimized_return,
+            None,
         ),
+        (
+            [target_settlements @ .., target_return @ TerminalTargetUnitOperation::Return { .. }],
+            [abstract_settlements @ .., abstract_return @ TerminalAbstractOperation::ReturnUnit { .. }],
+            [optimized_settlements @ .., optimized_return],
+        ) if !target_settlements.is_empty()
+            && target_settlements.len() == abstract_settlements.len()
+            && target_settlements.len() == optimized_settlements.len()
+            && target_settlements.iter().all(|operation| matches!(
+                operation,
+                TerminalTargetUnitOperation::BoundarySettlement {
+                    realization: omega_terminal_target_operations::TerminalBoundaryRealization::ClaimCompletionOnly(_),
+                    ..
+                }
+            ))
+            && abstract_settlements
+                .iter()
+                .all(|operation| matches!(operation, TerminalAbstractOperation::BoundaryCall { .. })) => (
+                None,
+                target_return,
+                None,
+                abstract_return,
+                None,
+                optimized_return,
+                Some((target_settlements, abstract_settlements, optimized_settlements)),
+            ),
         _ => return Err(Error::UnsupportedSourceShape { function }),
     };
     let TerminalTargetUnitOperation::Return {
@@ -217,19 +246,36 @@ fn replay_structural_unit_function(
         unreachable!()
     };
     let expected_provenance = TerminalPsiProvenance {
-        operations: abstract_call
-            .and_then(|operation| match operation {
-                TerminalAbstractOperation::CallUnit { psi_operation, .. } => Some(*psi_operation),
-                TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
-                    Some(*psi_operation)
-                }
-                _ => None,
-            })
-            .into_iter()
-            .collect(),
+        operations: if let Some((_, abstract_settlements, _)) = settlement_rows {
+            abstract_settlements
+                .iter()
+                .filter_map(|operation| match operation {
+                    TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                })
+                .collect()
+        } else {
+            abstract_call
+                .and_then(|operation| match operation {
+                    TerminalAbstractOperation::CallUnit { psi_operation, .. } => {
+                        Some(*psi_operation)
+                    }
+                    TerminalAbstractOperation::BoundaryCall { psi_operation, .. } => {
+                        Some(*psi_operation)
+                    }
+                    _ => None,
+                })
+                .into_iter()
+                .collect()
+        },
         edges: vec![*psi_edge],
     };
-    let expected_return_effect_input = u64::from(abstract_call.is_some());
+    let expected_return_effect_input = settlement_rows.map_or_else(
+        || u64::from(abstract_call.is_some()),
+        |(rows, _, _)| rows.len() as u64,
+    );
     let expected_call_plan = evaluate_call_plan(
         CallingPolicy::native_for_target(target_plan.target),
         &CallSignature {
@@ -302,6 +348,8 @@ fn replay_structural_unit_function(
         || proposed.entry_claims != abstracted.entry_claims
         || proposed.published_service_ceiling != abstracted.published_service_ceiling
         || proposed.entry_block != optimized_block.id
+        || proposed.boundary_settlements.len()
+            != settlement_rows.map_or(0, |(rows, _, _)| rows.len())
         || proposed.return_edge != *psi_edge
         || proposed.return_fuel != optimized_return.fuel
         || proposed.return_effect != optimized_return.effect
@@ -340,6 +388,27 @@ fn replay_structural_unit_function(
     if proposed.structural_places != expected_structural_places {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
+    if let Some((target_rows, abstract_rows, optimized_rows)) = settlement_rows {
+        for (index, (((target_row, abstract_row), optimized_row), proposed_row)) in target_rows
+            .iter()
+            .zip(abstract_rows)
+            .zip(optimized_rows)
+            .zip(&proposed.boundary_settlements)
+            .enumerate()
+        {
+            replay_boundary_settlement(
+                function,
+                index,
+                target_row,
+                abstract_row,
+                optimized_row,
+                proposed_row,
+                &proposed.parameters,
+                &abstracted.entry_claims,
+                abstract_plan,
+            )?;
+        }
+    }
     match (target_call, abstract_call, optimized_call, &proposed.call) {
         (None, None, None, None) => {}
         (Some(target_call), Some(abstract_call), Some(optimized_call), Some(proposed_call)) => {
@@ -359,6 +428,167 @@ fn replay_structural_unit_function(
         _ => return Err(Error::NonCanonicalLegalizedPlan),
     }
     Ok(0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_boundary_settlement(
+    function: usize,
+    index: usize,
+    target: &TerminalTargetUnitOperation,
+    abstracted: &TerminalAbstractOperation,
+    optimized: &omega_optimization_unit::OptimizationNode,
+    proposed: &omega_terminal_legalized_operations::TerminalLegalizedBoundarySettlement,
+    caller_parameters: &[omega_terminal_legalized_operations::TerminalLegalizedCallUnitParameter],
+    caller_claims: &[psi_terminal::EntryClaim],
+    abstract_plan: &TerminalAbstractOperationPlan,
+) -> Result<(), TerminalLegalizationError> {
+    let TerminalTargetUnitOperation::BoundarySettlement {
+        psi_operation: target_operation,
+        boundary: target_boundary,
+        provider_execution,
+        realization:
+            omega_terminal_target_operations::TerminalBoundaryRealization::ClaimCompletionOnly(
+                realization,
+            ),
+        scalar_arguments,
+        arguments: target_arguments,
+        byte_sequence_arguments,
+        completion_claim_sources: target_sources,
+        completion_receipts: target_receipts,
+    } = target
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let TerminalAbstractOperation::BoundaryCall {
+        psi_operation,
+        result: None,
+        boundary,
+        arguments,
+        structural_arguments,
+        completion_claim_sources,
+        completion_receipts,
+    } = abstracted
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let boundary_declarations = abstract_plan
+        .boundary_machines
+        .iter()
+        .filter(|declaration| declaration.id == *boundary)
+        .collect::<Vec<_>>();
+    let [declaration] = boundary_declarations.as_slice() else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let expected_evidence = structural_arguments
+        .iter()
+        .enumerate()
+        .map(|(argument_index, argument)| {
+            let matching_claims = caller_claims
+                .iter()
+                .filter(|claim| claim.input == argument.place && claim.path.is_empty())
+                .collect::<Vec<_>>();
+            let [claim] = matching_claims.as_slice() else {
+                return Err(Error::UnsupportedSourceShape { function });
+            };
+            Ok((
+                omega_terminal_abstract_operations::TerminalCompletionClaimSource {
+                    claim: claim.claim,
+                    entry: Some((*claim).clone()),
+                    content: None,
+                },
+                psi_terminal::CompletionReceipt {
+                    claim: claim.claim,
+                    argument_index: argument_index as u32,
+                },
+            ))
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    let expected_receipts = expected_evidence
+        .iter()
+        .map(|(_, receipt)| *receipt)
+        .collect::<Vec<_>>();
+    let completed_claims = expected_receipts
+        .iter()
+        .map(|receipt| receipt.claim)
+        .collect::<Vec<_>>();
+    if target_operation != psi_operation
+        || target_boundary != boundary
+        || !scalar_arguments.is_empty()
+        || !arguments.is_empty()
+        || !byte_sequence_arguments.is_empty()
+        || target_arguments != structural_arguments
+        || target_sources != completion_claim_sources
+        || target_receipts != completion_receipts
+        || structural_arguments.is_empty()
+        || !declaration.scalar_parameters.is_empty()
+        || declaration.result.is_some()
+        || !declaration.program_local_root_introductions.is_empty()
+        || !declaration.content_guarantees.is_empty()
+        || !declaration.published_service_ceiling.is_empty()
+        || declaration.structural_parameters.len() != structural_arguments.len()
+        || completion_receipts != &expected_receipts
+        || completion_claim_sources
+            .windows(2)
+            .any(|pair| pair[0] >= pair[1])
+        || completion_claim_sources.iter().any(|source| {
+            let Some(entry) = &source.entry else {
+                return true;
+            };
+            source.content.is_some()
+                || entry.claim != source.claim
+                || caller_claims.iter().filter(|claim| *claim == entry).count() != 1
+        })
+        || expected_evidence.iter().any(|(expected_source, _)| {
+            completion_claim_sources
+                .iter()
+                .filter(|source| *source == expected_source)
+                .count()
+                != 1
+        })
+        || optimized.operation != *abstracted
+        || optimized.provenance != [PsiProvenance::Operation(*psi_operation)]
+        || optimized.effect.input != index as u64
+        || optimized.effect.output != index as u64 + 1
+        || !optimized.definitions.is_empty()
+        || !optimized.uses.is_empty()
+        || !optimized.successors.is_empty()
+        || optimized.ownership != [OwnershipEvent::ClaimCompletion(completed_claims)]
+        || structural_arguments
+            .iter()
+            .enumerate()
+            .any(|(index, argument)| {
+                let caller_matches = caller_parameters
+                    .iter()
+                    .filter(|parameter| parameter.semantic.place == argument.place)
+                    .collect::<Vec<_>>();
+                let [caller] = caller_matches.as_slice() else {
+                    return true;
+                };
+                let boundary_parameter = &declaration.structural_parameters[index];
+                !argument.path.is_empty()
+                    || argument.access != psi_terminal::StructuralAccess::Owned
+                    || caller.semantic.multiplicity != psi_terminal::StructuralMultiplicity::Linear
+                    || caller.semantic.access != psi_terminal::StructuralAccess::Owned
+                    || boundary_parameter.position != index as u32
+                    || boundary_parameter.structural_type != caller.semantic.structural_type
+                    || boundary_parameter.multiplicity != caller.semantic.multiplicity
+                    || boundary_parameter.access != caller.semantic.access
+                    || boundary_parameter.qualifications != caller.semantic.qualifications
+            })
+        || proposed.operation != *psi_operation
+        || proposed.boundary != *boundary
+        || proposed.provider_execution != *provider_execution
+        || proposed.realization != *realization
+        || proposed.arguments != *structural_arguments
+        || proposed.completion_claim_sources != *completion_claim_sources
+        || proposed.completion_receipts != *completion_receipts
+        || proposed.fuel != optimized.fuel
+        || proposed.effect != optimized.effect
+        || proposed.ownership != optimized.ownership
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
