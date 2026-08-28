@@ -275,7 +275,9 @@ Rules:
   supplied by consumers, even in a whole-program build with only one
   instantiation. Missing or ambiguous contracts reject. If exactly one
   implementation is intended, call that concrete machine instead of declaring
-  a generic.
+  a generic. The nominal path remains an authored declaration selection: its
+  exact trait and requirement obey the enclosing declaration's package and
+  visibility rules from chapter 15, including inside nested machine contracts.
 - A trait may instead bind a machine as declaration identity only, without a
   `where machine` clause:
 

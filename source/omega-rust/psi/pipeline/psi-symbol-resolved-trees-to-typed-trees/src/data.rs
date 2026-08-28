@@ -176,18 +176,18 @@ pub(crate) fn lower_type_parameter_kind(
                             "a nominal machine-parameter requirement lost its authored `Trait::requirement` path before typed lowering",
                         ));
                     };
-                    let Some(trait_name) = trait_path.last() else {
+                    if trait_path.is_empty() {
                         return Err(Diagnostic::error(
                             "a nominal machine-parameter requirement lost its authored trait path before typed lowering",
                         ));
-                    };
-                    crate::type_reference::retain_type_reference_selection(
-                        lowerer.source_trees,
+                    }
+                    crate::type_reference::retain_path_selection(
                         &mut lowerer.typed_trees,
-                        trait_name,
+                        trait_path,
                         *trait_definition,
                         lowerer.type_reference_exposure,
                         psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+                        "nominal machine-parameter trait requirement",
                     )?;
                     crate::type_reference::retain_static_path_selection(
                         &mut lowerer.typed_trees,

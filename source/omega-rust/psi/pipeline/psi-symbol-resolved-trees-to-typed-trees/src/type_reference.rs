@@ -106,6 +106,24 @@ pub(crate) fn retain_static_path_selection(
     exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
     context: &str,
 ) -> Result<(), Diagnostic> {
+    retain_path_selection(
+        typed_trees,
+        path,
+        symbol,
+        exposure,
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
+        context,
+    )
+}
+
+pub(crate) fn retain_path_selection(
+    typed_trees: &mut typed::TypedTrees,
+    path: &[resolved::name::DiagnosticName],
+    symbol: psi_symbols::SymbolHandle,
+    exposure: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure,
+    kind: psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind,
+    context: &str,
+) -> Result<(), Diagnostic> {
     if !symbol.is_valid() {
         return Ok(());
     }
@@ -127,12 +145,7 @@ pub(crate) fn retain_static_path_selection(
         psi_source::Span::new(first.source_span().span.start, last.source_span().span.end),
     );
     typed_trees
-        .record_resolved_authored_declaration_selection_once(
-            source_span,
-            exposure,
-            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::StaticPathSegment,
-            symbol,
-        )
+        .record_resolved_authored_declaration_selection_once(source_span, exposure, kind, symbol)
         .map(|_| ())
         .map_err(|error| {
             Diagnostic::error(format!(

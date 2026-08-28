@@ -1347,6 +1347,13 @@ not the selected trait. Normalized establishment alternatives may deduplicate,
 but authored source occurrences do not disappear from direct-authority
 custody.
 
+Nominal callable machine-parameter contracts retain their complete authored
+`Trait::requirement` path after signature-free resolution. Typed lowering emits
+the exact trait-path and requirement-token rows with the enclosing
+declaration's exposure, recursively for nested machine contracts. Generic
+nesting therefore cannot hide a transitive-only or private requirement from
+package admission.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free

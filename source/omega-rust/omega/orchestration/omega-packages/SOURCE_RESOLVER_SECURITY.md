@@ -635,8 +635,7 @@ direct egress. None of this pins TLS or SSH host trust.
 Parent-owned selected-object-graph authentication and the current macOS native
 enforcement supply real evidence for a later strict receipt but do not by
 themselves make the resolver admissible. Linux/Windows strict isolation,
-hostile same-user and Windows ACL cache custody, non-Windows aggregate and all
-during-write resource ceilings, cross-platform endpoint confinement, explicit
-SSH trust/credential
+hostile same-user mutation, non-Windows aggregate and all during-write resource
+ceilings, cross-platform endpoint confinement, explicit SSH trust/credential
 custody (OWNER Q19),
 and the opaque receipt remain open.
