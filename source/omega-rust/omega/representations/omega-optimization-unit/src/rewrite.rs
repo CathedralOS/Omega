@@ -473,6 +473,8 @@ pub enum ProofCertifiedScalarIdentityKind {
     ExactIntegerDivideOneRight,
     WrappingIntegerDivideOneRight,
     SaturatingIntegerDivideOneRight,
+    ExactIntegerMultiplyZeroLeft,
+    ExactIntegerMultiplyZeroRight,
 }
 
 /// Remove one proof-certified integer identity and replace every use of its
@@ -1795,7 +1797,7 @@ fn encode_candidate(
     patch: &PsiRewritePatch,
 ) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v23\0");
+    bytes.extend_from_slice(b"omega.psi-rewrite-candidate.v24\0");
     bytes.extend_from_slice(&input.bytes());
     bytes.extend_from_slice(&contract.encode());
     match decision_point {
@@ -2051,6 +2053,8 @@ fn encode_candidate(
                 ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight => 8,
                 ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight => 9,
                 ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight => 10,
+                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft => 11,
+                ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight => 12,
             });
         }
     }
@@ -2414,7 +2418,7 @@ mod tests {
     }
 
     #[test]
-    fn proof_certified_divide_by_one_candidate_identity_binds_policy_kind() {
+    fn proof_certified_live_identity_candidate_identity_binds_policy_and_side_kind() {
         let machine = MachineId::new(601).unwrap();
         let block = BlockId::new(602).unwrap();
         let location = NodeLocation {
@@ -2448,6 +2452,8 @@ mod tests {
             ProofCertifiedScalarIdentityKind::ExactIntegerDivideOneRight,
             ProofCertifiedScalarIdentityKind::WrappingIntegerDivideOneRight,
             ProofCertifiedScalarIdentityKind::SaturatingIntegerDivideOneRight,
+            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroLeft,
+            ProofCertifiedScalarIdentityKind::ExactIntegerMultiplyZeroRight,
         ]
         .map(|identity| {
             PsiRewriteCandidate::new_proof_certified_scalar_identity(
@@ -2470,8 +2476,6 @@ mod tests {
             .unwrap()
             .identity()
         });
-        assert_ne!(identities[0], identities[1]);
-        assert_ne!(identities[0], identities[2]);
-        assert_ne!(identities[1], identities[2]);
+        assert_eq!(identities.into_iter().collect::<BTreeSet<_>>().len(), 5);
     }
 }

@@ -52,6 +52,12 @@ pub fn validate_terminal_liveness(
         .flat_map(|function| &function.blocks)
         .map(|block| block.successors.len())
         .sum();
+    let tied_pair_count = plan
+        .functions
+        .iter()
+        .flat_map(|function| &function.operand_positions)
+        .filter(|operand| operand.tied_to.is_some())
+        .count();
     let receipt = TerminalLivenessValidationReceipt {
         identity: terminal_liveness_identity(&plan),
         selected: plan.selected,
@@ -67,6 +73,7 @@ pub fn validate_terminal_liveness(
             .sum(),
         instruction_count,
         successor_count,
+        tied_pair_count,
     };
     Ok(ValidatedTerminalLiveness { plan, receipt })
 }
@@ -453,16 +460,11 @@ fn reject_v1_unsupported(
     function_index: usize,
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
+    let mut tied_registers = BTreeSet::new();
     for instruction in function.blocks.iter().flat_map(ordered_instructions) {
         for operand in &instruction.operands {
             let error = if operand.access == RegisterOperandAccess::UseDef {
                 Some(TerminalLivenessError::UnsupportedUseDef {
-                    function: function_index,
-                    instruction: instruction.id.0,
-                    operand: operand.operand,
-                })
-            } else if operand.tied_to.is_some() {
-                Some(TerminalLivenessError::UnsupportedTiedOperand {
                     function: function_index,
                     instruction: instruction.id.0,
                     operand: operand.operand,
@@ -478,6 +480,46 @@ fn reject_v1_unsupported(
             };
             if let Some(error) = error {
                 return Err(error);
+            }
+        }
+        let tied = instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.tied_to.is_some())
+            .collect::<Vec<_>>();
+        if tied.len() > 1 {
+            return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                function: function_index,
+                instruction: instruction.id.0,
+                operand: tied[1].operand,
+            });
+        }
+        if let Some(definition) = tied.first() {
+            let Some(use_operand) = instruction
+                .operands
+                .iter()
+                .find(|operand| Some(operand.operand) == definition.tied_to)
+            else {
+                return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: definition.operand,
+                });
+            };
+            if definition.access != RegisterOperandAccess::Def
+                || use_operand.access != RegisterOperandAccess::Use
+                || definition.operand <= use_operand.operand
+                || definition.virtual_register == use_operand.virtual_register
+                || definition.class != use_operand.class
+                || use_operand.tied_to.is_some()
+                || !tied_registers.insert(use_operand.virtual_register)
+                || !tied_registers.insert(definition.virtual_register)
+            {
+                return Err(TerminalLivenessError::UnsupportedTiedOperand {
+                    function: function_index,
+                    instruction: instruction.id.0,
+                    operand: definition.operand,
+                });
             }
         }
     }
@@ -511,4 +553,18 @@ fn require_canonical<T: Ord>(
 
 fn collect<T: Copy + Ord>(set: &BTreeSet<T>) -> Vec<T> {
     set.iter().copied().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replay_function;
+
+    #[test]
+    fn independent_liveness_replay_accepts_exact_distinct_tie() {
+        let function = crate::compute::tests::supported_tied_function();
+        let computed = crate::compute::compute_function(0, &function).unwrap();
+        let replayed = replay_function(0, &function).unwrap();
+        assert_eq!(computed, replayed);
+        assert_eq!(computed.operand_positions[1].tied_to, Some(0));
+    }
 }

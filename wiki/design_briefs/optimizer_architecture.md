@@ -1316,11 +1316,17 @@ catalog remains immutable history. The third rule,
 `x / 1 -> x` for exact, wrapping, and saturating integer division. It requires
 the direct typed literal-one fact and the exact accepted-obligation identity;
 absence declines the candidate, while mismatched or corrupted evidence fails
-independent validation. Candidate v23, optimization-unit content identity v10,
-the named v3 pass, prephysical manifest v16, and optimized-plan projection
-validation v17 bind the current meaning; ledger v4 already represents the
-relocation. Runtime policy events, other live proof-bearing identities, and
-physical checks not represented by these exact Psi contracts remain open.
+independent validation. The fourth rule,
+`live-proof-certified-exact-integer-multiply-by-zero-elimination.v1`, rewrites
+`0 * x` or `x * 0` to the existing direct typed zero operand for exact fixed-
+width signed/unsigned multiplication only, with canonical left selection for
+`0 * 0`. Wrapping/saturating multiplication is obligation-free and deliberately
+not hidden under `ProofCheckElision`; float multiplication remains outside this
+exact law. Candidate v24, optimization-unit content identity v10, the named v4
+pass, prephysical manifest v17, and optimized-plan projection validation v18
+bind the current meaning; ledger v4 already represents the relocation. Runtime
+policy events, other live proof-bearing identities, and physical checks not
+represented by these exact Psi contracts remain open.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
@@ -1643,10 +1649,13 @@ validator reconstructs selected instruction order, CFG successors, operand
 roles, machine-state effects, fixed positions, canonical exact sets, and the
 full content identity before an opaque result is issued. Orchestration nests
 that result with the complete selected carrier and revalidates both layers.
-This first slice intentionally refuses use-def operands, ties, and early
-clobbers, and makes no claim about flattened intervals, allocation, spills,
-loops, calls, crashes, cleanup, or suspension. Those become admissible only
-with their explicit selected-IR frontiers and dedicated validation rules.
+The v2 slice admits one exact tied topology,
+`DistinctUseToDefTiedHomesV1`: a distinct earlier Use and later Def in the same
+instruction, with each VReg in at most one pair per function. It preserves a
+canonical tied-pair row through liveness and block-domain ranges. General ties,
+UseDef, early-clobber, overlapping/repeated pairs, spills, loops, calls, crashes,
+cleanup, and suspension remain refused until they have explicit selected-IR
+frontiers and dedicated validation rules.
 
 A two-machine disconnected fixture exercises the complete current vertical on
 x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
@@ -1684,6 +1693,14 @@ same-phase architectural actions. A fixed operand may name a view that is not a
 general allocation candidate, but it must still have the right class and avoid
 reserved or architectural units. Production and replay independently derive
 the exact nonempty, sorted candidate rows.
+
+For the admitted tie topology, home assignment treats the two live ranges as a
+single canonical bundle. It takes the union envelope, intersects the exact
+point candidates of both members, chooses the lowest stable common view, and
+assigns that view to both. Independent replay rejects member interference,
+disjoint candidates, malformed topology, or unequal homes. Spill-choice fails
+closed while such a bundle is present rather than separating tied values
+without a proved copy/storage strategy.
 
 The same artifact exposes incompatible entry and operand fixed views as
 transition requirements. In the current forwarded-value fixture, the shared
@@ -1899,7 +1916,7 @@ custody, bytes, displacement, and decoded effects. It still owns only separate
 function-relative fragments—not section placement, symbols, object relocations,
 executable bytes, or publication.
 
-Function-relative orchestration seals those products in a structured v3
+Function-relative orchestration seals those products in a structured v4
 realization manifest. Separate custody routes admit ordinary homes when only a
 function-relative family is selected and selected-lowering homes when that
 phase also ran. The record joins the full named build suite, both exact phase
@@ -1933,10 +1950,10 @@ observed. A deliberately unrestricted x86 allocation that writes RBX now fails
 at this boundary rather than acquiring imaginary save/restore evidence.
 
 The manifest scope is therefore function-relative fragments with a validated
-whole-function exit discipline. Frame construction, machine emission, section
-placement, symbols, object relocations, executable image, installation, and
-publication remain explicitly unavailable. This is an honest realization
-checkpoint, not an object or native-final manifest.
+whole-function exit discipline. Frame construction, section placement, symbols,
+object relocations, executable image, installation, and publication remain
+explicitly unavailable. This is an honest realization checkpoint, not an
+object or native-final manifest.
 
 Choosing x86 `rel8` is the separate named transformation
 `X86RelaxConditionalBranchesToRel8V1`; it is not an implicit “higher
@@ -1957,18 +1974,31 @@ function-relative-layout phase and remains default-off. Verified physical
 orchestration projects that phase separately from selected lowering. A
 branch-only suite takes frameless legality through ordinary register homes and
 records an absent selected-lowering completion; a combined suite retains both
-positive completion receipts. The strict v3 realization manifest binds the
+positive completion receipts. The strict v4 realization manifest binds the
 full suite, both phase projections, baseline and final layout identities, the
 optional relaxation identity, final statistics, and the final-layout exit
 contract. Whole-function exit identity v2 names either the required near-layout
 custody or the exact independently replayed relaxation receipt. Baseline exit
 validation remains strict and cannot admit short bytes by accident.
 
+A later relocation-free boundary now consumes only completed x86 rel8 or
+AArch64 CBNZ realization carriers and materializes dense bytes independently
+per function. Its immutable function-fragment artifact retains the function,
+block, and instruction spans—including the CBNZ route's zero-byte compare—plus
+the chosen alternatives, decoded branch evidence, full Psi/selected provenance,
+successor bindings, and path-specific fuel settlements. It never concatenates
+functions into a globally placed section. Production and an independently
+coded replay reconstruct source custody, offsets, row bytes, aggregate bytes,
+statistics, receipt, and the content identity. The strict `OMGFFE` v1 manifest
+binds the source realization and every selected, post-allocation, layout, exit,
+target, and fragment root while explicitly marking section placement, symbols,
+object relocations, executable image, installation, and publication unavailable.
+
 The build vocabulary still does not grant native publication authority:
 explicit selection currently fails closed without installing output. The next
-join is at the clean realization consumer/native emission boundary, where the
-compiler gate can be removed only together with selected-build emitted-byte and
-publication tests.
+join carries these function fragments through section/relocation and native
+artifact custody; the compiler gate can be removed only together with
+selected-build publication tests.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and
@@ -1995,6 +2025,38 @@ may later emit a decision log, which the ordinary compiler replays. Every
 resulting rewrite still passes the same validators. Models do not load into the
 compiler by default, do not define legality, do not enter the proof kernel, and
 do not become runtime dependencies.
+
+The first external schema now records current Psi decision points without
+consulting them. Its v1 context roots the source optimization unit, full and
+Psi-phase selections, explicit target-neutral identity, ordered rule set, and
+structural cost model. A point contains only its input revision, rule identity,
+canonical candidate identities with signed cost deltas, and the selected member
+of the finite candidate-or-skip action set. Those types cannot represent raw
+paths, authored names, pointers, arena order, diagnostics, or debug strings.
+The strict codec recomputes every point and log identity. Optimized-plan
+projection independently derives the expected trace from the ordinary baseline
+log and pass manifests and rejects a detached valid trace. The baseline log,
+not this recording, remains in the optimization identity bundle, so recording
+does not change policy or output.
+
+Psi now also exposes a strict byte-boundary replay API without changing its
+ordinary model-free entry points. Replay first decodes the v1 log and exactly
+matches every context root before dispatching a rule. One ordered cursor spans
+all selected Psi pass groups. For each nonempty decision point, the ordinary
+rule proposes candidates and all normal candidate validators finish before the
+cursor is consulted; only then may the supplied action select one member of the
+exact canonical roster or the explicit skip. Missing, duplicate, foreign,
+reordered, roster-mismatched, and leftover points fail closed. The chosen action
+is recorded in the existing baseline decision-log format and follows the same
+manifest, commit, fixed-point, analysis, and transformation-ledger path as an
+ordinary choice. At completion the compiler independently reconstructs the
+external log from the resulting baseline records and validated manifests and
+requires exact equality with the supplied bytes; optimized-plan projection
+performs a second reconstruction. Thus the replay mechanism can change
+profitability policy but cannot bypass legality or acquire a separate artifact
+identity. Other compiler phases still need their own schemas, and build-file
+custody, workload inputs, training export, and offline search remain later
+boundaries.
 
 Training/evaluation records use a clear functional shape:
 
@@ -2174,15 +2236,20 @@ projections.
 The pre-physical manifest's versioned standalone codec serializes that whole
 earlier record and strict nested codecs; the post-allocation record adds
 truthful home statistics while marking frame, emission, and publication
-unavailable. The function-relative v3 record then binds exact phase projections
+unavailable. The function-relative v4 record then binds exact phase projections
 and optional completions to the validated final selected CFG, machine effects,
 post-allocation machine, canonical encoding, baseline/final layout roots,
 optional layout-transform receipt, named layout policy, final code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
-unavailable. All three records have strict self-authenticating codecs and are
-now joined by the pipeline-owned cumulative report carrier, but none is yet
-wired into a compiler-owned artifact or rebuild-metadata section.
+unavailable. The separate strict v1 function-fragment manifest additionally
+binds completed x86 rel8 or AArch64 CBNZ realization custody to relocation-free
+per-function bytes and exact span/provenance/fuel statistics while retaining the
+same later-boundary unavailability. The pre-physical, post-allocation, and
+function-relative records have strict self-authenticating codecs and are joined
+by the pipeline-owned cumulative report carrier; neither that carrier nor the
+new fragment manifest is yet wired into a compiler-owned artifact or
+rebuild-metadata section.
 `OPT-MANIFEST-SCHEMA` remains open until later manifests join frame/emission/
 publication records and enter that metadata path; successful native compiler
 publication must then materialize the already-retained report request.

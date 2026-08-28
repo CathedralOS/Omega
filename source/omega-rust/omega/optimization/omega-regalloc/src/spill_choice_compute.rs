@@ -84,6 +84,11 @@ pub(crate) fn compute_terminal_spill_choices(
         .zip(&ranges.plan().functions)
         .enumerate()
     {
+        if !range_function.tied_pairs.is_empty() {
+            return Err(TerminalSpillChoiceError::UnsupportedTiedOperands {
+                function: function_index,
+            });
+        }
         functions.push(compute_function(
             function_index,
             legality_function,
@@ -578,6 +583,7 @@ mod tests {
                     edge_connectors: Vec::new(),
                 })
                 .collect(),
+            tied_pairs: Vec::new(),
             architectural_units: Vec::new(),
             interference: vec![(0, 1), (0, 2), (1, 2)]
                 .into_iter()

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use omega_register_model::{
     RegisterView, RegisterViewId, TargetRegisterEnvironmentConstraintKeys,
@@ -15,9 +15,9 @@ use crate::{
     ValidatedTerminalRegisterHomes, terminal_register_home_identity,
 };
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct ReplayActiveHome {
-    register: TerminalVirtualRegisterId,
+    registers: Vec<TerminalVirtualRegisterId>,
     end: TerminalLiveRangePoint,
     view: RegisterViewId,
 }
@@ -95,6 +95,12 @@ pub fn validate_terminal_register_homes(
             .iter()
             .map(|function| function.assignments.len())
             .sum(),
+        tied_pair_count: ranges
+            .plan()
+            .functions
+            .iter()
+            .map(|function| function.tied_pairs.len())
+            .sum(),
     };
     Ok(ValidatedTerminalRegisterHomes { plan, receipt })
 }
@@ -110,67 +116,77 @@ pub(crate) fn replay_function(
             function: function_index,
         });
     }
-    let mut positions = legality
-        .virtual_registers
-        .iter()
-        .enumerate()
-        .map(|(position, register)| {
-            replay_interval_bounds(function_index, register)
-                .map(|(start, end)| (position, start, end))
-        })
+    let mut membership = BTreeMap::<TerminalVirtualRegisterId, TerminalVirtualRegisterId>::new();
+    for tie in &ranges.tied_pairs {
+        let leader = tie.use_virtual_register.min(tie.def_virtual_register);
+        if membership
+            .insert(tie.use_virtual_register, leader)
+            .is_some()
+            || membership
+                .insert(tie.def_virtual_register, leader)
+                .is_some()
+            || tie.use_virtual_register == tie.def_virtual_register
+        {
+            return Err(TerminalRegisterHomeError::UnsupportedTiedTopology {
+                function: function_index,
+                instruction: tie.instruction.0,
+            });
+        }
+        if ranges.interference.iter().any(|pair| {
+            (pair.lower == tie.use_virtual_register && pair.higher == tie.def_virtual_register)
+                || (pair.higher == tie.use_virtual_register
+                    && pair.lower == tie.def_virtual_register)
+        }) {
+            let lower = tie.use_virtual_register.min(tie.def_virtual_register);
+            let higher = tie.use_virtual_register.max(tie.def_virtual_register);
+            return Err(TerminalRegisterHomeError::TiedRegistersInterfere {
+                function: function_index,
+                lower: lower.0,
+                higher: higher.0,
+            });
+        }
+    }
+    let mut groups = BTreeMap::<TerminalVirtualRegisterId, Vec<usize>>::new();
+    for (position, register) in legality.virtual_registers.iter().enumerate() {
+        let leader = membership
+            .get(&register.virtual_register)
+            .copied()
+            .unwrap_or(register.virtual_register);
+        groups.entry(leader).or_default().push(position);
+    }
+    let mut positions = groups
+        .into_values()
+        .map(|members| replay_group(function_index, &members, legality))
         .collect::<Result<Vec<_>, _>>()?;
-    positions.sort_by_key(|(position, start, _)| {
+    positions.sort_by_key(|(members, start, _, _)| {
         (
-            start.0,
-            legality.virtual_registers[*position].virtual_register,
+            *start,
+            legality.virtual_registers[members[0]].virtual_register,
         )
     });
     let mut selected = BTreeMap::new();
     let mut active = Vec::<ReplayActiveHome>::new();
-    for (position, start, end) in positions {
-        let register = &legality.virtual_registers[position];
-        if !register.entry_transitions.is_empty() {
-            return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
-                function: function_index,
-                register: register.virtual_register.0,
-                count: register.entry_transitions.len(),
-            });
-        }
-        let first = register
-            .points
-            .first()
-            .expect("interval reconstruction established nonempty points");
+    for (members, start, end, candidates) in positions {
         active.retain(|entry| entry.end > start);
-        let candidates = first
-            .candidates
-            .iter()
-            .copied()
-            .filter(|candidate| {
-                register.points[1..]
-                    .iter()
-                    .all(|point| point.candidates.contains(candidate))
-            })
-            .collect::<Vec<_>>();
-        if candidates.is_empty() {
-            return Err(TerminalRegisterHomeError::NoCommonCandidate {
-                function: function_index,
-                register: register.virtual_register.0,
-            });
-        }
+        let representative = &legality.virtual_registers[members[0]];
         let mut home = None;
         for candidate in candidates {
             let view = find_view(
                 function_index,
-                register.virtual_register,
-                register.class,
+                representative.virtual_register,
+                representative.class,
                 candidate,
                 physical,
             )?;
             let blocked = active.iter().any(|entry| {
-                ranges.interference.iter().any(|pair| {
-                    (pair.lower == register.virtual_register && pair.higher == entry.register)
-                        || (pair.higher == register.virtual_register
-                            && pair.lower == entry.register)
+                members.iter().any(|member| {
+                    entry.registers.iter().any(|active_register| {
+                        let register = legality.virtual_registers[*member].virtual_register;
+                        ranges.interference.iter().any(|pair| {
+                            (pair.lower == register && pair.higher == *active_register)
+                                || (pair.higher == register && pair.lower == *active_register)
+                        })
+                    })
                 }) && overlaps(
                     view,
                     physical
@@ -188,18 +204,24 @@ pub(crate) fn replay_function(
         }
         let home = home.ok_or(TerminalRegisterHomeError::NoCompatibleHome {
             function: function_index,
-            register: register.virtual_register.0,
+            register: representative.virtual_register.0,
         })?;
-        selected.insert(register.virtual_register, home);
+        let registers = members
+            .iter()
+            .map(|member| legality.virtual_registers[*member].virtual_register)
+            .collect::<Vec<_>>();
+        for register in &registers {
+            selected.insert(*register, home);
+        }
         active.push(ReplayActiveHome {
-            register: register.virtual_register,
+            registers,
             end,
             view: home,
         });
         active.sort_by(|left, right| {
             left.end
                 .cmp(&right.end)
-                .then(left.register.cmp(&right.register))
+                .then(left.registers[0].cmp(&right.registers[0]))
         });
     }
     Ok(TerminalFunctionRegisterHomes {
@@ -214,6 +236,74 @@ pub(crate) fn replay_function(
             })
             .collect(),
     })
+}
+
+type ReplayGroup = (
+    Vec<usize>,
+    TerminalLiveRangePoint,
+    TerminalLiveRangePoint,
+    Vec<RegisterViewId>,
+);
+
+fn replay_group(
+    function: usize,
+    members: &[usize],
+    legality: &crate::TerminalFunctionAllocationLegality,
+) -> Result<ReplayGroup, TerminalRegisterHomeError> {
+    if members.is_empty() || members.len() > 2 {
+        return Err(TerminalRegisterHomeError::FunctionMismatch { function });
+    }
+    let mut start = None;
+    let mut end = None;
+    let mut shared = None::<BTreeSet<RegisterViewId>>;
+    for member in members {
+        let register = &legality.virtual_registers[*member];
+        if !register.entry_transitions.is_empty() {
+            return Err(TerminalRegisterHomeError::UnresolvedEntryTransitions {
+                function,
+                register: register.virtual_register.0,
+                count: register.entry_transitions.len(),
+            });
+        }
+        let (lower, upper) = replay_interval_bounds(function, register)?;
+        start = Some(start.map_or(lower, |value: TerminalLiveRangePoint| value.min(lower)));
+        end = Some(end.map_or(upper, |value: TerminalLiveRangePoint| value.max(upper)));
+        let candidates = register.points[0]
+            .candidates
+            .iter()
+            .copied()
+            .filter(|candidate| {
+                register.points[1..]
+                    .iter()
+                    .all(|point| point.candidates.contains(candidate))
+            })
+            .collect::<BTreeSet<_>>();
+        if let Some(existing) = &mut shared {
+            existing.retain(|candidate| candidates.contains(candidate));
+        } else {
+            shared = Some(candidates);
+        }
+    }
+    let shared = shared.expect("replay group is nonempty");
+    if shared.is_empty() {
+        if members.len() == 2 {
+            return Err(TerminalRegisterHomeError::NoCommonTiedCandidate {
+                function,
+                lower: legality.virtual_registers[members[0]].virtual_register.0,
+                higher: legality.virtual_registers[members[1]].virtual_register.0,
+            });
+        }
+        return Err(TerminalRegisterHomeError::NoCommonCandidate {
+            function,
+            register: legality.virtual_registers[members[0]].virtual_register.0,
+        });
+    }
+    Ok((
+        members.to_vec(),
+        start.expect("replay group is nonempty"),
+        end.expect("replay group is nonempty"),
+        shared.into_iter().collect(),
+    ))
 }
 
 fn replay_interval_bounds(

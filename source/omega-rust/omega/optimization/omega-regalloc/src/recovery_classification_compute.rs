@@ -599,6 +599,7 @@ mod tests {
                     edge_connectors: Vec::new(),
                 })
                 .collect(),
+            tied_pairs: Vec::new(),
             architectural_units: Vec::new(),
             interference: [(0, 1), (0, 2), (1, 2)]
                 .into_iter()

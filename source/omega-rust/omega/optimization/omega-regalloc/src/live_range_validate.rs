@@ -2,13 +2,13 @@ use std::collections::BTreeSet;
 
 use crate::{
     TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
-    TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalFunctionLiveRanges,
-    TerminalLiveRangeEdgeConnector, TerminalLiveRangeError, TerminalLiveRangeFragment,
-    TerminalLiveRangePlan, TerminalLiveRangePoint, TerminalLiveRangeValidationReceipt,
-    TerminalVirtualFixedConstraint, TerminalVirtualFixedConstraintSite,
-    TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
-    ValidatedTerminalLiveRanges, ValidatedTerminalLiveness, terminal_live_range_identity,
-    validate_terminal_liveness,
+    TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalDistinctUseDefTie,
+    TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector, TerminalLiveRangeError,
+    TerminalLiveRangeFragment, TerminalLiveRangePlan, TerminalLiveRangePoint,
+    TerminalLiveRangeValidationReceipt, TerminalVirtualFixedConstraint,
+    TerminalVirtualFixedConstraintSite, TerminalVirtualInterference, TerminalVirtualLiveRange,
+    TerminalVirtualOccurrence, ValidatedTerminalLiveRanges, ValidatedTerminalLiveness,
+    terminal_live_range_identity, validate_terminal_liveness,
 };
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
 use omega_terminal_selected_instructions::TerminalSelectedBlockId;
@@ -66,6 +66,11 @@ pub fn validate_terminal_live_ranges(
             return Err(TerminalLiveRangeError::VirtualRegisterMismatch {
                 function: function_index,
                 register,
+            });
+        }
+        if actual.tied_pairs != expected.tied_pairs {
+            return Err(TerminalLiveRangeError::TiedPairMismatch {
+                function: function_index,
             });
         }
         if actual.architectural_units != expected.architectural_units {
@@ -156,6 +161,7 @@ pub fn validate_terminal_live_ranges(
             .iter()
             .map(|row| row.interference.len())
             .sum(),
+        tied_pair_count: plan.functions.iter().map(|row| row.tied_pairs.len()).sum(),
     };
     Ok(ValidatedTerminalLiveRanges { plan, receipt })
 }
@@ -178,6 +184,7 @@ fn independently_replay_function(
     live: &crate::TerminalFunctionLiveness,
 ) -> Result<TerminalFunctionLiveRanges, TerminalLiveRangeError> {
     reject_constraints(function, live)?;
+    let tied_pairs = independently_derive_ties(function, live)?;
     let mut block_domains = Vec::new();
     for block in &live.blocks {
         let first =
@@ -318,9 +325,95 @@ fn independently_replay_function(
         machine: selected.machine,
         block_domains,
         virtual_registers,
+        tied_pairs,
         architectural_units,
         interference,
     })
+}
+
+fn independently_derive_ties(
+    function: usize,
+    live: &crate::TerminalFunctionLiveness,
+) -> Result<Vec<TerminalDistinctUseDefTie>, TerminalLiveRangeError> {
+    let mut used_registers = BTreeSet::new();
+    let mut result = Vec::new();
+    for definition in live
+        .operand_positions
+        .iter()
+        .filter(|operand| operand.tied_to.is_some())
+    {
+        let matching = live
+            .operand_positions
+            .iter()
+            .filter(|operand| operand.instruction == definition.instruction)
+            .collect::<Vec<_>>();
+        if matching
+            .iter()
+            .filter(|operand| operand.tied_to.is_some())
+            .count()
+            != 1
+        {
+            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        }
+        let Some(source) = matching
+            .iter()
+            .copied()
+            .find(|operand| Some(operand.operand) == definition.tied_to)
+        else {
+            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        };
+        if source.access != RegisterOperandAccess::Use
+            || definition.access != RegisterOperandAccess::Def
+            || source.operand >= definition.operand
+            || source.virtual_register == definition.virtual_register
+            || source.class != definition.class
+            || source.tied_to.is_some()
+            || !used_registers.insert(source.virtual_register)
+            || !used_registers.insert(definition.virtual_register)
+        {
+            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        }
+        let block = live
+            .blocks
+            .iter()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|row| row.instruction == definition.instruction)
+            })
+            .ok_or(TerminalLiveRangeError::UnsupportedTiedOperand {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            })?;
+        result.push(TerminalDistinctUseDefTie {
+            block: block.block,
+            position: definition.position,
+            instruction: definition.instruction,
+            use_operand: source.operand,
+            use_virtual_register: source.virtual_register,
+            use_point: checked_before(function, definition.position.0)?,
+            def_operand: definition.operand,
+            def_virtual_register: definition.virtual_register,
+            def_point: checked_after(function, definition.position.0)?,
+            class: definition.class,
+        });
+    }
+    result.sort_unstable();
+    Ok(result)
 }
 
 fn independently_replay_unit(
@@ -399,6 +492,7 @@ fn validate_canonical(
             .virtual_registers
             .windows(2)
             .any(|rows| rows[0].virtual_register >= rows[1].virtual_register)
+        || actual.tied_pairs.windows(2).any(|rows| rows[0] >= rows[1])
         || actual
             .architectural_units
             .windows(2)
@@ -474,13 +568,6 @@ fn reject_constraints(
     for operand in &live.operand_positions {
         if operand.access == RegisterOperandAccess::UseDef {
             return Err(TerminalLiveRangeError::UnsupportedUseDef {
-                function,
-                instruction: operand.instruction.0,
-                operand: operand.operand,
-            });
-        }
-        if operand.tied_to.is_some() {
-            return Err(TerminalLiveRangeError::UnsupportedTiedOperand {
                 function,
                 instruction: operand.instruction.0,
                 operand: operand.operand,
@@ -579,17 +666,18 @@ fn independently_overlaps(
 
 #[cfg(test)]
 mod tests {
-    use omega_register_model::{RegisterClassId, RegisterUnitId};
+    use omega_register_model::{RegisterClassId, RegisterOperandAccess, RegisterUnitId};
     use omega_terminal_selected_instructions::{
         TerminalSelectedBlockId, TerminalVirtualRegisterId,
     };
-    use psi_core::MachineId;
+    use psi_core::{BlockId, MachineId};
 
     use super::validate_canonical;
     use crate::{
-        TerminalArchitecturalUnitLiveRange, TerminalFunctionLiveRanges, TerminalLiveRangeError,
-        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalVirtualInterference,
-        TerminalVirtualLiveRange,
+        TerminalArchitecturalUnitLiveRange, TerminalBlockLiveness, TerminalFunctionLiveRanges,
+        TerminalFunctionLiveness, TerminalInstructionLiveness, TerminalLiveRangeError,
+        TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessPosition,
+        TerminalOperandPosition, TerminalVirtualInterference, TerminalVirtualLiveRange,
     };
 
     fn function() -> TerminalFunctionLiveRanges {
@@ -608,6 +696,7 @@ mod tests {
                 }],
                 edge_connectors: Vec::new(),
             }],
+            tied_pairs: Vec::new(),
             architectural_units: vec![TerminalArchitecturalUnitLiveRange {
                 unit: RegisterUnitId(0),
                 actions: Vec::new(),
@@ -642,5 +731,64 @@ mod tests {
             validate_canonical(0, &reversed),
             Err(TerminalLiveRangeError::NonCanonicalRows { .. })
         ));
+    }
+
+    #[test]
+    fn independent_tie_derivation_matches_production() {
+        let instruction = TerminalInstructionLiveness {
+            position: TerminalLivenessPosition(1),
+            instruction: omega_terminal_selected_instructions::TerminalSelectedInstructionId(1),
+            virtual_uses: vec![TerminalVirtualRegisterId(0)],
+            virtual_defs: vec![TerminalVirtualRegisterId(1)],
+            virtual_live_in: vec![TerminalVirtualRegisterId(0)],
+            virtual_live_out: vec![TerminalVirtualRegisterId(1)],
+            unit_uses: Vec::new(),
+            unit_defs: Vec::new(),
+            unit_clobbers: Vec::new(),
+            unit_live_in: Vec::new(),
+            unit_live_out: Vec::new(),
+        };
+        let live = TerminalFunctionLiveness {
+            machine: MachineId::new(1).unwrap(),
+            entry_definitions: Vec::new(),
+            operand_positions: vec![
+                TerminalOperandPosition {
+                    position: TerminalLivenessPosition(1),
+                    instruction: instruction.instruction,
+                    operand: 0,
+                    virtual_register: TerminalVirtualRegisterId(0),
+                    access: RegisterOperandAccess::Use,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: None,
+                    early_clobber: false,
+                },
+                TerminalOperandPosition {
+                    position: TerminalLivenessPosition(1),
+                    instruction: instruction.instruction,
+                    operand: 1,
+                    virtual_register: TerminalVirtualRegisterId(1),
+                    access: RegisterOperandAccess::Def,
+                    class: RegisterClassId(0),
+                    fixed_view: None,
+                    tied_to: Some(0),
+                    early_clobber: false,
+                },
+            ],
+            blocks: vec![TerminalBlockLiveness {
+                block: TerminalSelectedBlockId(0),
+                source_block: BlockId::new(1).unwrap(),
+                virtual_live_in: Vec::new(),
+                virtual_live_out: Vec::new(),
+                unit_live_in: Vec::new(),
+                unit_live_out: Vec::new(),
+                instructions: vec![instruction],
+                successors: Vec::new(),
+            }],
+        };
+        assert_eq!(
+            super::independently_derive_ties(0, &live).unwrap(),
+            crate::live_range_compute::derive_tied_pairs(0, &live).unwrap()
+        );
     }
 }

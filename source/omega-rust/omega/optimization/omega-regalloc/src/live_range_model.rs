@@ -42,8 +42,26 @@ pub struct TerminalFunctionLiveRanges {
     pub machine: MachineId,
     pub block_domains: Vec<TerminalBlockPointDomain>,
     pub virtual_registers: Vec<TerminalVirtualLiveRange>,
+    pub tied_pairs: Vec<TerminalDistinctUseDefTie>,
     pub architectural_units: Vec<TerminalArchitecturalUnitLiveRange>,
     pub interference: Vec<TerminalVirtualInterference>,
+}
+
+/// One exact same-home requirement between a distinct VReg use and definition.
+/// The use is observed at the instruction's before point and the definition at
+/// its after point; this is not `UseDef` and does not invent interference.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TerminalDistinctUseDefTie {
+    pub block: TerminalSelectedBlockId,
+    pub position: TerminalLivenessPosition,
+    pub instruction: TerminalSelectedInstructionId,
+    pub use_operand: u16,
+    pub use_virtual_register: TerminalVirtualRegisterId,
+    pub use_point: TerminalLiveRangePoint,
+    pub def_operand: u16,
+    pub def_virtual_register: TerminalVirtualRegisterId,
+    pub def_point: TerminalLiveRangePoint,
+    pub class: RegisterClassId,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -156,6 +174,7 @@ pub struct TerminalLiveRangeValidationReceipt {
     pub(crate) virtual_edge_connector_count: usize,
     pub(crate) architectural_edge_connector_count: usize,
     pub(crate) interference_count: usize,
+    pub(crate) tied_pair_count: usize,
 }
 
 impl TerminalLiveRangeValidationReceipt {
@@ -209,6 +228,9 @@ impl TerminalLiveRangeValidationReceipt {
     }
     pub const fn interference_count(self) -> usize {
         self.interference_count
+    }
+    pub const fn tied_pair_count(self) -> usize {
+        self.tied_pair_count
     }
 }
 
@@ -266,6 +288,9 @@ pub enum TerminalLiveRangeError {
         unit: u16,
     },
     InterferenceMismatch {
+        function: usize,
+    },
+    TiedPairMismatch {
         function: usize,
     },
     NonCanonicalRows {
