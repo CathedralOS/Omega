@@ -124,3 +124,44 @@ there is no placeholder that can pass. Even a green receipt closes only this
 candidate assembly join. Separate lower-rooted assembly/Mach-O reconstruction
 and direct refinement are required before the result is a runnable canonical
 Delta compiler artifact or compiler authority.
+
+## Responsibility-local attempt driver
+
+`lower_rooted_assembly_publication_v1_driver.py` is replaceable orchestration
+for this exact join. Its public lifecycle is:
+
+```text
+prepare ABSOLUTE_NEW_EVIDENCE_DIRECTORY
+status  ABSOLUTE_EVIDENCE_DIRECTORY
+finalize ABSOLUTE_EVIDENCE_DIRECTORY
+```
+
+`prepare` reconstructs the short-lived Beta compiler installation, extracts
+the assembler tape from the committed Alpha assembler artifact, builds the
+exact `omega2gamma.beta` and `interp.beta` tapes, stamps attempt-local Darwin
+executables, materializes the canonical LF image, and writes three explicit
+runner scripts. It does not elaborate the compiler or start either long Gamma
+execution. Ad-hoc-signed executable hashes are attempt-local mutation guards;
+they are never publication identities.
+
+The runner scripts are deliberate, direct commands. Elaboration and packing
+are sequential; the two execution scripts may then run independently. Each
+stage gets a fresh exclusive start marker and finish marker bound to the
+attempt token, preparation epoch, exact input/output identities, process
+status, elapsed diagnostic, and a declared time ceiling. They emit a heartbeat
+every 60 seconds. A stage is never resumed into an existing output or marker.
+
+`status` is read-only. Missing stages are pending, a start without a matching
+finish is running, and a coherent nonzero process status is failed. A marker
+from another token or preparation epoch, a finish without its start, changed
+inputs/outputs, future timestamps, or a start/finish cross-pair is malformed
+251 rather than reusable evidence. Status zero means all four stages are
+complete; status 3 means a coherent attempt is not complete.
+
+`finalize` starts no lower-rung process. It requires all four exact stage
+records, invokes only the frozen independent output decoder and V1 evidence
+reconstruction, applies the strict assembly validator, and writes the receipt
+last. Existing observations, decoded assemblies, or receipt make finalization
+fail closed rather than overwrite evidence. This lifecycle does not add a
+semantic stage, target authority, assembler/linker admission, or publication
+claim beyond the V1 receipt.
