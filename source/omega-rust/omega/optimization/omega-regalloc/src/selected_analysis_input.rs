@@ -5,7 +5,10 @@ use omega_terminal_selected_instructions::{
 use omega_terminal_target_operations_to_selected_instructions::ValidatedTerminalSelectedInstructions;
 use psi_core::FuelScheduleIdentity;
 
-use crate::{ValidatedTerminalFixedViewCopies, ValidatedTerminalLiteralFold};
+use crate::{
+    ValidatedTerminalFixedViewCopies, ValidatedTerminalLiteralFold,
+    ValidatedTerminalPressureRematerialization,
+};
 
 mod sealed {
     pub trait Sealed {}
@@ -63,6 +66,26 @@ impl ValidatedTerminalSelectedAnalysis for ValidatedTerminalFixedViewCopies {
 impl sealed::Sealed for ValidatedTerminalLiteralFold {}
 
 impl ValidatedTerminalSelectedAnalysis for ValidatedTerminalLiteralFold {
+    fn selected_plan(&self) -> &TerminalSelectedInstructionPlan {
+        self.transformed()
+    }
+
+    fn selected_identity(&self) -> TerminalSelectedInstructionPlanIdentity {
+        self.receipt().transformed_selected()
+    }
+
+    fn optimization_unit_identity(&self) -> OptimizationUnitIdentity {
+        self.receipt().optimization_unit()
+    }
+
+    fn fuel_schedule_identity(&self) -> FuelScheduleIdentity {
+        self.receipt().fuel_schedule()
+    }
+}
+
+impl sealed::Sealed for ValidatedTerminalPressureRematerialization {}
+
+impl ValidatedTerminalSelectedAnalysis for ValidatedTerminalPressureRematerialization {
     fn selected_plan(&self) -> &TerminalSelectedInstructionPlan {
         self.transformed()
     }

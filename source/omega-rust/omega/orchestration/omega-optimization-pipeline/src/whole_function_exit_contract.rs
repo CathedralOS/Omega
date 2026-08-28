@@ -1,6 +1,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use omega_machine_optimizer::{
+    TerminalAarch64CbnzFusionIdentity, TerminalAarch64CbnzInstructionDisposition,
     TerminalPhysicalOperandFootprint, TerminalPostAllocationMachineInstruction,
 };
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
@@ -23,14 +24,16 @@ use sha2::{Digest, Sha256};
 
 use crate::{
     OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
-    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
-    StagedOptimizedSelectedFormEncoding, StagedOptimizedX86BranchRelaxation,
-    TerminalResolvedSelectedFormLayoutIdentity, TerminalSelectedFormEncodingIdentity,
-    TerminalSelectedFormEncodingState, TerminalX86BranchRelaxationIdentity,
-    validate_optimized_resolved_selected_form_layout, validate_optimized_x86_branch_relaxation,
+    StagedOptimizedAarch64CbnzFusion, StagedOptimizedPostAllocationMachinePlan,
+    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    StagedOptimizedX86BranchRelaxation, TerminalResolvedSelectedFormLayoutIdentity,
+    TerminalSelectedFormEncodingIdentity, TerminalSelectedFormEncodingState,
+    TerminalX86BranchRelaxationIdentity, validate_optimized_resolved_selected_form_layout,
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion,
+    validate_optimized_x86_branch_relaxation,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v2\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v3\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalWholeFunctionExitContractIdentity([u8; 32]);
@@ -67,6 +70,9 @@ pub enum TerminalWholeFunctionExitLayoutCustody {
     BaselineNearLayoutV1,
     X86RelaxConditionalBranchesToRel8V1 {
         relaxation: TerminalX86BranchRelaxationIdentity,
+    },
+    Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
+        fusion: TerminalAarch64CbnzFusionIdentity,
     },
 }
 
@@ -313,6 +319,73 @@ pub fn validate_terminal_whole_function_exit_contract_after_x86_branch_relaxatio
         physical,
         encoding,
         relaxation.layout(),
+        layout_custody,
+    )?;
+    if replayed != contract.contract {
+        return Err(TerminalWholeFunctionExitContractError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Stage an exit contract over the independently replayed final CBNZ layout.
+/// The symbolic fusion receipt remains explicit authority for the zero-byte
+/// compare and fused branch; neither is admitted as an ordinary baseline row.
+pub fn stage_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+) -> Result<ValidatedTerminalWholeFunctionExitContract, TerminalWholeFunctionExitContractError> {
+    let layout_custody =
+        TerminalWholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
+            fusion: fusion.fusion().receipt().identity(),
+        };
+    let contract = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
+        layout_custody,
+    )?;
+    let validated = ValidatedTerminalWholeFunctionExitContract { contract };
+    validate_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion(
+        selected, machine, physical, encoding, fusion, layout, &validated,
+    )?;
+    Ok(validated)
+}
+
+/// Independently reconstruct the CBNZ encoding and final layout before
+/// accepting its whole-function exit contract.
+pub fn validate_terminal_whole_function_exit_contract_after_aarch64_cbnz_fusion<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    fusion: &StagedOptimizedAarch64CbnzFusion,
+    layout: &StagedOptimizedResolvedSelectedFormLayout,
+    contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<(), TerminalWholeFunctionExitContractError> {
+    validate_optimized_resolved_selected_form_layout_after_aarch64_cbnz_fusion(
+        selected, machine, physical, encoding, fusion, layout,
+    )
+    .map_err(TerminalWholeFunctionExitContractError::Layout)?;
+    let layout_custody =
+        TerminalWholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
+            fusion: fusion.fusion().receipt().identity(),
+        };
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
         layout_custody,
     )?;
     if replayed != contract.contract {
@@ -697,7 +770,16 @@ fn validate_non_return(
 ) -> Result<(), TerminalWholeFunctionExitContractError> {
     let effects = match &encoding.state {
         TerminalSelectedFormEncodingState::Encoded { footprint, bytes } => {
-            if conditional_terminator || bytes != &layout.bytes || layout.branch.is_some() {
+            let disposition_matches = match encoding.machine_disposition {
+                TerminalAarch64CbnzInstructionDisposition::RetainedV1 => bytes == &layout.bytes,
+                TerminalAarch64CbnzInstructionDisposition::ElidedCompareI64ZeroV1 { .. } => {
+                    layout.bytes.is_empty()
+                }
+                TerminalAarch64CbnzInstructionDisposition::FusedBranchNonZeroToCbnzV1 {
+                    ..
+                } => false,
+            };
+            if conditional_terminator || !disposition_matches || layout.branch.is_some() {
                 return Err(
                     TerminalWholeFunctionExitContractError::InstructionRosterMismatch(instruction),
                 );
@@ -876,6 +958,12 @@ fn contract_identity(
         } => {
             hasher.update([2]);
             hasher.update(relaxation.bytes());
+        }
+        TerminalWholeFunctionExitLayoutCustody::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1 {
+            fusion,
+        } => {
+            hasher.update([3]);
+            hasher.update(fusion.bytes());
         }
     }
     encode_target(&mut hasher, contract.target);
