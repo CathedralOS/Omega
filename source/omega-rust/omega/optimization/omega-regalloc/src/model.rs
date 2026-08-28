@@ -32,6 +32,11 @@ pub struct TerminalLivenessPlan {
     pub fuel_schedule: FuelScheduleIdentity,
     pub target: NativeTarget,
     pub functions: Vec<TerminalFunctionLiveness>,
+    /// Structural-ABI Unit functions retain their own roster even though the
+    /// current exact form has no allocator-managed virtual registers. Keeping
+    /// this separate prevents a zero-VReg result from erasing function, call,
+    /// return, or architectural-unit custody.
+    pub structural_unit_functions: Vec<TerminalFunctionLiveness>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -107,6 +112,7 @@ pub struct TerminalLivenessValidationReceipt {
     pub(crate) optimization_unit: OptimizationUnitIdentity,
     pub(crate) fuel_schedule: FuelScheduleIdentity,
     pub(crate) function_count: usize,
+    pub(crate) structural_unit_function_count: usize,
     pub(crate) block_count: usize,
     pub(crate) virtual_register_count: usize,
     pub(crate) instruction_count: usize,
@@ -134,6 +140,10 @@ impl TerminalLivenessValidationReceipt {
 
     pub const fn function_count(self) -> usize {
         self.function_count
+    }
+
+    pub const fn structural_unit_function_count(self) -> usize {
+        self.structural_unit_function_count
     }
 
     pub const fn block_count(self) -> usize {
@@ -180,6 +190,12 @@ impl ValidatedTerminalLiveness {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalLivenessError {
     RootMismatch,
+    DuplicateMachine {
+        machine: u64,
+    },
+    StructuralFunctionMismatch {
+        function: usize,
+    },
     UnsupportedUseDef {
         function: usize,
         instruction: u32,

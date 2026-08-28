@@ -17,6 +17,7 @@ pub(crate) fn compute_terminal_live_ranges(
     selected: &impl crate::ValidatedTerminalSelectedAnalysis,
     liveness: &ValidatedTerminalLiveness,
 ) -> Result<TerminalLiveRangePlan, TerminalLiveRangeError> {
+    reject_structural_unit_functions(liveness.plan().structural_unit_functions.len())?;
     let functions = selected
         .selected_plan()
         .functions
@@ -33,6 +34,14 @@ pub(crate) fn compute_terminal_live_ranges(
         target: selected.selected_plan().target,
         functions,
     })
+}
+
+fn reject_structural_unit_functions(count: usize) -> Result<(), TerminalLiveRangeError> {
+    if count == 0 {
+        Ok(())
+    } else {
+        Err(TerminalLiveRangeError::UnsupportedStructuralUnitFunctions { count })
+    }
 }
 
 fn compute_function(
@@ -626,8 +635,17 @@ mod tests {
 
     use super::{
         block_domain, build_unit, derive_early_clobbers, derive_tied_pairs, fragments_overlap,
-        virtual_fragments,
+        reject_structural_unit_functions, virtual_fragments,
     };
+
+    #[test]
+    fn structural_unit_liveness_fails_closed_before_range_erasure() {
+        assert_eq!(reject_structural_unit_functions(0), Ok(()));
+        assert_eq!(
+            reject_structural_unit_functions(2),
+            Err(crate::TerminalLiveRangeError::UnsupportedStructuralUnitFunctions { count: 2 })
+        );
+    }
     use crate::{
         TerminalBlockLiveness, TerminalFunctionLiveness, TerminalInstructionLiveness,
         TerminalLiveRangeFragment, TerminalLiveRangePoint, TerminalLivenessPosition,

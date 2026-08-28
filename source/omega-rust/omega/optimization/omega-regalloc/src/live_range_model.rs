@@ -292,6 +292,9 @@ pub enum TerminalLiveRangeError {
     LivenessRevalidation(TerminalLivenessError),
     LivenessReceiptMismatch,
     RootMismatch,
+    UnsupportedStructuralUnitFunctions {
+        count: usize,
+    },
     UnsupportedUseDef {
         function: usize,
         instruction: u32,
