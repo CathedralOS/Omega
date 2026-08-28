@@ -45,10 +45,10 @@ packages.
 > machinery. `source/omega/` owns all Omega-written product source, with its
 > target-neutral half under `source/omega/psi/`; the
 > live Psi lexical slice has landed while later phases remain open.
-> Bootstrap gates resolve cross-owner locations through the
+> Lattice runners resolve cross-owner locations through the
 > role manifest in `tools/lattice/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
-> the canonical bootstrap inventory is documented in the
+> the canonical compiler-sequence inventory is documented in the
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
 > while active lattice work is tracked in
 > [TASKS_BOOTSTRAP.md](../../TASKS_BOOTSTRAP.md).
@@ -344,7 +344,7 @@ move; the final implementation resolves std through the package graph.
   Psi. Omega consumes terminal Psi and owns abstract operations, target
   operations, assigned target operations, machine instructions, machine
   program, and machine bytes.
-- State graph and control flow are transitional bootstrap representations, not
+- State graph and control flow are transitional implementation representations, not
   durable language or cross-owner boundaries.
 - Do not skip from source-shaped trees to backend-specific structs.
 

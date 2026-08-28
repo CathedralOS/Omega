@@ -50,6 +50,6 @@ it under `compiler/validation/`.
   not semantic compiler stages and must be replaceable by direct invocation of
   the compiler artifacts they coordinate.
 - The Rust compiler at [`../omega-rust/`](../omega-rust/) is a comparator, not a
-  producer in the bootstrap chain.
+  producer in the direct compiler sequence.
 
 Active work is tracked in [`../../TASKS_BOOTSTRAP.md`](../../TASKS_BOOTSTRAP.md).
