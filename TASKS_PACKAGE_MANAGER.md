@@ -880,6 +880,19 @@ complete.
   Discovery and fetch still retain broad reads, and complete filesystem-read
   confinement remains unavailable.
 
+  Follow-up 2026-08-28: macOS HTTPS fetch now confines file-content reads to
+  the exact mutable quarantine, exact executable/runtime files, and the fixed
+  root-owned `/private/etc/ssl` system TLS configuration subtree. A fresh
+  public GitHub canary first failed closed on LibreSSL's exact
+  `/private/etc/ssl/openssl.cnf` read; admitting that fixed subtree was
+  sufficient for the complete fetch, authentication, and snapshot path.
+  Native canaries prove mutable-root and TLS-configuration reads succeed while
+  adjacent content and an escaping symlink fail. Test-only local Git transport
+  remains on the broad-read profile and cannot enter production requests. Git
+  cache policy v19 prevents reuse of HTTPS state fetched under the broader
+  policy. This does not establish TLS trust/custody, and discovery plus SSH
+  fetch remain broad; Q16 separately blocks strict SSH authority.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

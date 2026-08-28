@@ -11,8 +11,9 @@ acceptance authority. Compilation consumes a resolver-owned immutable snapshot,
 never a live local tree, Git working tree, or helper-produced claim.
 
 The intended strict production path has three custody stages. The current
-macOS floor now confines repository-initialization and inspection file content
-but does not yet enforce read separation for network phases or metadata:
+macOS floor now confines repository-initialization, inspection, and HTTPS-fetch
+file content but does not yet enforce read separation for discovery, SSH fetch,
+or metadata:
 
 1. A fetch helper resolves transport into a fresh quarantined object store. In
    the strict boundary it has the selected transport authority and no access to
@@ -53,10 +54,12 @@ establish a required guarantee, strict resolution rejects; it never degrades to
 The current macOS engineering floor now selects a fixed Seatbelt launcher and
 closed resolver phase; it is described below. Every phase uses a self-contained
 compiler-generated policy with no host-profile import and confines writes and
-executable paths; the nonnetwork phases also deny network. Discovery and fetch
-reads remain broad. Initialization and inspection confine file-content reads to
-their exact mutable quarantine or retained repository and fixed runtime files
-while retaining broad metadata reads. Each network phase confines its child to one compiler-owned
+executable paths; the nonnetwork phases also deny network. Discovery and SSH
+fetch reads remain broad. Initialization, inspection, and HTTPS fetch confine
+file-content reads to their exact mutable quarantine or retained repository and
+fixed runtime files while retaining broad metadata reads. HTTPS fetch also
+admits the fixed `/private/etc/ssl` system TLS configuration root. Each network
+phase confines its child to one compiler-owned
 loopback broker port. The broker accepts only the normalized host and port derived from the
 validated locator and records the effective connected peer. Linux and Windows
 route selected helpers through the same broker but do not yet deny direct
@@ -122,10 +125,12 @@ authentication, snapshot identity, and final publication verdict.
 
 Every macOS phase uses a compiler-generated default-deny profile with no import.
 All grant exact selected executables and write-data to `/dev/null`. Discovery
-and fetch grant broad reads. Initialization and inspection grant broad metadata
-reads but file-content reads only beneath the exact mutable quarantine or
-retained bare repository, from the exact executable set, `/dev/null`, and the
-literal filesystem-root directory entry required by the native process runtime.
+and SSH fetch grant broad reads. Initialization, inspection, and HTTPS fetch
+grant broad metadata reads but file-content reads only beneath the exact mutable
+quarantine or retained bare repository, from the exact executable set,
+`/dev/null`, and the literal filesystem-root directory entry required by the
+native process runtime. HTTPS fetch additionally admits `/private/etc/ssl`;
+that fixed path is not evidence that TLS trust or custody was established.
 Initialization and fetch additionally grant writes only beneath the exact
 mutable quarantine root. Discovery and fetch require the already-validated
 closed HTTPS or SSH transport authority and grant outbound network. Only SSH
@@ -140,8 +145,8 @@ phase. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
 descendant containment is `Enforced` for initialization and inspection. The
 exact compiler-owned rlimit rows are `Enforced` throughout macOS.
-Because nonnetwork metadata remains broad and network phases retain broad
-content reads, `FilesystemReadsConfined` remains `Unavailable`.
+Because metadata remains broad and discovery/SSH fetch retain broad content
+reads, `FilesystemReadsConfined` remains `Unavailable`.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
 requires every observation's executable path set to equal the paths backed by

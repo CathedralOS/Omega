@@ -55,6 +55,8 @@ const MACOS_DIRECTORY_LOOKUP_SERVICE: &str = "com.apple.system.opendirectoryd.li
 const MACOS_HOSTNAME_SYSCTL: &str = "kern.hostname";
 #[cfg(target_os = "macos")]
 const MACOS_RUST_RUNTIME_PAGE_SIZE_SYSCTL: &str = "hw.pagesize_compat";
+#[cfg(target_os = "macos")]
+const MACOS_TLS_CONFIGURATION_ROOT: &str = "/private/etc/ssl";
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -814,21 +816,29 @@ impl ResolverExecutionBackend {
             profile.push_str("(allow process-fork) ");
         }
         profile.push_str("(allow signal) ");
-        if matches!(
+        let confines_content_reads = matches!(
             phase,
             ResolverExecutionPhase::RepositoryInitialization
                 | ResolverExecutionPhase::RepositoryInspection
-        ) {
-            let read_root_parameter = if phase == ResolverExecutionPhase::RepositoryInspection {
-                "INSPECTION_READ_ROOT"
-            } else {
-                "MUTABLE_ROOT"
+        ) || (phase == ResolverExecutionPhase::Fetch
+            && network_transport == Some(ResolverExecutionNetworkTransport::Https));
+        if confines_content_reads {
+            let read_root_parameter = match phase {
+                ResolverExecutionPhase::RepositoryInspection => "INSPECTION_READ_ROOT",
+                ResolverExecutionPhase::RepositoryInitialization
+                | ResolverExecutionPhase::Fetch => "MUTABLE_ROOT",
+                ResolverExecutionPhase::TransportDiscovery => unreachable!(),
             };
             profile.push_str("(allow file-read-metadata) (allow file-read-data (subpath (param \"");
             profile.push_str(read_root_parameter);
             profile.push_str("\")) (literal (param \"EXECUTABLE_0\"))");
             for index in 0..additional_executables.len() {
                 profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
+            }
+            if phase == ResolverExecutionPhase::Fetch
+                && network_transport == Some(ResolverExecutionNetworkTransport::Https)
+            {
+                profile.push_str(&format!(" (subpath \"{MACOS_TLS_CONFIGURATION_ROOT}\")"));
             }
             profile.push_str(&format!(
                 " (literal \"{}\") (literal \"{MACOS_NULL_DEVICE}\")) ",
@@ -1675,10 +1685,22 @@ mod tests {
                 Some(&mutable_root),
             )
             .expect("issue fetch policy observation");
+        let https_fetch_route = loopback_route(&backend);
+        let (https_fetch_command, https_fetch) = backend
+            .command_with_endpoint_route_observation(
+                executable,
+                &[],
+                ResolverExecutionPhase::Fetch,
+                Some(ResolverExecutionNetworkTransport::Https),
+                Some(&https_fetch_route),
+                Some(&mutable_root),
+            )
+            .expect("issue HTTPS fetch policy observation");
         assert!(inspection.generated_policy_sha256().is_some());
         assert!(initialization.generated_policy_sha256().is_some());
         assert!(discovery.generated_policy_sha256().is_some());
         assert!(fetch.generated_policy_sha256().is_some());
+        assert!(https_fetch.generated_policy_sha256().is_some());
         assert_ne!(
             inspection.generated_policy_sha256(),
             fetch.generated_policy_sha256()
@@ -1691,6 +1713,7 @@ mod tests {
             discovery.canonical_bytes(),
             https_discovery.canonical_bytes()
         );
+        assert_ne!(fetch.canonical_bytes(), https_fetch.canonical_bytes());
 
         let profile = |command: &std::process::Command| {
             let arguments = command.get_args().collect::<Vec<_>>();
@@ -1774,6 +1797,17 @@ mod tests {
         ));
         assert!(fetch_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
         assert!(fetch_profile.contains("(allow sysctl-read (sysctl-name \"hw.pagesize_compat\"))"));
+        assert!(fetch_profile.contains("(allow file-read*)"));
+        let https_fetch_profile = profile(&https_fetch_command);
+        assert!(!https_fetch_profile.contains("(allow file-read*)"));
+        assert!(https_fetch_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            https_fetch_profile
+                .contains("(allow file-read-data (subpath (param \"MUTABLE_ROOT\"))")
+        );
+        assert!(https_fetch_profile.contains("(subpath \"/private/etc/ssl\")"));
+        assert!(!https_fetch_profile.contains("mach-lookup"));
+        assert!(!https_fetch_profile.contains("sysctl-read"));
 
         let disposition = |observation: &super::ResolverExecutionPolicyObservation, guarantee| {
             observation
@@ -2100,6 +2134,77 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
+    fn seatbelt_https_fetch_confines_file_content_to_mutable_and_tls_roots() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-https-fetch-read-{}-{sequence}",
+            std::process::id()
+        ));
+        let mutable_root = parent.join("mutable");
+        std::fs::create_dir_all(&mutable_root).expect("create HTTPS fetch mutable root");
+        let mutable_root = mutable_root
+            .canonicalize()
+            .expect("canonicalize HTTPS fetch mutable root");
+        let inside = mutable_root.join("inside");
+        let sibling = parent.join("sibling");
+        let escaped_link = mutable_root.join("escaped-link");
+        std::fs::write(&inside, b"inside").expect("write inside canary");
+        std::fs::write(&sibling, b"sibling").expect("write sibling canary");
+        symlink(&sibling, &escaped_link).expect("create escaping symlink");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let route = loopback_route(&backend);
+        let build_command = || {
+            let (mut command, _observation) = backend
+                .command_with_endpoint_route_observation(
+                    Path::new("/bin/cat"),
+                    &[],
+                    ResolverExecutionPhase::Fetch,
+                    Some(ResolverExecutionNetworkTransport::Https),
+                    Some(&route),
+                    Some(&mutable_root),
+                )
+                .expect("build HTTPS fetch content sandbox");
+            command.current_dir(&mutable_root);
+            command
+        };
+
+        let output = build_command()
+            .arg(&inside)
+            .output()
+            .expect("read mutable-root content");
+        assert!(output.status.success());
+        assert_eq!(output.stdout, b"inside");
+        let output = build_command()
+            .arg("/private/etc/ssl/openssl.cnf")
+            .output()
+            .expect("read fixed TLS configuration");
+        assert!(output.status.success());
+        assert!(!output.stdout.is_empty());
+
+        for denied_path in [&sibling, &escaped_link] {
+            let output = build_command()
+                .arg(denied_path)
+                .output()
+                .expect("attempt escaped HTTPS fetch content read");
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+        }
+        route.finish().expect("finish HTTPS fetch route");
+
+        std::fs::remove_file(escaped_link).expect("remove escaping symlink");
+        std::fs::remove_file(inside).expect("remove inside canary");
+        std::fs::remove_file(sibling).expect("remove sibling canary");
+        std::fs::remove_dir(mutable_root).expect("remove HTTPS fetch mutable root");
+        std::fs::remove_dir(parent).expect("remove HTTPS fetch parent");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
     fn seatbelt_inspection_allows_only_the_fixed_null_write_sink() {
         use std::sync::atomic::{AtomicU64, Ordering};
 
@@ -2225,6 +2330,7 @@ mod tests {
             )
             .map(|(command, _)| command)
             .expect("build closed-executable sandbox");
+        command.current_dir(&output);
         let status = command
             .args(["-c", "/usr/bin/touch \"$1\"", "resolver-test"])
             .arg(&marker)

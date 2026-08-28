@@ -41,7 +41,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::time::{Duration, Instant, SystemTime};
 
-const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v18";
+const GIT_CACHE_POLICY: &[u8] = b"omega-git-cache-v19";
 const GIT_CACHE_METADATA: &str = "source.identity";
 const GIT_CACHE_REPOSITORY: &str = "repository";
 const GIT_CACHE_SNAPSHOTS: &str = "snapshots";
@@ -189,7 +189,7 @@ impl GitExecutionTransport {
             Self::Ssh => ResolverExecutionNetworkTransport::Ssh,
             Self::Https => ResolverExecutionNetworkTransport::Https,
             #[cfg(test)]
-            Self::File => ResolverExecutionNetworkTransport::Https,
+            Self::File => ResolverExecutionNetworkTransport::Ssh,
         }
     }
 

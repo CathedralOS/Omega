@@ -246,10 +246,12 @@ Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
 inspection content-read root when applicable, and mutable root. Every macOS
 phase uses a host-profile-free default-deny policy with exact selected
-executables and write-data to `/dev/null`. Discovery and fetch retain broad
-reads; initialization and inspection permit broad metadata reads but confine
-file-content reads to their exact mutable quarantine or retained bare
-repository and fixed runtime files.
+executables and write-data to `/dev/null`. Discovery and SSH fetch retain broad
+reads; initialization, inspection, and HTTPS fetch permit broad metadata reads
+but confine file-content reads to their exact mutable quarantine or retained
+bare repository and fixed runtime files. HTTPS fetch additionally reads the
+fixed `/private/etc/ssl` system TLS configuration root; this does not establish
+TLS trust or custody.
 Initialization and fetch additionally confine writes to the exact mutable
 quarantine root. Discovery and fetch require one closed authority matching the
 already-validated HTTPS or SSH transport and admit outbound network. Only SSH
@@ -370,7 +372,7 @@ as the parent Git executable and are rechecked around every launch and at
 completion. On macOS that floor also reads native extended ACLs for invocation
 entries, canonical targets, and every ancestor; any allow entry rejects even
 when ordinary mode bits appear safe. Deny-only entries do not broaden custody,
-and an unreadable ACL fails closed. Cache policy v18 separates entries
+and an unreadable ACL fails closed. Cache policy v19 separates entries
 predating this transport-executable, cumulative-output, endpoint-brokerage, and
 nonnetwork descendant-denial and content-read floor. HTTPS receives
 an exact command-scoped proxy. SSH uses the separately
