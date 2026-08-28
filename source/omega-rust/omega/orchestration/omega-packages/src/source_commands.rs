@@ -184,13 +184,13 @@ pub fn audit_package_source(
             Ok(PackageSourceAudit {
                 source_kind: "git".to_owned(),
                 locator: request.locator_identity().to_owned(),
-                transport_profile: Some(resolved.transport_profile.as_str().to_owned()),
-                requested_rev: Some(resolved.requested_rev),
-                resolved_commit: Some(resolved.commit),
-                resolved_tree: Some(resolved.tree),
-                content_identity: resolved.local.content_identity,
-                file_count: resolved.local.file_count,
-                byte_count: resolved.local.byte_count,
+                transport_profile: Some(resolved.transport_profile().as_str().to_owned()),
+                requested_rev: Some(resolved.requested_revision().to_owned()),
+                resolved_commit: Some(resolved.commit().to_owned()),
+                resolved_tree: Some(resolved.tree().to_owned()),
+                content_identity: resolved.local().content_identity.clone(),
+                file_count: resolved.local().file_count,
+                byte_count: resolved.local().byte_count,
             })
         }
     }

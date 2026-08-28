@@ -679,11 +679,14 @@ complete.
 
   Follow-up 2026-08-28: the macOS backend now opens, custody-checks, and hashes
   exact root-owned `system.sb` and `dyld-support.sb` bytes; requires exactly the
-  one known import edge and no transitive imports; revalidates metadata, ACL,
-  topology, and content around command construction; and includes both profile
-  identities in canonical backend observation. Changed topology rejects. This
-  closes imported-policy identity drift, not semantic safety: the known broad
-  and special grants keep strict filesystem/network/exec rows unavailable.
+  currently audited canonical import-line spellings; revalidates metadata, ACL,
+  recognized topology, and content around command construction; and includes
+  both profile identities in canonical backend observation. Changed recognized
+  topology rejects. The recognizer is not a complete Seatbelt grammar parser,
+  so it does not prove absence of every syntactically possible hidden import.
+  This binds the exact known host-profile bytes without claiming semantic
+  safety: the known broad and special grants keep strict filesystem/network/
+  exec rows unavailable.
 
   Follow-up 2026-08-28: successful Git resolution now requires the retained
   policy-observation count to equal the bounded launch count and requires each
@@ -701,8 +704,23 @@ complete.
   code or signal and exact bounded stdout/stderr lengths and digests join
   positionally to the native policy-observation digest. Successful resolution
   requires launch, policy, and outcome counts to agree. Effective endpoint,
-  transferred bytes, aggregate resource observations, and the final accepted
-  source verdict remain outside this non-admitting provenance rung.
+  transferred bytes, aggregate resource observations, and strict acceptance
+  remain outside this provenance rung.
+
+  Follow-up 2026-08-28: after the outer resolver also reconciles retained cache
+  namespace/custody and final executable content, it physically reopens and
+  re-hashes the published snapshot under the original exact-tree policy while
+  the cache lock remains held. Only then does it convert the private pending
+  result into a sealed public `ResolvedGitSource` and issue one compact
+  canonical `GitSourceResolutionObservation`. Public result state is read-only.
+  The observation binds compiler source ceilings, request and normalized
+  locator, transport/object format, commit/tree, immutable snapshot subject,
+  exact Git/transport/helper content, all native policy rows, and all completed-
+  command rows. It has no public constructor or decoder, is sensitive to policy
+  changes, and carries only the fixed outcome `resolved-non-admitting`. This
+  closes the final successful-result join without pretending unavailable
+  containment, endpoint/credential trust, transfer/resource accounting, or
+  strict receipt acceptance exists.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

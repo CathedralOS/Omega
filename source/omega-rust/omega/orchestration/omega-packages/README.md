@@ -245,19 +245,31 @@ policy observations issued from the same inputs as each native command.
 Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
 and mutable root. The exact root-owned `system.sb`/`dyld-support.sb` bytes and
-closed import edge now enter backend identity and are revalidated. Their known
-special grants still leave filesystem/network/exec rows unavailable rather
-than overstated; strict checking rejects them. Before returning a successful resolution, the package
-layer requires one observation per bounded launch and exact equality between
-every observed allowlist path and the verified content identities for Git, the
-selected transport, and fixed platform helpers; all helper identities remain
-in the result. Each completed command also retains a domain-separated digest of
+currently recognized canonical import lines now enter backend identity and are
+revalidated. The line recognizer is not a complete Seatbelt grammar parser;
+exact profile hashes bind host policy bytes but do not prove every possible
+import absent. Their known special grants still leave filesystem/network/exec
+rows unavailable rather than overstated; strict checking rejects them. Before
+returning a successful resolution, the package layer requires one observation
+per bounded launch and exact equality between every observed allowlist path and
+the verified content identities for Git, the selected transport, and fixed
+platform helpers; all helper identities remain in the result. Each completed
+command also retains a domain-separated digest of
 its actual program, ordered arguments, sealed environment, cwd, and stdin class,
 then exact exit/signal and bounded stdout/stderr length/digest results joined to
 the corresponding native policy digest. Counts must match before success.
-Linux/Windows strict backends and the complete
-execution-bound source receipt remain open, so this does not promote diagnostic
-source commands into admission.
+Only after cache custody, executable content, those command rows, authenticated
+Git objects, and a final physical re-read of the immutable snapshot all
+reconcile under the retained cache lock does the resolver seal its private
+pending result and issue one compact canonical final-result observation. The
+public result exposes read-only accessors rather than mutable evidence fields.
+The observation also binds the source ceilings, request/selector, object format
+and identities, snapshot subject, and tool identities. The fixed outcome is
+explicitly `resolved-non-admitting`:
+unavailable native guarantees remain unavailable. Linux/Windows strict
+backends, endpoint/credential evidence, transfer/resource accounting, and the
+complete source receipt remain open, so this does not promote diagnostic source
+commands into admission.
 
 The crate now contains reviewed building blocks for immutable Git/local
 snapshots, hermetic package-name extraction, and typed package/source identity.
