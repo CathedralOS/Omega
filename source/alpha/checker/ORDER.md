@@ -75,7 +75,7 @@ does not block `gen`, because `gen` binds a *new* variable `y ≠ x`; the proof 
 `∀y. (x=0 → …)`, never `∀x. x=0`. The de Bruijn structure already prevents the unsound
 conflation; correct shifting just lets the checker *see* that.
 
-**Verified** against the full battery (`verify-lattice.sh`): every prior accept/reject
+**Verified** against the checker owner's direct gates: every prior accept/reject
 unchanged; the soundness suite still rejects every bad certificate, now including the
 minimal adversarial pair `P(x) → ∀y.P(y)` and `x=0 → ∀x.x=0` (both **rejected**), while the
 sound `P(x) → ∀y.P(x)` is accepted; both checkers agree on an open-hypothesis `unpack` and
