@@ -1261,19 +1261,29 @@ dependency.
   one shared entry parameter, two-immediate exact add, and two-immediate exact
   subtract. Its opaque receipt explicitly reports zero decompositions. Both
   x86-64 and AArch64 pass through this boundary; non-u64 and general shapes
-  fail there rather than later in selection. Selection constraints are now
-  derived from the validated legal carrier, the selected validation receipt
-  binds its identity, and every later staged custody replay retains it.
+  fail there rather than later in selection. A separately implemented,
+  plan-driven validator now replays every admitted V1 field directly from the
+  raw target, abstract-plan, and verified optimization-unit custody without
+  calling the canonicalizer or constructing an expected legal plan. Its
+  domain-separated validator identity is retained by the legal receipt,
+  selected receipt, and later staged custody. Architecture tests forbid replay
+  from importing producer or selection helpers. Selection constraints are
+  derived from the validated legal carrier, and every later staged custody
+  replay retains its identity.
 
   Remaining to close: define a general CFG-shaped legalized value/operation
   vocabulary with non-Psi temporary identities and complete source-occurrence
-  expansion maps; split legalization replay into an implementation independent
-  from the canonicalizer; bind a complete legality profile (target profile,
-  ABI, feature/capability set, and applicable semantic catalog); and land at
-  least one real illegal-width or illegal-shape decomposition with exact
-  proof/effect/provenance/fuel partitioning. Legalization is mandatory
-  correctness normalization, never an `O` level or build-selectable
-  optimization family.
+  expansion maps; bind a complete legality profile (target profile, ABI,
+  feature/capability set, and applicable semantic catalog); and land at least
+  one real illegal-width or illegal-shape decomposition with exact proof/
+  effect/provenance/fuel partitioning. The first bounded candidate is an
+  accepted overflow-free unsigned-u8 exact add followed by a u8-to-u64 widen:
+  independent replay must prove the widen/add commuting theorem and preserve
+  the constant, add, widen, obligation, definition-site, provenance, and fuel
+  custody before the existing u64 selected vocabulary may consume it. Direct
+  narrow returns remain rejected until ABI extension semantics are explicit.
+  Legalization is mandatory correctness normalization, never an `O` level or
+  build-selectable optimization family.
 
 - **OPT-TARGET-COMBINES.** Add exact immediate folding, addressing-mode folding,
   compare/branch formation, strength reduction, and target instruction

@@ -10,6 +10,7 @@
 
 use std::collections::BTreeSet;
 
+use omega_optimization_core::OptimizationValidatorIdentity;
 use omega_optimization_unit::{
     FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
 };
@@ -36,8 +37,16 @@ use omega_terminal_selected_instructions::{
 use omega_terminal_target_operations::TerminalTargetOperationPlan;
 use psi_core::{IntegerSign, ScalarType};
 
+mod legalization_replay;
 mod source;
+use legalization_replay::replay_terminal_legalized_plan;
 use source::derive_source_functions;
+
+pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
+    OptimizationValidatorIdentity::from_canonical_bytes(
+        b"omega.terminal-target-legalization-independent-replay.v1",
+    )
+}
 
 /// Opaque custody of the canonical V1 target-legal projection.
 ///
@@ -62,6 +71,7 @@ impl ValidatedTerminalLegalizedOperations {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct TerminalLegalizationValidationReceipt {
     identity: TerminalLegalizedOperationPlanIdentity,
+    validator: OptimizationValidatorIdentity,
     optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
     fuel_schedule: psi_core::FuelScheduleIdentity,
     target: omega_target::NativeTarget,
@@ -72,6 +82,10 @@ pub struct TerminalLegalizationValidationReceipt {
 impl TerminalLegalizationValidationReceipt {
     pub const fn identity(self) -> TerminalLegalizedOperationPlanIdentity {
         self.identity
+    }
+
+    pub const fn validator(self) -> OptimizationValidatorIdentity {
+        self.validator
     }
 
     pub const fn optimization_unit(self) -> omega_optimization_core::OptimizationUnitIdentity {
@@ -148,6 +162,7 @@ impl ValidatedTerminalSelectedInstructions {
 pub struct TerminalSelectedInstructionValidationReceipt {
     identity: TerminalSelectedInstructionPlanIdentity,
     legalized: TerminalLegalizedOperationPlanIdentity,
+    legalization_validator: OptimizationValidatorIdentity,
     optimization_unit: omega_optimization_core::OptimizationUnitIdentity,
     fuel_schedule: psi_core::FuelScheduleIdentity,
     function_count: usize,
@@ -163,6 +178,10 @@ impl TerminalSelectedInstructionValidationReceipt {
 
     pub const fn legalized(self) -> TerminalLegalizedOperationPlanIdentity {
         self.legalized
+    }
+
+    pub const fn legalization_validator(self) -> OptimizationValidatorIdentity {
+        self.legalization_validator
     }
 
     pub const fn optimization_unit(self) -> omega_optimization_core::OptimizationUnitIdentity {
@@ -290,27 +309,19 @@ pub fn legalize_terminal_target_operations(
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Reconstruct the exact admitted V1 projection from the raw target, abstract,
-/// and verified optimization-unit custody and compare every canonical field.
+/// Independently replay the exact admitted V1 projection from the raw target,
+/// abstract, and verified optimization-unit custody against every proposed
+/// field.
 pub fn validate_terminal_legalized_operations(
     target: &TerminalTargetOperationPlan,
     abstract_plan: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
     plan: TerminalLegalizedOperationPlan,
 ) -> Result<ValidatedTerminalLegalizedOperations, TerminalLegalizationError> {
-    let expected = TerminalLegalizedOperationPlan {
-        terminal_psi: target.terminal_psi,
-        optimization_unit: unit.identity,
-        fuel_schedule: unit.fuel_schedule,
-        target: target.target,
-        entry: target.entry,
-        functions: derive_source_functions(target, abstract_plan, unit)?,
-    };
-    if plan != expected {
-        return Err(TerminalLegalizationError::NonCanonicalLegalizedPlan);
-    }
+    replay_terminal_legalized_plan(target, abstract_plan, unit, &plan)?;
     let receipt = TerminalLegalizationValidationReceipt {
         identity: terminal_legalized_operation_plan_identity(&plan),
+        validator: terminal_legalization_validator_identity(),
         optimization_unit: unit.identity,
         fuel_schedule: unit.fuel_schedule,
         target: target.target,
@@ -2093,6 +2104,7 @@ fn receipt(
     TerminalSelectedInstructionValidationReceipt {
         identity: terminal_selected_instruction_plan_identity(plan),
         legalized: legalized.receipt().identity(),
+        legalization_validator: legalized.receipt().validator(),
         optimization_unit: legalized.receipt().optimization_unit(),
         fuel_schedule: legalized.receipt().fuel_schedule(),
         function_count,
