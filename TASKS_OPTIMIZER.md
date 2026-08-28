@@ -290,14 +290,28 @@ These facts constrain the work below.
   `MachineId`, wrapper bytes, runtime root values, bootstrap, image,
   installation, or publication authority.
 
+  A following pure semantic wrapper plan is now concrete. Derived only from
+  that validated contract, it independently replays the exact Microsoft-x64
+  Image/InitialStorage forwarding recipe: preserve the incoming indirect
+  `RCX`/`RDX` roots, reserve and release one balanced 72-byte outgoing frame,
+  copy the four Extent words into the ABI copy area, bind the two copied
+  addresses back to `RCX`/`RDX`, and call one unresolved compiler-private
+  continuation. Its function-relative `rel32` requirement is symbolic and its
+  physical disposition remains `PlannedNotInvokedV1`; it owns no `MachineId`,
+  symbol, emitted bytes, runtime values, bootstrap, image, installation, or
+  publication authority.
+
   The current zero-VReg Unit legalization is deliberately narrower than that
-  future wrapper. Producer and independent replay now reject structural
+  wrapper plan. Producer and independent replay now reject structural
   parameters, entry claims, declared places, and published-service
   custody because the closed Unit record cannot represent them. A regression
   test proves a structurally parameterized bare `ReturnUnit` fails at
-  legalization instead of silently losing its ABI. The correct semantic
-  wrapper needs a distinct call-aware form that transfers both linear extents
-  to the private Terminal symbol before returning Unit.
+  legalization instead of silently losing its ABI; a separate regression
+  proves that static attachment identity is retained without inventing a
+  receiver. The remaining semantic object path needs a distinct call-aware
+  Unit form that transfers both linear extents to the private Terminal symbol
+  before returning Unit, then binds that symbol and its span to the wrapper's
+  symbolic call requirement.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -2416,10 +2430,13 @@ dependency.
   now retained through receipt-coupled Terminal production and independently
   replayed native settlement. A separate declaration-only ProgramStorage
   contract validates the exact two roots, semantic calling plan, and retained
-  non-invoked physical plan. The next boundary must join that settlement and
-  contract to the applicable Unit object, then construct a distinct call-aware
-  semantic `ProgramStorageEntry` wrapper object that passes the
-  two `Extent in Granted` roots to the private Terminal symbol. The scalar-
+  non-invoked physical plan. A pure address-free wrapper plan now fixes the
+  exact root-copy sequence, balanced 72-byte frame, private-continuation call
+  slot, and function-relative `rel32` requirement without claiming symbols or
+  bytes. The next boundary must add the structural, claim-preserving call-aware
+  Unit backend form, join its applicable object and private symbol with the
+  settlement, contract, and wrapper plan, then construct the semantic
+  `ProgramStorageEntry` wrapper object. The scalar-
   result conditional fixture used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
   physical shell planned and non-invoked: no authoritative contract maps
