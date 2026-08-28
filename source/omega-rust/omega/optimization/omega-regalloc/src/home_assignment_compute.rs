@@ -825,4 +825,67 @@ mod tests {
             })
         ));
     }
+
+    #[test]
+    fn tied_component_coexists_with_disjoint_early_clobber_row() {
+        let physical = physical();
+        let mut legality = legality(&[(0, 1), (2, 3), (4, 5), (6, 8), (9, 10)]);
+        legality.virtual_registers[4].early_clobber_points =
+            vec![TerminalVirtualEarlyClobberPointLegality {
+                block: TerminalSelectedBlockId(0),
+                position: TerminalLivenessPosition(4),
+                instruction: TerminalSelectedInstructionId(4),
+                operand: 1,
+                point: TerminalLiveRangePoint(8),
+                candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+            }];
+
+        let mut ranges = tied_component_ranges(&[]);
+        ranges
+            .virtual_registers
+            .extend((3..=4).map(|register| TerminalVirtualLiveRange {
+                virtual_register: TerminalVirtualRegisterId(register),
+                class: RegisterClassId(0),
+                occurrences: Vec::new(),
+                fixed_constraints: Vec::new(),
+                fragments: Vec::new(),
+                edge_connectors: Vec::new(),
+            }));
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(4),
+            instruction: TerminalSelectedInstructionId(4),
+            early_point: TerminalLiveRangePoint(8),
+            def_operand: 1,
+            def_virtual_register: TerminalVirtualRegisterId(4),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(9),
+            uses: vec![TerminalEarlyClobberUse {
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(3),
+                class: RegisterClassId(0),
+            }],
+        });
+
+        let homes = compute_function(0, &legality, &ranges, &physical).unwrap();
+        assert_eq!(
+            homes
+                .assignments
+                .iter()
+                .map(|assignment| assignment.view)
+                .collect::<Vec<_>>(),
+            vec![
+                RegisterViewId(0),
+                RegisterViewId(0),
+                RegisterViewId(0),
+                RegisterViewId(0),
+                RegisterViewId(1),
+            ]
+        );
+        assert_eq!(
+            crate::home_assignment_validate::replay_function(0, &legality, &ranges, &physical)
+                .unwrap(),
+            homes
+        );
+    }
 }
