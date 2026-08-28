@@ -20,6 +20,10 @@ impl ImportQueue {
         Ok(())
     }
 
+    pub fn mark_loaded(&mut self, path: PathBuf) {
+        self.seen.insert(path);
+    }
+
     pub fn has_pending(&self) -> bool {
         !self.pending.is_empty()
     }

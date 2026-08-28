@@ -1,3 +1,5 @@
+use super::build_staged_output::PackageGeneratedSource;
+use super::package_source_consumption::PackageSourceConsumptionCommitment;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use std::collections::{BTreeMap, BTreeSet};
@@ -85,6 +87,56 @@ pub struct PackageDependencyClosure {
     dependencies: Vec<PackageDependencyBinding>,
 }
 
+/// Exact generated Omega source handed off by one successfully checked package
+/// build. Construction remains compiler-private: carrying this value proves
+/// only that one compiler run produced these bytes, not package admission.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PackageGeneratedSourceBundle {
+    package: PackageKeyIdentity,
+    target: omega_target::TargetProfile,
+    dependency_closure: PackageDependencyClosure,
+    source_consumption_commitment: PackageSourceConsumptionCommitment,
+    sources: Vec<PackageGeneratedSource>,
+}
+
+impl PackageGeneratedSourceBundle {
+    pub(crate) fn from_checked(
+        package: PackageKeyIdentity,
+        target: omega_target::TargetProfile,
+        dependency_closure: PackageDependencyClosure,
+        source_consumption_commitment: PackageSourceConsumptionCommitment,
+        sources: Vec<PackageGeneratedSource>,
+    ) -> Self {
+        Self {
+            package,
+            target,
+            dependency_closure,
+            source_consumption_commitment,
+            sources,
+        }
+    }
+
+    pub const fn package(&self) -> PackageKeyIdentity {
+        self.package
+    }
+
+    pub const fn target(&self) -> omega_target::TargetProfile {
+        self.target
+    }
+
+    pub const fn dependency_closure(&self) -> &PackageDependencyClosure {
+        &self.dependency_closure
+    }
+
+    pub const fn source_consumption_commitment(&self) -> PackageSourceConsumptionCommitment {
+        self.source_consumption_commitment
+    }
+
+    pub fn sources(&self) -> &[PackageGeneratedSource] {
+        &self.sources
+    }
+}
+
 impl PackageDependencyClosure {
     pub const fn root(&self) -> PackageKeyIdentity {
         self.root
@@ -170,6 +222,7 @@ pub struct PackageCompilationInputs {
     /// diagnostics. Security decisions continue to compare exact identities.
     package_names: BTreeMap<PackageKeyIdentity, String>,
     dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
+    dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
 }
 
 impl PackageCompilationInputs {
@@ -298,6 +351,7 @@ impl PackageCompilationInputs {
                 packages: canonical_packages,
                 package_names: canonical_names,
                 dependencies: canonical_dependencies,
+                dependency_generated_sources: BTreeMap::new(),
             })
         } else {
             Err(errors)
@@ -340,6 +394,154 @@ impl PackageCompilationInputs {
             packages: self.packages.keys().copied().collect(),
             dependencies: self
                 .dependencies()
+                .map(|(requester, alias, target)| {
+                    PackageDependencyBinding::new(requester, alias, target)
+                })
+                .collect(),
+        }
+    }
+
+    /// Attach the complete set of fresh compiler-issued generated-source
+    /// bundles for this root's dependencies. Empty bundles are retained so an
+    /// omitted dependency build cannot be confused with a build that handed
+    /// off no generated source.
+    pub fn with_complete_dependency_generated_sources(
+        mut self,
+        bundles: Vec<PackageGeneratedSourceBundle>,
+    ) -> Result<Self, Vec<PackageCompilationInputError>> {
+        let mut errors = Vec::new();
+        let mut generated = BTreeMap::new();
+        for bundle in bundles {
+            let package = bundle.package();
+            if package == self.root {
+                errors.push(PackageCompilationInputError::RootGeneratedSourceBundle { package });
+                continue;
+            }
+            if !self.packages.contains_key(&package) {
+                errors.push(PackageCompilationInputError::ForeignGeneratedSourceBundle { package });
+                continue;
+            }
+            if bundle.dependency_closure() != &self.dependency_closure_for(package) {
+                errors.push(
+                    PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package },
+                );
+            }
+            if generated.insert(package, bundle).is_some() {
+                errors
+                    .push(PackageCompilationInputError::DuplicateGeneratedSourceBundle { package });
+            }
+        }
+        for package in self
+            .packages
+            .keys()
+            .copied()
+            .filter(|package| *package != self.root)
+        {
+            if !generated.contains_key(&package) {
+                errors.push(PackageCompilationInputError::MissingGeneratedSourceBundle { package });
+            }
+        }
+        if errors.is_empty() {
+            self.dependency_generated_sources = generated;
+            Ok(self)
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub(crate) fn dependency_generated_source_bundles(
+        &self,
+    ) -> impl Iterator<Item = &PackageGeneratedSourceBundle> {
+        self.dependency_generated_sources.values()
+    }
+
+    pub(crate) fn validate_dependency_generated_source_target(
+        &self,
+        selected_target: Option<omega_target::TargetProfile>,
+    ) -> Result<(), Vec<PackageCompilationInputError>> {
+        let errors = self
+            .dependency_generated_sources
+            .values()
+            .filter(|bundle| Some(bundle.target()) != selected_target)
+            .map(
+                |bundle| PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
+                    package: bundle.package(),
+                    bundle_target: bundle.target(),
+                    selected_target,
+                },
+            )
+            .collect::<Vec<_>>();
+        if errors.is_empty() {
+            Ok(())
+        } else {
+            Err(errors)
+        }
+    }
+
+    pub(crate) fn generated_source_import_path(
+        &self,
+        package: PackageKeyIdentity,
+        relative_candidates: &[PathBuf],
+    ) -> Result<Option<PathBuf>, &'static str> {
+        let Some(bundle) = self.dependency_generated_sources.get(&package) else {
+            return Ok(None);
+        };
+        let mut matched = None;
+        for source in bundle.sources() {
+            let relative = generated_source_relative_path(source)?;
+            if relative_candidates
+                .iter()
+                .any(|candidate| candidate == &relative)
+            {
+                if matched.is_some() {
+                    return Err("generated-source import resolves to more than one handoff");
+                }
+                matched = Some(generated_source_logical_path(
+                    self.packages
+                        .get(&package)
+                        .expect("validated bundle package retains its source root"),
+                    &relative,
+                ));
+            }
+        }
+        Ok(matched)
+    }
+
+    pub(crate) fn generated_source_at_logical_path(
+        &self,
+        path: &Path,
+    ) -> Option<&PackageGeneratedSource> {
+        self.dependency_generated_sources
+            .iter()
+            .find_map(|(package, bundle)| {
+                let root = self.packages.get(package)?;
+                bundle.sources().iter().find(|source| {
+                    generated_source_relative_path(source).is_ok_and(|relative| {
+                        generated_source_logical_path(root, &relative) == path
+                    })
+                })
+            })
+    }
+
+    pub(crate) fn is_generated_source_logical_path(&self, path: &Path) -> bool {
+        self.generated_source_at_logical_path(path).is_some()
+    }
+
+    fn dependency_closure_for(&self, root: PackageKeyIdentity) -> PackageDependencyClosure {
+        let reachable = reachable_packages(root, &self.dependencies);
+        PackageDependencyClosure {
+            root,
+            packages: self
+                .packages
+                .keys()
+                .copied()
+                .filter(|package| reachable.contains(package))
+                .collect(),
+            dependencies: self
+                .dependencies()
+                .filter(|(requester, _, target)| {
+                    reachable.contains(requester) && reachable.contains(target)
+                })
                 .map(|(requester, alias, target)| {
                     PackageDependencyBinding::new(requester, alias, target)
                 })
@@ -512,6 +714,29 @@ pub enum PackageCompilationInputError {
     DependencyCycle {
         cycle: Vec<PackageKeyIdentity>,
     },
+    RootGeneratedSourceBundle {
+        package: PackageKeyIdentity,
+    },
+    ForeignGeneratedSourceBundle {
+        package: PackageKeyIdentity,
+    },
+    DuplicateGeneratedSourceBundle {
+        package: PackageKeyIdentity,
+    },
+    MissingGeneratedSourceBundle {
+        package: PackageKeyIdentity,
+    },
+    GeneratedSourceBundleClosureMismatch {
+        package: PackageKeyIdentity,
+    },
+    GeneratedSourceBundleCustodyMismatch {
+        package: PackageKeyIdentity,
+    },
+    GeneratedSourceBundleTargetMismatch {
+        package: PackageKeyIdentity,
+        bundle_target: omega_target::TargetProfile,
+        selected_target: Option<omega_target::TargetProfile>,
+    },
 }
 
 impl fmt::Display for PackageCompilationInputError {
@@ -603,6 +828,49 @@ impl fmt::Display for PackageCompilationInputError {
                 }
                 Ok(())
             }
+            Self::RootGeneratedSourceBundle { package } => write!(
+                formatter,
+                "root package {} cannot inject a generated-source bundle before its own build",
+                display_identity(*package)
+            ),
+            Self::ForeignGeneratedSourceBundle { package } => write!(
+                formatter,
+                "generated-source bundle names foreign package {}",
+                display_identity(*package)
+            ),
+            Self::DuplicateGeneratedSourceBundle { package } => write!(
+                formatter,
+                "package {} has more than one generated-source bundle",
+                display_identity(*package)
+            ),
+            Self::MissingGeneratedSourceBundle { package } => write!(
+                formatter,
+                "dependency package {} has no generated-source bundle",
+                display_identity(*package)
+            ),
+            Self::GeneratedSourceBundleClosureMismatch { package } => write!(
+                formatter,
+                "generated-source bundle for package {} was produced from a different dependency closure",
+                display_identity(*package)
+            ),
+            Self::GeneratedSourceBundleCustodyMismatch { package } => write!(
+                formatter,
+                "generated-source bundle for package {} does not match its retained source custody and compiler review",
+                display_identity(*package)
+            ),
+            Self::GeneratedSourceBundleTargetMismatch {
+                package,
+                bundle_target,
+                selected_target,
+            } => write!(
+                formatter,
+                "generated-source bundle for package {} targets `{}` but compilation selected `{}`",
+                display_identity(*package),
+                bundle_target.target_name(),
+                selected_target
+                    .map(omega_target::TargetProfile::target_name)
+                    .unwrap_or("<none>"),
+            ),
         }
     }
 }
@@ -620,6 +888,22 @@ fn canonical_source_root(path: &Path) -> Result<PathBuf, String> {
     }
     path.canonicalize()
         .map_err(|error| format!("cannot canonicalize source root: {error}"))
+}
+
+fn generated_source_relative_path(
+    source: &PackageGeneratedSource,
+) -> Result<PathBuf, &'static str> {
+    let mut path = PathBuf::new();
+    for component in source.relative_path().split(|byte| *byte == b'/') {
+        let component = std::str::from_utf8(component)
+            .map_err(|_| "generated-source path is not canonical UTF-8")?;
+        path.push(component);
+    }
+    Ok(path)
+}
+
+fn generated_source_logical_path(package_root: &Path, relative: &Path) -> PathBuf {
+    package_root.join(".omega/generated").join(relative)
 }
 
 fn is_snake_case(value: &str) -> bool {
@@ -811,6 +1095,38 @@ mod tests {
         PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
     }
 
+    fn generated_bundle(
+        inputs: &PackageCompilationInputs,
+        package: PackageKeyIdentity,
+        target: omega_target::TargetProfile,
+        commitment_marker: u8,
+        sources: Vec<PackageGeneratedSource>,
+    ) -> PackageGeneratedSourceBundle {
+        PackageGeneratedSourceBundle::from_checked(
+            package,
+            target,
+            inputs.dependency_closure_for(package),
+            PackageSourceConsumptionCommitment::for_test([commitment_marker; 32]),
+            sources,
+        )
+    }
+
+    fn three_package_generated_inputs(tree: &TempTree) -> PackageCompilationInputs {
+        PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", tree.package("root")),
+                PackageSourceBinding::new(identity(2), "middle", tree.package("middle")),
+                PackageSourceBinding::new(identity(3), "leaf", tree.package("leaf")),
+            ],
+            vec![
+                PackageDependencyBinding::new(identity(1), "middle", identity(2)),
+                PackageDependencyBinding::new(identity(2), "leaf", identity(3)),
+            ],
+        )
+        .expect("generated-source test graph should close")
+    }
+
     #[test]
     fn requester_local_aliases_may_name_different_targets() {
         let tree = TempTree::new();
@@ -966,6 +1282,265 @@ mod tests {
         )
         .expect_err("cyclic path-free closure must reject");
         assert!(cyclic.contains("cycle"));
+    }
+
+    #[test]
+    fn complete_generated_source_bundles_bind_owner_closure_target_and_bytes() {
+        let tree = TempTree::new();
+        let inputs = three_package_generated_inputs(&tree);
+        let generated = PackageGeneratedSource::for_test(
+            b"generated_api.omg",
+            b"pub machine generated_value() -> u64 { 17 }\n",
+        );
+        let generated_digest = generated.digest();
+        let middle = generated_bundle(
+            &inputs,
+            identity(2),
+            omega_target::TargetProfile::WindowsX64,
+            12,
+            vec![generated],
+        );
+        let leaf = generated_bundle(
+            &inputs,
+            identity(3),
+            omega_target::TargetProfile::WindowsX64,
+            13,
+            Vec::new(),
+        );
+
+        let inputs = inputs
+            .with_complete_dependency_generated_sources(vec![leaf, middle])
+            .expect("one exact bundle per dependency should attach");
+        inputs
+            .validate_dependency_generated_source_target(Some(
+                omega_target::TargetProfile::WindowsX64,
+            ))
+            .expect("matching generated-source targets should validate");
+        let logical = inputs
+            .generated_source_import_path(identity(2), &[PathBuf::from("generated_api.omg")])
+            .expect("compiler-issued generated path should remain canonical")
+            .expect("generated module should resolve from retained custody");
+        assert_eq!(
+            logical,
+            inputs
+                .package_root(identity(2))
+                .unwrap()
+                .join(".omega/generated/generated_api.omg")
+        );
+        let retained = inputs
+            .generated_source_at_logical_path(&logical)
+            .expect("logical generated path should recover retained bytes");
+        assert_eq!(retained.relative_path(), b"generated_api.omg");
+        assert_eq!(
+            retained.bytes(),
+            b"pub machine generated_value() -> u64 { 17 }\n"
+        );
+        assert_eq!(retained.digest(), generated_digest);
+    }
+
+    #[test]
+    fn compiler_consumes_retained_dependency_generated_source_without_a_physical_file() {
+        let tree = TempTree::new();
+        let root = tree.package("root-generated-consumer");
+        let dependency = tree.package("dependency-generated-producer");
+        fs::write(
+            root.join("build.omg"),
+            r#"target windows_x64 { }
+machine build(builder: &mut Build) {
+    builder.application("root-generated-consumer");
+    builder.depend_as("dependency", Source::Path { location: "../dependency-generated-producer" });
+}
+"#,
+        )
+        .expect("write generated consumer build declaration");
+        fs::write(
+            root.join("main.omg"),
+            r#"use dependency::generated_api;
+pub machine consume_generated_value() -> u64 {
+    generated_value()
+}
+"#,
+        )
+        .expect("write generated consumer source");
+
+        let inputs = PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root-generated-consumer", root.clone()),
+                PackageSourceBinding::new(
+                    identity(2),
+                    "dependency-generated-producer",
+                    dependency.clone(),
+                ),
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "dependency",
+                identity(2),
+            )],
+        )
+        .expect("generated consumer graph should close");
+        let bundle = generated_bundle(
+            &inputs,
+            identity(2),
+            omega_target::TargetProfile::WindowsX64,
+            12,
+            vec![PackageGeneratedSource::for_test(
+                b"generated_api.omg",
+                b"pub machine generated_value() -> u64 { 17 }\n",
+            )],
+        );
+        let inputs = inputs
+            .with_complete_dependency_generated_sources(vec![bundle])
+            .expect("consumer should receive the complete dependency bundle");
+
+        let checked = crate::pipeline::checked_entry::compile_to_checked_with_packages(
+            &root.join("main.omg"),
+            Some("windows_x64"),
+            inputs,
+        )
+        .expect("retained generated dependency source should enter initial frontend loading");
+        assert!(
+            !dependency
+                .join(".omega/generated/generated_api.omg")
+                .exists(),
+            "dependency-generated source must remain compiler custody, not a physical snapshot mutation"
+        );
+        checked
+            .verify_current_source_consumption()
+            .expect("generated bytes should verify from retained custody after compilation");
+        assert!(checked.source_consumption_commitment().is_some());
+    }
+
+    #[test]
+    fn generated_source_bundle_omission_duplicate_foreign_root_and_closure_substitution_reject() {
+        let tree = TempTree::new();
+        let inputs = three_package_generated_inputs(&tree);
+        let middle = generated_bundle(
+            &inputs,
+            identity(2),
+            omega_target::TargetProfile::WindowsX64,
+            12,
+            Vec::new(),
+        );
+        let leaf = generated_bundle(
+            &inputs,
+            identity(3),
+            omega_target::TargetProfile::WindowsX64,
+            13,
+            Vec::new(),
+        );
+
+        let missing = inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![middle.clone()])
+            .expect_err("omitted explicit empty leaf bundle must reject");
+        assert!(missing.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::MissingGeneratedSourceBundle { package }
+                if *package == identity(3)
+        )));
+
+        let duplicate = inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![
+                middle.clone(),
+                middle.clone(),
+                leaf.clone(),
+            ])
+            .expect_err("duplicate package bundle must reject");
+        assert!(duplicate.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::DuplicateGeneratedSourceBundle { package }
+                if *package == identity(2)
+        )));
+
+        let foreign = PackageGeneratedSourceBundle::from_checked(
+            identity(4),
+            omega_target::TargetProfile::WindowsX64,
+            inputs.dependency_closure_for(identity(3)),
+            PackageSourceConsumptionCommitment::for_test([14; 32]),
+            Vec::new(),
+        );
+        let foreign_errors = inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![middle.clone(), leaf.clone(), foreign])
+            .expect_err("foreign bundle must reject");
+        assert!(foreign_errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::ForeignGeneratedSourceBundle { package }
+                if *package == identity(4)
+        )));
+
+        let root = PackageGeneratedSourceBundle::from_checked(
+            identity(1),
+            omega_target::TargetProfile::WindowsX64,
+            inputs.dependency_closure(),
+            PackageSourceConsumptionCommitment::for_test([11; 32]),
+            Vec::new(),
+        );
+        let root_errors = inputs
+            .clone()
+            .with_complete_dependency_generated_sources(vec![middle.clone(), leaf.clone(), root])
+            .expect_err("root self-injection must reject");
+        assert!(root_errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::RootGeneratedSourceBundle { package }
+                if *package == identity(1)
+        )));
+
+        let wrong_closure = PackageGeneratedSourceBundle::from_checked(
+            identity(2),
+            omega_target::TargetProfile::WindowsX64,
+            inputs.dependency_closure_for(identity(3)),
+            PackageSourceConsumptionCommitment::for_test([12; 32]),
+            Vec::new(),
+        );
+        let closure_errors = inputs
+            .with_complete_dependency_generated_sources(vec![wrong_closure, leaf])
+            .expect_err("bundle from another producer closure must reject");
+        assert!(closure_errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::GeneratedSourceBundleClosureMismatch { package }
+                if *package == identity(2)
+        )));
+    }
+
+    #[test]
+    fn generated_source_bundle_target_substitution_rejects_before_loading() {
+        let tree = TempTree::new();
+        let inputs = three_package_generated_inputs(&tree);
+        let middle = generated_bundle(
+            &inputs,
+            identity(2),
+            omega_target::TargetProfile::WindowsX64,
+            12,
+            Vec::new(),
+        );
+        let leaf = generated_bundle(
+            &inputs,
+            identity(3),
+            omega_target::TargetProfile::WindowsX64,
+            13,
+            Vec::new(),
+        );
+        let inputs = inputs
+            .with_complete_dependency_generated_sources(vec![middle, leaf])
+            .expect("complete generated-source bundles should attach");
+        let errors = inputs
+            .validate_dependency_generated_source_target(Some(
+                omega_target::TargetProfile::LinuxX64,
+            ))
+            .expect_err("cross-target generated-source substitution must reject");
+        assert_eq!(errors.len(), 2);
+        assert!(errors.iter().all(|error| matches!(
+            error,
+            PackageCompilationInputError::GeneratedSourceBundleTargetMismatch {
+                bundle_target: omega_target::TargetProfile::WindowsX64,
+                selected_target: Some(omega_target::TargetProfile::LinuxX64),
+                ..
+            }
+        )));
     }
 
     #[test]

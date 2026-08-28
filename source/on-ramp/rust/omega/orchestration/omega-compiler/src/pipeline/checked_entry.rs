@@ -23,8 +23,9 @@ pub struct CheckedCompilation {
     exact_toolchain_sources: Vec<(psi_source::SourceId, [u8; 32])>,
     generated_source_custody: Vec<(
         psi_source::SourceId,
-        super::build_staged_output::BuildStagedSource,
+        super::build_staged_output::PackageGeneratedSource,
     )>,
+    own_generated_sources: Vec<super::build_staged_output::PackageGeneratedSource>,
     selected_target_profile: Option<omega_target::TargetProfile>,
     selected_native_target: Option<omega_target::NativeTarget>,
     selected_program_entry_machine: Option<String>,
@@ -91,6 +92,34 @@ impl CheckedCompilation {
             &self.program,
             &self.generated_source_custody,
         )
+    }
+
+    /// Retain this package's own explicit generated-source handoffs as one
+    /// compiler-issued bundle suitable for a later dependency compilation.
+    /// The bundle is not admission and carries no filesystem authority.
+    pub fn package_generated_source_bundle(
+        &self,
+    ) -> Result<super::PackageGeneratedSourceBundle, &'static str> {
+        let package = self
+            .package_identity
+            .ok_or("generated-source bundles require package-aware compilation")?;
+        let target = self
+            .selected_target_profile
+            .ok_or("generated-source bundles require one selected target")?;
+        let dependency_closure = self
+            .dependency_closure
+            .clone()
+            .ok_or("generated-source bundles require one dependency closure")?;
+        let source_consumption_commitment = self
+            .source_consumption_commitment
+            .ok_or("generated-source bundles require source-consumption custody")?;
+        Ok(super::PackageGeneratedSourceBundle::from_checked(
+            package,
+            target,
+            dependency_closure,
+            source_consumption_commitment,
+            self.own_generated_sources.clone(),
+        ))
     }
 
     /// Exact native target selected for this checked compilation. Semantic-only
@@ -441,16 +470,21 @@ fn compile_to_checked_inner_with_replay(
 ) -> Result<CheckedCompilation, Vec<Diagnostic>> {
     let mut timings = CompileTimings::default();
     let package_identity = package_inputs.map(PackageCompilationInputs::root);
+    let selected_target_profile = target_name
+        .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
+        .transpose()
+        .map_err(|diagnostic| vec![diagnostic])?;
 
     // The interpreter keeps the abstract `boundary trait Gui` for its headless
     // provider; only the native-image pipeline substitutes target providers.
-    let (source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
+    let (mut source_file_count, syntax) = source_files_to_syntax_trees_for_engine(
         root_path,
         target_name,
         false,
         package_inputs,
         &mut timings,
     )?;
+    let mut generated_source_custody = syntax.generated_source_custody.clone();
     let frozen_syntax = syntax.clone();
     let mut frontend = lower_checked_frontend(syntax, target_name, package_inputs, &mut timings)?;
     if let Some(package_inputs) = package_inputs {
@@ -519,7 +553,7 @@ fn compile_to_checked_inner_with_replay(
             Ok((source_span, name))
         })
         .transpose()?;
-    let mut generated_source_custody = Vec::new();
+    let own_generated_sources = computed_build_config.generated_sources.clone();
     let selected_build_machine_symbol = if computed_build_config.generated_sources.is_empty() {
         computed_build_config.selected_build_machine_symbol
     } else {
@@ -532,12 +566,20 @@ fn compile_to_checked_inner_with_replay(
             .package_root(package_inputs.root())
             .expect("validated package inputs retain their root package");
         let mut final_syntax = frozen_syntax;
-        generated_source_custody = crate::pipeline::stages::append_retained_generated_sources(
+        let retained = crate::pipeline::stages::append_retained_generated_sources(
             &mut final_syntax,
             package_root,
             Some(package_inputs.root()),
             &computed_build_config.generated_sources,
         )?;
+        source_file_count = source_file_count
+            .checked_add(retained.len())
+            .ok_or_else(|| {
+                vec![Diagnostic::error(
+                    "generated package source count exceeds the compiler range",
+                )]
+            })?;
+        generated_source_custody.extend(retained);
         frontend = lower_checked_frontend(
             final_syntax,
             target_name,
@@ -612,10 +654,6 @@ fn compile_to_checked_inner_with_replay(
         .iter()
         .map(|derived| derived.plan.clone())
         .collect::<Vec<_>>();
-    let selected_target_profile = target_name
-        .map(|target_name| omega_target::TargetProfile::from_omega_target_name(Some(target_name)))
-        .transpose()
-        .map_err(|diagnostic| vec![diagnostic])?;
     let selected_native_target =
         selected_target_profile.map(omega_target::TargetProfile::native_target);
     let provider_selection_target =
@@ -746,6 +784,7 @@ fn compile_to_checked_inner_with_replay(
         source_consumption_commitment,
         exact_toolchain_sources,
         generated_source_custody,
+        own_generated_sources,
         selected_target_profile,
         selected_native_target,
         selected_program_entry_machine,
