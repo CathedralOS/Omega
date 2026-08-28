@@ -41,7 +41,7 @@ packages.
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
 > machinery. `source/{psi,omega}/` owns Omega-written product source; the
-> first Psi lexical checkpoint has landed while later phases remain open.
+> live Psi lexical slice has landed while later phases remain open.
 > Bootstrap gates resolve cross-owner locations through the
 > role manifest in `tools/bootstrap/paths.sh`; new cross-owner sibling-relative paths
 > are rejected. The tree below documents the current Cargo/product structure;
@@ -194,7 +194,6 @@ Omega/
 |   |-- omega/                                             # Omega-written target realization and product entrypoint.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
-|   |   `-- source-checkpoints/                            # Exact product closures and provisional feature censuses.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tests/lattice/corpus/                                  # Shared stable lattice inputs.

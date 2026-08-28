@@ -1,8 +1,8 @@
 # Psi product source
 
 This root owns the Omega-written, target-neutral Psi half of the production
-compiler. The first source checkpoint contains final source/span and token
-representations plus the complete Unicode-aware source-to-token phase. Its
+compiler. The current live slice contains source/span and token
+representations plus the Unicode-aware source-to-token phase. Its
 source closure deliberately uses only ordinary-Omega forms accepted by the
 published Delta-produced compiler.
 
