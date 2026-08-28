@@ -10,8 +10,11 @@ use omega_terminal_selected_instructions::{
     TerminalMachineMemoryEffect, TerminalMachineTrapBehavior, TerminalSelectedBlockId,
     TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
     TerminalSelectedInstructionPlanIdentity, TerminalSelectedInstructionProvenance,
+    TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+    TerminalStructuralUnitCallEffectDeclaration,
 };
-use psi_core::{FuelScheduleIdentity, MachineId};
+use psi_core::{FuelScheduleIdentity, MachineId, OperationId};
+use psi_terminal::ClaimTransfer;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalPreAllocationMachineEffectIdentity([u8; 32]);
@@ -37,6 +40,37 @@ pub struct TerminalPreAllocationMachineEffectPlan {
     pub register_constraints: RegisterConstraintCatalogIdentity,
     pub machine_effect_catalog: TerminalMachineEffectCatalogIdentity,
     pub functions: Vec<TerminalFunctionMachineEffects>,
+    pub structural_unit_functions: Vec<TerminalStructuralUnitFunctionMachineEffects>,
+}
+
+/// Independently replayable effects for one selected structural-signature
+/// Unit function. This remains parallel to the ordinary scalar/VReg roster so
+/// it cannot be mistaken for an encoded target alternative.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralUnitFunctionMachineEffects {
+    pub machine: MachineId,
+    pub block: TerminalSelectedBlockId,
+    pub call: Option<TerminalStructuralUnitCallMachineEffects>,
+    pub return_instruction: TerminalInstructionMachineEffects,
+    pub return_effect: omega_optimization_unit::EffectLink,
+    pub return_ownership: Vec<omega_optimization_unit::OwnershipEvent>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalStructuralUnitCallMachineEffects {
+    pub instruction: TerminalSelectedInstructionId,
+    pub operation: OperationId,
+    pub callee: MachineId,
+    pub constraint: RegisterConstraintKey,
+    pub unit_uses: Vec<RegisterUnitId>,
+    pub unit_defs: Vec<RegisterUnitId>,
+    pub unit_clobbers: Vec<RegisterUnitId>,
+    pub layout: TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+    pub effect: omega_optimization_unit::EffectLink,
+    pub ownership: Vec<omega_optimization_unit::OwnershipEvent>,
+    pub claim_transfers: Vec<ClaimTransfer>,
+    pub provenance: TerminalSelectedInstructionProvenance,
+    pub declaration: TerminalStructuralUnitCallEffectDeclaration,
 }
 
 impl TerminalPreAllocationMachineEffectPlan {
@@ -172,6 +206,12 @@ pub enum TerminalMachineEffectError {
     InstructionMismatch {
         instruction: TerminalSelectedInstructionId,
     },
+    StructuralFunctionMismatch {
+        machine: MachineId,
+    },
+    StructuralCallMismatch {
+        machine: MachineId,
+    },
     IdentityMismatch,
     CountOverflow,
 }
@@ -190,12 +230,15 @@ impl std::error::Error for TerminalMachineEffectError {}
 pub(crate) fn receipt(
     plan: &TerminalPreAllocationMachineEffectPlan,
 ) -> Result<TerminalPreAllocationMachineEffectReceipt, TerminalMachineEffectError> {
-    let block_count = plan.functions.iter().try_fold(0usize, |count, function| {
+    let ordinary_block_count = plan.functions.iter().try_fold(0usize, |count, function| {
         count
             .checked_add(function.blocks.len())
             .ok_or(TerminalMachineEffectError::CountOverflow)
     })?;
-    let instruction_count = plan
+    let block_count = ordinary_block_count
+        .checked_add(plan.structural_unit_functions.len())
+        .ok_or(TerminalMachineEffectError::CountOverflow)?;
+    let ordinary_instruction_count = plan
         .functions
         .iter()
         .flat_map(|function| &function.blocks)
@@ -204,6 +247,17 @@ pub(crate) fn receipt(
                 .checked_add(block.instructions.len())
                 .ok_or(TerminalMachineEffectError::CountOverflow)
         })?;
+    let structural_instruction_count =
+        plan.structural_unit_functions
+            .iter()
+            .try_fold(0usize, |count, function| {
+                count
+                    .checked_add(1 + usize::from(function.call.is_some()))
+                    .ok_or(TerminalMachineEffectError::CountOverflow)
+            })?;
+    let instruction_count = ordinary_instruction_count
+        .checked_add(structural_instruction_count)
+        .ok_or(TerminalMachineEffectError::CountOverflow)?;
     let (alternative_count, unit_action_count, fuel_settlement_count) = plan
         .functions
         .iter()
@@ -227,12 +281,52 @@ pub(crate) fn receipt(
                     .ok_or(TerminalMachineEffectError::CountOverflow)?,
             ))
         })?;
+    let (unit_action_count, fuel_settlement_count) =
+        plan.structural_unit_functions.iter().try_fold(
+            (unit_action_count, fuel_settlement_count),
+            |counts, function| {
+                let mut actions = function
+                    .return_instruction
+                    .unit_uses
+                    .len()
+                    .checked_add(function.return_instruction.unit_defs.len())
+                    .and_then(|count| {
+                        count.checked_add(function.return_instruction.unit_clobbers.len())
+                    })
+                    .ok_or(TerminalMachineEffectError::CountOverflow)?;
+                let mut fuel = function.return_instruction.provenance.fuel.len();
+                if let Some(call) = &function.call {
+                    actions = actions
+                        .checked_add(call.unit_uses.len())
+                        .and_then(|count| count.checked_add(call.unit_defs.len()))
+                        .and_then(|count| count.checked_add(call.unit_clobbers.len()))
+                        .ok_or(TerminalMachineEffectError::CountOverflow)?;
+                    fuel = fuel
+                        .checked_add(call.provenance.fuel.len())
+                        .ok_or(TerminalMachineEffectError::CountOverflow)?;
+                }
+                Ok::<_, TerminalMachineEffectError>((
+                    counts
+                        .0
+                        .checked_add(actions)
+                        .ok_or(TerminalMachineEffectError::CountOverflow)?,
+                    counts
+                        .1
+                        .checked_add(fuel)
+                        .ok_or(TerminalMachineEffectError::CountOverflow)?,
+                ))
+            },
+        )?;
     Ok(TerminalPreAllocationMachineEffectReceipt {
         identity: plan.identity,
         selected: plan.selected,
         register_environment: plan.register_environment,
         machine_effect_catalog: plan.machine_effect_catalog,
-        function_count: plan.functions.len(),
+        function_count: plan
+            .functions
+            .len()
+            .checked_add(plan.structural_unit_functions.len())
+            .ok_or(TerminalMachineEffectError::CountOverflow)?,
         block_count,
         instruction_count,
         alternative_count,
