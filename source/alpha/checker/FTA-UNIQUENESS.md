@@ -72,7 +72,7 @@ and `ProdIs` (rel 778) already are. The standard 4-rule presentation (the multis
    0 disagree** across check.beta, checker.gamma, AND the type-erased checker_typed.gamma. The asymmetry
    is closed: Perm is a full three-checker predicate, exactly like Mem/ProdIs.
 3. **Re-verified**: `test-typeck.sh` 23/0, `checker-diamond.sh` 89/0 (+ 89/0 typed), `elab-test.sh` 206/0,
-   full `verify-lattice.sh` VERIFIED.
+   full checker-owner suite verified.
 4. ✅ `perm-front` (`corpus/proofs/perm-front.elab`): `∀p L. Mem(p,L) → ∃L'. Perm(cons p L', L)` — a list member
    can be permuted to the head. Proved by LIST induction + Mem inversion, *constructing* the permutation
    (permswap∘permskip via permtrans; perm-refl for the head case). **Key design fact this confirms: Perm
