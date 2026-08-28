@@ -2338,10 +2338,10 @@ and CBNZ-aware whole-function exit custody. The compare remains in the
 instruction roster as a zero-byte row; the fused branch is target-encoded and
 independently decoded as `CBNZ`; source-register, successor, PC, and absent-NZCV
 effects are replayed; and the function shrinks by exactly four bytes. The
-function-relative manifest/codec v6 binds the exact post-allocation selection,
+function-relative manifest/codec v8 binds the exact post-allocation selection,
 an explicit allocation-recovery phase projection,
 baseline/final pre-layout identities, optional fusion identity, and both
-resolved layouts; whole-function exit identity v4 independently admits only
+resolved layouts; whole-function exit identity v7 independently admits only
 the exact elided-compare custody. Emission, relocation, image, installation,
 and publication remain later boundaries.
 
@@ -2369,10 +2369,16 @@ encodings, and baseline and selected layouts together and requires the layout
 to shrink by exactly four bytes for every materialization word removed. Direct
 and selected-lowering compiler-facing routes dispatch the exact singleton MOVN
 selection to this carrier; CBNZ remains a distinct route, and combinations fail
-closed rather than acquiring an implicit ordering policy. Whole-function exit,
-realization manifests, emission, object construction, installation, and
-publication remain unavailable. The build hook is the exact named selection;
-empty builds retain the baseline.
+closed rather than acquiring an implicit ordering policy. Whole-function exit
+v7 adds an exact MOVN layout-custody variant and independently replays the
+entire owning layout carrier before validating return, stack, preservation, and
+target-convention evidence. A following owning function-relative realization
+retains that exit plus `OMGFRM` v8. Its manifest carries an optional MOVN
+materialization identity beside mutually exclusive x86-relaxation and CBNZ
+custody, binds the exact phase projections and baseline/final roots, and feeds
+the existing report lane. Fragment emission, text placement, object
+construction, installation, and publication remain unavailable. The build hook
+is the exact named selection; empty builds retain the baseline.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
@@ -2440,8 +2446,8 @@ post-allocation manifest truthfully carries the sole typed
 replay derive every exit, layout, machine, manifest, and statistic field only
 after replaying the full upstream wrapper. Both targets use caller-saved
 pressure views (`rax`/`rcx` and `x0`/`x1`) rather than weakening callee-save
-validation. Whole-function-exit v3 remains sufficient, while realization-
-manifest v5 makes allocation-recovery execution replayable. The compiler
+validation. Whole-function-exit v7 retains this custody, while realization-
+manifest v8 makes allocation-recovery execution replayable. The compiler
 physical pipeline accepts only the exact singleton family and rejects
 unsupported physical-phase composition. Frame, emission, sections, objects,
 images, installation, and publication remain unavailable.
@@ -2525,7 +2531,7 @@ records an absent selected-lowering completion; a combined suite retains both
 positive completion receipts. The strict v5 realization manifest binds the
 full suite, all phase projections, baseline and final layout identities, the
 optional relaxation identity, final statistics, and the final-layout exit
-contract. Whole-function exit identity v2 names either the required near-layout
+contract. Whole-function exit identity v7 names either the required near-layout
 custody or the exact independently replayed relaxation receipt. Baseline exit
 validation remains strict and cannot admit short bytes by accident.
 
@@ -2731,9 +2737,9 @@ retains a parallel structural-function roster with that exact template,
 decoded footprint, typed fixup, separately encoded `C3` return, and exact
 ordinary/structural counts under independent replay. Resolved-layout v6 retains
 the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
-`[0, 1)` without resolving the fixup. Whole-function-exit v5 validates a
+`[0, 1)` without resolving the fixup. Whole-function-exit v7 validates a
 distinct balanced Microsoft-x64 structural-call policy, and a separate owning
-function-relative carrier publishes `OMGFRM` v7 statistics with zero ordinary
+function-relative carrier publishes `OMGFRM` v8 statistics with zero ordinary
 rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup.
 Machine-code fragment schema v3 and `OMGFFE` v5 now retain that exact parallel
 structural roster, 90/1-byte aggregate spans, call/return provenance, and a
