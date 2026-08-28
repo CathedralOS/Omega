@@ -1084,6 +1084,18 @@ observations, compiler source-consumption and build observations, artifacts,
 certificates, decisions, and open obligations remain separate. The type has no
 accepted-lock or `PackageInstance` promotion API.
 
+`CanonicalPackageReconstructionQuestion` joins those two replay coordinates
+without promoting either. It retains the complete source-subject frame and one
+complete canonical ordinary-ledger frame per package in strict full-
+`PackageKey` source order. Every ledger must match its package identity, the
+aggregate target, and that package's independently derived transitive package
+and requester-local alias closure. Missing, foreign, swapped, identity-
+colliding, mixed-target, or graph-drifted associations reject. Strict recovery
+is bounded and canonical; fresh matching rebuilds the whole question from
+current resolver custody and a newly compiler-issued review set. Its
+fingerprint identifies only the question. The type contains no admission,
+certificate, result, artifact, accepted-lock, or `PackageInstance` path.
+
 ## Target command surface
 
 ```text
@@ -1192,6 +1204,11 @@ ceiling. This is not accepted package evidence or a lock-promotion path:
 produced-artifact completion, certificate results, transitive open obligations,
 checked schema deltas, transitive dependency-evidence composition, and root
 admissions remain absent.
+The package layer now also retains one canonical reconstruction question over
+the complete resolved source subject and every per-package ledger, rechecking
+their exact full-key order, common target, and independently derived transitive
+closures. This aggregate remains a replay question only and has no promotion
+route.
 Review-only update comparison joins candidate rows to exact resolver custody,
 matches rows linearly by compiler-owned `(kind, key)` coordinates, and retains
 complete old/new bytes without decoding them. Conflict fingerprints bind both

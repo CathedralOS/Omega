@@ -2340,6 +2340,24 @@ complete.
   `PackageInstance`, certificates, results, open obligations, nor admission
   exists through this API.
 
+  Milestone 2026-08-27: `CanonicalPackageReconstructionQuestion` now binds one
+  complete `CanonicalSourceClosureSubject` to exactly one complete encoded
+  `OrdinaryPackageObligationLedger` for every package in that source closure.
+  Ledger frames pair positionally with the source subject's strict full-
+  `PackageKey` order; distinct full keys colliding on compiler package identity,
+  missing/foreign/swapped ledgers, mixed targets, wrong ledger roots, and
+  source/ledger package or alias-closure disagreement reject. Fresh construction
+  independently derives each package's transitive compiler closure through
+  `package_compilation_inputs_for`, and fresh matching reconstructs the whole
+  aggregate from current resolver custody plus a newly compiler-issued review
+  set. Strict bounded recovery retains the complete nested source and ledger
+  bytes and rejects stale versions, malformed/noncanonical framing, trailing
+  bytes, and component or aggregate ceiling violations. Its domain-separated
+  fingerprint identifies this replay question only. Compiler identity, build
+  observations, source coordinates, artifacts, certificates, results, open
+  obligations, admissions, accepted lock state, and `PackageInstance` remain
+  absent; there is no promotion API.
+
 - **ACCEPTED-LOCK-SCHEMA.** Replace name-keyed/fingerprint-only lock entries.
 
   Acceptance: `omega.lock` records `PackageKey`, `PackageInstance`, source
@@ -3186,7 +3204,7 @@ debt in this section, not a reason to preserve the old tree.
       Completed 2026-08-25: the governing brief now states that
       `omega::language::core` is bundled by decision, its version is the
       language version, and two versions cannot coexist in one graph.
-- [ ] **Remove post-relocation physical std routing.** The relocation updated
+- [ ] **BLOCKED — OWNER Q7: remove post-relocation physical std routing.** The relocation updated
       `frontend.rs`, `stages.rs`, interpreter generation, and tests to the new
       `source/library/` location so the repository remains buildable. Those
       direct reads are temporary compatibility *code*, not a compatibility
