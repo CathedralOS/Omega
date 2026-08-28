@@ -197,10 +197,11 @@ canonical Terminal Psi semantic + proof sections
           -> fixup-preserving fragments
           -> whole-section resolution
           -> zero-relocation two-Machine object (generic codegen proof)
-          -> settled Terminal continuation object/artifact
           -> compiler-owned wrapper encoding selection and replay
-          -> one-function structural Unit continuation custody
-          -> separate semantic ProgramStorage wrapper object (next)
+          -> synthetic one-function structural Unit object (encoding proof)
+          -> exact settled claim-consuming continuation object/artifact
+             (engineering prerequisite)
+          -> composite semantic ProgramStorage wrapper object (next)
        (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
@@ -2487,8 +2488,15 @@ already owns the settlement and depends on both `omega-program-storage` and the
 optimization pipeline. It must consume the canonical optimized object artifact
 for the actual settled Terminal entry, bind that exact object-local
 `MachineId` symbol as the private continuation, independently replay the
-semantic contract and wrapper plan, and then synthesize a separate
-compiler-owned wrapper object.
+semantic contract and wrapper plan, and then synthesize a distinct
+compiler-owned composite object. That new object places the wrapper before a
+byte-for-byte retained copy of the canonical child text, shifts the retained
+child symbol coordinates, and resolves the wrapper call to the shifted
+object-local semantic-entry symbol. It retains the complete child artifact by
+value and has zero relocations. This is intentionally not an unresolved
+cross-object call: an object-local continuation is not a legal linkage target
+from a sibling object. The compiler-owned wrapper symbol is distinct from every
+Terminal `MachineId`.
 
 The encoding split is now explicit. The semantic wrapper plan owns no byte
 coordinates and requires a later target encoding. Native realization consumes
@@ -2502,8 +2510,8 @@ checks the signed target equation and every byte outside the field. The older
 compatibility emitter remains a distinct 143-byte full-frame encoding with
 coordinates `113/114/118`; neither layout impersonates the other.
 
-The immediate prerequisite for the object join has landed as a real
-one-function structural two-Extent `ReturnUnit` continuation. Whole-function
+The one-function structural two-Extent `ReturnUnit` code-generation fixture has
+landed. Whole-function
 exit v6 independently admits exactly either the existing two-Machine
 entry-caller-to-leaf graph or one call-free entry leaf, and assigns the latter
 the separately named `MicrosoftX64FramelessStructuralUnitLeafV1` policy.
@@ -2511,13 +2519,22 @@ Generalized `OMGFFE` v5 structural fragments classify its zero-fixup output as
 relocation-free; `OMGTSP` v5 places one `C3` with no resolution rows; the object
 owns one semantic-entry private symbol and no relocations; and canonical
 artifact replay rejoins the exact semantic and proof inputs. No fabricated
-wrapper `MachineId` or parameterless signature substitution is involved.
+wrapper `MachineId` or parameterless signature substitution is involved. This
+fixture proves the structural encoding/object route only. Its unrestricted
+parameters and empty claim roster do not make it an honest ProgramStorage
+continuation.
 
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the settled internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source
-lowering expresses its two-root handoff as `BoundaryCall`, so it must not be
-misrepresented as the positive compiler-private `CallUnit` wrapper fixture.
+lowering preserves two linear owned `Extent in Granted` roots, two entry claims,
+and completion receipts while expressing its handoff as `BoundaryCall`. It must
+not be misrepresented as the positive compiler-private `CallUnit` wrapper
+fixture, and the synthetic leaf must not be paired with that receipt. The first
+positive three-way settlement/object/wrapper test therefore waits for the same
+checked claim-consuming continuation to reach canonical object custody through
+an admitted concrete provider/native realization. That is an implementation
+prerequisite, not a language-design question, and does not add an owner question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime
