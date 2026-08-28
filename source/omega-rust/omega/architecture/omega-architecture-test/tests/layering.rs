@@ -461,6 +461,33 @@ fn compiler_crate_root_remains_a_small_api_map() {
 }
 
 #[test]
+fn compiler_crate_owns_no_product_binaries() {
+    let root = workspace_root();
+    let compiler_bins = root.join("source/omega-rust/omega/orchestration/omega-compiler/src/bin");
+    let rust_bins = std::fs::read_dir(&compiler_bins)
+        .into_iter()
+        .flatten()
+        .filter_map(Result::ok)
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .is_some_and(|extension| extension == "rs")
+        })
+        .count();
+    assert_eq!(
+        rust_bins, 0,
+        "omega-compiler is a library owner; product and probe commands belong to the omega binary"
+    );
+
+    assert!(
+        root.join("source/omega-rust/omega/src/command/probe.rs")
+            .is_file(),
+        "the native/interpreter probe must remain reachable through `omega run`"
+    );
+}
+
+#[test]
 fn source_profile_analysis_is_not_owned_by_the_compiler() {
     let root = workspace_root();
     let retired = root
