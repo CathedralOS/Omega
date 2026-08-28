@@ -48,10 +48,11 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
             handle,
             exact.trait_definition.symbol,
             exact.requirement.symbol,
+            requirement.clone(),
         ));
     }
 
-    for (handle, trait_definition, requirement) in replacements {
+    for (handle, trait_definition, requirement, authored_path) in replacements {
         let parameter = program
             .tables
             .declarations
@@ -61,6 +62,7 @@ pub(crate) fn normalize_nominal_machine_parameter_requirements(
             contract: MachineParameterContract::Nominal {
                 trait_definition,
                 requirement,
+                authored_path,
             },
         };
     }

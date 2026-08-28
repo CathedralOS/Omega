@@ -405,6 +405,7 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
     let psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement,
+        authored_path,
     } = contract
     else {
         panic!("Selected should retain an exact nominal requirement");
@@ -421,6 +422,13 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
 
     assert_eq!(*trait_definition, trait_definition_row.symbol);
     assert_eq!(*requirement, requirement_row.symbol);
+    assert_eq!(
+        authored_path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["WindowProcedure", "call"]
+    );
     assert_ne!(parameter.symbol, requirement_row.symbol);
     let psi_symbol_resolved_trees::data::MachineParameterContractView::Nominal {
         trait_definition,
@@ -527,6 +535,7 @@ fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
     let mismatched = psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition: first.symbol,
         requirement: second_requirement.symbol,
+        authored_path: Vec::new(),
     };
 
     assert!(

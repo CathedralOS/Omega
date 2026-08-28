@@ -7509,17 +7509,16 @@ where machine Selected satisfies Hidden::call;
 "#,
     );
     hidden.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &hidden.0.join("main.omg"),
         Some(target),
         package_inputs(&hidden.0),
     )
-    .expect("private nominal static-machine fixture should check before package review");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    .expect_err("public authored selection should reject a private nominal requirement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("exposes non-public trait `Hidden` through a static-machine contract")
+            .contains("public interface selects private trait `Hidden")
     }));
 }
 

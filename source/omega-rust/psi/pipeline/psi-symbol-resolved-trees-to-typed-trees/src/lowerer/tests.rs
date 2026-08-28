@@ -449,6 +449,10 @@ fn settles_satisfied_operator_to_its_exact_overload_symbol() {
 
 #[test]
 fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionKind as Kind, AuthoredDeclarationSelectionTarget as Target,
+    };
+
     let source = r#"
         boundary trait WindowProcedure {
             machine call(value: u32) -> u64;
@@ -497,6 +501,14 @@ fn retains_exact_nominal_machine_parameter_identity_in_typed_trees() {
     assert_eq!(signature.name.as_str(), "call");
     assert_ne!(parameter.symbol, signature.symbol);
     assert_eq!(typed.state_signature_parameters(signature).len(), 1);
+    assert!(typed.authored_declaration_selections().iter().any(|selection| {
+        selection.kind() == Kind::TypeReference
+            && matches!(selection.target(), Target::Resolved(target) if target.selected_symbol() == definition.symbol)
+    }));
+    assert!(typed.authored_declaration_selections().iter().any(|selection| {
+        selection.kind() == Kind::StaticPathSegment
+            && matches!(selection.target(), Target::Resolved(target) if target.selected_symbol() == signature.symbol)
+    }));
 }
 
 #[test]
