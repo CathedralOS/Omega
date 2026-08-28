@@ -6,11 +6,17 @@ use omega_optimization_core::{
 };
 use omega_regalloc::ValidatedTerminalSelectedAnalysis;
 use omega_target::{Architecture, NativeTarget, ObjectFormat};
+use omega_terminal_isa_x86_64::{
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
+};
 use omega_terminal_machine_code::{
     TerminalFunctionFragment, TerminalFunctionFragmentBlockSpan,
     TerminalFunctionFragmentConditionalBranchEvidence, TerminalFunctionFragmentControlProvenance,
     TerminalFunctionFragmentEmissionPlan, TerminalFunctionFragmentInstructionSpan,
-    TerminalFunctionFragmentSuccessorProvenance,
+    TerminalFunctionFragmentInternalMachineFixup, TerminalFunctionFragmentInternalMachineFixupKind,
+    TerminalFunctionFragmentInternalMachineFixupState, TerminalFunctionFragmentSuccessorProvenance,
+    TerminalStructuralUnitCallFragmentSpan, TerminalStructuralUnitFunctionFragment,
+    TerminalStructuralUnitFunctionFragmentBlockSpan,
 };
 use omega_terminal_selected_instructions::{
     TerminalSelectedBlock, TerminalSelectedFunction, TerminalSelectedInstruction,
@@ -22,24 +28,28 @@ use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
 use crate::{
     FunctionRelativeOptimizationRealizationError,
     OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
+    OptimizedStructuralUnitFunctionRelativeRealizationError,
     OptimizedUnitFunctionRelativeRealizationError, StagedAarch64CbnzFunctionRelativeRealization,
     StagedFunctionRelativeLayoutOptimizationRealization,
     StagedOptimizedActiveResidentRematerialization,
     StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedUnitFunctionRelativeRealization,
+    StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedStructuralUnitFunctionRelativeRealization,
+    StagedOptimizedUnitFunctionRelativeRealization,
     StagedSelectedLoweringAarch64CbnzFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealization, TerminalResolvedSelectedFormRow,
     TerminalSelectedFormEncodingIdentity, TerminalWholeFunctionExitContractIdentity,
     validate_aarch64_cbnz_function_relative_realization_custody,
     validate_function_relative_layout_optimization_realization_custody,
     validate_optimized_active_resident_rematerialization_function_relative_realization,
+    validate_optimized_structural_unit_function_relative_realization,
     validate_optimized_unit_function_relative_realization,
     validate_selected_lowering_aarch64_cbnz_function_relative_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 
 const MANIFEST_MAGIC: &[u8; 8] = b"OMGFFE\0\0";
-const MANIFEST_VERSION: u32 = 3;
+const MANIFEST_VERSION: u32 = 4;
 
 #[derive(Debug)]
 pub enum StagedOptimizedFunctionFragmentEmissionSource {
@@ -53,6 +63,7 @@ pub enum StagedOptimizedFunctionFragmentEmissionSource {
         Box<StagedOptimizedActiveResidentRematerializationFunctionRelativeRealization>,
     ),
     UnitBaseline(Box<StagedOptimizedUnitFunctionRelativeRealization>),
+    StructuralUnitCall(Box<StagedOptimizedStructuralUnitFunctionRelativeRealization>),
 }
 
 impl StagedOptimizedFunctionFragmentEmissionSource {
@@ -95,6 +106,14 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .selected_stage()
                 .selected()
                 .selected_plan(),
+            Self::StructuralUnitCall(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .selected()
+                .selected_plan(),
         }
     }
 
@@ -108,6 +127,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 active_resident_rematerialization(realization).homes()
             }
             Self::UnitBaseline(realization) => realization.homes().homes(),
+            Self::StructuralUnitCall(realization) => realization.homes().homes(),
         }
     }
 
@@ -158,6 +178,13 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .liveness_stage()
                 .selected_stage()
                 .register_environment(),
+            Self::StructuralUnitCall(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .register_environment(),
         }
     }
 
@@ -169,6 +196,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.exit_contract(),
             Self::ActiveResidentRematerialization(realization) => realization.exit_contract(),
             Self::UnitBaseline(realization) => realization.exit_contract(),
+            Self::StructuralUnitCall(realization) => realization.exit_contract(),
         }
     }
     pub fn pre_physical_manifest(
@@ -232,6 +260,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized_target()
                 .optimized()
                 .pre_physical_manifest(),
+            Self::StructuralUnitCall(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .pre_physical_manifest(),
         }
     }
 
@@ -245,6 +282,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
             Self::Aarch64CbnzAfterSelectedLowering(realization) => realization.manifest(),
             Self::ActiveResidentRematerialization(realization) => realization.manifest(),
             Self::UnitBaseline(realization) => realization.manifest(),
+            Self::StructuralUnitCall(realization) => realization.manifest(),
         }
     }
 
@@ -264,6 +302,7 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 active_resident_rematerialization(realization).post_allocation_manifest()
             }
             Self::UnitBaseline(realization) => realization.homes().post_allocation_manifest(),
+            Self::StructuralUnitCall(realization) => realization.homes().post_allocation_manifest(),
         }
     }
 
@@ -330,6 +369,15 @@ impl StagedOptimizedFunctionFragmentEmissionSource {
                 .optimized_target()
                 .optimized()
                 .verified_input(),
+            Self::StructuralUnitCall(realization) => realization
+                .homes()
+                .legality_stage()
+                .live_range_stage()
+                .liveness_stage()
+                .selected_stage()
+                .optimized_target()
+                .optimized()
+                .verified_input(),
         }
     }
 }
@@ -362,11 +410,13 @@ pub enum FunctionFragmentEmissionSourceKind {
     Aarch64CbnzV1,
     ActiveResidentImmediateU64MultiUseRematerializationV1,
     UnitBaselineV1,
+    StructuralUnitCallV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FunctionFragmentEmissionStage {
     ValidatedRelocationFreeFunctionFragmentsV1,
+    ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -383,6 +433,12 @@ pub struct FunctionFragmentEmissionStatistics {
     pub bytes: u64,
     pub resolved_conditional_branches: u64,
     pub logical_fuel_settlements: u64,
+    pub structural_unit_functions: u64,
+    pub structural_unit_blocks: u64,
+    pub structural_unit_instruction_spans: u64,
+    pub structural_unit_bytes: u64,
+    pub unresolved_internal_machine_fixups: u64,
+    pub structural_logical_fuel_settlements: u64,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -413,7 +469,7 @@ pub struct FunctionFragmentEmissionManifest {
 
 impl FunctionFragmentEmissionManifest {
     pub fn recomputed_identity(&self) -> FunctionFragmentEmissionManifestIdentity {
-        let mut canonical = b"omega.function-fragment-emission-manifest.v3\0".to_vec();
+        let mut canonical = b"omega.function-fragment-emission-manifest.v4\0".to_vec();
         canonical.extend_from_slice(&encode_manifest_content(self));
         FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(&canonical)
     }
@@ -440,6 +496,7 @@ impl FunctionFragmentEmissionManifest {
         let identity = FunctionFragmentEmissionManifestIdentity::from_bytes(cursor.array()?);
         let stage = match cursor.byte()? {
             1 => FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
+            2 => FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
             tag => {
                 return Err(FunctionFragmentEmissionManifestDecodeError::UnknownStage(
                     tag,
@@ -451,6 +508,7 @@ impl FunctionFragmentEmissionManifest {
             2 => FunctionFragmentEmissionSourceKind::Aarch64CbnzV1,
             3 => FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1,
             4 => FunctionFragmentEmissionSourceKind::UnitBaselineV1,
+            5 => FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
             tag => return Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(tag)),
         };
         let source_realization =
@@ -491,6 +549,12 @@ impl FunctionFragmentEmissionManifest {
             bytes: u64::from_le_bytes(cursor.array()?),
             resolved_conditional_branches: u64::from_le_bytes(cursor.array()?),
             logical_fuel_settlements: u64::from_le_bytes(cursor.array()?),
+            structural_unit_functions: u64::from_le_bytes(cursor.array()?),
+            structural_unit_blocks: u64::from_le_bytes(cursor.array()?),
+            structural_unit_instruction_spans: u64::from_le_bytes(cursor.array()?),
+            structural_unit_bytes: u64::from_le_bytes(cursor.array()?),
+            unresolved_internal_machine_fixups: u64::from_le_bytes(cursor.array()?),
+            structural_logical_fuel_settlements: u64::from_le_bytes(cursor.array()?),
         };
         for _ in 0..6 {
             if cursor.byte()? != 1 {
@@ -623,6 +687,7 @@ pub enum FunctionFragmentEmissionError {
         OptimizedActiveResidentRematerializationFunctionRelativeRealizationError,
     ),
     UnitSource(OptimizedUnitFunctionRelativeRealizationError),
+    StructuralUnitSource(OptimizedStructuralUnitFunctionRelativeRealizationError),
     MissingX86Rel8Realization,
     SourceKindMismatch,
     MissingFunction(MachineId),
@@ -764,6 +829,10 @@ fn validate_source(
             validate_optimized_unit_function_relative_realization(realization)
                 .map_err(FunctionFragmentEmissionError::UnitSource)?;
         }
+        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(realization) => {
+            validate_optimized_structural_unit_function_relative_realization(realization)
+                .map_err(FunctionFragmentEmissionError::StructuralUnitSource)?;
+        }
     }
     Ok(())
 }
@@ -882,6 +951,9 @@ fn compute(
                 realization.manifest().record(),
             )
         }
+        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(realization) => {
+            compute_structural_unit(source, realization)
+        }
     }
 }
 
@@ -911,6 +983,8 @@ fn compute_from(
     if selected.selected_identity() != layout.selected()
         || selected_plan.target != layout.target()
         || selected_plan.functions.len() != layout.functions().len()
+        || !selected_plan.structural_unit_functions.is_empty()
+        || !layout.structural_unit_functions().is_empty()
         || source_manifest.selected != selected.selected_identity()
         || source_manifest.resolved_layout != layout.identity()
         || source_manifest.allocation_recovery_selections != expected_allocation_recovery
@@ -940,6 +1014,7 @@ fn compute_from(
         target: selected_plan.target,
         entry: selected_plan.entry,
         functions,
+        structural_unit_functions: Vec::new(),
     };
     fragments.identity = fragments.recomputed_identity();
     let statistics = statistics(&fragments)?;
@@ -949,6 +1024,186 @@ fn compute_from(
         identity: FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"pending"),
         stage: FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1,
         source_kind: kind,
+        source_realization: source_manifest.identity,
+        selections: source_manifest.selections,
+        terminal_psi: fragments.terminal_psi,
+        fuel_schedule: fragments.fuel_schedule,
+        selected: fragments.selected,
+        post_allocation_manifest: source_manifest.post_allocation_manifest,
+        post_allocation_machine: source_manifest.post_allocation_machine,
+        final_pre_layout: source_manifest.pre_layout,
+        final_resolved_layout: source_manifest.resolved_layout,
+        whole_function_exit_contract: source_manifest.whole_function_exit_contract,
+        fragments: fragments.identity,
+        target: fragments.target,
+        statistics,
+        section_placement: unavailable,
+        symbols: unavailable,
+        object_relocations: unavailable,
+        executable_image: unavailable,
+        installation: unavailable,
+        publication: unavailable,
+    };
+    record.identity = record.recomputed_identity();
+    Ok((
+        fragments,
+        ValidatedFunctionFragmentEmissionManifest { record },
+    ))
+}
+
+fn compute_structural_unit(
+    source: &StagedOptimizedFunctionFragmentEmissionSource,
+    realization: &StagedOptimizedStructuralUnitFunctionRelativeRealization,
+) -> Result<
+    (
+        TerminalFunctionFragmentEmissionPlan,
+        ValidatedFunctionFragmentEmissionManifest,
+    ),
+    FunctionFragmentEmissionError,
+> {
+    let selected_plan = source.selected_plan();
+    let layout = realization.layout();
+    let source_manifest = realization.manifest().record();
+    if !selected_plan.functions.is_empty()
+        || !layout.functions().is_empty()
+        || selected_plan.structural_unit_functions.len() != layout.structural_unit_functions().len()
+        || selected_plan.structural_unit_functions.is_empty()
+        || selected_plan.target != layout.target()
+        || source_manifest.selected != layout.selected()
+        || source_manifest.resolved_layout != layout.identity()
+    {
+        return Err(FunctionFragmentEmissionError::RootMismatch);
+    }
+
+    let mut structural_unit_functions =
+        Vec::with_capacity(selected_plan.structural_unit_functions.len());
+    for (selected, resolved) in selected_plan
+        .structural_unit_functions
+        .iter()
+        .zip(layout.structural_unit_functions())
+    {
+        if selected.machine != resolved.machine
+            || selected.entry_block != resolved.block
+            || resolved.offset != 0
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        let call = match (&selected.call, &resolved.call) {
+            (None, None) => None,
+            (Some(selected_call), Some(resolved_call)) => {
+                if selected_call.id != resolved_call.instruction
+                    || selected_call.operation != resolved_call.operation
+                    || selected_call.callee != resolved_call.callee
+                {
+                    return Err(FunctionFragmentEmissionError::RootMismatch);
+                }
+                let fixup = resolved_call.fixup;
+                let kind = match fixup.kind {
+                    X86_64StructuralUnitInternalControlFixupKind::Relative32FromNextInstructionToInternalMachineV1 => TerminalFunctionFragmentInternalMachineFixupKind::X86Relative32FromNextInstructionToInternalMachineV1,
+                };
+                let state = match fixup.state {
+                    X86_64StructuralUnitInternalControlFixupState::UnresolvedZeroFieldV1 => {
+                        TerminalFunctionFragmentInternalMachineFixupState::UnresolvedZeroFieldV1
+                    }
+                };
+                let base = resolved_call.offset;
+                Some(TerminalStructuralUnitCallFragmentSpan {
+                    instruction: resolved_call.instruction,
+                    operation: resolved_call.operation,
+                    callee: resolved_call.callee,
+                    offset: base,
+                    bytes: resolved_call.bytes.clone(),
+                    provenance: selected_call.provenance.clone(),
+                    fixup: TerminalFunctionFragmentInternalMachineFixup {
+                        kind,
+                        state,
+                        callee: fixup.callee,
+                        opcode_function_offset: base
+                            .checked_add(u64::from(fixup.opcode_byte_offset))
+                            .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                        field_function_offset: base
+                            .checked_add(u64::from(fixup.field_byte_offset))
+                            .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                        next_instruction_function_offset: base
+                            .checked_add(u64::from(fixup.next_instruction_byte_offset))
+                            .ok_or(FunctionFragmentEmissionError::OffsetOverflow)?,
+                        field_byte_width: fixup.field_byte_width,
+                        addend: fixup.addend,
+                    },
+                })
+            }
+            _ => return Err(FunctionFragmentEmissionError::RootMismatch),
+        };
+        let returned = &resolved.return_instruction;
+        let selected_return = &selected.terminator.instruction;
+        if selected_return.id != returned.instruction {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        let return_instruction = TerminalFunctionFragmentInstructionSpan {
+            instruction: returned.instruction,
+            alternative: returned.alternative,
+            offset: returned.offset,
+            bytes: returned.bytes.clone(),
+            branch: None,
+            provenance: selected_return.provenance.clone(),
+            control: TerminalFunctionFragmentControlProvenance::Return {
+                psi_return_edge: selected.terminator.psi_return_edge,
+            },
+        };
+        let mut bytes = Vec::new();
+        if let Some(call) = &call {
+            if u64::try_from(bytes.len())
+                .map_err(|_| FunctionFragmentEmissionError::OffsetOverflow)?
+                != call.offset
+            {
+                return Err(FunctionFragmentEmissionError::RootMismatch);
+            }
+            bytes.extend_from_slice(&call.bytes);
+        }
+        if u64::try_from(bytes.len()).map_err(|_| FunctionFragmentEmissionError::OffsetOverflow)?
+            != return_instruction.offset
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        bytes.extend_from_slice(&return_instruction.bytes);
+        if u64::try_from(bytes.len()).map_err(|_| FunctionFragmentEmissionError::OffsetOverflow)?
+            != resolved.byte_count
+        {
+            return Err(FunctionFragmentEmissionError::RootMismatch);
+        }
+        structural_unit_functions.push(TerminalStructuralUnitFunctionFragment {
+            machine: selected.machine,
+            attachment: selected.attachment,
+            provenance: selected.provenance.clone(),
+            byte_count: resolved.byte_count,
+            bytes,
+            block: TerminalStructuralUnitFunctionFragmentBlockSpan {
+                block: resolved.block,
+                offset: resolved.offset,
+                byte_count: resolved.byte_count,
+                call,
+                return_instruction,
+            },
+        });
+    }
+
+    let mut fragments = TerminalFunctionFragmentEmissionPlan {
+        identity: TerminalFunctionFragmentEmissionIdentity::from_canonical_bytes(b"pending"),
+        terminal_psi: selected_plan.terminal_psi,
+        fuel_schedule: selected_plan.fuel_schedule,
+        selected: source_manifest.selected,
+        target: selected_plan.target,
+        entry: selected_plan.entry,
+        functions: Vec::new(),
+        structural_unit_functions,
+    };
+    fragments.identity = fragments.recomputed_identity();
+    let statistics = statistics(&fragments)?;
+    let unavailable = FunctionFragmentEmissionUnavailableData::Unavailable;
+    let mut record = FunctionFragmentEmissionManifest {
+        identity: FunctionFragmentEmissionManifestIdentity::from_canonical_bytes(b"pending"),
+        stage: FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1,
+        source_kind: FunctionFragmentEmissionSourceKind::StructuralUnitCallV1,
         source_realization: source_manifest.identity,
         selections: source_manifest.selections,
         terminal_psi: fragments.terminal_psi,
@@ -1161,6 +1416,42 @@ fn statistics(
             }
         }
     }
+    result.structural_unit_functions = u64::try_from(fragments.structural_unit_functions.len())
+        .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?;
+    for function in &fragments.structural_unit_functions {
+        result.structural_unit_blocks = result
+            .structural_unit_blocks
+            .checked_add(1)
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+        result.structural_unit_bytes = result
+            .structural_unit_bytes
+            .checked_add(function.byte_count)
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+        result.structural_unit_instruction_spans = result
+            .structural_unit_instruction_spans
+            .checked_add(1 + u64::from(function.block.call.is_some()))
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+        result.structural_logical_fuel_settlements = result
+            .structural_logical_fuel_settlements
+            .checked_add(
+                u64::try_from(function.block.return_instruction.provenance.fuel.len())
+                    .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
+            )
+            .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+        if let Some(call) = &function.block.call {
+            result.unresolved_internal_machine_fixups = result
+                .unresolved_internal_machine_fixups
+                .checked_add(1)
+                .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+            result.structural_logical_fuel_settlements = result
+                .structural_logical_fuel_settlements
+                .checked_add(
+                    u64::try_from(call.provenance.fuel.len())
+                        .map_err(|_| FunctionFragmentEmissionError::StatisticsOverflow)?,
+                )
+                .ok_or(FunctionFragmentEmissionError::StatisticsOverflow)?;
+        }
+    }
     Ok(result)
 }
 
@@ -1182,6 +1473,9 @@ fn source_kind(
         StagedOptimizedFunctionFragmentEmissionSource::UnitBaseline(_) => {
             FunctionFragmentEmissionSourceKind::UnitBaselineV1
         }
+        StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(_) => {
+            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1
+        }
     }
 }
 
@@ -1198,12 +1492,16 @@ fn receipt(
 
 fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8> {
     let mut bytes = Vec::new();
-    bytes.push(1);
+    bytes.push(match record.stage {
+        FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1 => 1,
+        FunctionFragmentEmissionStage::ValidatedFunctionFragmentsWithUnresolvedInternalMachineFixupsV1 => 2,
+    });
     bytes.push(match record.source_kind {
         FunctionFragmentEmissionSourceKind::X86Rel8V1 => 1,
         FunctionFragmentEmissionSourceKind::Aarch64CbnzV1 => 2,
         FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1 => 3,
         FunctionFragmentEmissionSourceKind::UnitBaselineV1 => 4,
+        FunctionFragmentEmissionSourceKind::StructuralUnitCallV1 => 5,
     });
     bytes.extend_from_slice(&record.source_realization.bytes());
     bytes.extend_from_slice(&record.selections.bytes());
@@ -1230,6 +1528,27 @@ fn encode_manifest_content(record: &FunctionFragmentEmissionManifest) -> Vec<u8>
             .to_le_bytes(),
     );
     bytes.extend_from_slice(&record.statistics.logical_fuel_settlements.to_le_bytes());
+    bytes.extend_from_slice(&record.statistics.structural_unit_functions.to_le_bytes());
+    bytes.extend_from_slice(&record.statistics.structural_unit_blocks.to_le_bytes());
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .structural_unit_instruction_spans
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&record.statistics.structural_unit_bytes.to_le_bytes());
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .unresolved_internal_machine_fixups
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(
+        &record
+            .statistics
+            .structural_logical_fuel_settlements
+            .to_le_bytes(),
+    );
     bytes.extend_from_slice(&[1; 6]);
     bytes
 }

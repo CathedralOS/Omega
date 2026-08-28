@@ -194,7 +194,8 @@ canonical Terminal Psi semantic + proof sections
           -> zero-VReg ranges/legality/empty homes + post-allocation effects
           -> typed internal-call fixup encoding
           -> function-relative custody and balanced whole-function exit
-          -> fixup-preserving fragments and whole-section resolution (next)
+          -> fixup-preserving fragments
+          -> whole-section resolution (next)
           -> object/private-symbol join
           -> semantic ProgramStorage wrapper object
        (physical process entry, native image, install, and publication closed)
@@ -2456,11 +2457,17 @@ the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
 `[0, 1)` without resolving the fixup. Whole-function-exit v5 validates a
 distinct balanced Microsoft-x64 structural-call policy, and a separate owning
 function-relative carrier publishes `OMGFRM` v7 statistics with zero ordinary
-rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup. The next
-implementation boundary carries that fixup through machine-code fragments,
-resolves the signed rel32 only at whole-text placement where both `MachineId`
-offsets are known, and then joins the resulting object/private continuation
-symbol with the settlement, semantic contract, and wrapper plan.
+rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup.
+Machine-code fragment schema v3 and `OMGFFE` v4 now retain that exact parallel
+structural roster, 90/1-byte aggregate spans, call/return provenance, and a
+target-neutral typed fixup. Their stage is explicitly not relocation-free; the
+existing relocation-free text API rejects it. The target-owned x86 resolver
+computes checked signed rel32 fields and independently replays the complete
+patched call, including the canonical `+5` forward fixture and negative calls.
+The next implementation boundary invokes that resolver only at whole-text
+placement where both `MachineId` offsets are known, and then joins the resulting
+object/private continuation symbol with the settlement, semantic contract, and
+wrapper plan.
 The wrapper identity remains distinct from every Terminal `MachineId`; only
 the internal continuation is MachineId-rooted. The checked-source
 ProgramStorage regression also establishes that the existing generic source
