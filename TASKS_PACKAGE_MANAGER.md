@@ -766,7 +766,20 @@ complete.
   are enforced. Policy canaries prove inside-root writes succeed while outside
   writes, loopback TCP, and unlisted execution fail. Real SHA-1 and SHA-256 Git
   resolutions prove the production bare-repository initialization vocabulary
-  still works. Discovery and fetch remain conservative imported network phases.
+  still works. At this milestone, discovery and fetch remained conservative
+  imported network phases.
+
+  Follow-up 2026-08-28: transport discovery no longer imports a host profile on
+  macOS. Its default-deny policy admits broad reads, exact selected executables,
+  `/dev/null`, and outbound network. Empirical SSH isolation identified two
+  additional requirements, admitted exactly rather than through `system.sb`:
+  OpenDirectory's read-only libinfo service and the `kern.hostname` sysctl.
+  Discovery's filesystem-write and executable-path rows are enforced;
+  network denial is inapplicable and endpoint confinement remains unavailable.
+  Native loopback canaries prove HTTPS and SSH helper execution, and a complete
+  diagnostic resolution of an exact public GitHub commit proves real DNS, TLS,
+  discovery, fetch, object authentication, and snapshot materialization still
+  work. Fetch is now the only macOS phase retaining the imported profile.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

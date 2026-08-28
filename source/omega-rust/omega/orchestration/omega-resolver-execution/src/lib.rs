@@ -44,6 +44,10 @@ const MACOS_SYSTEM_PROFILE: &str = "/System/Library/Sandbox/Profiles/system.sb";
 const MACOS_DYLD_PROFILE: &str = "/System/Library/Sandbox/Profiles/dyld-support.sb";
 #[cfg(target_os = "macos")]
 const MACOS_NULL_DEVICE: &str = "/dev/null";
+#[cfg(target_os = "macos")]
+const MACOS_DIRECTORY_LOOKUP_SERVICE: &str = "com.apple.system.opendirectoryd.libinfo";
+#[cfg(target_os = "macos")]
+const MACOS_HOSTNAME_SYSCTL: &str = "kern.hostname";
 
 /// One compiler-owned source-resolution phase.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,7 +78,7 @@ impl ResolverExecutionPhase {
     const fn uses_self_contained_macos_policy(self) -> bool {
         matches!(
             self,
-            Self::RepositoryInitialization | Self::RepositoryInspection
+            Self::TransportDiscovery | Self::RepositoryInitialization | Self::RepositoryInspection
         )
     }
 
@@ -632,6 +636,12 @@ impl ResolverExecutionBackend {
         if phase.permits_network() {
             profile.push_str(" (allow network-outbound)");
         }
+        if phase == ResolverExecutionPhase::TransportDiscovery {
+            profile.push_str(&format!(
+                " (allow mach-lookup (global-name \"{MACOS_DIRECTORY_LOOKUP_SERVICE}\")) \
+                 (allow sysctl-read (sysctl-name \"{MACOS_HOSTNAME_SYSCTL}\"))"
+            ));
+        }
         if phase.requires_mutable_root() {
             profile.push_str(" (allow file-write* (subpath (param \"MUTABLE_ROOT\")))");
         }
@@ -687,7 +697,8 @@ fn guarantee_disposition(
         | AggregateResourcesConfined => Unavailable,
         NetworkDenied
             if matches!(backend, MacosSeatbelt { .. })
-                && phase.uses_self_contained_macos_policy() =>
+                && phase.uses_self_contained_macos_policy()
+                && !phase.permits_network() =>
         {
             Enforced
         }
@@ -1552,6 +1563,14 @@ mod tests {
                 Some(&mutable_root),
             )
             .expect("issue initialization policy observation");
+        let (discovery_command, discovery) = backend
+            .command_with_observation(
+                executable,
+                &[],
+                ResolverExecutionPhase::TransportDiscovery,
+                None,
+            )
+            .expect("issue discovery policy observation");
         let (fetch_command, fetch) = backend
             .command_with_observation(
                 executable,
@@ -1562,6 +1581,7 @@ mod tests {
             .expect("issue fetch policy observation");
         assert!(inspection.generated_policy_sha256().is_some());
         assert!(initialization.generated_policy_sha256().is_some());
+        assert!(discovery.generated_policy_sha256().is_some());
         assert!(fetch.generated_policy_sha256().is_some());
         assert_ne!(
             inspection.generated_policy_sha256(),
@@ -1599,6 +1619,15 @@ mod tests {
             initialization_profile
                 .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
         );
+        let discovery_profile = profile(&discovery_command);
+        assert!(!discovery_profile.contains("(import"));
+        assert!(discovery_profile.contains("network-outbound"));
+        assert!(!discovery_profile.contains("file-write*"));
+        assert!(discovery_profile.contains(
+            "(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))"
+        ));
+        assert!(discovery_profile.contains("(allow sysctl-read (sysctl-name \"kern.hostname\"))"));
+        assert!(!discovery_profile.contains("(allow sysctl-read)"));
         assert!(profile(&fetch_command).contains("(import \"system.sb\")"));
 
         let disposition = |observation: &super::ResolverExecutionPolicyObservation, guarantee| {
@@ -1630,6 +1659,31 @@ mod tests {
             disposition(
                 &initialization,
                 ResolverExecutionGuarantee::FilesystemReadsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Unavailable
+        );
+        assert_eq!(
+            disposition(
+                &discovery,
+                ResolverExecutionGuarantee::FilesystemWritesConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(
+                &discovery,
+                ResolverExecutionGuarantee::ExecutablePathsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        assert_eq!(
+            disposition(&discovery, ResolverExecutionGuarantee::NetworkDenied),
+            ResolverExecutionGuaranteeDisposition::NotRequired
+        );
+        assert_eq!(
+            disposition(
+                &discovery,
+                ResolverExecutionGuarantee::NetworkEndpointsConfined
             ),
             ResolverExecutionGuaranteeDisposition::Unavailable
         );

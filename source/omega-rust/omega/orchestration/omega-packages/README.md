@@ -244,11 +244,14 @@ Seatbelt write/network/exec canaries, inherited Unix rlimits, and opaque bounded
 policy observations issued from the same inputs as each native command.
 Successful Git resolutions retain every configured-command row, including the
 generated policy hash, exact numeric ceilings, normalized executable path set,
-and mutable root. Repository initialization and inspection use host-profile-
-free default-deny policies with broad reads, exact selected executables, and
-write-data to `/dev/null`; initialization additionally confines writes to its
-mutable quarantine root. Their write/network/exec rows are enforced. Discovery
-and fetch still import the exact root-owned `system.sb`/`dyld-support.sb` bytes.
+and mutable root. Transport discovery, repository initialization, and
+inspection use host-profile-free default-deny policies with broad reads, exact
+selected executables, and write-data to `/dev/null`; initialization additionally
+confines writes to its mutable quarantine root. Discovery admits outbound
+network plus exact OpenDirectory libinfo and hostname reads for the pinned SSH
+client, but not an endpoint boundary. Their applicable write/network/exec rows
+are enforced. Fetch still imports the exact root-owned
+`system.sb`/`dyld-support.sb` bytes.
 Their identities and accepted direct-import syntax enter backend identity and
 are revalidated. A
 bounded scanner balances lists, excludes strings/comments, rejects ambiguous
