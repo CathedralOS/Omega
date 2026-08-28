@@ -42,7 +42,7 @@ use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
-use psi_symbols::SymbolHandle;
+use psi_symbols::{BuiltinFunction, SymbolHandle};
 use std::collections::BTreeSet;
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
@@ -985,6 +985,10 @@ pub enum PackageReviewByteSequencePredicate {
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractCallTarget {
     Nominal(PackageReviewNominalIdentity),
+    /// One exact compiler-installed root builtin-function slot. The spelling
+    /// is diagnostic only; package declarations with the same name remain
+    /// ordinary nominals.
+    BuiltinFunction(BuiltinFunction),
     ByteSequencePredicate(PackageReviewByteSequencePredicate),
 }
 
@@ -1045,13 +1049,21 @@ impl PackageReviewContractCallTarget {
     pub const fn nominal(&self) -> Option<&PackageReviewNominalIdentity> {
         match self {
             Self::Nominal(identity) => Some(identity),
+            Self::BuiltinFunction(_) => None,
             Self::ByteSequencePredicate(_) => None,
+        }
+    }
+
+    pub const fn builtin_function(&self) -> Option<BuiltinFunction> {
+        match self {
+            Self::BuiltinFunction(function) => Some(*function),
+            Self::Nominal(_) | Self::ByteSequencePredicate(_) => None,
         }
     }
 
     pub const fn byte_sequence_predicate(&self) -> Option<PackageReviewByteSequencePredicate> {
         match self {
-            Self::Nominal(_) => None,
+            Self::Nominal(_) | Self::BuiltinFunction(_) => None,
             Self::ByteSequencePredicate(predicate) => Some(*predicate),
         }
     }
@@ -9558,6 +9570,15 @@ fn project_contract_expression_with_substitutions(
                         call.machine_arguments.len(),
                     )?
                 }
+                PackageReviewContractCallTarget::BuiltinFunction(_) => {
+                    if !call.machine_arguments.is_empty() {
+                        return Err(vec![Diagnostic::error(format!(
+                            "reviewed {} `{}` supplies static arguments to a compiler-owned builtin function",
+                            context.subject_kind, context.subject_name
+                        ))]);
+                    }
+                    Vec::new()
+                }
                 PackageReviewContractCallTarget::ByteSequencePredicate(_) => {
                     if !call.machine_arguments.is_empty() {
                         return Err(vec![Diagnostic::error(format!(
@@ -10129,10 +10150,18 @@ fn exact_checked_contract_call_target(
         AuthoredDeclarationSelectionTarget::Resolved(target)
             if target.selected_symbol() == call.target_symbol =>
         {
-            Ok(PackageReviewContractCallTarget::Nominal(nominal_identity(
-                compilation,
-                call.target_symbol,
-            )?))
+            if let Some(function) = compilation
+                .typed
+                .symbols
+                .builtin_function_for_symbol(call.target_symbol)
+            {
+                Ok(PackageReviewContractCallTarget::BuiltinFunction(function))
+            } else {
+                Ok(PackageReviewContractCallTarget::Nominal(nominal_identity(
+                    compilation,
+                    call.target_symbol,
+                )?))
+            }
         }
         AuthoredDeclarationSelectionTarget::Resolved(_) => Err(vec![Diagnostic::error(format!(
             "reviewed {} `{}` contract call target disagrees with its exact checked call-selection row",

@@ -69,11 +69,11 @@ closed. Compiler-issued package review remains non-admitting.
 - [ ] **CLOSE-COMPILER-SEMANTIC-SUBJECTS.** Give every source-free
   compiler-owned semantic subject admitted by package review a closed identity
   selected from exact compiler state, never spelling. The existing closed floor
-  covers builtin types, unary operators, byte predicates, and collection
-  length. Remaining work includes builtin function calls such as `min`, `max`,
-  and `sqrt`; intrinsic provider-binding ownership; and any source-free child
-  still represented as unresolved nominal ownership. Package-authored
-  lookalikes must remain ordinary package nominals.
+  covers builtin types, all compiler-installed builtin functions (including
+  `min`, `max`, and `sqrt`), unary operators, byte predicates, and collection
+  length. Remaining work includes intrinsic provider-binding ownership and any
+  source-free child still represented as unresolved nominal ownership.
+  Package-authored lookalikes must remain ordinary package nominals.
 
 - [ ] **COMPLETE-CONFORMANCE-IDENTITY.** Retain complete public conformance
   applications, including target-trait lifetime arguments once OWNER Q6 is
