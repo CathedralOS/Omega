@@ -473,6 +473,15 @@ complete.
   observation still uses the display pathname, and an active same-user process
   remains outside this cooperative custody floor.
 
+  Milestone 2026-08-27: Git cache invalidation no longer removes resolver
+  metadata through the ambient entry pathname. It retains the canonical cache
+  parent, validates the entry as a direct concrete child, opens that directory
+  no-follow with stable identity, and removes `source.identity` relative to the
+  retained entry capability. Invalidation remains best-effort after the primary
+  resolution error, but a substituted entry symlink now rejects internally and
+  cannot redirect deletion into its target. Recursive staging cleanup and the
+  remaining metadata reads are still pathname-based.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
