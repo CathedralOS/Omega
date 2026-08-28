@@ -430,9 +430,6 @@ fn map_root_policy_file_error(error: RecordFileError) -> ReviewOnlyRootPolicyFil
         RecordFileError::DestinationExists { path } => {
             ReviewOnlyRootPolicyFileError::DestinationExists { path }
         }
-        RecordFileError::ParentDirectoryChanged { path } => {
-            ReviewOnlyRootPolicyFileError::DirectoryCustodyChanged { path }
-        }
         RecordFileError::PublishedButUnconfirmed { path, message } => {
             ReviewOnlyRootPolicyFileError::PublishedButUnconfirmed { path, message }
         }

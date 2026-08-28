@@ -353,7 +353,7 @@ complete.
   remains reachable solely through the test adapter. The cache key and exact
   resolver metadata bind this profile, and policy v10 invalidates cache custody
   created under the former HTTPS/SSH/file union. Resolved-source observations,
-  source-audit output, and diagnostic cache-policy schema v3 retain the selected
+  source-audit output retain the selected
   profile rather than showing only transport-neutral hosted lineage. This
   closes cross-protocol authority and cache reuse, not effective endpoint, TLS,
   known-host, credential, transport-helper, or native-network custody.
@@ -407,6 +407,15 @@ complete.
   and mutable cache paths remain non-authoritative, hostile same-user
   handle-relative custody remains open, and no diagnostic record can become the
   future opaque resolver receipt or accepted lock evidence.
+
+  Cleanup 2026-08-28: the obsolete diagnostic cache-policy JSON record and
+  `omega audit source-cache-policy` command are deleted. They had no consumer
+  beyond printing or persisting a non-authoritative duplicate of resolver
+  state, and preserving a strict parser did not justify retaining a second
+  record-shaped surface that could be mistaken for the future opaque receipt.
+  `omega audit source` remains an explicitly non-admitting live resolver
+  exercise; authoritative persistence must start from the future sealed receipt
+  rather than evolve the deleted schema.
 
   Milestone 2026-08-26: resolver-owned Git configuration replacement no longer
   removes `repository/config` and recreates it through an exposed pathname

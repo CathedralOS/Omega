@@ -1,7 +1,3 @@
-use crate::resolver::{
-    SourceCachePolicyRecord, SourceCachePolicyRecordPersistenceError, SourceCacheRequest,
-    resolve_source_cache_record,
-};
 use crate::source::{
     GitSourceRequest, GitSourceRequestError, LocalSourceLimits, SourceResolveError,
     resolve_git_source, resolve_local_source,
@@ -81,12 +77,6 @@ pub struct PackageSourceAudit {
 pub enum PackageSourceAuditCommandError {
     Parse(PackageSourceRequestParseError),
     Resolve(SourceResolveError),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum SourceCachePolicyCommandError {
-    Parse(PackageSourceRequestParseError),
-    Write(SourceCachePolicyRecordPersistenceError),
 }
 
 impl PackageSourceAudit {
@@ -209,44 +199,6 @@ pub fn audit_package_source_locator(
         .map_err(PackageSourceAuditCommandError::Resolve)
 }
 
-pub fn resolve_source_cache_record_locator(
-    adapter: SourceAdapter,
-    locator: impl Into<String>,
-    rev: Option<String>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let request = PackageSourceRequest::parse(adapter, locator, rev)
-        .map_err(SourceCachePolicyCommandError::Parse)?;
-    Ok(resolve_source_cache_record(
-        source_cache_request_from_package_request(request),
-        cache_dir,
-        limits,
-    ))
-}
-
-pub fn write_source_cache_record_locator(
-    adapter: SourceAdapter,
-    locator: impl Into<String>,
-    rev: Option<String>,
-    cache_dir: impl AsRef<Path>,
-    limits: LocalSourceLimits,
-    out_path: impl AsRef<Path>,
-) -> Result<SourceCachePolicyRecord, SourceCachePolicyCommandError> {
-    let record = resolve_source_cache_record_locator(adapter, locator, rev, cache_dir, limits)?;
-    record
-        .write_to_path(out_path)
-        .map_err(SourceCachePolicyCommandError::Write)?;
-    Ok(record)
-}
-
-fn source_cache_request_from_package_request(request: PackageSourceRequest) -> SourceCacheRequest {
-    match request {
-        PackageSourceRequest::LocalPath(path) => SourceCacheRequest::LocalPath(path),
-        PackageSourceRequest::Git(request) => SourceCacheRequest::Git(request),
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -361,18 +313,6 @@ mod tests {
                 PackageSourceRequestParseError::InvalidGitRequest(_)
             ))
         ));
-        assert!(matches!(
-            resolve_source_cache_record_locator(
-                SourceAdapter::Git,
-                "https://token@github.com/CathedralOS/tool.git",
-                None,
-                ".",
-                LocalSourceLimits::default(),
-            ),
-            Err(SourceCachePolicyCommandError::Parse(
-                PackageSourceRequestParseError::InvalidGitRequest(_)
-            ))
-        ));
     }
 
     #[test]
@@ -405,44 +345,6 @@ mod tests {
 
         let _ = std::fs::remove_dir_all(&root);
         let _ = std::fs::remove_dir_all(&cache);
-    }
-
-    #[test]
-    fn source_cache_policy_wrappers_resolve_and_publish_local_records() {
-        let root = temp_root("cache-policy-local");
-        let cache = temp_root("cache-policy-cache");
-        let out_path = temp_root("cache-policy-record").with_extension("json");
-        std::fs::create_dir_all(&root).expect("create local package");
-        std::fs::write(root.join("main.omg"), "machine Main::main() {}\n").expect("write source");
-
-        let resolved = resolve_source_cache_record_locator(
-            SourceAdapter::Local,
-            root.display().to_string(),
-            None,
-            &cache,
-            LocalSourceLimits::default(),
-        )
-        .expect("resolve local source-cache policy record");
-        let written = write_source_cache_record_locator(
-            SourceAdapter::Local,
-            root.display().to_string(),
-            None,
-            &cache,
-            LocalSourceLimits::default(),
-            &out_path,
-        )
-        .expect("write local source-cache policy record");
-        let recovered = SourceCachePolicyRecord::read_from_path(&out_path).expect("read record");
-
-        assert_eq!(resolved.source_kind, "local-path");
-        assert_eq!(resolved.verdict.as_str(), "diagnostic-observed");
-        assert_eq!(resolved.file_count, Some(1));
-        assert_eq!(written, resolved);
-        assert_eq!(recovered, resolved);
-
-        let _ = std::fs::remove_dir_all(&root);
-        let _ = std::fs::remove_dir_all(&cache);
-        let _ = std::fs::remove_file(&out_path);
     }
 
     #[test]
