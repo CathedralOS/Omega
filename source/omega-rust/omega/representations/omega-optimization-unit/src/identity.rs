@@ -14,8 +14,8 @@ use psi_core::{
 use psi_terminal::{
     BindingRelevance, BoundaryMachineDeclaration, ByteSequenceCarrier, ClaimContentProjection,
     ContentConservationGuarantee, CrashCause, CrashPredicateTerm, EntryClaim,
-    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, StructuralAccess,
-    StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
+    ProgramLocalRootIntroductionSchema, ProviderCandidateConformance, ServiceDeclaration,
+    StructuralAccess, StructuralArgument, StructuralDomainDeclaration, StructuralDomainRequirement,
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
@@ -29,7 +29,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v11\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v12\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -53,6 +53,7 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.id(unit.entry);
     bytes.slice(&unit.structural_types, encode_structural_type);
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
+    bytes.slice(unit.services.as_ref(), encode_service_declaration);
     bytes.slice(&unit.boundary_machines, encode_boundary_machine);
     bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
@@ -66,6 +67,12 @@ pub fn recompute_psi_optimization_unit_identity(
     });
     bytes.slice(&unit.functions, encode_function);
     OptimizationUnitIdentity::from_canonical_bytes(&bytes.finish())
+}
+
+fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDeclaration) {
+    bytes.id(service.id);
+    bytes.string(&service.identity);
+    encode_ids(bytes, &service.parents);
 }
 
 #[derive(Default)]

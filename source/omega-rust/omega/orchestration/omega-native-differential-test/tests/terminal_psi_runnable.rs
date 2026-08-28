@@ -178,12 +178,81 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
     validate_verified_psi_optimization_unit(&verified)
         .expect("source provider attachment satisfies exact specialization replay");
 
+    let source_services = &verified.input().context().terminal_module().services;
+    assert_eq!(
+        verified.unit().services.as_ref(),
+        source_services.as_slice()
+    );
+    let service_catalog = verified
+        .unit()
+        .services
+        .iter()
+        .map(|service| service.id)
+        .collect::<std::collections::BTreeSet<_>>();
+    let console_service = verified
+        .unit()
+        .services
+        .iter()
+        .find(|service| service.identity.ends_with("Console"))
+        .expect("source Console declaration remains in optimizer custody");
+    assert!(console_service.parents.is_empty());
+    assert!(verified.unit().functions.iter().all(|function| {
+        function
+            .published_service_ceiling
+            .iter()
+            .all(|service| service_catalog.contains(service))
+    }));
+    assert!(verified.unit().boundary_machines.iter().all(|boundary| {
+        boundary
+            .published_service_ceiling
+            .iter()
+            .all(|service| service_catalog.contains(service))
+    }));
+    for function in &verified.unit().functions {
+        for node in function.blocks.iter().flat_map(|block| &block.nodes) {
+            if let TerminalAbstractOperation::PortWrite { service, .. } = node.operation {
+                assert!(service_catalog.contains(&service));
+                assert!(function.published_service_ceiling.contains(&service));
+            }
+        }
+    }
+    for provider in &verified.unit().provider_candidates {
+        let candidate = verified
+            .unit()
+            .functions
+            .iter()
+            .find(|function| function.machine == provider.candidate)
+            .expect("source provider candidate remains a function");
+        let boundary = verified
+            .unit()
+            .boundary_machines
+            .iter()
+            .find(|boundary| boundary.id == provider.boundary)
+            .expect("source provider boundary remains declared");
+        assert_eq!(
+            provider.refinement.realized_service_ceiling,
+            candidate.published_service_ceiling
+        );
+        assert!(
+            provider
+                .refinement
+                .realized_service_ceiling
+                .iter()
+                .all(|service| boundary.published_service_ceiling.contains(service))
+        );
+    }
+
     let function = verified
         .unit()
         .functions
         .iter()
         .find(|function| function.machine == verified.unit().entry)
         .expect("optimizer unit retains the provider-backed source entry");
+    assert!(
+        function
+            .published_service_ceiling
+            .contains(&console_service.id)
+    );
     let provider_roots = function
         .structural_places
         .iter()
@@ -212,6 +281,18 @@ fn source_provider_attachment_specialization_reaches_verified_optimizer_admissio
                 structural_arguments,
                 ..
             } => {
+                let declaration = verified
+                    .unit()
+                    .boundary_machines
+                    .iter()
+                    .find(|declaration| declaration.id == *boundary)
+                    .expect("source boundary call retains its declaration");
+                assert!(
+                    declaration
+                        .published_service_ceiling
+                        .iter()
+                        .all(|service| function.published_service_ceiling.contains(service))
+                );
                 assert!(
                     structural_arguments
                         .iter()

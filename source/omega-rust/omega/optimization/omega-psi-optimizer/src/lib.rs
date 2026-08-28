@@ -195,6 +195,7 @@ mod tests {
             entry: functions[0].machine,
             structural_types: Vec::new(),
             structural_domains: Vec::new().into(),
+            services: Vec::new().into(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
             accepted_obligation_facts: Vec::new(),

@@ -579,13 +579,23 @@ These facts constrain the work below.
   parameters in canonical reverse order. Those no-ABI tuple locals remain
   outside `declared_places`; source-derived one-local, two-local, and
   local-plus-tail returns pass verified optimizer admission. The verified
+  unit now also retains Terminal's complete service catalog under content
+  identity v12. Independent validation replays unique IDs and identities,
+  strict known-parent ordering, acyclicity, full transitive parent closure,
+  canonical parent-closed function and boundary ceilings, all four internal
+  call lanes and boundary-call reach, concrete `PortWrite` membership, and
+  exact provider realized-ceiling refinement. Immutable verified-input custody
+  rejects a self-consistent replacement catalog, and the source-derived Console
+  canary checks that the frontend catalog, ceilings, calls, and provider rows
+  reach optimizer admission unchanged. The
   builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
   proof/range evidence, remaining root-kind legality, full ownership/custody replay, exact
-  payloadless-callee classification, and the crash/requirement/effect
-  vocabulary also remain across the Terminal-Psi lowering boundary.
+  payloadless-callee classification, root-service reach, and the
+  crash/requirement and remaining effect vocabulary also remain across the
+  Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -896,7 +906,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v11 and ledger v4 already encode the output and
+  optimization-unit identity v12 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1270,8 +1280,13 @@ dependency.
   out of executable `declared_places`; real one-local, two-local, and
   local-plus-tail source canaries pass admission. Remaining root-kind legality,
   full ownership/custody replay—including hidden local-operation
-  provenance—exact payloadless-callee classification, and the
-  crash/requirement/effect vocabulary remain open.
+  provenance—exact payloadless-callee classification, root-service reach, and
+  the crash/requirement and remaining effect vocabulary remain open. The
+  service-catalog rung is complete: unit identity v12 retains the exact
+  declaration graph; independent replay checks hierarchy closure, function and
+  boundary ceilings, internal/boundary call reach, `PortWrite` membership, and
+  provider refinement; verified-input custody plus the real Console source
+  canary cover projection.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.
@@ -1444,7 +1459,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v11, ledger v4,
+  replay. Candidate v20, optimization-unit identity v12, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1536,7 +1551,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v11, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v12, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 
