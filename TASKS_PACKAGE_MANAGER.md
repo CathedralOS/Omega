@@ -781,6 +781,19 @@ complete.
   discovery, fetch, object authentication, and snapshot materialization still
   work. Fetch is now the only macOS phase retaining the imported profile.
 
+  Follow-up 2026-08-28: fetch now uses the same self-contained macOS policy
+  floor and no generated resolver policy imports a mutable host profile. Fetch
+  admits broad reads, exact selected executables, `/dev/null`, outbound network,
+  the exact OpenDirectory libinfo and hostname services required by the pinned
+  SSH client, and writes only beneath its exact mutable quarantine root. Its
+  filesystem-write and executable-path rows are enforced; endpoint confinement
+  remains unavailable. A fresh-cache diagnostic resolution of an exact public
+  GitHub commit proves real DNS, TLS, fetch, object authentication, and snapshot
+  materialization under the no-import policy. The obsolete `system.sb` and
+  `dyld-support.sb` identity fields, custody checks, import scanner, and scanner
+  tests were removed; native policy-observation schema 2 records the smaller
+  backend identity.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

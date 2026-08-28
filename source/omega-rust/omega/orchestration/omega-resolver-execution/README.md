@@ -13,23 +13,15 @@ text or containment claims.
 
 ## Current enforcement
 
-- macOS uses compiler-fixed Seatbelt profiles. Transport discovery, repository
-  initialization, and inspection do not import a host profile. All admit broad
-  reads, the exact compiler-selected executable set, and write-data to the fixed
-  `/dev/null` sink. Initialization additionally admits writes only beneath its
-  mutable quarantine root. Discovery admits outbound network plus only the
-  OpenDirectory libinfo lookup and `kern.hostname` read required by the pinned
-  SSH client; its network endpoint remains unconfined. The applicable
-  filesystem-write, network-denial, and executable-path rows are enforced.
-  Fetch still imports Apple's mutable `system.sb`, whose special-file writes and
-  local socket access keep its corresponding rows unavailable.
-- The exact root-owned `system.sb` and `dyld-support.sb` bytes, metadata, ACL
-  custody, and accepted direct-import syntax are opened and revalidated with the
-  launcher and enter backend identity. A bounded scanner balances lists,
-  excludes strings/comments, rejects ambiguous import forms plus known
-  first-class/reflection routes, and accepts exactly the direct edge
-  `system.sb -> dyld-support.sb` with none in the latter. This fail-closed syntax
-  subset and exact content identity are not a complete Seatbelt semantics proof.
+- macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
+  profile imports. Every phase admits broad reads, the exact compiler-selected
+  executable set, and write-data to the fixed `/dev/null` sink. Initialization
+  and fetch additionally admit writes only beneath the exact mutable quarantine
+  root. Discovery and fetch admit outbound network plus only the OpenDirectory
+  libinfo lookup and `kern.hostname` read required by the pinned SSH client;
+  their network endpoints remain unconfined. Initialization and inspection deny
+  network. The applicable filesystem-write, network-denial, and executable-path
+  rows are enforced.
 - Unix children intersect compiler CPU, core-file, single-file, and descriptor
   ceilings with stricter inherited limits. Linux and Android additionally
   apply an address-space ceiling.
@@ -46,7 +38,6 @@ text or containment claims.
 
 This is engineering enforcement and one input to a future package-source
 receipt, not that accepted receipt. macOS still permits broad file reads in
-every phase, imported system exceptions during fetch, and unbrokered
-outbound endpoints; aggregate resource quotas and Linux/Windows strict backends
-remain package-manager tasks. See
+every phase and unbrokered outbound endpoints; aggregate resource quotas and
+Linux/Windows strict backends remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).
