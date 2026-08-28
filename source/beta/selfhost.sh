@@ -21,7 +21,7 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
-. "$OMEGA_PATH_BETA/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
@@ -31,14 +31,14 @@ BC0="$T/bc0.exe"
 stamp_beta_compiler "$BC0" >/dev/null || { echo "bc0 artifact stamp failed"; exit 1; }
 
 # asm1 = bc0(bc.beta) ; assemble + stamp -> bc1
-"$BC0" < bc.beta > "$T/asm1" || { echo "bc0(bc.beta) failed"; exit 1; }
+"$BC0" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$T/asm1" || { echo "bc0(bc.beta) failed"; exit 1; }
 "$ASM" < "$T/asm1" > "$T/bc1.tape" || { echo "assemble asm1 failed"; exit 1; }
 L=$(wc -c < "$T/bc1.tape" | tr -d ' ')
 [ $((L + 4)) -le "$HOLE_SIZE" ] || { echo "FAIL: bc tape $L B exceeds the hole ($HOLE_SIZE B)"; exit 1; }
 stamp_seed "$T/bc1.tape" "$SEED" "$T/bc1.exe" >/dev/null 2>&1
 
 # asm2 = bc1(bc.beta)
-"$T/bc1.exe" < bc.beta > "$T/asm2" || { echo "bc1(bc.beta) failed"; exit 1; }
+"$T/bc1.exe" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$T/asm2" || { echo "bc1(bc.beta) failed"; exit 1; }
 
 if cmp -s "$T/asm1" "$T/asm2"; then
   echo "self-host ✓ — lattice bc reproduces bc.beta byte-for-byte (bc tape ${L} B); no Rust in lineage"

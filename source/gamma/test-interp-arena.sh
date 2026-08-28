@@ -15,7 +15,7 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
   unset OMEGA_PATH_PARENT
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
-. "$OMEGA_PATH_BETA/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
 
 T=$(mktemp -d)

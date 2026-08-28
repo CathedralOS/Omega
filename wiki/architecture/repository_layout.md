@@ -180,8 +180,10 @@ Omega/
 |           `-- [CRATE] omega-visualizations/             # Visualization/dump views of pipeline artifacts.
 |
 |-- source/
-|   |-- alpha/                                             # Alpha semantics, seeds, and assembler.
-|   |-- beta/                                              # Beta language, compiler, and reference meaning.
+|   |-- alpha/                                             # Alpha semantics, seeds, assembler, and root checker.
+|   |   `-- checker/                                       # Universal derivation checker and checker tests.
+|   |-- beta/                                              # Beta language, reference meaning, and gates.
+|   |   `-- compiler/                                      # Compiler source, artifact, cold start, and validation.
 |   |-- gamma/                                             # Gamma language, interpreter, and type checker.
 |   |-- delta/                                             # Delta language, compiler, and canonical artifacts.
 |   |-- library/                                           # Core, allocation, and standard library source.
@@ -192,9 +194,7 @@ Omega/
 |   |-- omega/                                             # Omega-written target realization and product entrypoint.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
-|   |   `-- source-checkpoints/                            # Exact product closures and provisional Ωself censuses.
-|   |-- proof-kernel/                                      # Cross-cutting proof checking.
-|   |-- refinement/                                        # Explicit checked joins between semantic owners.
+|   |   `-- source-checkpoints/                            # Exact product closures and provisional feature censuses.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
 |
 |-- tests/lattice/corpus/                                  # Shared stable lattice inputs.
@@ -225,8 +225,8 @@ steps are complete:
 source/{alpha,beta,gamma,delta}/       canonical language rungs
 source/library/                        core, allocation, and standard libraries
 source/{psi,omega}/                    Omega-written product compiler halves
-source/proof-kernel/                   cross-cutting proof checking
-source/refinement/                     explicit cross-owner refinement joins
+source/alpha/checker/                  root derivation checking
+source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator
 tests/lattice/                         shared lattice corpora and cache manifests
 tests/{canaries,fixtures}/             language and package integration tests
@@ -236,10 +236,9 @@ tools/                                 other repository maintenance scripts
 
 Each rung remains the semantic owner of its language and lattice-built
 artifacts. A Rust producer nested beneath that rung is tooling for the same
-concept, not a second semantic owner. The proof kernel remains a first-class
-owner at `source/proof-kernel/`, separate from both the language spine and the
-product compiler. Refinement joins likewise live under `source/refinement/`
-rather than being hidden inside either endpoint.
+concept, not a second semantic owner. The root proof checker belongs to Alpha.
+Validation belongs beside the artifact it admits, so the Beta compiler's
+source/artifact reconstruction lives under `source/beta/compiler/validation/`.
 
 The package library now lives at `source/library/`. The relocation deliberately
 has no compatibility symlink. Package-manager P8 still owns removal of the

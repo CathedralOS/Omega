@@ -24,13 +24,13 @@ Beta's runtime meaning is fixed by its written small-step
 [`SEMANTICS.md`](../../../../source/beta/SEMANTICS.md). Beta compiles
 structurally to Alpha assembly, which the Alpha assembler lowers to a tape
 governed by Alpha's written semantics. The steady-state compiler is
-`source/beta/bc.beta`, written in Beta and self-hosted to a byte-identical
+`source/beta/compiler/bc.beta`, written in Beta and self-hosted to a byte-identical
 fixed point. The persisted artifact is reconstructed by the Alpha-written
 cold-start compiler and contains no external producer in its lineage. Its
-independent ROOT checker now establishes
-complete lower-rooted maximal-observation correspondence against `bc.beta` for
-the supported `B_bc1` profile. The fixed point still proves only deterministic
-dependency closure; authority comes from that separate refinement check.
+adjacent validation tree reconstructs extensive maximal-observation obligations
+against `bc.beta` for the supported `B_bc1` profile. Its current Beta checker is
+itself compiled by `bc`, so the non-circular acceptance root remains open. The
+fixed point proves only deterministic dependency closure.
 
 The Alpha assembler formerly lived in `compiler/beta/`, but it is an Alpha tool:
 it is written in Alpha assembly and translates Alpha assembly to Alpha tapes.
@@ -49,17 +49,18 @@ Beta remains a small compiler-construction substrate with raw memory.
 ## Current repository reality
 
 - `source/alpha/assembler/assembler.alpha` — self-hosting Alpha assembler;
-- `source/beta/bc.beta` — self-hosting Beta compiler;
+- `source/beta/compiler/bc.beta` — self-hosting Beta compiler;
 - `source/beta/reference/` — untrusted executable Python semantic
   reference, parser, and fuzzing;
-- `source/refinement/alpha-beta/` — symbolic/refinement reconstruction;
+- `source/beta/compiler/validation/` — symbolic/refinement reconstruction;
 - `source/beta/CALLING_CONVENTION.md` — Beta's frame and register
   discipline over Alpha;
 - `source/beta/LANGUAGE.md` — current Beta surface.
 - `source/beta/SEMANTICS.md` — canonical small-step runtime meaning and
   maximal observations.
 
-`source/beta/cold-start/full-source.sh`, `selfhost.sh`, and `test.sh`
+`source/beta/compiler/cold-start/full-source.sh`, `source/beta/selfhost.sh`, and
+`source/beta/test.sh`
 gate reconstruction, the fixed point, and language behavior. The obsolete
 Python backend and gate were removed because they added no unique semantic or
 lower-rooted refinement coverage.

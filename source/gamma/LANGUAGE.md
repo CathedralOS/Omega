@@ -74,12 +74,12 @@ decoders, and the independent Gamma proof-kernel implementation safe to write.
 ```sh
 sh source/gamma/test-interp.sh
 sh source/gamma/test-typeck.sh
-sh source/proof-kernel/gates/gamma-checker.sh
+sh source/alpha/checker/gates/gamma-checker.sh
 ```
 
 Typed Gamma consumers live in `canonical-bytes/`, the reusable grammar fragments
 under `terminal-codec-primitives/`, and
-`source/proof-kernel/implementations/gamma/checker_typed.gamma`.
+`source/alpha/checker/implementations/gamma/checker_typed.gamma`.
 They exercise the language but do not define it. The retired terminal-ledger
 prototype was artifact-assurance feasibility work, not Gamma meaning. The root
 `examples/*.gamma` corpus belongs to the parked imperative compiler and must not

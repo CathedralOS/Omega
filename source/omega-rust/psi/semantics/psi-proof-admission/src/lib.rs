@@ -5,7 +5,7 @@
 //! site and installation-profile decision. Executable terminal-Psi lowering
 //! reconstructs obligations; a proof bundle cannot choose their class. This
 //! crate is distinct from the generic derivation kernel under
-//! `source/proof-kernel/`.
+//! `source/alpha/checker/`.
 
 #![forbid(unsafe_code)]
 

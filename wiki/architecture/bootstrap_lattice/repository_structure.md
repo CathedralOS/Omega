@@ -8,15 +8,15 @@ bridge between Delta and Omega.
 
 ```text
 source/
-  alpha/                 Alpha semantics, seeds, and assembler
-  beta/                  Beta language, compiler, and reference meaning
+  alpha/                 Alpha semantics, seeds, assembler, and root checker
+    checker/             universal derivation checker and its tests
+  beta/                  Beta language, reference meaning, and gates
+    compiler/            compiler source, artifact, cold start, and validation
   gamma/                 Gamma language, interpreter, and type checker
   delta/                 Delta language, compiler, meaning, and artifacts
   psi/                   Omega-written target-neutral compiler half
   omega/                 Omega-written target realization and product entry
   library/               core, allocation, and standard-library source
-  proof-kernel/           cross-cutting proof checking
-  refinement/             explicit checked joins between semantic owners
   omega-rust/             temporary Rust product implementation/comparator
 
 tests/lattice/            shared bootstrap inputs
@@ -34,8 +34,11 @@ tools/bootstrap/          replaceable convenience orchestration
   owns target realization.
 - `source/omega-rust/` is a maintained implementation and migration aid. Its
   location grants no bootstrap or semantic authority.
-- `source/proof-kernel/` checks derivations. `source/refinement/` owns explicit
-  relations between different semantic subjects; neither is a language rung.
+- `source/alpha/checker/` owns the universal derivation checker. It is part of
+  the Alpha trust floor, not another language rung.
+- The artifact being admitted owns its validation. For example,
+  `source/beta/compiler/validation/` reconstructs the Beta compiler's
+  source-to-artifact edge; there is no generic cross-rung dumping ground.
 - `tests/lattice/` owns shared inputs, not compiler stages or trust decisions.
 - `tools/bootstrap/` may invoke the chain. A script must not parse, resolve,
   lower, discover source, manufacture evidence, or otherwise become a hidden
@@ -46,7 +49,8 @@ replacement of temporary physical-path readers with package-graph resolution.
 
 ## Direct product path
 
-Let `C` be the exact Omega compiler source closure, constrained to `Ωself`:
+Let `C` be the exact ordinary-Omega compiler source closure, deliberately
+authored with a conservative feature subset:
 
 ```text
 Alpha → Beta → Gamma → Delta-produced compiler
@@ -67,8 +71,8 @@ a rebuild of one compiler, not an untracked generation change.
 | Delta lower-rung meaning | `source/delta/meaning/` |
 | Omega-written compiler | `source/{psi,omega}/` |
 | current Rust comparator | `source/omega-rust/` |
-| proof checking | `source/proof-kernel/` |
-| explicit cross-owner refinements | `source/refinement/` |
+| root proof checking | `source/alpha/checker/` |
+| Beta compiler and its admission | `source/beta/compiler/` |
 | language libraries | `source/library/` |
 | shared lattice inputs | `tests/lattice/` |
 | non-authoritative runners | `tools/bootstrap/` |

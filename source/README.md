@@ -4,16 +4,14 @@ This tree is organized by language or durable semantic role, not by the
 implementation language that happens to realize it.
 
 ```text
-alpha/          audited execution seed and Alpha-owned assembler
-beta/           Beta language, compiler source, artifacts, and reference meaning
+alpha/          audited execution seed, assembler, and root checker
+beta/           Beta language, compiler, compiler validation, and reference meaning
 gamma/          Gamma language, interpreter, and type checker
 delta/          Delta language, compiler source, and canonical samples
 library/        core, allocation, and standard library source
 psi/            Omega-written target-neutral product compiler
 omega/          Omega-written target realization and product entrypoint
 omega-rust/     replaceable Rust development implementation and comparator
-proof-kernel/   cross-language certificate checking
-refinement/     checks over named source/artifact edges
 ```
 
 `omega-rust` may build, compare, or accelerate the product compiler, but it

@@ -72,11 +72,12 @@ Remaining:
   production `omega`; this is one compiler source rebuilt across two checked
   edges, not a separate bridge or a second source task.
 
-  Author this source against the working `Ωself` policy in
+  Author this source against the working compiler-source policy in
   `wiki/architecture/bootstrap_lattice/compiler_source_profile.md`; this task
-  does not wait for Delta v1 or a frozen profile. `Ωself` restricts only the
-  compiler's own ordinary-Omega source, never the full Omega language that the
-  resulting compiler implements. Prefer a small regular implementation
+  does not wait for Delta v1 or a frozen feature census. The deliberately
+  conservative feature usage restricts only the compiler's own ordinary-Omega
+  source, never the full Omega language that the resulting compiler implements.
+  Prefer a small regular implementation
   footprint, but do not replace useful general facilities with brittle
   monomorphic duplication merely to reduce the feature count. The working
   authoring bias is to avoid proof-program mathematics and dependent or proof-
@@ -96,8 +97,8 @@ Remaining:
   Keep adjacent tools outside the closure unless the compiler executable
   imports them.
 
-  Deriving and enforcing `Ωself`, implementing the Delta-written bridge, and
-  validating the hosted build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
+  Deriving the exact surface used by `C`, extending the Delta-produced compiler,
+  and validating the direct build remain in `TASKS_BOOTSTRAP.md`; do not duplicate
   product Psi/Omega implementation tasks there. The exact manifest is closure
   evidence, not permission for the bridge to recognize particular files or AST
   permutations. Terminal-Psi representation and lowering modules linked into
@@ -107,9 +108,9 @@ Remaining:
   Deliver this incrementally through coherent, versioned source checkpoints.
   Each checkpoint publishes the complete deterministic transitive closure for
   the compiler functionality it claims, passes the applicable product suites,
-  and updates the provisional `Ωself` census. A checkpoint manifest is exact
+  and updates the provisional feature census. A checkpoint manifest is exact
   for that checkpoint; the final manifest and profile freeze only at the
-  completed bridge join.
+  completed Delta-to-Omega join.
 
   Current checkpoint: `source/omega/source-checkpoints/checkpoint-000001.json`
   closes the first real Psi source-to-token slice under `source/psi/` plus

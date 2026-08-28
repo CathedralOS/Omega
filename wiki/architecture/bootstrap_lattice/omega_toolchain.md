@@ -13,7 +13,7 @@ language capability: Alpha → Beta → Gamma → Delta → Omega
 Delta compiler source
   └─ lower-rung publication ─▶ Delta-produced compiler
 
-exact product source C ∈ Ωself
+exact ordinary-Omega product source C
   └─ Delta-produced compiler ─▶ omega₀
 
 the same C
@@ -36,18 +36,18 @@ generation.
 - `source/delta/` owns the compiler that performs the first product build and
   the lower-rung meaning used to publish it.
 
-## `Ωself`
+## The source subset used by `C`
 
-`Ωself` is a mechanically enforced profile of ordinary Omega, derived from the
-complete product source closure `C`. It has no private syntax and no altered
-semantics. The Delta-produced compiler may reject Omega programs outside the
-profile, but every admitted program retains normal Omega meaning.
+`C` deliberately uses only a compositional subset of ordinary Omega. It has no
+private syntax or altered semantics, and the subset is not a named language or
+dialect. The Delta-produced compiler may reject Omega programs using forms not
+needed by `C`, but every admitted program retains normal Omega meaning.
 
 The product compiler built from `C` implements the complete Omega language for
 users. A feature may therefore be absent from the compiler's own implementation
 source while still being parsed, checked, and lowered by that compiler.
 
-The source manifest demonstrates closure under a general compositional profile;
+The source manifest demonstrates closure under general compositional forms;
 it must not become a file allowlist or a collection of hard-coded AST shapes.
 
 ## Assurance
@@ -58,9 +58,9 @@ semantics, reconstructed obligations, certificates, and disclosed admissions.
 The proof kernel checks derivations independently of the producer.
 
 Terminal Psi remains the boundary between product halves, not a mandatory IR
-for the Delta implementation itself. The Delta compiler may lower admitted
-`Ωself` source conservatively by any checked route. It merely cannot redefine
-the accepted source meaning.
+for the Delta implementation itself. The Delta compiler may lower the
+ordinary-Omega source used by `C` conservatively by any checked route. It
+merely cannot redefine the accepted source meaning.
 
 The exact execution order and unfinished edges live in
 [`TASKS_BOOTSTRAP.md`](../../../TASKS_BOOTSTRAP.md).
