@@ -1140,7 +1140,7 @@ fn convergence_measure(unit: &PsiOptimizationUnit, registry: &OrderedRuleRegistr
     );
     let proof_elision_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
-            b"omega.psi-pass.proof-check-elision.v8",
+            b"omega.psi-pass.proof-check-elision.v9",
         );
     let global_value_numbering_pass =
         omega_optimization_core::OptimizationPassIdentity::from_canonical_bytes(
@@ -1180,12 +1180,12 @@ mod tests {
         AnalysisProduct, ExactIntegerAddConstantsRule, PsiOptimizationRule,
         built_in_psi_registries, built_in_psi_registry,
         rules::tests::{
-            SelfRemainderPolicy, boolean_unit, compatible_policy_local_cse_unit,
+            SelfDividePolicy, SelfRemainderPolicy, boolean_unit, compatible_policy_local_cse_unit,
             compatible_policy_phi_translated_gvn_unit, constant_conditional_same_target_unit,
             dead_exact_add_unit, dead_wrapping_add_unit, dependent_exact_chain_unit,
             diamond_dominator_gvn_unit, dominator_gvn_unit, exact_add_unit,
             linear_empty_block_unit, live_divide_by_one_unit, live_exact_multiply_by_zero_unit,
-            live_exact_self_subtract_unit, live_exact_zero_value_shift_unit,
+            live_exact_self_subtract_unit, live_exact_zero_value_shift_unit, live_self_divide_unit,
             live_self_remainder_unit, local_cse_unit, non_adjacent_merge_unit,
             phi_translated_gvn_unit, proof_certified_dominator_gvn_unit,
             proof_certified_local_cse_unit, proof_certified_phi_translated_gvn_unit,
@@ -1809,7 +1809,7 @@ mod tests {
         .unwrap()
     }
 
-    fn verified_exact_self_remainder_unit() -> VerifiedPsiOptimizationUnit {
+    fn verified_exact_self_division_or_remainder_unit(divide: bool) -> VerifiedPsiOptimizationUnit {
         use psi_core::{
             BlockId, ContractId, EdgeId, EvidenceIdentity, IntegerSign, IntegerType, IntegerValue,
             MachineId, ObligationId, OperationId, Proposition, ScalarTerm, ScalarType, ValueId,
@@ -1871,10 +1871,18 @@ mod tests {
                     operations: vec![Operation {
                         id: OperationId::new(437).unwrap(),
                         result: OperationResult::Scalar(declaration(remainder)),
-                        kind: OperationKind::ExactIntegerRemainder {
-                            left: operand,
-                            right: operand,
-                            obligation,
+                        kind: if divide {
+                            OperationKind::ExactIntegerDivide {
+                                left: operand,
+                                right: operand,
+                                obligation,
+                            }
+                        } else {
+                            OperationKind::ExactIntegerRemainder {
+                                left: operand,
+                                right: operand,
+                                obligation,
+                            }
                         },
                     }],
                     terminator: Terminator::Return {
@@ -1920,6 +1928,14 @@ mod tests {
             psi_terminal_fuel::TerminalFuelSchedule::CURRENT.identity(),
         )
         .unwrap()
+    }
+
+    fn verified_exact_self_remainder_unit() -> VerifiedPsiOptimizationUnit {
+        verified_exact_self_division_or_remainder_unit(false)
+    }
+
+    fn verified_exact_self_divide_unit() -> VerifiedPsiOptimizationUnit {
+        verified_exact_self_division_or_remainder_unit(true)
     }
 
     fn budget(iterations: u64) -> OptimizationWorkBudget {
@@ -2232,7 +2248,7 @@ mod tests {
         assert_eq!(output.accepted_obligation_facts.len(), 1);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 8);
+        assert_eq!(manifest.ordered_rules().len(), 9);
         assert_eq!(
             manifest.decisions()[0].consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact)]
@@ -2260,7 +2276,7 @@ mod tests {
         assert_eq!(commits.len(), 1);
         assert_eq!(usage.iterations, 2);
         assert_eq!(ledger.records().len(), 1);
-        assert_eq!(manifest.unwrap().ordered_rules().len(), 8);
+        assert_eq!(manifest.unwrap().ordered_rules().len(), 9);
         assert_eq!(
             commits[0].declaration.consumed_facts(),
             [OptimizationFactReference::AcceptedObligation(accepted_fact),]
@@ -2301,7 +2317,7 @@ mod tests {
         assert_eq!(usage.iterations, 2);
         assert_eq!(ledger.records().len(), 1);
         let manifest = manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 8);
+        assert_eq!(manifest.ordered_rules().len(), 9);
         assert_eq!(
             manifest.decisions()[0].rule(),
             crate::LiveProofCertifiedIntegerSelfRemainderEliminationRule::contract().identity()
@@ -2314,6 +2330,51 @@ mod tests {
             output.functions[0].blocks[0].nodes[0].operation,
             TerminalAbstractOperation::IntegerConstant {
                 value: psi_core::IntegerValue::Unsigned(0),
+                ..
+            }
+        ));
+        assert_eq!(
+            output.functions[0].blocks[0].nodes[0].provenance,
+            original_provenance
+        );
+        assert_eq!(output.functions[0].blocks[0].nodes[0].fuel, original_fuel);
+
+        let (second, second_commits, second_usage, _, _, second_ledger) =
+            run_unit(output.clone(), &registry, budget(8)).unwrap();
+        assert_eq!(second.identity, output.identity);
+        assert!(second_commits.is_empty());
+        assert_eq!(second_usage.iterations, 1);
+        assert!(second_ledger.records().is_empty());
+    }
+
+    #[test]
+    fn named_proof_check_elision_materializes_self_divide_one_at_fixed_point() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let registry = built_in_psi_registry(&selections).unwrap();
+        let integer = psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap();
+        let unit = live_self_divide_unit(integer, SelfDividePolicy::Exact);
+        let accepted_fact = unit.accepted_obligation_facts[0].identity;
+        let original_provenance = unit.functions[0].blocks[0].nodes[0].provenance.clone();
+        let original_fuel = unit.functions[0].blocks[0].nodes[0].fuel.clone();
+        let (output, commits, usage, _, manifest, ledger) =
+            run_unit(unit, &registry, budget(8)).unwrap();
+        assert_eq!(commits.len(), 1);
+        assert_eq!(usage.iterations, 2);
+        assert_eq!(ledger.records().len(), 1);
+        let manifest = manifest.unwrap();
+        assert_eq!(manifest.ordered_rules().len(), 9);
+        assert_eq!(
+            manifest.decisions()[0].rule(),
+            crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
+        );
+        assert_eq!(
+            commits[0].declaration.consumed_facts(),
+            [OptimizationFactReference::AcceptedObligation(accepted_fact)]
+        );
+        assert!(matches!(
+            output.functions[0].blocks[0].nodes[0].operation,
+            TerminalAbstractOperation::IntegerConstant {
+                value: psi_core::IntegerValue::Unsigned(1),
                 ..
             }
         ));
@@ -2520,9 +2581,9 @@ mod tests {
             ),
             (
                 Optimization::ProofCheckElision,
-                live_self_remainder_unit(
+                live_self_divide_unit(
                     psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
-                    SelfRemainderPolicy::Exact,
+                    SelfDividePolicy::Exact,
                 ),
             ),
             (
@@ -2596,6 +2657,10 @@ mod tests {
             live_self_remainder_unit(
                 psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
                 SelfRemainderPolicy::Exact,
+            ),
+            live_self_divide_unit(
+                psi_core::IntegerType::new(psi_core::IntegerSign::Unsigned, 8).unwrap(),
+                SelfDividePolicy::Exact,
             ),
         ] {
             let (first_output, first_manifests, first_ledger) =
@@ -2971,6 +3036,42 @@ mod tests {
 
         let replayed = replay_psi_pipeline(
             verified_exact_self_remainder_unit(),
+            &selections,
+            budget(8),
+            &baseline.external_decisions().encode(),
+        )
+        .unwrap();
+        assert_eq!(replayed.session().unit(), baseline.session().unit());
+        assert_eq!(replayed.commits(), baseline.commits());
+        assert_eq!(replayed.decisions(), baseline.decisions());
+        assert_eq!(replayed.external_decisions(), baseline.external_decisions());
+        assert_eq!(replayed.pass_manifests(), baseline.pass_manifests());
+        assert_eq!(
+            replayed.transformation_ledger(),
+            baseline.transformation_ledger()
+        );
+        assert_eq!(replayed.identity_bundle(), baseline.identity_bundle());
+        assert_eq!(replayed.usage().validation_steps, 1);
+        validate_external_decision_recording(&replayed).unwrap();
+    }
+
+    #[test]
+    fn external_decision_record_and_replay_preserve_self_divide_validation() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let baseline =
+            run_psi_pipeline(verified_exact_self_divide_unit(), &selections, budget(8)).unwrap();
+        let [point] = baseline.external_decisions().points() else {
+            panic!("self-divide fixture has one external decision point");
+        };
+        assert_eq!(
+            point.rule(),
+            crate::LiveProofCertifiedIntegerSelfDivideEliminationRule::contract().identity()
+        );
+        assert!(matches!(point.action(), ExternalDecisionAction::Choose(_)));
+        assert_eq!(baseline.usage().validation_steps, 1);
+
+        let replayed = replay_psi_pipeline(
+            verified_exact_self_divide_unit(),
             &selections,
             budget(8),
             &baseline.external_decisions().encode(),
@@ -3488,7 +3589,7 @@ mod tests {
 
         assert_eq!(run.commits.len(), 1);
         assert_eq!(run.pass_manifests.len(), 1);
-        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 8);
+        assert_eq!(run.pass_manifests[0].ordered_rules().len(), 9);
         assert_eq!(run.pass_manifests[0].decisions().len(), 1);
         assert_eq!(
             run.pass_manifests[0].decisions()[0].consumed_facts().len(),

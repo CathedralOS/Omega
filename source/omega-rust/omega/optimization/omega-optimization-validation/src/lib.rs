@@ -1413,6 +1413,7 @@ pub fn validate_integer_evaluation_candidate(
 enum ProofCertifiedSameOperandIntegerConstantLaw {
     ExactSubtractZero,
     SelfRemainderZero,
+    SelfDivideOne,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1481,6 +1482,44 @@ fn independent_same_operand_integer_constant(
             *left,
             *right,
         ),
+        (
+            ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
+            O::ExactIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::WrappingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            }
+            | O::SaturatingIntegerDivide {
+                psi_operation,
+                obligation,
+                result,
+                scalar_type,
+                left,
+                right,
+            },
+        ) if scalar_type.carrier() == IntegerCarrier::Fixed
+            && !(scalar_type.sign() == IntegerSign::Signed && scalar_type.bits() == 1) =>
+        {
+            (
+                *psi_operation,
+                *obligation,
+                *result,
+                *scalar_type,
+                *left,
+                *right,
+            )
+        }
         _ => return None,
     };
     (left == right).then_some(IndependentSameOperandIntegerConstant {
@@ -1523,6 +1562,24 @@ pub fn validate_proof_certified_integer_self_remainder_candidate(
     )
 }
 
+/// Independently validate the defined division laws `x / x = 1` for exact,
+/// wrapping, and saturating fixed-width integers. The accepted obligation is
+/// the capability proving that the authored divisor is nonzero (and that the
+/// signed overflow case is absent). Signed one-bit integers are excluded
+/// because typed positive one is not representable.
+pub fn validate_proof_certified_integer_self_divide_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_same_operand_integer_constant_candidate(
+        input,
+        candidate,
+        ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne,
+        b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+        b"omega.validator.live-proof-certified-integer-self-divide-elimination.v1",
+    )
+}
+
 /// Validate only the shared in-place constant custody. The operation-law
 /// selector remains validation-local and closed, so adding one producer rule
 /// cannot broaden another rule's accepted policy vocabulary.
@@ -1548,6 +1605,7 @@ fn validate_proof_certified_same_operand_integer_constant_candidate(
             ])
         || candidate.safety_class() != OptimizationSafetyClass::ProofCertified
         || !candidate.substitutions().is_empty()
+        || candidate.predicted_cost_delta() != -1
     {
         return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
     }
@@ -1581,7 +1639,16 @@ fn validate_proof_certified_same_operand_integer_constant_candidate(
     if patch.source_operation != shape.psi_operation
         || patch.result != shape.result
         || patch.scalar_type != shape.scalar_type
-        || patch.constant != independent_integer_zero(shape.scalar_type)
+        || patch.constant
+            != match law {
+                ProofCertifiedSameOperandIntegerConstantLaw::ExactSubtractZero
+                | ProofCertifiedSameOperandIntegerConstantLaw::SelfRemainderZero => {
+                    independent_integer_zero(shape.scalar_type)
+                }
+                ProofCertifiedSameOperandIntegerConstantLaw::SelfDivideOne => {
+                    independent_integer_one(shape.scalar_type)
+                }
+            }
         || node.definitions
             != [ValueDefinition {
                 value: shape.result,
@@ -1708,6 +1775,13 @@ pub fn validate_scalar_evaluation_candidate(
         )
     {
         return validate_proof_certified_integer_self_remainder_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-integer-self-divide-elimination.v1",
+        )
+    {
+        return validate_proof_certified_integer_self_divide_candidate(input, candidate);
     }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
