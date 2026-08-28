@@ -93,6 +93,15 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    InvalidRootConcreteServiceReach,
+    InvalidRootInstallationReachDependency(usize),
+    NonCanonicalRootInstallationReachDependencies,
+    RootInstallationReachBoundaryMismatch(BoundaryMachineId),
+    RootConcreteServiceReachMismatch {
+        declared: Vec<ServiceId>,
+        derived: Vec<ServiceId>,
+    },
+    RootInstallationReachDependenciesMismatch,
     DuplicateStructuralType(StructuralTypeId),
     NonCanonicalStructuralTypeOrder,
     InvalidStructuralTypeIdentity(StructuralTypeId),
@@ -1368,6 +1377,7 @@ pub fn validate_psi_optimization_unit(
             unit.entry,
         ));
     }
+    validate_root_service_reach(unit, &machines, &boundary_machines, &services)?;
     Ok(())
 }
 
@@ -1473,6 +1483,157 @@ fn valid_service_ceiling(
                     .all(|parent| ceiling.contains(parent))
             })
     }) && ceiling.windows(2).all(|pair| pair[0] < pair[1])
+}
+
+fn validate_root_service_reach(
+    unit: &PsiOptimizationUnit,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundaries: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+) -> Result<(), OptimizationUnitValidationError> {
+    if !valid_service_ceiling(&unit.root_service_reach.concrete, services) {
+        return Err(OptimizationUnitValidationError::InvalidRootConcreteServiceReach);
+    }
+    let mut requirement_identities = BTreeSet::new();
+    for (index, dependency) in unit
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .enumerate()
+    {
+        if dependency.requirement_identity.is_empty()
+            || !requirement_identities.insert(dependency.requirement_identity.as_str())
+            || !valid_service_ceiling(&dependency.upper_bound, services)
+        {
+            return Err(
+                OptimizationUnitValidationError::InvalidRootInstallationReachDependency(index),
+            );
+        }
+    }
+    if unit
+        .root_service_reach
+        .installation_dependencies
+        .windows(2)
+        .any(|pair| pair[0].requirement_identity >= pair[1].requirement_identity)
+    {
+        return Err(OptimizationUnitValidationError::NonCanonicalRootInstallationReachDependencies);
+    }
+    let derived = derive_root_service_reach(unit, functions, boundaries, services)?;
+    if derived.concrete != unit.root_service_reach.concrete {
+        return Err(
+            OptimizationUnitValidationError::RootConcreteServiceReachMismatch {
+                declared: unit.root_service_reach.concrete.clone(),
+                derived: derived.concrete,
+            },
+        );
+    }
+    if derived.installation_dependencies != unit.root_service_reach.installation_dependencies {
+        return Err(OptimizationUnitValidationError::RootInstallationReachDependenciesMismatch);
+    }
+    Ok(())
+}
+
+fn derive_root_service_reach(
+    unit: &PsiOptimizationUnit,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundaries: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+    services: &BTreeMap<ServiceId, &psi_terminal::ServiceDeclaration>,
+) -> Result<psi_terminal::TerminalRootServiceReach, OptimizationUnitValidationError> {
+    let dependencies = unit
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .map(|dependency| (dependency.requirement_identity.as_str(), dependency))
+        .collect::<BTreeMap<_, _>>();
+    let mut pending = vec![unit.entry];
+    let mut visited = BTreeSet::new();
+    let mut concrete = BTreeSet::new();
+    let mut used_dependencies = BTreeSet::new();
+    while let Some(machine) = pending.pop() {
+        if !visited.insert(machine) {
+            continue;
+        }
+        let function = functions.get(&machine).copied().ok_or(
+            OptimizationUnitValidationError::MissingEntryMachine(machine),
+        )?;
+        for operation in function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .map(|node| &node.operation)
+        {
+            match operation {
+                O::Call { callee, .. }
+                | O::CallUnit { callee, .. }
+                | O::CallStructuralScalar { callee, .. }
+                | O::CallStructural { callee, .. } => pending.push(*callee),
+                O::BoundaryCall { boundary, .. } => {
+                    let declaration = boundaries.get(boundary).copied().ok_or(
+                        OptimizationUnitValidationError::OperationServiceContractMismatch {
+                            machine: function.machine,
+                            block: function.entry,
+                            node: 0,
+                        },
+                    )?;
+                    if let Some(dependency) = dependencies.get(declaration.identity.as_str()) {
+                        if declaration.published_service_ceiling != dependency.upper_bound {
+                            return Err(
+                                OptimizationUnitValidationError::RootInstallationReachBoundaryMismatch(
+                                    *boundary,
+                                ),
+                            );
+                        }
+                        used_dependencies.insert(declaration.identity.as_str());
+                    } else {
+                        concrete.extend(declaration.published_service_ceiling.iter().copied());
+                    }
+                }
+                O::PortWrite { service, .. } => {
+                    concrete.insert(*service);
+                    if let Some(declaration) = services.get(service) {
+                        concrete.extend(declaration.parents.iter().copied());
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    let installation_dependencies = unit
+        .root_service_reach
+        .installation_dependencies
+        .iter()
+        .filter(|dependency| used_dependencies.contains(dependency.requirement_identity.as_str()))
+        .cloned()
+        .collect();
+    Ok(psi_terminal::TerminalRootServiceReach {
+        concrete: concrete.into_iter().collect(),
+        installation_dependencies,
+    })
+}
+
+fn refresh_root_service_reach(
+    unit: &mut PsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    let reach = {
+        let functions = unit
+            .functions
+            .iter()
+            .map(|function| (function.machine, function))
+            .collect::<BTreeMap<_, _>>();
+        let boundaries = unit
+            .boundary_machines
+            .iter()
+            .map(|boundary| (boundary.id, boundary))
+            .collect::<BTreeMap<_, _>>();
+        let services = unit
+            .services
+            .iter()
+            .map(|service| (service.id, service))
+            .collect::<BTreeMap<_, _>>();
+        derive_root_service_reach(unit, &functions, &boundaries, &services)?
+    };
+    unit.root_service_reach = reach;
+    Ok(())
 }
 
 fn validate_provider_service_refinements(
@@ -2969,6 +3130,7 @@ pub fn validate_constant_conditional_candidate(
     }
     output_function.facts = reconstruct_fact_index(output_function);
     output_function.declared_places = reconstruct_declared_places(output_function)?;
+    refresh_root_service_reach(&mut output)?;
     output.identity = recompute_psi_optimization_unit_identity(&output);
     validate_psi_optimization_unit(&output)?;
 
@@ -9776,6 +9938,7 @@ fn attach_verified_structural_context(
 ) -> Result<(), OptimizationUnitValidationError> {
     unit.structural_domains = module.structural_domains.clone().into();
     unit.services = module.services.clone().into();
+    unit.root_service_reach = module.root_service_reach.clone();
     for function in &mut unit.functions {
         let source = module
             .machines
@@ -14872,6 +15035,7 @@ mod tests {
         for boundary in &mut unit.boundary_machines {
             boundary.published_service_ceiling = ceiling.clone();
         }
+        refresh_root_service_reach(unit).expect("service fixture has a closed root reach");
         refresh_identity(unit);
     }
 
@@ -14918,6 +15082,7 @@ mod tests {
             node.ownership = expected_ownership(&operation);
         }
         candidate.functions[0].facts = reconstruct_fact_index(&candidate.functions[0]);
+        refresh_root_service_reach(&mut candidate).expect("PortWrite fixture has exact root reach");
         refresh_identity(&mut candidate);
         candidate
     }
@@ -14949,6 +15114,41 @@ mod tests {
                     realized_service_ceiling: ceiling,
                 },
             });
+        refresh_identity(&mut candidate);
+        candidate
+    }
+
+    fn installation_root_service_unit() -> PsiOptimizationUnit {
+        let mut candidate = scalar_boundary_call_unit();
+        install_service_catalog(&mut candidate);
+        let boundary = &candidate.boundary_machines[0];
+        candidate.root_service_reach.installation_dependencies =
+            vec![psi_terminal::InstallationReachDependency {
+                requirement_identity: boundary.identity.clone(),
+                upper_bound: boundary.published_service_ceiling.clone(),
+            }];
+        refresh_root_service_reach(&mut candidate)
+            .expect("installation-bound fixture has exact root reach");
+        refresh_identity(&mut candidate);
+        candidate
+    }
+
+    fn multiple_installation_root_service_unit() -> PsiOptimizationUnit {
+        let mut candidate = provider_attachment_specialization_unit();
+        install_service_catalog(&mut candidate);
+        candidate.root_service_reach.installation_dependencies = candidate.boundary_machines[..2]
+            .iter()
+            .map(|boundary| psi_terminal::InstallationReachDependency {
+                requirement_identity: boundary.identity.clone(),
+                upper_bound: boundary.published_service_ceiling.clone(),
+            })
+            .collect();
+        candidate
+            .root_service_reach
+            .installation_dependencies
+            .sort_by(|left, right| left.requirement_identity.cmp(&right.requirement_identity));
+        refresh_root_service_reach(&mut candidate)
+            .expect("multi-dependency fixture has exact root reach");
         refresh_identity(&mut candidate);
         candidate
     }
@@ -19264,6 +19464,263 @@ mod tests {
             validate_psi_optimization_unit(&outside),
             Err(OptimizationUnitValidationError::InvalidProviderServiceRefinement { .. })
         ));
+    }
+
+    #[test]
+    fn replays_exact_root_service_reach_shape_and_installation_dependencies() {
+        let baseline = installation_root_service_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("one exact installation-bound root dependency validates");
+        assert!(baseline.root_service_reach.concrete.is_empty());
+        assert_eq!(
+            baseline.root_service_reach.installation_dependencies.len(),
+            1
+        );
+        let root = id(701, ServiceId::new);
+        let middle = id(702, ServiceId::new);
+        let leaf = id(703, ServiceId::new);
+        let unknown = id(799, ServiceId::new);
+
+        for concrete in [
+            vec![unknown],
+            vec![root, root],
+            vec![leaf, middle, root],
+            vec![leaf],
+        ] {
+            let mut invalid_concrete = baseline.clone();
+            invalid_concrete.root_service_reach.concrete = concrete;
+            refresh_identity(&mut invalid_concrete);
+            assert_eq!(
+                validate_psi_optimization_unit(&invalid_concrete),
+                Err(OptimizationUnitValidationError::InvalidRootConcreteServiceReach)
+            );
+        }
+
+        let mut mismatched_concrete = baseline.clone();
+        mismatched_concrete.root_service_reach.concrete = vec![root, middle, leaf];
+        refresh_identity(&mut mismatched_concrete);
+        assert!(matches!(
+            validate_psi_optimization_unit(&mismatched_concrete),
+            Err(OptimizationUnitValidationError::RootConcreteServiceReachMismatch { .. })
+        ));
+
+        for upper_bound in [
+            vec![unknown],
+            vec![root, root],
+            vec![leaf, middle, root],
+            vec![leaf],
+        ] {
+            let mut invalid = baseline.clone();
+            invalid.root_service_reach.installation_dependencies[0].upper_bound = upper_bound;
+            refresh_identity(&mut invalid);
+            assert_eq!(
+                validate_psi_optimization_unit(&invalid),
+                Err(OptimizationUnitValidationError::InvalidRootInstallationReachDependency(0))
+            );
+        }
+
+        let mut empty_identity = baseline.clone();
+        empty_identity.root_service_reach.installation_dependencies[0]
+            .requirement_identity
+            .clear();
+        refresh_identity(&mut empty_identity);
+        assert_eq!(
+            validate_psi_optimization_unit(&empty_identity),
+            Err(OptimizationUnitValidationError::InvalidRootInstallationReachDependency(0))
+        );
+
+        let mut duplicate = baseline.clone();
+        duplicate
+            .root_service_reach
+            .installation_dependencies
+            .push(duplicate.root_service_reach.installation_dependencies[0].clone());
+        refresh_identity(&mut duplicate);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicate),
+            Err(OptimizationUnitValidationError::InvalidRootInstallationReachDependency(1))
+        );
+
+        let mut boundary_mismatch = baseline.clone();
+        boundary_mismatch
+            .root_service_reach
+            .installation_dependencies[0]
+            .upper_bound = vec![root, middle];
+        refresh_identity(&mut boundary_mismatch);
+        assert_eq!(
+            validate_psi_optimization_unit(&boundary_mismatch),
+            Err(
+                OptimizationUnitValidationError::RootInstallationReachBoundaryMismatch(
+                    boundary_mismatch.boundary_machines[0].id
+                )
+            )
+        );
+
+        let mut missing = baseline.clone();
+        missing.root_service_reach.installation_dependencies.clear();
+        refresh_identity(&mut missing);
+        assert!(matches!(
+            validate_psi_optimization_unit(&missing),
+            Err(OptimizationUnitValidationError::RootConcreteServiceReachMismatch { .. })
+        ));
+
+        let mut unused = baseline.clone();
+        unused.root_service_reach.installation_dependencies.push(
+            psi_terminal::InstallationReachDependency {
+                requirement_identity: "zz-validation::unused-boundary".into(),
+                upper_bound: vec![root, middle, leaf],
+            },
+        );
+        refresh_identity(&mut unused);
+        assert_eq!(
+            validate_psi_optimization_unit(&unused),
+            Err(OptimizationUnitValidationError::RootInstallationReachDependenciesMismatch)
+        );
+
+        let mut noncanonical = multiple_installation_root_service_unit();
+        noncanonical
+            .root_service_reach
+            .installation_dependencies
+            .reverse();
+        refresh_identity(&mut noncanonical);
+        assert_eq!(
+            validate_psi_optimization_unit(&noncanonical),
+            Err(OptimizationUnitValidationError::NonCanonicalRootInstallationReachDependencies)
+        );
+
+        let repeated = multiple_installation_root_service_unit();
+        let boundary_call_count = repeated.functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.nodes)
+            .filter(|node| {
+                matches!(
+                    node.operation,
+                    TerminalAbstractOperation::BoundaryCall { .. }
+                )
+            })
+            .count();
+        assert!(boundary_call_count > repeated.root_service_reach.installation_dependencies.len());
+        validate_psi_optimization_unit(&repeated)
+            .expect("repeated calls consume one canonical dependency row");
+
+        let mut overlap = baseline;
+        let block = overlap.functions[0].blocks[0].id;
+        let insertion = overlap.functions[0].blocks[0].nodes.len() - 1;
+        let mut write = overlap.functions[0].blocks[0].nodes[0].clone();
+        write.operation = TerminalAbstractOperation::PortWrite {
+            psi_operation: id(729, OperationId::new),
+            service: leaf,
+            port: 0x3f8,
+            value: 0x41,
+        };
+        overlap.functions[0].blocks[0]
+            .nodes
+            .insert(insertion, write);
+        for (index, node) in overlap.functions[0].blocks[0].nodes.iter_mut().enumerate() {
+            node.effect.input = index as u64;
+            node.effect.output = index as u64 + 1;
+            node.provenance = expected_provenance(&node.operation);
+            node.fuel = node
+                .provenance
+                .iter()
+                .copied()
+                .map(|site| omega_optimization_unit::FuelSettlement { site, units: 1 })
+                .collect();
+            node.definitions = expected_definitions(&node.operation, block, index as u32);
+            node.uses = expected_uses(&node.operation, block, index as u32);
+            node.successors = expected_edges(&node.operation);
+            node.ownership = expected_ownership(&node.operation);
+        }
+        overlap.functions[0].facts = reconstruct_fact_index(&overlap.functions[0]);
+        refresh_root_service_reach(&mut overlap)
+            .expect("concrete reach remains distinct from installation bounds");
+        refresh_identity(&mut overlap);
+        validate_psi_optimization_unit(&overlap)
+            .expect("concrete and installation-bound reach may overlap");
+        assert_eq!(overlap.root_service_reach.concrete, [root, middle, leaf]);
+        assert_eq!(
+            overlap.root_service_reach.installation_dependencies.len(),
+            1
+        );
+    }
+
+    #[test]
+    fn root_service_reach_traverses_every_internal_call_lane_and_ignores_detached_effects() {
+        let service = id(703, ServiceId::new);
+        let mut baseline = scalar_call_unit();
+        install_service_catalog(&mut baseline);
+        let callee = baseline.functions[1].machine;
+        let mut write = baseline.functions[1].blocks[0].nodes[0].clone();
+        write.operation = TerminalAbstractOperation::PortWrite {
+            psi_operation: id(720, OperationId::new),
+            service,
+            port: 0x3f8,
+            value: 0x41,
+        };
+        baseline.functions[1].blocks[0].nodes.insert(0, write);
+        let calls = [
+            TerminalAbstractOperation::Call {
+                psi_operation: id(721, OperationId::new),
+                result: id(722, ValueId::new),
+                scalar_type: ScalarType::Boolean,
+                callee,
+                arguments: Vec::new(),
+            },
+            TerminalAbstractOperation::CallUnit {
+                psi_operation: id(723, OperationId::new),
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+            TerminalAbstractOperation::CallStructuralScalar {
+                psi_operation: id(724, OperationId::new),
+                result: TerminalAbstractResult {
+                    value: id(725, ValueId::new),
+                    scalar_type: ScalarType::Boolean,
+                },
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+            },
+            TerminalAbstractOperation::CallStructural {
+                psi_operation: id(726, OperationId::new),
+                result: psi_terminal::StructuralOperationResult {
+                    place: id(727, PlaceId::new),
+                    structural_type: id(728, StructuralTypeId::new),
+                    multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+                    qualifications: Vec::new(),
+                    claims: Vec::new(),
+                },
+                callee,
+                structural_arguments: Vec::new(),
+                claim_transfers: Vec::new(),
+                returned_claim_transfers: Vec::new(),
+                requirement_obligations: Vec::new(),
+                crash_continuations: Vec::new(),
+                selected_evidence: None,
+            },
+        ];
+        for call in calls {
+            let mut candidate = baseline.clone();
+            let call_node = candidate.functions[0].blocks[0]
+                .nodes
+                .iter_mut()
+                .find(|node| matches!(node.operation, TerminalAbstractOperation::Call { .. }))
+                .expect("scalar fixture contains one internal call");
+            call_node.operation = call;
+            refresh_root_service_reach(&mut candidate)
+                .expect("every internal call lane reaches the concrete effect");
+            assert_eq!(
+                candidate.root_service_reach.concrete,
+                vec![id(701, ServiceId::new), id(702, ServiceId::new), service]
+            );
+        }
+
+        let mut detached = baseline;
+        detached.functions[0].blocks[0].nodes.clear();
+        refresh_root_service_reach(&mut detached)
+            .expect("detached function effects do not belong to root reach");
+        assert!(detached.root_service_reach.concrete.is_empty());
     }
 
     #[test]

@@ -21,7 +21,7 @@ use psi_terminal::{
     StructuralFieldDeclaration, StructuralFieldType, StructuralMultiplicity,
     StructuralOperationResult, StructuralParameterDeclaration, StructuralPathSegment,
     StructuralPlaceDeclaration, StructuralResultDeclaration, StructuralTypeDeclaration,
-    StructuralTypeShape, TerminalAffineCleanupAction,
+    StructuralTypeShape, TerminalAffineCleanupAction, TerminalRootServiceReach,
 };
 
 use crate::{
@@ -31,7 +31,7 @@ use crate::{
     ValueDefinition, ValueDefinitionSite, ValueUse,
 };
 
-const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v13\0";
+const UNIT_IDENTITY_DOMAIN: &[u8] = b"omega.psi-optimization-unit-content.v14\0";
 const STRUCTURAL_DOMAIN_CATALOG_IDENTITY_DOMAIN: &[u8] =
     b"omega.psi-optimization-structural-domain-catalog.v1\0";
 
@@ -56,6 +56,7 @@ pub fn recompute_psi_optimization_unit_identity(
     bytes.slice(&unit.structural_types, encode_structural_type);
     bytes.slice(unit.structural_domains.as_ref(), encode_structural_domain);
     bytes.slice(unit.services.as_ref(), encode_service_declaration);
+    encode_root_service_reach(&mut bytes, &unit.root_service_reach);
     bytes.slice(&unit.boundary_machines, encode_boundary_machine);
     bytes.slice(&unit.provider_candidates, encode_provider_candidate);
     bytes.slice(&unit.accepted_obligation_facts, encode_accepted_fact);
@@ -75,6 +76,14 @@ fn encode_service_declaration(bytes: &mut CanonicalBytes, service: &ServiceDecla
     bytes.id(service.id);
     bytes.string(&service.identity);
     encode_ids(bytes, &service.parents);
+}
+
+fn encode_root_service_reach(bytes: &mut CanonicalBytes, reach: &TerminalRootServiceReach) {
+    encode_ids(bytes, &reach.concrete);
+    bytes.slice(&reach.installation_dependencies, |bytes, dependency| {
+        bytes.string(&dependency.requirement_identity);
+        encode_ids(bytes, &dependency.upper_bound);
+    });
 }
 
 #[derive(Default)]

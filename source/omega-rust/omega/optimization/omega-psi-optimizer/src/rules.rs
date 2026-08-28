@@ -8825,7 +8825,7 @@ fn assemble_built_in_registry(
 pub(crate) mod tests {
     use omega_optimization_core::{OptimizationFactReference, OptimizationValidatorIdentity};
     use omega_optimization_unit::{
-        AcceptedObligationFact, OptimizationFact, PsiProvenance, PsiRewritePatch,
+        AcceptedObligationFact, OptimizationFact, OptimizationNode, PsiProvenance, PsiRewritePatch,
         attach_accepted_obligation_facts, recompute_psi_optimization_unit_identity,
         reconstruct_psi_optimization_unit_seed,
     };
@@ -8855,9 +8855,12 @@ pub(crate) mod tests {
     };
     use psi_core::{
         BlockId, BoundaryMachineId, EdgeId, FuelScheduleIdentity, IntegerSign, IntegerType,
-        MachineId, ObligationId, OperationId, PlaceId, ScalarType, StructuralTypeId, ValueId,
+        MachineId, ObligationId, OperationId, PlaceId, ScalarType, ServiceId, StructuralTypeId,
+        ValueId,
     };
-    use psi_terminal::{SemanticFingerprint, TerminalPsiIdentity, VocabularyMarker};
+    use psi_terminal::{
+        SemanticFingerprint, ServiceDeclaration, TerminalPsiIdentity, VocabularyMarker,
+    };
 
     use super::*;
     use crate::compute_analysis;
@@ -9659,6 +9662,76 @@ pub(crate) mod tests {
             FuelScheduleIdentity::new(1).unwrap(),
         )
         .unwrap()
+    }
+
+    fn constant_conditional_dead_service_unit() -> PsiOptimizationUnit {
+        let mut unit = propagated_block_parameter_unit(true);
+        let service = id(620, ServiceId::new);
+        let operation = id(621, OperationId::new);
+        unit.services = vec![ServiceDeclaration {
+            id: service,
+            identity: "validation::dead-branch-service".into(),
+            parents: Vec::new(),
+        }]
+        .into();
+        unit.functions[0].published_service_ceiling = vec![service];
+        let rejected = unit.functions[0]
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == id(604, BlockId::new))
+            .expect("constant fixture retains its rejected branch");
+        rejected.nodes.insert(
+            1,
+            OptimizationNode {
+                operation: TerminalAbstractOperation::PortWrite {
+                    psi_operation: operation,
+                    service,
+                    port: 0x3f8,
+                    value: 0x41,
+                },
+                provenance: vec![PsiProvenance::Operation(operation)],
+                fuel: vec![omega_optimization_unit::FuelSettlement {
+                    site: PsiProvenance::Operation(operation),
+                    units: 1,
+                }],
+                effect: omega_optimization_unit::EffectLink {
+                    input: 0,
+                    output: 0,
+                },
+                definitions: Vec::new(),
+                uses: Vec::new(),
+                successors: Vec::new(),
+                ownership: Vec::new(),
+            },
+        );
+        let mut effect = 0u64;
+        for block in &mut unit.functions[0].blocks {
+            for (node_index, node) in block.nodes.iter_mut().enumerate() {
+                let node_index = u32::try_from(node_index).expect("fixture node index fits u32");
+                for definition in &mut node.definitions {
+                    if let omega_optimization_unit::ValueDefinitionSite::Node {
+                        block: site_block,
+                        node: site_node,
+                    } = &mut definition.site
+                    {
+                        *site_block = block.id;
+                        *site_node = node_index;
+                    }
+                }
+                for value_use in &mut node.uses {
+                    value_use.block = block.id;
+                    value_use.node = node_index;
+                }
+                node.effect = omega_optimization_unit::EffectLink {
+                    input: effect,
+                    output: effect + 1,
+                };
+                effect += 1;
+            }
+        }
+        unit.root_service_reach.concrete = vec![service];
+        unit.identity = recompute_psi_optimization_unit_identity(&unit);
+        unit
     }
 
     pub(crate) fn linear_empty_block_unit() -> PsiOptimizationUnit {
@@ -12640,6 +12713,39 @@ pub(crate) mod tests {
         assert_eq!(output.functions[0].blocks[2].nodes[0].effect.input, 4);
         assert_eq!(output.functions[0].blocks[2].nodes[1].effect.output, 6);
         assert_eq!(accepted.provenance(), candidate.provenance());
+    }
+
+    #[test]
+    fn constant_conditional_fold_atomically_refreshes_current_root_service_reach() {
+        let unit = constant_conditional_dead_service_unit();
+        validate_psi_optimization_unit(&unit)
+            .expect("dead-branch service belongs to the source revision root reach");
+        assert_eq!(unit.root_service_reach.concrete, [id(620, ServiceId::new)]);
+        let contract = ConstantConditionalFoldRule::contract();
+        let mut manager = crate::AnalysisManager::new(&unit);
+        let products = manager
+            .require_all(&unit, contract.required_analyses())
+            .unwrap()
+            .into_iter()
+            .cloned()
+            .collect::<Vec<_>>();
+        let candidate = ConstantConditionalFoldRule
+            .propose(&unit, RuleAnalysisView::new(&products))
+            .unwrap()
+            .pop()
+            .expect("constant branch produces an atomic prune candidate");
+        let accepted = validate_constant_conditional_candidate(&unit, &candidate)
+            .expect("accepted fold refreshes its derived root reach");
+        assert!(accepted.unit().root_service_reach.concrete.is_empty());
+        assert!(
+            accepted
+                .unit()
+                .root_service_reach
+                .installation_dependencies
+                .is_empty()
+        );
+        validate_psi_optimization_unit(accepted.unit())
+            .expect("fold output has exact current-revision root reach");
     }
 
     #[test]
