@@ -399,6 +399,19 @@ rewrite, fresh analysis, home, manifest, policy, budget, and count before
 returning its dedicated full-vertical custody receipt. No source analysis fact
 crosses the selected-CFG mutation.
 
+The default-off root-build family
+`ActiveResidentImmediateU64MultiUseRematerializationV1` now exposes exactly
+that schedule. It belongs to `AllocationRecovery`, implies no companion
+transformation, and derives a target-owned two-view pressure policy using
+`rax`/`rcx` or `x0`/`x1`. The physical pipeline requires the singleton phase
+projection, one sweep, and at least one action, then retains the transformed
+program through fresh allocation evidence, post-allocation machine planning,
+canonical encoding, resolved layout, and function-relative realization. A
+missing required view, no-candidate shape, second allocation-recovery family,
+or unfinished physical-phase composition fails closed. Empty ordinary and
+dependency builds never enter this route, and the carrier still grants no
+frame, emission, image, installation, or publication authority.
+
 Other exact transformations consuming that evidence are the separately named
 `SelectedIncomingU12ExactAddImmediateV1` and
 `SelectedIncomingU12ExactSubtractImmediateV1` policies. They are intentionally
@@ -2015,7 +2028,8 @@ and CBNZ-aware whole-function exit custody. The compare remains in the
 instruction roster as a zero-byte row; the fused branch is target-encoded and
 independently decoded as `CBNZ`; source-register, successor, PC, and absent-NZCV
 effects are replayed; and the function shrinks by exactly four bytes. The
-function-relative manifest/codec v4 binds the exact post-allocation selection,
+function-relative manifest/codec v5 binds the exact post-allocation selection,
+an explicit allocation-recovery phase projection,
 baseline/final pre-layout identities, optional fusion identity, and both
 resolved layouts; whole-function exit identity v3 independently admits only
 the exact elided-compare custody. Emission, relocation, image, installation,
@@ -2073,22 +2087,25 @@ identity remains v2 and no durable schema changes. Branch relaxation,
 whole-function exit, realization manifests, frame, emission, sections, objects,
 images, installation, and publication remain unavailable.
 
-One explicit-staging-only carrier now closes the next function-relative custody
-join for this route. It owns the resolved wrapper, validates the generic
-`BaselineNearLayoutV1` frameless exit, and independently reconstructs the v4
-realization manifest. This does not manufacture a build optimization name: the
-original source-visible selection identity remains intact, selected-lowering
-completion is absent, and all unexecuted allocation-recovery, post-allocation-
-machine, and function-relative-layout phase projections must be empty. The v5
+One carrier now closes the next function-relative custody join for this route.
+It owns the resolved wrapper, validates the generic `BaselineNearLayoutV1`
+frameless exit, and independently reconstructs the v5 realization manifest.
+Direct staging preserves the original source-visible selection and keeps every
+unexecuted phase projection empty. Compiler routing instead requires the exact
+`ActiveResidentImmediateU64MultiUseRematerializationV1` selection in the
+allocation-recovery projection; selected-lowering completion and the post-
+allocation-machine and function-relative-layout projections remain absent. The
+v5
 post-allocation manifest truthfully carries the sole typed
 `PressureRematerialization` row and transformed selected root. Production and
 replay derive every exit, layout, machine, manifest, and statistic field only
 after replaying the full upstream wrapper. Both targets use caller-saved
 pressure views (`rax`/`rcx` and `x0`/`x1`) rather than weakening callee-save
-validation. The existing whole-function-exit v3 and realization-manifest v4
-schemas already express the result. Compiler physical-pipeline integration
-waits for an explicit rematerialization build selection; frame, emission,
-sections, objects, images, installation, and publication remain unavailable.
+validation. Whole-function-exit v3 remains sufficient, while realization-
+manifest v5 makes allocation-recovery execution replayable. The compiler
+physical pipeline accepts only the exact singleton family and rejects
+unsupported physical-phase composition. Frame, emission, sections, objects,
+images, installation, and publication remain unavailable.
 
 A separate immutable v2 artifact resolves those branch rows only after choosing
 the explicit required-stage layout policy
@@ -2107,12 +2124,13 @@ custody, bytes, displacement, and decoded effects. It still owns only separate
 function-relative fragments—not section placement, symbols, object relocations,
 executable bytes, or publication.
 
-Function-relative orchestration seals those products in a structured v4
+Function-relative orchestration seals those products in a structured v5
 realization manifest. Separate custody routes admit ordinary homes when only a
-function-relative family is selected and selected-lowering homes when that
-phase also ran. The record joins the full named build suite, both exact phase
-projections, optional selected-lowering completion, pre-physical and post-
-allocation manifests, final selected CFG, pre- and post-allocation machine
+function-relative family is selected, selected-lowering homes when that phase
+also ran, and the active-resident rematerialization carrier for its exact
+allocation-recovery family. The record joins the full named build suite, every
+exact phase projection, optional selected-lowering completion, pre-physical and
+post-allocation manifests, final selected CFG, pre- and post-allocation machine
 roots, pre-layout encoding, baseline and final layouts, optional layout-
 transformation receipt, exact target, named layout policy, and a validated
 whole-function exit-contract identity. It derives function, block, instruction,
@@ -2165,8 +2183,8 @@ function-relative-layout phase and remains default-off. Verified physical
 orchestration projects that phase separately from selected lowering. A
 branch-only suite takes frameless legality through ordinary register homes and
 records an absent selected-lowering completion; a combined suite retains both
-positive completion receipts. The strict v4 realization manifest binds the
-full suite, both phase projections, baseline and final layout identities, the
+positive completion receipts. The strict v5 realization manifest binds the
+full suite, all phase projections, baseline and final layout identities, the
 optional relaxation identity, final statistics, and the final-layout exit
 contract. Whole-function exit identity v2 names either the required near-layout
 custody or the exact independently replayed relaxation receipt. Baseline exit
@@ -2375,6 +2393,7 @@ data Optimization {
     case SelectedIncomingU12ExactSubtractImmediate;
     case Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1;
     case SharedEntryFixedViewCopyAfterCompareBeforeBranchV1;
+    case ActiveResidentImmediateU64MultiUseRematerializationV1;
 }
 
 data Optimizations {
@@ -2403,6 +2422,9 @@ Omega's ordinary method and build-evaluation rules. Its semantic requirement is
 an exact set of named selections. Empty means disabled. Registry metadata may
 mark an individual optimization experimental, preview, or stable, but that is
 an admission/support label on that optimization—not a broad compiler mode.
+The canonical `OMGOPT` selection codec and domain are v7 after adding the
+twelfth exact family; the version change prevents an older vocabulary from
+silently interpreting the new build request.
 
 Each named transformation also has one closed execution phase. Phase routing
 projects the full requested suite into exact subsets; it does not invent a
@@ -2423,6 +2445,13 @@ optimization level or a debug/release profile.
 allocator intensity or companion transformation. Until a composition contract
 is admitted, orchestration rejects suites that combine it with another physical
 phase.
+`ActiveResidentImmediateU64MultiUseRematerializationV1` is a separate
+`AllocationRecovery` family. Naming it chooses the exact two-view,
+farthest-end-victim, immediate-u64 eligibility, and multi-use reconstruction
+schedule under one shared budget. It does not choose the fixed-view-copy family
+or any optimization level. Until their joint ordering and custody contract are
+admitted, selecting both allocation-recovery families—or combining this route
+with another unfinished physical phase—rejects.
 
 Rules:
 
@@ -2502,7 +2531,7 @@ projections.
 The pre-physical manifest's versioned standalone codec serializes that whole
 earlier record and strict nested codecs; the post-allocation record adds
 truthful home statistics while marking frame, emission, and publication
-unavailable. The function-relative v4 record then binds exact phase projections
+unavailable. The function-relative v5 record then binds exact phase projections
 and optional completions to the validated final selected CFG, machine effects,
 post-allocation machine, canonical encoding, baseline/final layout roots,
 optional layout-transform receipt, named layout policy, final code-size
