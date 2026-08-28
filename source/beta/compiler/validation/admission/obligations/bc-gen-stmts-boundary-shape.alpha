@@ -206,73 +206,70 @@ gen_stmts_boundary_locals:
 gen_stmts_boundary_memory:
         imm r20, 64
         imm r21, 308
-        imm r22, 1
-        imm r23, 8
-        imm r24, 44108
-        call transfer_require_memory
+        imm r25, 694
+        imm r26, 2097064
+        call gen_stmts_boundary_memory_load
         imm r20, 65
         imm r21, 309
-        imm r22, 2
-        imm r23, 8
-        imm r24, 44305              ; exact depth-exhaustion resource store
-        call transfer_require_memory
+        call gen_stmts_boundary_memory_store
         imm r20, 66
         imm r21, 310
-        imm r22, 2
-        imm r23, 8
-        imm r24, 44447              ; exact admitted BLOCKDEPTH store
-        call transfer_require_memory
+        call gen_stmts_boundary_memory_store
         imm r20, 67
         imm r21, 311
-        imm r22, 1
-        imm r23, 8
-        imm r24, 44478
-        call transfer_require_memory
+        imm r25, 703
+        imm r26, 2097072
+        call gen_stmts_boundary_memory_load
         imm r20, 68
         imm r21, 311
-        imm r22, 2
-        imm r23, 8
-        imm r24, 44810
-        call transfer_require_memory
+        call gen_stmts_boundary_memory_store
         imm r20, 69
         imm r21, 311
-        imm r22, 1
-        imm r23, 8
-        imm r24, 44743
-        call transfer_require_memory
+        imm r25, 709
+        imm r26, 2097064
+        call gen_stmts_boundary_memory_load
         imm r20, 70
         imm r21, 313
-        imm r22, 2
-        imm r23, 8
-        imm r24, 45086
-        call transfer_require_memory
+        call gen_stmts_boundary_memory_store
         imm r20, 71
         imm r21, 313
-        imm r22, 1
-        imm r23, 8
-        imm r24, 45019
-        call transfer_require_memory
+        imm r25, 716
+        imm r26, 2097064
+        call gen_stmts_boundary_memory_load
         imm r20, 72
         imm r21, 314
-        imm r22, 2
-        imm r23, 8
-        imm r24, 45222              ; exact exhausted-path decrement store
-        call transfer_require_memory
+        call gen_stmts_boundary_memory_store
         imm r20, 73
         imm r21, 314
+        imm r25, 721
+        imm r26, 2097064
+        call gen_stmts_boundary_memory_load
+        ret
+
+; Loads rejoin their exact address literal; stores rejoin the shared pop macro.
+gen_stmts_boundary_memory_load:
         imm r22, 1
         imm r23, 8
-        imm r24, 45155
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r30, r0
+        mov r20, r25
+        imm r22, 1
+        mov r23, r26
+        call exact_primitive_identity_pc
+        imm r1, 10
+        add r0, r1
+        jeq r0, r30, exact_shape_ok
+        jmp reject
+gen_stmts_boundary_memory_store:
+        imm r22, 2
+        imm r23, 8
+        call exact_memory_identity_pc
+        mov r20, r0
+        imm r21, 1
+        call exact_require_pop_before
         ret
 
 gen_stmts_boundary_primitives:
-        imm r20, 694
-        imm r21, 308
-        imm r22, 1
-        imm r23, 2097064
-        imm r24, 44098
-        call transfer_require_primitive
         imm r20, 695
         imm r21, 309
         imm r22, 3
@@ -321,12 +318,6 @@ gen_stmts_boundary_primitives:
         imm r23, 1
         imm r24, 44399
         call transfer_require_primitive
-        imm r20, 703
-        imm r21, 311
-        imm r22, 1
-        imm r23, 2097072
-        imm r24, 44468
-        call transfer_require_primitive
         imm r20, 704
         imm r21, 311
         imm r22, 3
@@ -356,12 +347,6 @@ gen_stmts_boundary_primitives:
         imm r22, 1
         imm r23, 2097064
         imm r24, 44707
-        call transfer_require_primitive
-        imm r20, 709
-        imm r21, 311
-        imm r22, 1
-        imm r23, 2097064
-        imm r24, 44733
         call transfer_require_primitive
         imm r20, 710
         imm r21, 311
@@ -399,12 +384,6 @@ gen_stmts_boundary_primitives:
         imm r23, 2097064
         imm r24, 44983
         call transfer_require_primitive
-        imm r20, 716
-        imm r21, 313
-        imm r22, 1
-        imm r23, 2097064
-        imm r24, 45009
-        call transfer_require_primitive
         imm r20, 717
         imm r21, 313
         imm r22, 2
@@ -428,12 +407,6 @@ gen_stmts_boundary_primitives:
         imm r22, 1
         imm r23, 2097064
         imm r24, 45119
-        call transfer_require_primitive
-        imm r20, 721
-        imm r21, 314
-        imm r22, 1
-        imm r23, 2097064
-        imm r24, 45145
         call transfer_require_primitive
         imm r20, 722
         imm r21, 314

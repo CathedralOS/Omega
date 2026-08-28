@@ -1133,7 +1133,7 @@ establish_parse_proc_canonical
 establish_root_observation_canonical
 bc_timing_finish
 
-# Six format/identity-level teeth retain fail-closed input binding without
+# Seven format/identity-level teeth retain fail-closed input binding without
 # generating checker-source permutations. The canonical ROOT executable
 # decides each one. The selected event-PC mutation specifically proves that a
 # witness coordinate cannot redefine emit_dec's source-owned call identity.
@@ -1167,6 +1167,17 @@ dd if="$T/swapped-event-occurrence.bundle" of="$T/second-event-pc" bs=1 skip="$e
 dd if="$T/second-event-pc" of="$T/swapped-event-occurrence.bundle" bs=1 seek="$emit_param_first_pc_offset" conv=notrunc status=none
 dd if="$T/first-event-pc" of="$T/swapped-event-occurrence.bundle" bs=1 seek="$emit_param_second_pc_offset" conv=notrunc status=none
 
+# Memory rows 67 and 69 are word loads in the same procedure and block. Swap
+# their valid PCs; their independently checked address-literal joins must keep
+# RESOURCE_FAIL and BLOCKDEPTH distinct.
+first_memory_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 617 + 244 + 67)))
+second_memory_pc_offset=$((control_witness_offset + 4 * (28 + 359 + 293 + 617 + 244 + 69)))
+cp "$T/control.bundle" "$T/swapped-memory-identity.bundle"
+dd if="$T/swapped-memory-identity.bundle" of="$T/first-memory-pc" bs=1 skip="$first_memory_pc_offset" count=4 status=none
+dd if="$T/swapped-memory-identity.bundle" of="$T/second-memory-pc" bs=1 skip="$second_memory_pc_offset" count=4 status=none
+dd if="$T/second-memory-pc" of="$T/swapped-memory-identity.bundle" bs=1 seek="$first_memory_pc_offset" conv=notrunc status=none
+dd if="$T/first-memory-pc" of="$T/swapped-memory-identity.bundle" bs=1 seek="$second_memory_pc_offset" conv=notrunc status=none
+
 root_case_run() {
   set +e
   "$T/root-observation" < "$2" > "$T/stdout"
@@ -1183,7 +1194,8 @@ root_case_run truncated-witness "$T/truncated.bundle"
 root_case_run wrong-length "$T/wrong-length.bundle"
 root_case_run wrong-event-pc "$T/wrong-event-pc.bundle"
 root_case_run swapped-event-occurrence "$T/swapped-event-occurrence.bundle"
+root_case_run swapped-memory-identity "$T/swapped-memory-identity.bundle"
 
 root_tape_bytes=$(wc -c < "$T/root-observation.tape" | tr -d ' ')
 root_tape_sha256=$(shasum -a 256 "$T/root-observation.tape" | cut -d ' ' -f 1)
-echo "bc admission: exact B_bc1 maximal observation + 6 format/identity-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"
+echo "bc admission: exact B_bc1 maximal observation + 7 format/identity-binding teeth passed (${root_tape_bytes}-byte ROOT tape, sha256 ${root_tape_sha256})"

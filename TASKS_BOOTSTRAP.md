@@ -90,17 +90,19 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 65,027 lines; the checker ROOT is 81,940 bytes. Shape, control, data, and
+  and 65,015 lines; the checker ROOT is 82,030 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
 - [ ] Finish identity localization before changing the shared compiler frame
   macros. Procedure, block, transition, event, local, primitive, push,
   continuation, epilogue, and shared macro identities are centralized. The r13
-  word-size optimization still shifts 81 semantic modules: 33 can use existing
-  identities, 34 need the checked memory-site resolver, and 27 need centralized
-  internal-site or macro-extent identity, with 48 modules in the union. Complete
-  the synthetic `__write_str` owner, then the stable-row memory resolver, then
-  the remaining internal sites.
+  word-size optimization still shifts 81 semantic modules. The checked
+  stable-row memory resolver has landed with the complete `gen_stmts` memory
+  family and a same-block swapped-PC tooth; 33 further modules must consume it.
+  Twenty-seven modules still need centralized internal-site or macro-extent
+  identity, leaving 47 modules in the remaining union. Complete the synthetic
+  `__write_str` owner, migrate the remaining memory consumers, then close the
+  internal sites.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated

@@ -93,9 +93,14 @@ negative control mutates `emit_dec`'s witness event PC while retaining the exact
 source and artifact and proves that witness coordinates cannot select semantic
 identity. A sixth swaps the two valid same-key `emit_param_store` call PCs and
 proves that exact-cardinality occurrence identity retains ordered continuation
-custody. The final ROOT tape is 81,940 bytes for the current
+custody. Memory identity now returns a checked PC from the bounded source
+row/block/kind/width tuple instead of accepting a semantic caller's artifact
+coordinate. `gen_stmts` rejoins its loads to independently checked address
+literals and its stores to the shared pop-before-store macro; a seventh control
+swaps two valid same-block word-load PCs and rejects. The final ROOT tape is
+82,030 bytes for the current
 exact subjects, SHA-256
-`31a09b73275765af165ccb12b5693f964368751bccd96868e85f66cd25e1acd6`.
+`bf98cdb69e7853962bd1f58dd4794b7c570294633183b784f7b06021319b1220`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
