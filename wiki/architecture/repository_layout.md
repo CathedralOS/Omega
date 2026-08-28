@@ -9,9 +9,10 @@ The pipeline-specific semantic rules live in
 [Pipeline Architecture](pipeline/pipeline.md).
 
 How Omega reaches its hosted compiler—the trust architecture and the exact
-`Alpha → Beta → Gamma → Delta` language spine—is a separate ownership domain described by
-[The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md) and its
-[target repository structure](bootstrap_lattice/repository_structure.md).
+`Alpha → Beta → Gamma → Delta` language spine—is a build-graph property
+described by [The Bootstrap Lattice](bootstrap_lattice/bootstrap_lattice.md)
+and its [target repository structure](bootstrap_lattice/repository_structure.md).
+It is not a separate source ownership domain.
 
 ## Design Bias
 
