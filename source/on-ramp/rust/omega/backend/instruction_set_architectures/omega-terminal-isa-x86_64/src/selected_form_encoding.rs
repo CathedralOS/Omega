@@ -45,6 +45,7 @@ pub enum X86_64SelectedFormEncodingError {
     BranchDisplacementOutsideI32,
     MalformedEncoding,
     EncodedFormMismatch,
+    BranchDisplacementOutsideI8,
 }
 
 impl std::fmt::Display for X86_64SelectedFormEncodingError {
@@ -90,6 +91,56 @@ pub fn validate_x86_64_terminal_selected_nonzero_branch_form(
         .filter(|_| bytes.len() == 6 && bytes[..2] == [0x0f, 0x85])
         .and_then(|bytes| bytes.try_into().ok())
         .map(i32::from_le_bytes)
+        .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
+    if actual != expected {
+        return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
+    }
+    Ok(ValidatedX86_64SelectedFormEncoding {
+        bytes: bytes.to_vec(),
+        footprint: footprint(
+            TerminalSelectedInstructionKind::ConditionalBranchNonZero,
+            alternative,
+            &[],
+        ),
+    })
+}
+
+/// Encode the canonical short layout-resolved realization of
+/// `ConditionalBranchNonZero`. The signed byte displacement is measured from
+/// the end of this two-byte instruction, as required by x86-64 `JNE rel8`.
+pub fn encode_x86_64_terminal_selected_short_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    let displacement = i8::try_from(byte_displacement_from_instruction_end)
+        .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)?;
+    validate_x86_64_terminal_selected_short_nonzero_branch_form(
+        physical,
+        alternative,
+        byte_displacement_from_instruction_end,
+        &[0x75, displacement as u8],
+    )
+}
+
+/// Validate exactly one canonical x86-64 `JNE rel8` instruction. Near-branch
+/// opcodes, prefixes, suffixes, and trailing bytes are not alternate encodings
+/// of this selected short form.
+pub fn validate_x86_64_terminal_selected_short_nonzero_branch_form(
+    physical: &ValidatedPhysicalRegisterModel,
+    alternative: TerminalMachineAlternativeKey,
+    byte_displacement_from_instruction_end: i64,
+    bytes: &[u8],
+) -> Result<ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError> {
+    validate_branch_request(physical, alternative)?;
+    let expected = i8::try_from(byte_displacement_from_instruction_end)
+        .map_err(|_| X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)?;
+    let actual = bytes
+        .get(1)
+        .copied()
+        .filter(|_| bytes.len() == 2 && bytes[0] == 0x75)
+        .map(|displacement| displacement as i8)
         .ok_or(X86_64SelectedFormEncodingError::MalformedEncoding)?;
     if actual != expected {
         return Err(X86_64SelectedFormEncodingError::EncodedFormMismatch);
@@ -1023,6 +1074,112 @@ mod tests {
                 &[0x0f, 0x85, 0, 0, 0, 0, 0]
             )
             .is_err()
+        );
+    }
+
+    #[test]
+    fn short_nonzero_branch_has_exact_signed_rel8_bounds_and_near_footprint() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let alternative = alternative(
+            TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            0,
+        );
+        let near =
+            encode_x86_64_terminal_selected_nonzero_branch_form(&physical, alternative, 0).unwrap();
+
+        for (displacement, encoded_displacement) in [(-128, 0x80), (127, 0x7f)] {
+            let encoded = encode_x86_64_terminal_selected_short_nonzero_branch_form(
+                &physical,
+                alternative,
+                displacement,
+            )
+            .unwrap();
+            assert_eq!(encoded.bytes(), [0x75, encoded_displacement]);
+            assert_eq!(encoded.footprint(), near.footprint());
+        }
+
+        for displacement in [-129, 128] {
+            assert_eq!(
+                encode_x86_64_terminal_selected_short_nonzero_branch_form(
+                    &physical,
+                    alternative,
+                    displacement,
+                ),
+                Err(X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)
+            );
+            assert_eq!(
+                validate_x86_64_terminal_selected_short_nonzero_branch_form(
+                    &physical,
+                    alternative,
+                    displacement,
+                    &[0x75, 0],
+                ),
+                Err(X86_64SelectedFormEncodingError::BranchDisplacementOutsideI8)
+            );
+        }
+    }
+
+    #[test]
+    fn short_nonzero_branch_validation_rejects_every_noncanonical_form() {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let canonical_alternative = alternative(
+            TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            0,
+        );
+
+        for bytes in [&[0x74, 0][..], &[0x75][..], &[0x75, 0, 0][..]] {
+            assert_eq!(
+                validate_x86_64_terminal_selected_short_nonzero_branch_form(
+                    &physical,
+                    canonical_alternative,
+                    0,
+                    bytes,
+                ),
+                Err(X86_64SelectedFormEncodingError::MalformedEncoding)
+            );
+        }
+        assert_eq!(
+            validate_x86_64_terminal_selected_short_nonzero_branch_form(
+                &physical,
+                canonical_alternative,
+                0,
+                &[0x75, 1],
+            ),
+            Err(X86_64SelectedFormEncodingError::EncodedFormMismatch)
+        );
+
+        let wrong_alternative = alternative(
+            TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
+            1,
+        );
+        assert_eq!(
+            encode_x86_64_terminal_selected_short_nonzero_branch_form(
+                &physical,
+                wrong_alternative,
+                0,
+            ),
+            Err(X86_64SelectedFormEncodingError::AlternativeMismatch)
+        );
+        assert_eq!(
+            validate_x86_64_terminal_selected_short_nonzero_branch_form(
+                &physical,
+                alternative(TerminalMachineAlternativeFamily::ReturnI64, 0),
+                0,
+                &[0x75, 0],
+            ),
+            Err(X86_64SelectedFormEncodingError::AlternativeMismatch)
+        );
+
+        let mut forged = x86_64_physical_register_model();
+        forged.views[0].name = "forged.rax".into();
+        let forged = validate_physical_register_model(forged).unwrap();
+        assert_eq!(
+            encode_x86_64_terminal_selected_short_nonzero_branch_form(
+                &forged,
+                canonical_alternative,
+                0,
+            ),
+            Err(X86_64SelectedFormEncodingError::NonCanonicalPhysicalModel)
         );
     }
 }

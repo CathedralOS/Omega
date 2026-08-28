@@ -73,14 +73,14 @@ mod tests {
     fn selected_pipeline_fails_once_with_canonical_names() {
         let selections = OptimizationSelections::new([
             Optimization::ControlFlowCleanup,
-            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
         ])
         .expect("unique selections");
         let diagnostics = require_available_pipeline(&selections)
             .expect_err("unimplemented optimizer must fail closed");
         assert_eq!(diagnostics.len(), 1);
         let message = diagnostics[0].message.as_str();
-        assert!(message.contains("`ControlFlowCleanup`, `SelectedIncomingU12ExactAddImmediate`"));
+        assert!(message.contains("`ControlFlowCleanup`, `X86RelaxConditionalBranchesToRel8V1`"));
         assert!(message.contains("no output was installed"));
     }
 }

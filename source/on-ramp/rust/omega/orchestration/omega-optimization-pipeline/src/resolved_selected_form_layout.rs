@@ -131,6 +131,33 @@ impl StagedOptimizedResolvedSelectedFormLayout {
         &self.functions
     }
 
+    /// Rebuild this same resolved-layout representation after a separately
+    /// validated, function-relative byte-layout transformation. This helper
+    /// recomputes content identity but grants no authority to perform or
+    /// validate the transformation itself.
+    pub(crate) fn with_replayed_functions(
+        &self,
+        functions: Vec<TerminalResolvedSelectedFunctionLayout>,
+    ) -> Self {
+        let identity = layout_identity(
+            self.selected,
+            self.machine,
+            self.pre_layout,
+            self.target,
+            self.policy,
+            &functions,
+        );
+        Self {
+            selected: self.selected,
+            machine: self.machine,
+            pre_layout: self.pre_layout,
+            target: self.target,
+            policy: self.policy,
+            identity,
+            functions,
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn functions_mut(&mut self) -> &mut [TerminalResolvedSelectedFunctionLayout] {
         &mut self.functions
