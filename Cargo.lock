@@ -565,6 +565,8 @@ dependencies = [
  "omega-optimization-pipeline",
  "omega-package-compilation",
  "omega-platform-interface",
+ "omega-program-storage",
+ "omega-provider-planning",
  "omega-runtime-bodies",
  "omega-runtime-branching",
  "omega-runtime-dispatch-loop",
@@ -1338,6 +1340,58 @@ dependencies = [
  "psi-arena",
  "psi-checked-trees",
  "psi-diagnostics",
+ "psi-source-files-to-tokens",
+ "psi-symbol-resolved-trees-to-typed-trees",
+ "psi-symbols",
+ "psi-syntax-trees-to-symbol-resolved-trees",
+ "psi-tokens-to-syntax-trees",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+]
+
+[[package]]
+name = "omega-program-storage"
+version = "0.1.0"
+dependencies = [
+ "omega-calling-conventions",
+ "omega-control-flow",
+ "omega-layout",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-symbols",
+ "psi-typed-trees",
+]
+
+[[package]]
+name = "omega-provider-planning"
+version = "0.1.0"
+dependencies = [
+ "omega-backend-plan",
+ "omega-calling-conventions",
+ "omega-effects",
+ "omega-executable-installation",
+ "omega-external-roots",
+ "omega-instruction-selection",
+ "omega-layout",
+ "omega-package-compilation",
+ "omega-program-storage",
+ "omega-target",
+ "omega-task-plans",
+ "omega-trust-ledger",
+ "omega-visualizations",
+ "psi-arena",
+ "psi-build-time-evaluation",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-layout-plans",
+ "psi-numerics",
+ "psi-source",
  "psi-source-files-to-tokens",
  "psi-symbol-resolved-trees-to-typed-trees",
  "psi-symbols",

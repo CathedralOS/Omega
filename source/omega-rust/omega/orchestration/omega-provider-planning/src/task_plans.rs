@@ -16,7 +16,7 @@ use std::sync::Arc;
 /// into a provider-independent activation demand. The source classifier is
 /// deliberately nominal and closed: an unrelated method named `start` does
 /// not become a task operation.
-pub(super) fn elaborate_task_activation_plans(
+pub fn elaborate_task_activation_plans(
     program: &CheckedTrees,
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
@@ -161,16 +161,15 @@ pub(super) fn elaborate_task_activation_plans(
 /// Derive and commit the complete compiler-owned task-activation sidecar.
 /// The checked program and selected providers remain shared read-only inputs;
 /// a failed derivation leaves the previously retained sidecar unchanged.
-pub(super) fn settle_compiler_task_activation_plans(
-    checked: &mut super::stages::CheckedProgramSurface,
+pub fn settle_task_activation_plans(
+    retained: &mut Arc<TaskActivationPlanSet>,
+    program: &CheckedTrees,
+    selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     target: NativeTarget,
 ) -> Result<(), Vec<Diagnostic>> {
-    let task_activations = elaborate_task_activation_plans(
-        &checked.program,
-        &checked.selected_provider_plans,
-        target,
-    )?;
-    checked.task_activations = Arc::new(task_activations);
+    let task_activations =
+        elaborate_task_activation_plans(program, selected_provider_plans, target)?;
+    *retained = Arc::new(task_activations);
     Ok(())
 }
 
@@ -2381,14 +2380,10 @@ mod tests {
         let typed =
             psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
                 .expect("type");
-        let provider_plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+        let provider_plans = crate::plans::derive_satisfies_plans(&typed, None);
         assert_eq!(provider_plans.len(), 1);
         assert!(
-            crate::pipeline::provider_plans::validate_provider_plan_candidates(
-                &typed,
-                &provider_plans,
-            )
-            .is_empty()
+            crate::plans::validate_provider_plan_candidates(&typed, &provider_plans,).is_empty()
         );
         let selected = omega_effects::SelectedProviderPlanFacts::from_selection(
             &provider_plans,
@@ -2401,51 +2396,30 @@ mod tests {
         (checked, selected, provider_plans)
     }
 
-    fn compiler_checked_surface(
-        checked: CheckedTrees,
-        selected: omega_effects::SelectedProviderPlanFacts,
-        task_activations: Arc<TaskActivationPlanSet>,
-    ) -> super::super::stages::CheckedProgramSurface {
-        super::super::stages::CheckedProgramSurface {
-            program: Arc::new(checked),
-            accepted_template_classifications: Default::default(),
-            selected_provider_plans: Arc::new(selected),
-            component_progress: None,
-            task_activations,
-            callback_placements: Arc::from([]),
-            external_binding_rows: Arc::from([]),
-        }
-    }
-
     #[test]
     fn compiler_task_activation_settlement_borrows_shared_program_and_commits_two_rows() {
         let (checked, selected, _) = concrete_task_start_fixture();
         let original_sidecar = Arc::new(TaskActivationPlanSet::default());
-        let mut surface =
-            compiler_checked_surface(checked, selected, Arc::clone(&original_sidecar));
-        let shared_program = Arc::clone(&surface.program);
-        let shared_selected_providers = Arc::clone(&surface.selected_provider_plans);
+        let mut retained = Arc::clone(&original_sidecar);
 
-        settle_compiler_task_activation_plans(&mut surface, NativeTarget::macos_arm64())
-            .expect("shared checked custody should produce the complete activation sidecar");
+        settle_task_activation_plans(
+            &mut retained,
+            &checked,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect("shared checked custody should produce the complete activation sidecar");
 
-        assert!(Arc::ptr_eq(&shared_program, &surface.program));
-        assert!(Arc::ptr_eq(
-            &shared_selected_providers,
-            &surface.selected_provider_plans
-        ));
-        assert!(!Arc::ptr_eq(&original_sidecar, &surface.task_activations));
-        assert_eq!(surface.task_activations.as_slice().len(), 2);
+        assert!(!Arc::ptr_eq(&original_sidecar, &retained));
+        assert_eq!(retained.as_slice().len(), 2);
         assert!(
-            surface
-                .task_activations
+            retained
                 .as_slice()
                 .iter()
                 .any(|activation| { activation.operation == TaskStartOperation::Start })
         );
         assert!(
-            surface
-                .task_activations
+            retained
                 .as_slice()
                 .iter()
                 .any(|activation| { activation.operation == TaskStartOperation::TryStart })
@@ -2470,38 +2444,41 @@ mod tests {
             .machines
             .retain(|fact| fact.machine != target);
         let original_sidecar = Arc::new(retained);
-        let mut surface =
-            compiler_checked_surface(checked, selected, Arc::clone(&original_sidecar));
+        let mut retained = Arc::clone(&original_sidecar);
 
-        let diagnostics =
-            settle_compiler_task_activation_plans(&mut surface, NativeTarget::macos_arm64())
-                .expect_err("missing exact suspension evidence must reject settlement");
+        let diagnostics = settle_task_activation_plans(
+            &mut retained,
+            &checked,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect_err("missing exact suspension evidence must reject settlement");
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(
             diagnostics[0].message,
             "task activation target `Worker::run` has no checked suspension plan"
         );
-        assert!(Arc::ptr_eq(&original_sidecar, &surface.task_activations));
+        assert!(Arc::ptr_eq(&original_sidecar, &retained));
     }
 
     #[test]
     fn compiler_task_activation_settlement_commits_canonical_empty_sidecar() {
         let original_sidecar = Arc::new(TaskActivationPlanSet::default());
-        let mut surface = compiler_checked_surface(
-            CheckedTrees::default(),
-            omega_effects::SelectedProviderPlanFacts::default(),
-            Arc::clone(&original_sidecar),
-        );
+        let checked = CheckedTrees::default();
+        let selected = omega_effects::SelectedProviderPlanFacts::default();
+        let mut retained = Arc::clone(&original_sidecar);
 
-        settle_compiler_task_activation_plans(&mut surface, NativeTarget::macos_arm64())
-            .expect("an empty checked program should produce an empty activation sidecar");
+        settle_task_activation_plans(
+            &mut retained,
+            &checked,
+            &selected,
+            NativeTarget::macos_arm64(),
+        )
+        .expect("an empty checked program should produce an empty activation sidecar");
 
-        assert!(!Arc::ptr_eq(&original_sidecar, &surface.task_activations));
-        assert_eq!(
-            surface.task_activations.as_ref(),
-            &TaskActivationPlanSet::default()
-        );
+        assert!(!Arc::ptr_eq(&original_sidecar, &retained));
+        assert_eq!(retained.as_ref(), &TaskActivationPlanSet::default());
     }
 
     #[test]

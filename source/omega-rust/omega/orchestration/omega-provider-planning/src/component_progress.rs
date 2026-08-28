@@ -3,13 +3,13 @@ use psi_diagnostics::Diagnostic;
 use psi_symbols::SymbolHandle;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct ExactComponentProgressRoot<'a> {
+pub struct ExactComponentProgressRoot<'a> {
     machine: SymbolHandle,
     callable_identity: &'a str,
 }
 
 impl<'a> ExactComponentProgressRoot<'a> {
-    pub(super) const fn new(machine: SymbolHandle, callable_identity: &'a str) -> Self {
+    pub const fn new(machine: SymbolHandle, callable_identity: &'a str) -> Self {
         Self {
             machine,
             callable_identity,
@@ -21,7 +21,7 @@ impl<'a> ExactComponentProgressRoot<'a> {
 /// progress manifest. An exact source-selected root outranks the test-harness
 /// name fallback; absence of both means that this checked product has no
 /// component root and therefore no manifest.
-pub(super) fn build_selected_component_progress_manifest(
+pub fn build_selected_component_progress_manifest(
     program: &psi_checked_trees::CheckedTrees,
     selected: &omega_effects::SelectedProviderPlanFacts,
     exact_source_root: Option<ExactComponentProgressRoot<'_>>,
@@ -180,7 +180,7 @@ fn build_component_progress_manifest(
                     }
                 };
                 if let ProviderBinding::CheckedAdapter { .. } = &row.binding {
-                    let adapter = super::provider_plans::exact_checked_adapter(program, plan, row)
+                    let adapter = crate::plans::exact_checked_adapter(program, plan, row)
                         .map_err(|diagnostic| vec![diagnostic])?;
                     queue.push(adapter.symbol);
                 }
@@ -197,7 +197,7 @@ fn build_component_progress_manifest(
 /// plan is not itself an establishment receipt. Native/final composition must
 /// stop here until the installation occurrence and admitted receipt discharge
 /// each exact row.
-pub(super) fn reject_undischarged_build_bound_progress(
+pub fn reject_undischarged_build_bound_progress(
     manifest: Option<&omega_effects::ComponentProgressManifest>,
 ) -> Result<(), Vec<Diagnostic>> {
     let Some(manifest) = manifest else {

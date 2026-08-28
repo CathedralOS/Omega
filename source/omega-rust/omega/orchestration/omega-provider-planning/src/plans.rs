@@ -14,7 +14,7 @@ use std::sync::Arc;
 
 #[path = "plans/external_binding_rows.rs"]
 mod external_binding_rows;
-pub(super) use external_binding_rows::settle_compiler_external_binding_rows;
+pub use external_binding_rows::{extract_external_binding_rows, settle_external_binding_rows};
 
 /// Exact selected provider-plan input consumed by external-root construction.
 ///
@@ -1143,13 +1143,13 @@ impl SelectedExternalRootProviderPlan {
 /// grant, receipt, operator-use, and installation-reach decision has replayed.
 /// The candidate owns any separated Arc privately until its caller commits it.
 #[derive(Debug)]
-pub(crate) struct SelectedProviderPlanBinding {
+pub struct SelectedProviderPlanBinding {
     program: Arc<psi_checked_trees::CheckedTrees>,
     selected: omega_effects::SelectedProviderPlanFacts,
 }
 
 impl SelectedProviderPlanBinding {
-    pub(crate) fn into_parts(
+    pub fn into_parts(
         self,
     ) -> (
         Arc<psi_checked_trees::CheckedTrees>,
@@ -1212,7 +1212,7 @@ impl SelectedProviderProgramUpdates {
 /// identities into checked semantic evidence. Provider execution and
 /// compiler-generated helper machines consume the returned carrier; neither
 /// may reconstruct a plan by scanning authored `satisfies` rows.
-pub(crate) fn bind_selected_provider_plan_facts(
+pub fn bind_selected_provider_plan_facts(
     program: &Arc<psi_checked_trees::CheckedTrees>,
     candidates: &[ProviderPlan],
     facts: omega_effects::SelectedProviderPlanFacts,
@@ -1666,7 +1666,7 @@ fn selected_operator_provider_identity(
     Ok(Some(plan.identity_fingerprint()))
 }
 
-pub(super) fn intrinsic_realization_matches_operator(
+pub fn intrinsic_realization_matches_operator(
     typed: &TypedTrees,
     realization_machine_identity: &str,
     operator: &psi_typed_trees::operator::OperatorDefinition,
@@ -2018,7 +2018,7 @@ pub fn selected_external_root_provider_plan(
 /// Resolve an external-root provider selection when the current artifact has
 /// one. An absent plan remains an honest pending installation dependency;
 /// multiple matching selections are still invalid.
-pub(crate) fn optional_selected_external_root_provider_plan(
+pub fn optional_selected_external_root_provider_plan(
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
     boundary_trait: &str,
 ) -> Result<Option<SelectedExternalRootProviderPlan>, omega_external_roots::ExternalRootDiagnostic>
@@ -2234,7 +2234,7 @@ fn provider_type_symbol(
 /// leaf. Selection v1: a slot whose (trait, target) has exactly one FULLY
 /// COVERING derived plan selects it implicitly; ambiguity or partial
 /// coverage is loud at the consumer (the trust report shows coverage).
-pub(crate) fn derive_satisfies_plans(
+pub fn derive_satisfies_plans(
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<ProviderPlan> {
@@ -2267,12 +2267,12 @@ pub struct ProviderPlanProvenance {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct DerivedProviderPlan {
-    pub(super) plan: ProviderPlan,
-    pub(super) provenance: ProviderPlanProvenance,
+pub struct DerivedProviderPlan {
+    pub plan: ProviderPlan,
+    pub provenance: ProviderPlanProvenance,
 }
 
-pub(super) fn derive_satisfies_plans_with_provenance(
+pub fn derive_satisfies_plans_with_provenance(
     typed: &TypedTrees,
     selected_target: Option<&str>,
 ) -> Vec<DerivedProviderPlan> {
@@ -2652,7 +2652,7 @@ fn derive_boundary_operator_plans_with_provenance(
     plans
 }
 
-pub(crate) fn satisfied_requirement_identity(
+pub fn satisfied_requirement_identity(
     typed: &TypedTrees,
     machine_name: &str,
     trait_name: &str,
@@ -2865,7 +2865,7 @@ fn same_semantic_name(left: &str, right: &str) -> bool {
 /// The stable name shared by derivation, reports, selection, and backend row
 /// extraction. External leaves may use the anonymous form; a real provider
 /// type is deliberately visible in artifact identity.
-pub(crate) fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) -> String {
+pub fn satisfies_plan_name(target: &str, trait_name: &str, provider_type: &str) -> String {
     match (target.is_empty(), provider_type.is_empty()) {
         (true, true) => format!("satisfies::{trait_name}"),
         (false, true) => format!("{target}::satisfies::{trait_name}"),
@@ -3078,7 +3078,7 @@ fn exact_row_for_schema_method<'plan>(
     Ok(*row)
 }
 
-pub(super) fn exact_checked_adapter<'typed>(
+pub fn exact_checked_adapter<'typed>(
     typed: &'typed TypedTrees,
     plan: &ProviderPlan,
     row: &ProviderPlanRow,
@@ -3355,7 +3355,7 @@ fn exact_authored_invocations(
 /// only then may checked-adapter reach be compared with its public ceiling.
 /// Independent operational refinement is validated by the machine-conformance
 /// checker that produced the candidate.
-pub(crate) fn validate_provider_plan_candidates(
+pub fn validate_provider_plan_candidates(
     typed: &TypedTrees,
     plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Vec<psi_diagnostics::Diagnostic> {
@@ -3494,7 +3494,7 @@ pub(crate) fn validate_provider_plan_candidates(
 /// provider selection. Reach closure is intentionally irrelevant: only a
 /// selected method's authored `invokes` edges participate, and a missing
 /// selected target cannot manufacture an edge.
-pub(crate) fn validate_selected_synchronous_invocation_cycles(
+pub fn validate_selected_synchronous_invocation_cycles(
     typed: &TypedTrees,
     selected_plans: &[omega_effects::provider_plan::ProviderPlan],
 ) -> Result<(), Vec<psi_diagnostics::Diagnostic>> {
@@ -3658,18 +3658,14 @@ fn provider_slot_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
     )
 }
 
-fn selected_boundary_key(
-    selection: &crate::pipeline::build_config::ProviderSelection,
-) -> ProviderSelectionKey {
+fn selected_boundary_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
     (
         selection.boundary_trait.package,
         selection.boundary_trait.canonical_path.clone(),
     )
 }
 
-fn selected_provider_key(
-    selection: &crate::pipeline::build_config::ProviderSelection,
-) -> ProviderSelectionKey {
+fn selected_provider_key(selection: &crate::ProviderSelection) -> ProviderSelectionKey {
     (
         selection.provider_type.package,
         selection.provider_type.canonical_path.clone(),
@@ -3685,15 +3681,15 @@ fn provider_plan_key(plan: &omega_effects::provider_plan::ProviderPlan) -> Provi
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ProviderSelectionProvenance {
-    BuildOverride(Vec<crate::pipeline::build_config::ProviderSelection>),
-    TargetDefault(Vec<crate::pipeline::build_config::ProviderSelection>),
+    BuildOverride(Vec<crate::ProviderSelection>),
+    TargetDefault(Vec<crate::ProviderSelection>),
     UniqueCoveringCandidate,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(super) struct SelectedProviderPlanWithProvenance {
-    pub(super) derived: DerivedProviderPlan,
-    pub(super) selected_by: ProviderSelectionProvenance,
+pub struct SelectedProviderPlanWithProvenance {
+    pub derived: DerivedProviderPlan,
+    pub selected_by: ProviderSelectionProvenance,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -3703,7 +3699,7 @@ pub struct SelectedProviderReviewProvenance {
     pub selected_by: ProviderSelectionProvenance,
 }
 
-pub(super) fn selected_provider_plan_facts_with_provenance(
+pub fn selected_provider_plan_facts_with_provenance(
     typed: &TypedTrees,
     mut selected: Vec<SelectedProviderPlanWithProvenance>,
 ) -> Result<
@@ -3890,13 +3886,10 @@ struct SelectedProviderPlanIndex {
 
 fn resolve_provider_selection_slots(
     slot_keys: &[ProviderSelectionKey],
-    declarations: &[crate::pipeline::build_config::ProviderSelection],
+    declarations: &[crate::ProviderSelection],
     owner: &str,
 ) -> (
-    Vec<(
-        ProviderSelectionKey,
-        crate::pipeline::build_config::ProviderSelection,
-    )>,
+    Vec<(ProviderSelectionKey, crate::ProviderSelection)>,
     Vec<psi_diagnostics::Diagnostic>,
 ) {
     let mut resolved = Vec::new();
@@ -3921,11 +3914,11 @@ fn resolve_provider_selection_slots(
 /// package's ordinary default declaration. Without either, a unique covering
 /// candidate supplies the declaration-era default. Rows are never selected
 /// individually and partial candidates never combine.
-pub(crate) fn select_provider_plans(
+pub fn select_provider_plans(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
-    defaults: &[crate::pipeline::build_config::ProviderSelection],
-    requested: &[crate::pipeline::build_config::ProviderSelection],
+    defaults: &[crate::ProviderSelection],
+    requested: &[crate::ProviderSelection],
 ) -> Result<Vec<ProviderPlan>, Vec<psi_diagnostics::Diagnostic>> {
     select_provider_plan_indices(plans, selected_target, defaults, requested).map(|selected| {
         selected
@@ -3935,11 +3928,11 @@ pub(crate) fn select_provider_plans(
     })
 }
 
-pub(super) fn select_provider_plans_with_provenance(
+pub fn select_provider_plans_with_provenance(
     derived: &[DerivedProviderPlan],
     selected_target: omega_target::NativeTarget,
-    defaults: &[crate::pipeline::build_config::ProviderSelection],
-    requested: &[crate::pipeline::build_config::ProviderSelection],
+    defaults: &[crate::ProviderSelection],
+    requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanWithProvenance>, Vec<psi_diagnostics::Diagnostic>> {
     let plans = derived
         .iter()
@@ -3959,8 +3952,8 @@ pub(super) fn select_provider_plans_with_provenance(
 fn select_provider_plan_indices(
     plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_target: omega_target::NativeTarget,
-    defaults: &[crate::pipeline::build_config::ProviderSelection],
-    requested: &[crate::pipeline::build_config::ProviderSelection],
+    defaults: &[crate::ProviderSelection],
+    requested: &[crate::ProviderSelection],
 ) -> Result<Vec<SelectedProviderPlanIndex>, Vec<psi_diagnostics::Diagnostic>> {
     // Target inertness (the fail-canary host-portability convention): a
     // plan scoped to a NON-selected target is inert and never collides --

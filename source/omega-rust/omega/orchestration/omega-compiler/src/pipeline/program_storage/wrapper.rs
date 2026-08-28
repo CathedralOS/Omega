@@ -13,16 +13,11 @@ use super::program_storage_entry::{
     ProgramStorageEntryPlanBinding,
 };
 use omega_calling_conventions::ValuePlacement;
+pub use omega_program_storage::ProgramStorageEntryRootRole;
 use std::ops::Range;
 
 const IMAGE_PARAMETER_INDEX: usize = 0;
 const INITIAL_STORAGE_PARAMETER_INDEX: usize = 1;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ProgramStorageEntryRootRole {
-    Image,
-    InitialStorage,
-}
 
 /// Exact mapping from one physical arrival root to the source-visible
 /// continuation parameter selected by `ProgramStorageApplication`.

@@ -6,12 +6,10 @@ mod boundary_report;
 mod build_config;
 #[path = "build/replay_record.rs"]
 mod build_replay_record;
-#[path = "provider/calling_policy_plans.rs"]
-mod calling_policy_plans;
+pub(crate) use omega_provider_planning::calling_policy_plans;
 mod checked_entry;
 mod compile_policy;
-#[path = "provider/component_progress.rs"]
-mod component_progress;
+pub(crate) use omega_provider_planning::component_progress;
 mod emitted_program;
 #[path = "dispatch/float_intrinsic.rs"]
 mod float_intrinsic_dispatch;
@@ -25,8 +23,7 @@ mod output;
 mod package_declaration_admission;
 #[path = "program_storage/entry_physical.rs"]
 mod program_entry_physical;
-#[path = "program_storage/entry_source_signature.rs"]
-mod program_entry_source_signature;
+pub(crate) use omega_program_storage as program_entry_source_signature;
 #[path = "program_storage/local_storage_custody.rs"]
 mod program_local_storage_custody;
 #[path = "program_storage/continuation_inbound.rs"]
@@ -58,18 +55,15 @@ mod program_storage_wrapper_evidence;
 #[path = "program_storage/wrapper_frame.rs"]
 mod program_storage_wrapper_frame;
 mod project;
-#[path = "provider/approval.rs"]
-mod provider_approval;
-#[path = "provider/plans.rs"]
-mod provider_plans;
+pub(crate) use omega_provider_planning::approval as provider_approval;
+pub(crate) use omega_provider_planning::plans as provider_plans;
 pub mod source;
 mod source_inspection;
 mod stage;
 mod stages;
 #[path = "provider/target_machines.rs"]
 mod target_machines;
-#[path = "provider/task_plans.rs"]
-mod task_plans;
+pub(crate) use omega_provider_planning::task_plans;
 #[path = "terminal/compile_driver.rs"]
 mod terminal_compile_driver;
 #[path = "terminal/component_candidate.rs"]

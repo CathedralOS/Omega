@@ -1,8 +1,8 @@
 use super::{
     extract_external_binding_rows, selected_source_boundary_entry_plan,
-    settle_compiler_external_binding_rows,
+    settle_external_binding_rows,
 };
-use crate::pipeline::calling_policy_plans::BoundaryCallingPlanRealization;
+use crate::calling_policy_plans::BoundaryCallingPlanRealization;
 use omega_calling_conventions::{
     BoundaryEntryPlan, CallSignature, CallingPolicy, evaluate_ordinary_boundary_entry_plan,
 };
@@ -149,7 +149,7 @@ fn fixture_with_inventory(
         relationship_span: psi_source::SourceSpan::default(),
         native_parameters: Vec::new(),
         materialized_signature:
-            crate::pipeline::calling_policy_plans::materialized_boundary_signature_from_abi(
+            crate::calling_policy_plans::materialized_boundary_signature_from_abi(
                 &CallSignature::default(),
             )
             .unwrap(),
@@ -179,21 +179,6 @@ fn resolve(fixture: &Fixture, schema_name: &str) -> Result<Option<BoundaryEntryP
     .map_err(|diagnostic| diagnostic.message)
 }
 
-fn checked_surface(typed: TypedTrees) -> crate::pipeline::stages::CheckedProgramSurface {
-    crate::pipeline::stages::CheckedProgramSurface {
-        program: Arc::new(psi_checked_trees::CheckedTrees {
-            typed,
-            ..Default::default()
-        }),
-        accepted_template_classifications: Default::default(),
-        selected_provider_plans: Arc::new(omega_effects::SelectedProviderPlanFacts::default()),
-        component_progress: None,
-        task_activations: Arc::new(omega_task_plans::TaskActivationPlanSet::default()),
-        callback_placements: Arc::from([]),
-        external_binding_rows: Arc::from([]),
-    }
-}
-
 fn add_bootstrap_row(fixture: &mut Fixture) {
     fixture.plans[0].target = "retained-target".to_owned();
     fixture.plans[0].provider_type = "RetainedProvider".to_owned();
@@ -219,38 +204,41 @@ fn checked_surface_settlement_retains_exact_rows_and_preserves_equal_arc_identit
         &fixture.typed,
     )
     .expect("pre-settlement reference projection");
-    let mut checked = checked_surface(fixture.typed);
+    let mut retained = Arc::from([]);
 
-    settle_compiler_external_binding_rows(
-        &mut checked,
+    settle_external_binding_rows(
+        &mut retained,
+        &fixture.typed,
         None,
         omega_target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
     )
     .expect("checked-retained typed projection");
-    assert_eq!(checked.external_binding_rows.as_ref(), expected.as_slice());
+    assert_eq!(retained.as_ref(), expected.as_slice());
 
-    let retained = Arc::clone(&checked.external_binding_rows);
-    settle_compiler_external_binding_rows(
-        &mut checked,
+    let first = Arc::clone(&retained);
+    settle_external_binding_rows(
+        &mut retained,
+        &fixture.typed,
         None,
         omega_target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
     )
     .expect("identical settlement is a no-op");
-    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
+    assert!(Arc::ptr_eq(&first, &retained));
 }
 
 #[test]
 fn empty_settlement_preserves_arc_identity() {
     let fixture = fixture(false);
-    let mut checked = checked_surface(fixture.typed);
-    let retained = Arc::clone(&checked.external_binding_rows);
+    let mut retained = Arc::from([]);
+    let initial = Arc::clone(&retained);
 
-    settle_compiler_external_binding_rows(
-        &mut checked,
+    settle_external_binding_rows(
+        &mut retained,
+        &fixture.typed,
         None,
         omega_target::NativeTarget::host(),
         &fixture.plans,
@@ -258,30 +246,32 @@ fn empty_settlement_preserves_arc_identity() {
     )
     .expect("empty selected binding projection");
 
-    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
-    assert!(checked.external_binding_rows.is_empty());
+    assert!(Arc::ptr_eq(&initial, &retained));
+    assert!(retained.is_empty());
 }
 
 #[test]
 fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
     let mut fixture = fixture(false);
     add_bootstrap_row(&mut fixture);
-    let mut checked = checked_surface(fixture.typed);
-    settle_compiler_external_binding_rows(
-        &mut checked,
+    let mut retained = Arc::from([]);
+    settle_external_binding_rows(
+        &mut retained,
+        &fixture.typed,
         None,
         omega_target::NativeTarget::host(),
         &fixture.plans,
         &fixture.realizations,
     )
     .expect("initial exact settlement");
-    let retained = Arc::clone(&checked.external_binding_rows);
+    let accepted = Arc::clone(&retained);
     let retained_contents = retained.to_vec();
 
     let duplicate = fixture.plans[0].schema.methods[0].clone();
     fixture.plans[0].schema.methods.push(duplicate);
-    let diagnostics = settle_compiler_external_binding_rows(
-        &mut checked,
+    let diagnostics = settle_external_binding_rows(
+        &mut retained,
+        &fixture.typed,
         None,
         omega_target::NativeTarget::host(),
         &fixture.plans,
@@ -294,8 +284,8 @@ fn rejected_settlement_preserves_prior_arc_identity_and_contents() {
             .iter()
             .any(|diagnostic| diagnostic.message.contains("binds 2 exact schema methods"))
     );
-    assert!(Arc::ptr_eq(&retained, &checked.external_binding_rows));
-    assert_eq!(checked.external_binding_rows.as_ref(), retained_contents);
+    assert!(Arc::ptr_eq(&accepted, &retained));
+    assert_eq!(retained.as_ref(), retained_contents);
 }
 
 #[test]
@@ -413,7 +403,7 @@ fn selected_source_boundary_entry_plan_accepts_exact_operator_custody_without_tr
         .expect("resolve operator custody fixture");
     let typed = psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees(&resolved)
         .expect("type operator custody fixture");
-    let mut plans = crate::pipeline::provider_plans::derive_satisfies_plans(&typed, None);
+    let mut plans = crate::plans::derive_satisfies_plans(&typed, None);
     let plan_index = plans
         .iter()
         .position(|plan| {
