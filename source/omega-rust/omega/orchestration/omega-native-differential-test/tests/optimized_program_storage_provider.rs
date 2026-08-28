@@ -155,7 +155,7 @@ fn checked_program_storage_provider_reaches_optimized_selected_claim_completion(
 
     let selections =
         OptimizationSelections::new([Optimization::CopyPropagation]).expect("named optimization");
-    let request = compiler_baseline_request_v1(&selections).expect("bounded optimizer request");
+    let request = compiler_baseline_request_v1(&selections);
     let optimized = optimize_verified_terminal_input(verified, request)
         .expect("optimize verified ProgramStorage plan");
     let root_machine = optimized.plan().entry;
