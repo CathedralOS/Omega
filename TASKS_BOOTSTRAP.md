@@ -75,15 +75,17 @@ Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
 - `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
-- exact maximal-observation ROOT: 82,921 bytes,
-  `b3e41553ac5b52117bd17cf8028a6882fbc16729cd91f69bbd400e53edfc2731`.
+- exact maximal-observation ROOT: 82,829 bytes,
+  `c49749ce1565f60970c92097fc5eca0a4a590fe5549d8d214d6e141c133effab`.
 
 - [ ] Reduce the remaining admission implementation without merging distinct
   proof responsibilities. The bounded gate currently has 191 Alpha modules,
-  60,552 lines, and a 1,010,429-byte Checker A source. Shape, control, data,
+  60,513 lines, and a 1,010,429-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
-  theorems.
+  theorems. Owner-local cursor pooling has removed ten duplicate helper bodies
+  and 2,492 source bytes across the parse-procedure and ROOT observation
+  families without merging either family's semantic obligations.
 - [x] Make repeated structural queries O(1) only where the source tables admit
   a proved canonical index. The procedure-span inventory is complete: all 53
   endpoint binders are constant-time and the remaining 44 block identities

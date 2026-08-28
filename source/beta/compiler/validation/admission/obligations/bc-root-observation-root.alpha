@@ -10,3 +10,11 @@ stack_register_custody_init:
         imm r2, 1481789266             ; RORX
         store r1, r2
         jmp root_observation_antecedent_init
+
+; Family-local sequential table cursor. Callers retain ownership of the table
+; address and expected word in r20/r21.
+root_observation_require_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret

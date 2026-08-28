@@ -278,15 +278,15 @@ root_observation_build_resource_iteration:
         imm r1, 628000
         add r20, r1
         mov r21, r19
-        call root_observation_iteration_require_join_next
+        call root_observation_require_next
         mov r21, r11
-        call root_observation_iteration_require_join_next
+        call root_observation_require_next
         mov r21, r22
-        call root_observation_iteration_require_join_next
+        call root_observation_require_next
         mov r21, r22
-        call root_observation_iteration_require_join_next
+        call root_observation_require_next
         mov r21, r15
-        call root_observation_iteration_require_join_next
+        call root_observation_require_next
         imm r1, 48
         add r20, r1                    ; PPRC status at offset88
         imm r21, 252
@@ -309,12 +309,6 @@ root_observation_build_resource_iteration:
         imm r17, 0                    ; terminal, not a coinductive step
         imm r18, 2                    ; main restored, root return relation
         call root_observation_store_iteration_row
-        ret
-
-root_observation_iteration_require_join_next:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
         ret
 
 root_observation_store_iteration_row:

@@ -192,23 +192,23 @@ root_observation_publication_check_loop_payload:
         imm r1, 620920
         add r20, r1
         mov r21, r10
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r30
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r31
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r32
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r33
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r34
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r35
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r36
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r37
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         imm r1, 1
@@ -306,38 +306,32 @@ root_observation_publication_check_iteration_payload:
         imm r1, 621904
         add r20, r1
         mov r21, r10
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r30
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r31
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r32
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r33
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r34
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r35
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r36
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r37
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r38
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r39
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         imm r1, 1
         add r10, r1
         jmp root_observation_publication_iteration_payload
-
-root_observation_publication_require_next_word:
-        call exact_require_cell
-        imm r1, 8
-        add r20, r1
-        ret
 
 root_observation_publication_write_metadata:
         imm r1, 620000

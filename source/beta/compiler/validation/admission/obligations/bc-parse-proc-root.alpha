@@ -10,3 +10,17 @@ stack_register_custody_init:
         imm r2, 1481789520             ; PPRX
         store r1, r2
         jmp parse_proc_antecedent_init
+
+; Family-local sequential table cursors. Callers retain ownership of the table
+; address and expected/stored word in r20/r21.
+parse_proc_require_next:
+        call exact_require_cell
+        imm r1, 8
+        add r20, r1
+        ret
+
+parse_proc_store_next:
+        store r20, r21
+        imm r1, 8
+        add r20, r1
+        ret

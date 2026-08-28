@@ -92,9 +92,9 @@ The retained evidence is intentionally responsibility-specific:
   framing, direct targets, procedure regions, and call/return structure below
   `bc`;
 - `admission/bc-block-control.sh` reconstructs the canonical
-  whole-source/artifact conjunction and its 82,921-byte ROOT maximal-observation
+  whole-source/artifact conjunction and its 82,829-byte ROOT maximal-observation
   checker (SHA-256
-  `b3e41553ac5b52117bd17cf8028a6882fbc16729cd91f69bbd400e53edfc2731`),
+  `c49749ce1565f60970c92097fc5eca0a4a590fe5549d8d214d6e141c133effab`),
   then applies four fail-closed format controls, one source-identity/event-PC
   mutation control, two same-key occurrence-order controls for
   `emit_param_store` and `gen_emit`, and one same-block memory-identity swap

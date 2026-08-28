@@ -15,27 +15,27 @@ root_observation_publication_require_resource_payloads:
         ; origins2/4/5/6/7 are validated by the RJON payload checker above.
         imm r20, 623000
         imm r21, 1                    ; source origin
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1                    ; SourceBytes
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1048576              ; source limit
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1                    ; literal request
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1048577
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1048577
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1048577
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 253                  ; source projection only
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         ret
@@ -67,17 +67,17 @@ root_observation_publication_check_equality_payload:
         imm r1, 624944
         add r20, r1
         mov r21, r10
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r30
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r30
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         imm r1, 1
@@ -100,29 +100,29 @@ root_observation_publication_exclusion_one:
         imm r1, 629000
         add r20, r1
         mov r21, r10
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 0
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 0
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r11
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r12
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r13
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r14
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r15
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         mov r21, r16
-        call root_observation_publication_require_next_word
+        call root_observation_require_next
         imm r21, 1
         call exact_require_cell
         imm r1, 1
