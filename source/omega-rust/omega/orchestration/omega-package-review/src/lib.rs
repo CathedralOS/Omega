@@ -1,4 +1,6 @@
-//! Compiler-owned, in-memory package authority projection.
+#![forbid(unsafe_code)]
+
+//! In-memory package authority review projected from checked compilation.
 //!
 //! This is deliberately a review surface, not admission evidence. Authored
 //! toolchain nominals are bound to exact source commitments, but whole-source,
@@ -36,7 +38,7 @@ pub use recovery::{
     encode_package_review_canonical_row, encode_package_review_canonical_row_with_limits,
 };
 
-use crate::pipeline::CheckedCompilation;
+use omega_compiler::CheckedCompilation;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::MachineSupplyMode;
@@ -3422,8 +3424,8 @@ fn selected_provider_row_source(
         }
 
         match &retained.selected_by {
-            super::provider_plans::ProviderSelectionProvenance::BuildOverride(declarations)
-            | super::provider_plans::ProviderSelectionProvenance::TargetDefault(declarations) => {
+            omega_compiler::ProviderSelectionProvenance::BuildOverride(declarations)
+            | omega_compiler::ProviderSelectionProvenance::TargetDefault(declarations) => {
                 for declaration in declarations {
                     locations.push(canonical_source_span_location(
                         compilation,
@@ -3432,7 +3434,7 @@ fn selected_provider_row_source(
                     )?);
                 }
             }
-            super::provider_plans::ProviderSelectionProvenance::UniqueCoveringCandidate => {
+            omega_compiler::ProviderSelectionProvenance::UniqueCoveringCandidate => {
                 compiler_derivations
                     .push(PackageReviewSyntheticSourceKind::UniqueCoveringProviderSelection);
             }
@@ -5901,12 +5903,13 @@ fn selected_conformance_application_type_reference(
         if parameter_kind != ContractCallStaticParameterKind::Const {
             return Err(rejected("a literal in a non-const telescope slot"));
         }
-        return Ok(compilation.program_mut().typed.type_reference_table.insert(
-            TypeReferenceNode::Named {
+        return Ok(compilation
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Named {
                 symbol: SymbolHandle::invalid(),
                 name: psi_typed_trees::name::Identifier::generated(literal.text()),
-            },
-        ));
+            }));
     }
     if let Some(application) = argument.application.as_ref() {
         if parameter_kind != ContractCallStaticParameterKind::Type
@@ -5946,18 +5949,18 @@ fn selected_conformance_application_type_reference(
             )?);
         }
         let arguments = compilation
-            .program_mut()
             .typed
             .type_reference_table
             .insert_type_reference_handles(children);
-        return Ok(compilation.program_mut().typed.type_reference_table.insert(
-            TypeReferenceNode::Generic {
+        return Ok(compilation
+            .typed
+            .type_reference_table
+            .insert(TypeReferenceNode::Generic {
                 base_symbol: definition.symbol,
                 base_name: definition.name,
                 lifetime_arguments: application.lifetime_arguments.to_vec(),
                 arguments,
-            },
-        ));
+            }));
     }
     if !argument.symbol.is_valid() {
         return Err(rejected("an unresolved declaration argument"));
@@ -5968,7 +5971,6 @@ fn selected_conformance_application_type_reference(
         )
     });
     Ok(compilation
-        .program_mut()
         .typed
         .type_reference_table
         .insert(TypeReferenceNode::Named {
@@ -6100,7 +6102,7 @@ fn project_selected_conformance_application(
                     ))]);
                 }
                 let carrier_name = carrier.name.clone();
-                let carrier = projected.program_mut().typed.type_reference_table.insert(
+                let carrier = projected.typed.type_reference_table.insert(
                     psi_typed_trees::types::TypeReferenceNode::Named {
                         symbol: declaration.carrier_symbol,
                         name: carrier_name,
@@ -11167,9 +11169,7 @@ fn validate_selected_boundary_operator_checked_adapter(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
+                    == omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
         })
         .collect::<Vec<_>>();
     let [(plan, retained)] = matches.as_slice() else {
@@ -11257,9 +11257,7 @@ fn validate_selected_boundary_operator_external_supply(
         .filter(|(plan, retained)| {
             plan.schema.trait_name == slot
                 && retained.provider.schema
-                    == super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(
-                        operator.symbol,
-                    )
+                    == omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(operator.symbol)
                 && retained.provider.row_realizations.contains(&machine.symbol)
         })
         .collect::<Vec<_>>();
@@ -12030,11 +12028,11 @@ fn trait_requirement_identity_from_symbols(
 
 fn provider_requirement_identity(
     compilation: &CheckedCompilation,
-    schema: super::provider_plans::ProviderSchemaDeclaration,
+    schema: omega_compiler::ProviderSchemaDeclaration,
     requirement_symbol: SymbolHandle,
 ) -> Result<PackageReviewNominalIdentity, Vec<Diagnostic>> {
     match schema {
-        super::provider_plans::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
+        omega_compiler::ProviderSchemaDeclaration::BoundaryTrait(trait_symbol) => {
             trait_requirement_identity_from_symbols(
                 compilation,
                 trait_symbol,
@@ -12042,7 +12040,7 @@ fn provider_requirement_identity(
                 "selected provider row",
             )
         }
-        super::provider_plans::ProviderSchemaDeclaration::BoundaryOperator(_) => {
+        omega_compiler::ProviderSchemaDeclaration::BoundaryOperator(_) => {
             let operators = compilation.operators().iter().chain(
                 compilation
                     .domain_definitions()
@@ -12102,7 +12100,7 @@ fn toolchain_source_identity(
     source_file: &psi_source::SourceFile,
 ) -> Result<PackageReviewToolchainSourceIdentity, Vec<Diagnostic>> {
     Ok(PackageReviewToolchainSourceIdentity {
-        digest: super::package_source_consumption::toolchain_source_identity_digest(source_file)?,
+        digest: omega_compiler::toolchain_source_identity_digest(source_file)?,
     })
 }
 

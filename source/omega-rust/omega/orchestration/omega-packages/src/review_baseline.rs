@@ -20,12 +20,14 @@ use crate::{
     WorkspaceMemberLineage, WorkspaceMemberPath,
 };
 use omega_compiler::{
-    BuildFilesystemReplayRecordLimits, PackageReviewCanonicalRowKind,
-    PackageReviewCanonicalRowRecoveryLimits, ReviewOnlyBuildFilesystemReplayRecord,
+    BuildFilesystemReplayRecordLimits, ReviewOnlyBuildFilesystemReplayRecord,
     capture_verified_build_filesystem_replay_record,
+    recover_review_only_build_filesystem_replay_record,
+};
+use omega_package_review::{
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRecoveryLimits,
     decode_package_review_canonical_row_with_limits,
     encode_package_review_canonical_row_with_limits,
-    recover_review_only_build_filesystem_replay_record,
 };
 use sha2::{Digest, Sha256};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};

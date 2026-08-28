@@ -1239,6 +1239,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "omega-package-review"
+version = "0.1.0"
+dependencies = [
+ "omega-compiler",
+ "omega-effects",
+ "omega-target",
+ "psi-arena",
+ "psi-checked-trees",
+ "psi-core",
+ "psi-diagnostics",
+ "psi-effects",
+ "psi-facts",
+ "psi-language-core",
+ "psi-language-semantics",
+ "psi-numerics",
+ "psi-source",
+ "psi-symbols",
+ "psi-typed-trees",
+ "psi-typed-trees-to-checked-trees",
+ "psi-validation",
+ "sha2",
+]
+
+[[package]]
 name = "omega-packages"
 version = "0.1.0"
 dependencies = [
@@ -1248,6 +1272,7 @@ dependencies = [
  "nix",
  "omega-build-declarations",
  "omega-compiler",
+ "omega-package-review",
  "omega-platform-custody",
  "psi-core",
  "psi-diagnostics",

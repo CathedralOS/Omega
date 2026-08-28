@@ -1,8 +1,9 @@
-use omega_compiler::{
-    BuildFilesystemObservedByteRegionKind, BuildObservationClass, CheckedPackageReviewProjection,
-    PackageReviewCallableRole, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCheckedServiceReach, PackageReviewContractExpression, PackageReviewContractFact,
-    PackageReviewContractKind, PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
+use omega_compiler::{BuildFilesystemObservedByteRegionKind, BuildObservationClass};
+use omega_package_review::{
+    CheckedPackageReviewProjection, PackageReviewCallableRole, PackageReviewCanonicalRowKind,
+    PackageReviewCanonicalRowRisk, PackageReviewCheckedServiceReach,
+    PackageReviewContractExpression, PackageReviewContractFact, PackageReviewContractKind,
+    PackageReviewDangerousAuthorityClass, PackageReviewNominalOwner,
     PackageReviewPropositionEvidence, PackageReviewRepresentationAbiCommitment,
     PackageReviewRepresentationMechanism, PackageReviewSourceLocationRole,
     decode_ordinary_package_obligation_ledger, encode_ordinary_package_obligation_ledger,

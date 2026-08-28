@@ -78,7 +78,8 @@ impl CheckedCompilation {
     /// Compiler-validated exact source owners used only while projecting
     /// package-review structural type identity. Source IDs are private join
     /// coordinates and never enter canonical review bytes.
-    pub(super) fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
+    #[doc(hidden)]
+    pub fn exact_toolchain_sources(&self) -> &[(psi_source::SourceId, [u8; 32])] {
         &self.exact_toolchain_sources
     }
 
@@ -177,7 +178,8 @@ impl CheckedCompilation {
         &self.selected_provider_plans
     }
 
-    pub(super) fn selected_provider_provenance(
+    #[doc(hidden)]
+    pub fn selected_provider_provenance(
         &self,
     ) -> &[super::provider_plans::SelectedProviderReviewProvenance] {
         &self.selected_provider_provenance
@@ -224,13 +226,6 @@ impl CheckedCompilation {
 
     pub fn into_program(self) -> CheckedTrees {
         self.program
-    }
-
-    /// Internal scratch access for projections that clone the checked carrier
-    /// before materializing temporary references. The public checked result is
-    /// immutable and must not act as a mutation facade over `CheckedTrees`.
-    pub(crate) fn program_mut(&mut self) -> &mut CheckedTrees {
-        &mut self.program
     }
 }
 
