@@ -29,6 +29,7 @@ pub use identities::{
     OptimizationIdentityBundleIdentity, OptimizationPassIdentity, OptimizationRuleIdentity,
     OptimizationRuleSetIdentity, OptimizationUnitIdentity, OptimizationValidatorIdentity,
     OptimizationWorkloadProfileIdentity, OptimizedAbstractPlanProjectionIdentity,
+    OptimizedTerminalObjectArtifactIdentity, OptimizedTerminalObjectArtifactManifestIdentity,
     OwnershipFrontierFactIdentity, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,

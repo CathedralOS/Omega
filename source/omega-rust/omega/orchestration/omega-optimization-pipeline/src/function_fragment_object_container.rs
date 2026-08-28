@@ -236,6 +236,12 @@ impl StagedOptimizedRelocationFreeTerminalObjectContainer {
         self.custody
     }
 
+    pub fn verified_input(
+        &self,
+    ) -> &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput {
+        self.source.source().verified_input()
+    }
+
     #[cfg(test)]
     pub(crate) fn object_mut(&mut self) -> &mut TerminalRelocationFreeObjectPlan {
         &mut self.object
