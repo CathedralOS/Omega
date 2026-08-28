@@ -1,5 +1,6 @@
 use crate::{
-    BuildFilesystemGrantAccess, BuildFilesystemGrantRefusalReason,
+    BuildCanonicalSourceMetadataIdentity, BuildFilesystemGrantAccess,
+    BuildFilesystemGrantRefusalReason,
     BuildFilesystemLogicalHandleInputResolution, BuildFilesystemLogicalHandleKind,
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemMetadataObservationKind,
     BuildFilesystemObservedByteRegionKind, BuildFilesystemOperationAttempt,
@@ -12,7 +13,7 @@ use std::fmt;
 
 const MAGIC: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD\0";
 const COMMITMENT_DOMAIN: &[u8] = b"OMEGA-BUILD-FILESYSTEM-REPLAY-RECORD-COMMITMENT\0";
-const VERSION: u16 = 6;
+const VERSION: u16 = 7;
 
 /// Resource ceilings for build-evaluation recovery of one partial filesystem
 /// replay record. These are decoder sponsorship limits, not Omega language
@@ -74,6 +75,7 @@ impl std::error::Error for BuildFilesystemReplayRecordError {}
 pub struct ReviewOnlyBuildFilesystemReplayRecord {
     canonical_bytes: Vec<u8>,
     commitment: [u8; 32],
+    canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
 }
 
 impl ReviewOnlyBuildFilesystemReplayRecord {
@@ -83,6 +85,12 @@ impl ReviewOnlyBuildFilesystemReplayRecord {
 
     pub const fn commitment(&self) -> [u8; 32] {
         self.commitment
+    }
+
+    pub const fn canonical_source_metadata_identity(
+        &self,
+    ) -> Option<BuildCanonicalSourceMetadataIdentity> {
+        self.canonical_source_metadata_identity
     }
 }
 
@@ -116,6 +124,14 @@ pub fn capture_verified_build_filesystem_replay_record(
     encoder.u16(VERSION);
     encoder.u32(summary.schema_version());
     encoder.u32(summary.filesystem_operation_schema_version());
+    match summary.canonical_source_metadata_identity() {
+        None => encoder.byte(0),
+        Some(identity) => {
+            encoder.byte(1);
+            encoder.u32(identity.policy_version());
+            encoder.fixed(&identity.source_content_commitment());
+        }
+    }
     encoder.count(summary.filesystem_operation_attempts().len())?;
     for attempt in summary.filesystem_operation_attempts() {
         encode_attempt(&mut encoder, attempt)?;
@@ -130,11 +146,12 @@ pub fn recover_review_only_build_filesystem_replay_record(
     bytes: &[u8],
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<ReviewOnlyBuildFilesystemReplayRecord, BuildFilesystemReplayRecordError> {
-    decode_shapes(bytes, limits)?;
+    let decoded = decode_shapes(bytes, limits)?;
     let canonical_bytes = clone_bytes(bytes)?;
     Ok(ReviewOnlyBuildFilesystemReplayRecord {
         commitment: record_commitment(&canonical_bytes),
         canonical_bytes,
+        canonical_source_metadata_identity: decoded.canonical_source_metadata_identity,
     })
 }
 
@@ -142,7 +159,8 @@ pub fn rehydrate_review_only_build_filesystem_replay_record(
     record: &ReviewOnlyBuildFilesystemReplayRecord,
     limits: BuildFilesystemReplayRecordLimits,
 ) -> Result<psi_checked_interpreter::FilesystemReplay, BuildFilesystemReplayRecordError> {
-    let shapes = decode_shapes(record.canonical_bytes(), limits)?;
+    let decoded = decode_shapes(record.canonical_bytes(), limits)?;
+    let shapes = decoded.shapes;
     let output_start = shapes
         .iter()
         .position(|shape| shape.operation == 1)
@@ -375,10 +393,15 @@ fn rehydrate_read_shape(
     })
 }
 
+struct DecodedReplay<'a> {
+    canonical_source_metadata_identity: Option<BuildCanonicalSourceMetadataIdentity>,
+    shapes: Vec<AttemptShape<'a>>,
+}
+
 fn decode_shapes(
     bytes: &[u8],
     limits: BuildFilesystemReplayRecordLimits,
-) -> Result<Vec<AttemptShape<'_>>, BuildFilesystemReplayRecordError> {
+) -> Result<DecodedReplay<'_>, BuildFilesystemReplayRecordError> {
     if bytes.len() > limits.maximum_bytes {
         return Err(BuildFilesystemReplayRecordError::new(
             "filesystem replay record exceeds its byte ceiling",
@@ -398,6 +421,8 @@ fn decode_shapes(
             "unsupported filesystem replay semantic schema",
         ));
     }
+    let canonical_source_metadata_identity =
+        decode_canonical_source_metadata_identity(&mut decoder)?;
     let attempt_count = decoder.count()?;
     if attempt_count == 0 {
         return Err(BuildFilesystemReplayRecordError::new(
@@ -413,7 +438,25 @@ fn decode_shapes(
     }
     decoder.finish()?;
     validate_first_rung(&shapes)?;
-    Ok(shapes)
+    Ok(DecodedReplay {
+        canonical_source_metadata_identity,
+        shapes,
+    })
+}
+
+fn decode_canonical_source_metadata_identity(
+    decoder: &mut Decoder<'_>,
+) -> Result<Option<BuildCanonicalSourceMetadataIdentity>, BuildFilesystemReplayRecordError> {
+    match decoder.byte()? {
+        0 => Ok(None),
+        1 => Ok(Some(BuildCanonicalSourceMetadataIdentity::new(
+            decoder.u32()?,
+            decoder.array_32()?,
+        ))),
+        _ => Err(BuildFilesystemReplayRecordError::new(
+            "invalid canonical source metadata identity tag",
+        )),
+    }
 }
 
 fn encode_attempt(
@@ -1510,6 +1553,26 @@ mod first_rung_validation_tests {
         shapes[5].retired[0] = 1;
         assert!(validate_first_rung(&shapes).is_err());
     }
+
+    #[test]
+    fn canonical_source_metadata_identity_round_trips_and_rejects_unknown_tags() {
+        let expected = BuildCanonicalSourceMetadataIdentity::new(7, [0xa5; 32]);
+        let mut encoder = Encoder::new(64);
+        encoder.byte(1);
+        encoder.u32(expected.policy_version());
+        encoder.fixed(&expected.source_content_commitment());
+        let bytes = encoder.finish().expect("encode metadata identity");
+        let mut decoder = Decoder::new(&bytes, BuildFilesystemReplayRecordLimits::new(64, 1));
+        assert_eq!(
+            decode_canonical_source_metadata_identity(&mut decoder)
+                .expect("decode metadata identity"),
+            Some(expected)
+        );
+        decoder.finish().expect("consume exact identity bytes");
+
+        let mut decoder = Decoder::new(&[2], BuildFilesystemReplayRecordLimits::new(1, 1));
+        assert!(decode_canonical_source_metadata_identity(&mut decoder).is_err());
+    }
 }
 
 struct Encoder {
@@ -1640,6 +1703,9 @@ impl<'a> Decoder<'a> {
     }
     fn u32(&mut self) -> Result<u32, BuildFilesystemReplayRecordError> {
         Ok(u32::from_le_bytes(self.take(4)?.try_into().unwrap()))
+    }
+    fn array_32(&mut self) -> Result<[u8; 32], BuildFilesystemReplayRecordError> {
+        Ok(self.take(32)?.try_into().unwrap())
     }
     fn i32(&mut self) -> Result<i32, BuildFilesystemReplayRecordError> {
         Ok(i32::from_le_bytes(self.take(4)?.try_into().unwrap()))

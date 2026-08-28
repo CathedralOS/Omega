@@ -514,6 +514,11 @@ pub fn filesystem_root_relative_path_is_canonical(relative: &[u8], allow_empty: 
 /// Version of Psi's canonical immutable-source metadata policy.
 pub const CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION: u32 = 1;
 
+/// Maximum complete source-tree rows accepted by the canonical metadata
+/// carrier. One row is reserved for the source root; the remaining 65,536
+/// match the package resolver's source-entry ceiling.
+pub const CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT: usize = 65_537;
+
 /// Whether raw bytes are one canonical slash-separated source-tree coordinate.
 ///
 /// Unlike runtime rooted-path evidence, the complete source index deliberately
@@ -597,6 +602,7 @@ impl CanonicalFilesystemMetadataRow {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum CanonicalFilesystemMetadataIndexError {
     UnsupportedPolicyVersion(u32),
+    RowLimitExceeded { limit: usize, attempted: usize },
     InvalidRelativePath(Vec<u8>),
     DuplicateRelativePath(Vec<u8>),
     AggregatePathBytesLimitExceeded { limit: usize, attempted: usize },
@@ -616,6 +622,10 @@ impl std::fmt::Display for CanonicalFilesystemMetadataIndexError {
                     "unsupported canonical filesystem metadata policy {version}"
                 )
             }
+            Self::RowLimitExceeded { limit, attempted } => write!(
+                formatter,
+                "canonical filesystem metadata rows exceed {limit}: attempted {attempted}"
+            ),
             Self::InvalidRelativePath(path) => write!(
                 formatter,
                 "canonical filesystem metadata contains an invalid relative path: {path:?}"
@@ -694,7 +704,13 @@ impl CanonicalFilesystemMetadataIndex {
         }
         let mut total_path_bytes = 0usize;
         let mut canonical_rows = std::collections::BTreeMap::new();
-        for row in rows {
+        for (row_index, row) in rows.into_iter().enumerate() {
+            if row_index >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
+                return Err(CanonicalFilesystemMetadataIndexError::RowLimitExceeded {
+                    limit: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+                    attempted: row_index.saturating_add(1),
+                });
+            }
             if !canonical_filesystem_metadata_path_is_canonical(&row.relative_path, true) {
                 return Err(CanonicalFilesystemMetadataIndexError::InvalidRelativePath(
                     row.relative_path,
@@ -3762,5 +3778,28 @@ mod canonical_filesystem_metadata_tests {
             Err(CanonicalFilesystemMetadataIndexError::LogicalByteLengthExceedsI64(path))
                 if path == b"huge"
         ));
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_more_rows_than_the_resolver_can_issue() {
+        let rows = std::iter::once(row(b"", CanonicalFilesystemMetadataRowKind::Directory)).chain(
+            (0..CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT).map(|index| {
+                CanonicalFilesystemMetadataRow::new(
+                    format!("entry-{index}").into_bytes(),
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 0,
+                    },
+                )
+            }),
+        );
+
+        assert_eq!(
+            CanonicalFilesystemMetadataIndex::version_1([0; 32], rows),
+            Err(CanonicalFilesystemMetadataIndexError::RowLimitExceeded {
+                limit: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+                attempted: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT + 1,
+            })
+        );
     }
 }

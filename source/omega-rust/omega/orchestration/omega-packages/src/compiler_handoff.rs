@@ -33,13 +33,19 @@ pub fn package_compilation_inputs_for(
         .iter()
         .filter(|custody| reachable.contains(custody.key()))
         .map(|custody| {
-            PackageSourceBinding::new(
+            let binding = PackageSourceBinding::new(
                 custody.key().identity(),
                 custody.key().name().as_str(),
                 custody.snapshot_root().to_path_buf(),
-            )
+            );
+            if custody.key() == root {
+                binding_with_canonical_source_metadata(custody, binding)
+            } else {
+                Ok(binding)
+            }
         })
-        .collect();
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| vec![error])?;
     let dependencies = closure
         .graph()
         .packages()
@@ -57,6 +63,29 @@ pub fn package_compilation_inputs_for(
         .collect();
 
     PackageCompilationInputs::new(root.identity(), packages, dependencies)
+}
+
+fn binding_with_canonical_source_metadata(
+    custody: &crate::closure_resolution::PackageSourceCustody,
+    binding: PackageSourceBinding,
+) -> Result<PackageSourceBinding, PackageCompilationInputError> {
+    crate::source::capture_verified_package_source_snapshot(
+        custody.snapshot_root(),
+        custody.resolution().content(),
+        custody.source_limits(),
+    )
+    .map_err(|error| PackageCompilationInputError::InvalidSourceRoot {
+        identity: custody.key().identity(),
+        path: custody.snapshot_root().to_path_buf(),
+        reason: format!("could not derive canonical build-source metadata: {error}"),
+    })?;
+    binding.with_canonical_source_metadata().map_err(|reason| {
+        PackageCompilationInputError::InvalidSourceRoot {
+            identity: custody.key().identity(),
+            path: custody.snapshot_root().to_path_buf(),
+            reason: format!("invalid canonical build-source metadata: {reason}"),
+        }
+    })
 }
 
 pub(crate) fn reachable_package_keys(
@@ -93,6 +122,7 @@ mod tests {
         GitCommitId, GitTreeId, ImmutableSourceResolution, PackageKey, PackageName,
         SourceContentDigest, SourceLineage,
     };
+    use omega_compiler::CanonicalFilesystemMetadataRowKind;
     use std::path::PathBuf;
     use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -127,6 +157,14 @@ mod tests {
         dependency_requests: Vec<DependencySourceRequest>,
     ) -> PackageSourceCustody {
         std::fs::create_dir_all(&source_root).expect("create source root");
+        let source = crate::resolve_local_source(&source_root, crate::LocalSourceLimits::default())
+            .expect("derive synthetic source identity");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&source_root, std::fs::Permissions::from_mode(0o555))
+                .expect("seal synthetic source root");
+        }
         let key = PackageKey::new(
             PackageName::parse(name).expect("package name"),
             SourceLineage::git(&format!("https://github.com/CathedralOS/{name}.git"))
@@ -136,7 +174,7 @@ mod tests {
         let resolution = ImmutableSourceResolution::git(
             GitCommitId::parse_hex(&digit.to_string().repeat(40)).expect("commit"),
             GitTreeId::parse_hex(&digit.to_string().repeat(40)).expect("tree"),
-            SourceContentDigest::derive(&[marker]),
+            SourceContentDigest::derive(source.content_identity.as_bytes()),
         )
         .expect("resolution");
         PackageSourceCustody::from_resolved_parts(
@@ -172,6 +210,17 @@ mod tests {
 
         assert_eq!(inputs.root(), root_key.identity());
         assert_eq!(inputs.packages().count(), 2);
+        let root_metadata = inputs
+            .canonical_source_metadata(root_key.identity())
+            .expect("resolved package handoff carries canonical source metadata");
+        assert_ne!(root_metadata.source_content_commitment(), &[0; 32]);
+        assert_eq!(root_metadata.rows().count(), 1);
+        assert!(
+            inputs
+                .canonical_source_metadata(dependency_key.identity())
+                .is_none(),
+            "only the package whose build machine can run retains a metadata index"
+        );
         assert_eq!(
             inputs.package_name(root_key.identity()),
             Some("application")
@@ -191,6 +240,89 @@ mod tests {
             )
         );
 
+        let _ = std::fs::remove_dir_all(roots);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn canonical_handoff_derives_directory_file_executable_and_symlink_rows() {
+        use std::os::unix::fs::{PermissionsExt, symlink};
+
+        let roots = temp_root("canonical-metadata");
+        let source_root = roots.join("root");
+        let nested = source_root.join("nested");
+        std::fs::create_dir_all(&nested).expect("create nested source directory");
+        std::fs::write(source_root.join("ordinary.omg"), b"ordinary")
+            .expect("write ordinary source");
+        std::fs::write(nested.join("generator"), b"#!/bin/omega\n")
+            .expect("write executable source");
+        symlink("ordinary.omg", source_root.join("ordinary-link"))
+            .expect("create relative source symlink");
+        std::fs::set_permissions(&nested, std::fs::Permissions::from_mode(0o555))
+            .expect("seal nested source directory");
+        std::fs::set_permissions(
+            source_root.join("ordinary.omg"),
+            std::fs::Permissions::from_mode(0o444),
+        )
+        .expect("seal ordinary source");
+        std::fs::set_permissions(
+            nested.join("generator"),
+            std::fs::Permissions::from_mode(0o555),
+        )
+        .expect("seal executable source");
+
+        let root = custody("application", 1, source_root, vec![]);
+        let root_identity = root.key().identity();
+        let closure = resolve_package_source_closure(
+            root_request(&root),
+            root,
+            |_, _| -> Result<PackageSourceCustody, &'static str> { unreachable!() },
+        )
+        .expect("resolve root-only closure");
+        let inputs = package_compilation_inputs(&closure).expect("compiler handoff validates");
+        let rows = inputs
+            .canonical_source_metadata(root_identity)
+            .expect("canonical metadata")
+            .rows()
+            .map(|row| (row.relative_path().to_vec(), row.kind()))
+            .collect::<std::collections::BTreeMap<_, _>>();
+
+        assert_eq!(
+            rows.get(b"".as_slice()),
+            Some(&CanonicalFilesystemMetadataRowKind::Directory)
+        );
+        assert_eq!(
+            rows.get(b"nested".as_slice()),
+            Some(&CanonicalFilesystemMetadataRowKind::Directory)
+        );
+        assert_eq!(
+            rows.get(b"ordinary.omg".as_slice()),
+            Some(&CanonicalFilesystemMetadataRowKind::File {
+                executable: false,
+                logical_byte_length: 8,
+            })
+        );
+        assert_eq!(
+            rows.get(b"nested/generator".as_slice()),
+            Some(&CanonicalFilesystemMetadataRowKind::File {
+                executable: true,
+                logical_byte_length: 13,
+            })
+        );
+        assert_eq!(
+            rows.get(b"ordinary-link".as_slice()),
+            Some(&CanonicalFilesystemMetadataRowKind::Symlink {
+                target_spelling_logical_byte_length: 12,
+            })
+        );
+
+        std::fs::set_permissions(
+            roots.join("root/nested"),
+            std::fs::Permissions::from_mode(0o755),
+        )
+        .expect("unseal nested source for cleanup");
+        std::fs::set_permissions(roots.join("root"), std::fs::Permissions::from_mode(0o755))
+            .expect("unseal source root for cleanup");
         let _ = std::fs::remove_dir_all(roots);
     }
 

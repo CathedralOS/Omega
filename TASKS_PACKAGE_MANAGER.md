@@ -449,6 +449,39 @@ complete.
   staging, publication, and invalidation still contain pathname operations;
   path-based macOS ACL observation and a hostile same-user mutator remain open.
 
+  Milestone 2026-08-27: each package compilation handoff now derives one
+  complete, bounded canonical metadata index for the package whose build
+  machine may execute. Resolver custody is freshly revalidated first; the
+  compiler then independently recaptures that same immutable root. Dependency
+  indexes are not retained
+  merely because their source is reachable; each dependency receives its own
+  root index when review re-roots compilation to it. The index
+  binds the source-content commitment and raw relative paths, entry kinds,
+  executable bits, file lengths, symlink-target spelling lengths, and the
+  implicit root directory; it accepts at most 65,537 rows including that root.
+  Build-time `stat`, `lstat`, and `fstat` on the read-only Source grant now
+  expose fixed target-neutral modes, lengths, and timestamps from this closed
+  index rather than checkout inode metadata. Followed `stat` uses the resolved
+  target row, `lstat` uses the authored leaf, and `fstat` retains the row fixed
+  at open. A missing row rejects without physical fallback. The writable
+  Output grant remains physically observed. Package-aware filesystem execution
+  rejects if root metadata is absent and anchors the grant to the exact package
+  root rather than the authored entry file's parent. Callers cannot supply
+  package index rows or their commitment: the compiler captures canonical
+  shape, mode, length, and full file/symlink content itself under a 512 MiB
+  aggregate-content ceiling, then input construction independently recaptures
+  the complete physical root and requires exact index equality. The compiler
+  repeats that content check at compilation entry and immediately before
+  returning checked evidence or publishing a legacy result. Non-root dependency
+  indexes reject rather than accumulating in one compilation.
+  Observation summary v25,
+  filesystem-attempt v19, and replay-record v7 bind the metadata policy and
+  exact source-content commitment; package-aware replay requires equality with
+  the current root index before no-host execution. Provider, build-scope,
+  replay-framing, physical-root, and package-handoff tests pin the layers; the
+  broader build integration fixture remains blocked only at OWNER Q7's stale
+  boundary-service identity seam.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
@@ -460,9 +493,9 @@ complete.
   lineage; and applies compiler-owned locator, revision, entry, byte, and depth
   ceilings. The local-repository route is explicitly test-only. Remaining P0
   work is native fetch/materialization confinement, effective endpoint and SSH
-  credential custody, during-operation resource quotas, handle-relative cache
-  custody, canonical build-observable source metadata, and a locally
-  reconstructed opaque strict receipt. Public requests now admit only HTTPS and
+  credential custody, during-operation resource quotas, remaining
+  handle-relative cache mutation/ACL paths, and a locally reconstructed opaque
+  strict receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
   unselected protocol, and HTTP redirects, and permits file transport only
@@ -2065,8 +2098,9 @@ complete.
   returning the original commitment; invalid shape, nonempty or symlink
   destinations, write failure, extra/missing state, and drift reject. Hard-link
   topology is neither retained nor leaked through the content count. This tree
-  custody alone is not a receipt; the v24/v6 grammar above is the first narrow
-  case that joins it to complete operation replay and generated-output handoff.
+  custody alone is not a receipt; the operation grammar introduced by v24/v6
+  and retained by v25/v7 is the first narrow case that joins it to complete
+  operation replay and generated-output handoff.
   Broader operation/output coverage and complete remaining preparation-failure
   evidence remain. Same-user host racing is not solved by this custody rung.
   Raw byte-valued inputs reject above a
@@ -3108,7 +3142,7 @@ complete.
   ordinary `main.omg` source patch rather than a standalone or lineage-
   replacement packet.
   Progress 2026-08-26: `generated-table` exercises canonical observation-
-  summary v24 and replay-record v6 evidence and becomes `Receipted` only after
+  summary v25 and replay-record v7 evidence and becomes `Receipted` only after
   exact no-host replay reproduces its generated file and `include_source`
   handoff. Its package-level review baseline now captures, canonically encodes,
   recovers, and rejoins that verified replay record instead of limiting capsule

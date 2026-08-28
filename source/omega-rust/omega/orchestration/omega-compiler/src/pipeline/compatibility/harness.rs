@@ -152,12 +152,23 @@ impl StateGraphHarness {
         // build.omg's augmenting `build(b: &mut Build)` machine, evaluated at
         // build time. When present it is AUTHORITATIVE; the legacy in-source
         // `target { subsystem }` word is the fallback until its removal.
-        let build_machine_filesystem_scope =
+        let build_machine_filesystem_scope = if let Some(inputs) = &self.package_inputs {
+            crate::pipeline::build_config::BuildMachineFilesystemScope::for_package_root(
+                inputs
+                    .package_root(inputs.root())
+                    .expect("validated package inputs retain their root")
+                    .to_path_buf(),
+                self.options.build_dir(),
+                None,
+                inputs.canonical_source_metadata(inputs.root()).cloned(),
+            )
+        } else {
             crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
                 &self.options.root_path,
                 self.options.build_dir(),
                 None,
-            );
+            )
+        };
         let computed_build_config = crate::pipeline::build_config::compute_build_config(
             &typed,
             build_source_id,
@@ -353,6 +364,9 @@ impl StateGraphHarness {
         if !installs_output
             && (entry_machine_name.is_none() || !build_config.optimizations.is_empty())
         {
+            if let Some(package_inputs) = &self.package_inputs {
+                package_inputs.validate_canonical_source_metadata()?;
+            }
             write_final_pipeline_observations(
                 &self.options,
                 self.artifact_policy,
@@ -456,6 +470,10 @@ impl StateGraphHarness {
 
         let (emission_plan, emitted) =
             backend_plan_to_native_image_payload(&backend, subsystem, &mut timings)?;
+
+        if let Some(package_inputs) = &self.package_inputs {
+            package_inputs.validate_canonical_source_metadata()?;
+        }
 
         let output = if installs_output {
             let written_output = write_output(
