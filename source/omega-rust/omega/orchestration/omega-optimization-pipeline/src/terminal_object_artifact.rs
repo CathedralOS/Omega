@@ -263,6 +263,25 @@ impl StagedValidatedOptimizedTerminalObjectArtifact {
         self.custody
     }
 
+    /// Borrow the exact opaque provider installation retained through the
+    /// object carrier. It remains non-serializable and cannot detach from the
+    /// semantic/proof/object custody that it authorized.
+    pub fn provider_installation(
+        &self,
+    ) -> Option<&omega_terminal_psi_to_abstract_operations::AdmittedTerminalProviderInstallation>
+    {
+        self.source.provider_installation()
+    }
+
+    /// Borrow the exact selected plan retained beneath the canonical object.
+    /// The plan remains joined to its opaque optimized-target and provider
+    /// installation custody; this is not a detached selected artifact.
+    pub fn selected_plan(
+        &self,
+    ) -> &omega_terminal_selected_instructions::TerminalSelectedInstructionPlan {
+        self.source.source().source().source().selected_plan()
+    }
+
     #[cfg(test)]
     pub(crate) fn artifact_mut(&mut self) -> &mut OptimizedTerminalObjectArtifactRecord {
         &mut self.artifact

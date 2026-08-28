@@ -433,7 +433,12 @@ These facts constrain the work below.
   ownership while reusing only the physical internal-call ABI and receipt-
   derived transfers. Independent replay rejects installed/authored source
   substitution. The legacy assigned route fails explicitly instead of silently
-  consuming this optimizer-only operation.
+  consuming this optimizer-only operation. Production native realization now
+  privately projects only artifact-relevant `CheckedAdapter` rows from the
+  sealed `SelectedProviderPlanFacts`, replays them through the same opaque
+  installation admission, and transfers that installation into the optimized
+  physical pipeline. Empty checked projection preserves the external-provider
+  route; a nonempty partial installation still fails closed.
 
   The provider body's pure `Extent::settle` boundary now has a separately named
   `ClaimCompletionOnly` realization. Exact target lowering admits only canonical
@@ -458,10 +463,16 @@ These facts constrain the work below.
   (the installed call and two Unit returns). The canonical settlement checks
   derive parameter qualifications from both the declaration and `requires`,
   retain the complete entry-claim source roster at each occurrence, and complete
-  only the receipt-selected claim. The remaining engineering prerequisite is to
-  join both selected functions and the retained installation into canonical
-  object custody, then compose that child object with the semantic wrapper. This
-  does not require a new owner question.
+  only the receipt-selected claim. That same checked continuation now reaches
+  liveness, empty live ranges/homes, structural realization, a resolved 91-byte
+  two-symbol zero-relocation child object, and canonical Terminal object
+  custody. Object carriers expose the retained installation only by borrow. The
+  semantic join independently matches the installed call, provider candidate,
+  operation, arguments, completion evidence, entry claims, provider function,
+  and its two settlement rows before composing the 90-byte compiler wrapper.
+  The positive result is a 181-byte, three-symbol, zero-relocation composite
+  whose wrapper symbol is compiler-owned. This does not require a new owner
+  question.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -506,7 +517,9 @@ These facts constrain the work below.
   boundary calls. Function and boundary catalogs reject duplicate identities.
   Corruption tests refresh derived node metadata, fact indices, and the unit
   identity before validation, proving that self-consistent but semantically
-  ill-typed units still fail closed. The verified builder additionally attaches
+  ill-typed units still fail closed. The validator now also rejects structural
+  call argument-count drift and exact `Owned`/borrow access substitution across
+  internal and boundary signatures. The verified builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
@@ -1156,8 +1169,10 @@ dependency.
   each class independently. Current scalar slice is total and wildcard-free:
   operation/result/operand contracts and cross-function/boundary scalar
   signatures are independently reconstructed even when all cached metadata and
-  content identities have been refreshed. Structural call/place/claim
-  contracts remain open under this task.
+  content identities have been refreshed. The first structural-call slice also
+  reconstructs argument arity and exact access against internal and boundary
+  declarations. Structural type/path, multiplicity, qualification, result,
+  place, claim-transfer, and completion contracts remain open under this task.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.
@@ -1626,8 +1641,8 @@ dependency.
   and deterministic artifact tests. Thirty-two shuffled pre-assembly
   contribution orders produce identical ordered registry identities, contracts,
   final units, commits, work usage, decisions, manifests, and ledgers for every
-  current multi-rule family: SCCP, CFG cleanup, GVN, and dead-scalar
-  elimination. A direct second
+  current multi-rule family: SCCP, CFG cleanup, GVN, proof-check elision, and
+  dead-scalar elimination. A direct second
   SCCP/CFG/copy/GVN/proof/dead-scalar sweep changes neither final unit nor the
   composed transformation ledger. Remaining to close: add canonical schedules
   and the same fixed-point evidence for each newly implemented initial family.
@@ -2639,8 +2654,8 @@ dependency.
   whole-program span/relocation validation, and publication-side enforcement of
   the independent encoding receipt.
 
-- **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT — composite carrier landed; checked
-  installed-provider join remains open.** The owning semantic-entry join in
+- **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT — checked installed-provider composite
+  landed; substitution matrix remains open.** The owning semantic-entry join in
   `omega-terminal-native-realization` consumes by value one replayed native
   ProgramEntry settlement, the exact canonical optimized Terminal object for
   that settlement, and the selected compact semantic-wrapper encoding. It
@@ -2664,7 +2679,9 @@ dependency.
   consume no selected instruction IDs. The optimized-target carrier now owns
   the opaque installation and the positive checked-source regression reaches
   selected custody with the installed call and both settlement rows intact.
-  Remaining here is the final object-custody join and wrapper composition.
+  It now continues through canonical object custody and wrapper composition;
+  the positive checked-source regression owns the exact installation throughout
+  and produces the 91-byte child plus 181-byte composite described above.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify
@@ -2673,12 +2690,14 @@ dependency.
   encoding, child-object, symbol, interval, displacement, and identity
   substitution tests fail closed; independent replay reconstructs the entire
   composite object and its custody manifest; the wrapper symbol is
-  compiler-owned rather than `MachineId`-rooted; and a positive checked-source
-  test is added only when the same claim-consuming continuation has genuinely
-  reached canonical object custody. Until then, tests must explicitly preserve
-  the distinction between the synthetic encoding fixture and the real checked
-  `BoundaryCall` receipt instead of fabricating a successful join. This task
-  grants no Q17 physical bridge, image, installation, or publication authority.
+  compiler-owned rather than `MachineId`-rooted. The positive checked-source
+  test now uses the same claim-consuming continuation through canonical object
+  custody rather than pairing the synthetic leaf with a real `BoundaryCall`
+  receipt; an independently valid but identity-substituted source entry is
+  rejected before composition. Remaining here is the explicit negative
+  integration matrix for provider/type-domain/claim substitutions and the
+  downstream physical bridge/image/publication work. This task grants no Q17
+  physical bridge, executable-image installation, or publication authority.
 
 - **OPT-PRE-RA-MACHINE.** Add machine copy propagation, cheap rematerialization
   hints, and instruction-alternative selection before allocation.

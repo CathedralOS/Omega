@@ -757,8 +757,11 @@ cast and carrier legality, control and return types, and exact scalar signatures
 for internal and boundary calls against complete duplicate-free catalogs. Thus
 a malformed pass cannot make an ill-typed operation acceptable merely by
 refreshing its definitions, uses, fact index, and content identity. Structural
-paths, structural results, claim transfers, and boundary-completion custody are
-a distinct unfinished validator layer rather than an implicit exception. It
+call argument count and exact `Owned`/borrow access are now independently
+matched to internal and boundary declarations. Structural types, paths,
+multiplicities, qualifications, results, claim transfers, and boundary-
+completion custody remain a distinct unfinished validator layer rather than an
+implicit exception. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
 reachability, and acyclicity—before any rule may inspect the unit. When Terminal
@@ -920,12 +923,13 @@ schedule, while no opaque identity sort silently invents policy. A direct
 second sweep of the currently supported SCCP, CFG-cleanup, copy-propagation,
 GVN, proof-elision, then dead-scalar schedule must produce an empty delta;
 composing that delta preserves the first sweep's ledger exactly. For each
-current multi-rule family—SCCP, CFG cleanup, GVN, and dead-scalar
-elimination—thirty-two shuffled pre-assembly contribution orders reconstruct
-the same ordered registry identity and contracts, then produce byte-for-byte
-equal final units, commits, work usage, decisions, manifests, and ledgers on a
-real dependent fixture. The test never shuffles an assembled public registry,
-because its order is intentionally semantic and identity-bearing.
+current multi-rule family—SCCP, CFG cleanup, GVN, proof-check elision, and
+dead-scalar elimination—thirty-two shuffled pre-assembly contribution orders
+reconstruct the same ordered registry identity and contracts, then produce
+byte-for-byte equal final units, commits, work usage, decisions, manifests, and
+ledgers on a real dependent fixture. The test never shuffles an assembled
+public registry, because its order is intentionally semantic and
+identity-bearing.
 
 The first Rust candidate vocabulary is intentionally closed rather than an
 opaque callback or byte payload. An exact-integer-evaluation candidate records
@@ -2558,6 +2562,17 @@ transfer interpretation. It rejects external-settlement overlap, partial
 installation, and identity or structural substitution. This is not permission
 to relabel the occurrence as source-authored `CallUnit`.
 
+Production native realization derives this admission privately from the sealed
+selected provider closure. It projects only checked adapters whose exact
+requirements occur in the replayed Terminal catalog, rejects duplicate or
+identity-drifted projections, and immediately consumes the rows through opaque
+installation admission. An empty checked projection leaves ordinary external
+provider realization unchanged. Once any checked adapter is selected, partial
+catalog installation remains invalid. Optimized realization transfers the
+owned admission into the physical pipeline rather than reconstructing it from
+names; the compatibility lane uses installation-aware target projection but
+still cannot silently emit the optimizer-only operation.
+
 Legalization retains that distinction in `TerminalLegalizedCallUnitSource` and
 independently replays the installed provider row, candidate ABI, physical
 receipt-derived transfers, original `BoundaryCall`, and `ClaimCompletion`
@@ -2595,10 +2610,21 @@ registers, and exactly three physical instructions (the call and two Unit
 returns). This regression also binds the canonical qualification union from a
 boundary parameter plus its `requires` domains and the full entry-claim source
 roster at each settlement while each receipt completes only its selected claim.
-The positive three-way object/wrapper join still waits for canonical object
-custody of both selected functions and that retained installation. That is an
-implementation prerequisite, not a language-design question, and does not add
-an owner question.
+The positive three-way object/wrapper join now reaches canonical custody. The
+same honest checked continuation proceeds through liveness, empty allocation,
+structural realization, resolved fragments/text, a 91-byte two-symbol
+zero-relocation Terminal child object, and the canonical semantic/proof object
+artifact while retaining the opaque installation by value. The semantic
+wrapper join borrows that installation and independently matches its exact
+candidate and installed occurrence to the selected root call, boundary,
+operation, structural arguments, completion evidence, root claims, provider
+callee, and the provider body's two ordered settlement rows. It then prefixes
+the 90-byte compiler-owned wrapper and resolves its private continuation into a
+181-byte three-symbol zero-relocation composite. The wrapper symbol has no
+`MachineId`; both copied child symbols retain theirs. Remaining acceptance is
+the explicit negative provider/type-domain/claim substitution matrix; source-
+entry identity substitution already rejects before composition. This is not a
+language-design question.
 The scalar-result conditional fixture above remains an ordinary callable. The
 eventual semantic wrapper is not yet an authoritative firmware/process entry:
 the UEFI surface is explicitly planned and non-invoked, and no target/runtime

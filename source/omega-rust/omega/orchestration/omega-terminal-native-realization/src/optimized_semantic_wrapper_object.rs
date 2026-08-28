@@ -38,6 +38,7 @@ use omega_terminal_isa_x86_64::{
     X86_64_SEMANTIC_UNIT_WRAPPER_REL32_FIELD_WIDTH, X86_64SemanticUnitWrapperResolutionError,
     resolve_x86_64_semantic_unit_wrapper_private_continuation,
 };
+use omega_terminal_selected_instructions::TerminalSelectedStructuralUnitCallSource;
 use psi_core::{IntegerSign, MachineId, ScalarType, StructuralPlaceKind};
 use psi_terminal::{
     BindingRelevance, SemanticFingerprint, StructuralAccess, StructuralFieldType,
@@ -364,6 +365,7 @@ pub enum OptimizedProgramStorageSemanticWrapperObjectError {
     Settlement(TerminalNativeProgramEntrySettlementError),
     Source(OptimizedTerminalObjectArtifactError),
     Encoding(OptimizedProgramStorageSemanticWrapperEncodingError),
+    InstalledProviderContinuationMismatch,
     MissingPairedCallingPlans,
     SemanticContract,
     SemanticWrapperPlanMismatch,
@@ -428,6 +430,7 @@ pub fn stage_validated_optimized_program_storage_semantic_wrapper_object(
     replay_settlement(&settlement, &source)?;
     validate_optimized_terminal_object_artifact(&source)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Source)?;
+    validate_retained_installed_provider_continuation(&source)?;
     validate_optimized_program_storage_semantic_wrapper_encoding(&encoding)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
     let contract = replay_semantic_contract(&settlement, &encoding)?;
@@ -460,6 +463,7 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
     replay_settlement(&staged.settlement, &staged.source)?;
     validate_optimized_terminal_object_artifact(&staged.source)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Source)?;
+    validate_retained_installed_provider_continuation(&staged.source)?;
     validate_optimized_program_storage_semantic_wrapper_encoding(&staged.encoding)
         .map_err(OptimizedProgramStorageSemanticWrapperObjectError::Encoding)?;
     let contract = replay_semantic_contract(&staged.settlement, &staged.encoding)?;
@@ -490,6 +494,128 @@ pub fn validate_optimized_program_storage_semantic_wrapper_object(
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::ReceiptMismatch);
     }
     Ok(expected_custody)
+}
+
+/// Replay the checked-provider half of the ProgramStorage join whenever the
+/// canonical child owns an installation. Synthetic encoding fixtures retain
+/// their existing no-installation route, while a real installed child cannot
+/// reach wrapper composition unless its selected call, provider body, claim
+/// completions, and opaque installation are one exact continuation.
+fn validate_retained_installed_provider_continuation(
+    source: &StagedValidatedOptimizedTerminalObjectArtifact,
+) -> Result<(), OptimizedProgramStorageSemanticWrapperObjectError> {
+    let Some(installation) = source.provider_installation() else {
+        return Ok(());
+    };
+    let selected = source.selected_plan();
+    if installation.terminal_psi() != selected.terminal_psi
+        || selected.entry != source.artifact().semantic_entry
+        || !selected.functions.is_empty()
+        || selected.structural_unit_functions.len() != 2
+    {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    }
+    let Some(entry) = selected
+        .structural_unit_functions
+        .iter()
+        .find(|function| function.machine == selected.entry)
+    else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let Some(call) = entry.call.as_ref() else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let TerminalSelectedStructuralUnitCallSource::InstalledProvider {
+        boundary,
+        provider,
+        completion_claim_sources,
+        completion_receipts,
+    } = &call.source
+    else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let [installed_candidate] = installation.installed_candidates() else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let [installed_call] = installation.installed_unit_calls() else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let semantic_arguments = call
+        .arguments
+        .iter()
+        .map(|argument| argument.semantic.clone())
+        .collect::<Vec<_>>();
+    let entry_claims = entry
+        .entry_claims
+        .iter()
+        .map(|claim| claim.claim)
+        .collect::<Vec<_>>();
+    let completed_entry_claims = completion_receipts
+        .iter()
+        .map(|receipt| receipt.claim)
+        .collect::<Vec<_>>();
+    if installed_candidate != provider
+        || installed_call.caller() != entry.machine
+        || installed_call.psi_operation() != call.operation
+        || installed_call.boundary() != *boundary
+        || installed_call.provider() != provider
+        || installed_call.structural_arguments() != semantic_arguments
+        || installed_call.completion_claim_sources() != completion_claim_sources
+        || installed_call.completion_receipts() != completion_receipts
+        || call.callee != provider.candidate
+        || entry_claims != completed_entry_claims
+        || !entry.boundary_settlements.is_empty()
+    {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    }
+    let Some(provider_function) = selected
+        .structural_unit_functions
+        .iter()
+        .find(|function| function.machine == provider.candidate)
+    else {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    };
+    let provider_claims = provider_function
+        .entry_claims
+        .iter()
+        .map(|claim| claim.claim)
+        .collect::<Vec<_>>();
+    let settled_provider_claims = provider_function
+        .boundary_settlements
+        .iter()
+        .map(
+            |settlement| match settlement.completion_receipts.as_slice() {
+                [receipt] => Some(receipt.claim),
+                _ => None,
+            },
+        )
+        .collect::<Option<Vec<_>>>();
+    if provider_function.call.is_some()
+        || provider_function.boundary_settlements.len() != 2
+        || settled_provider_claims.as_deref() != Some(provider_claims.as_slice())
+        || provider_claims.len() != completion_receipts.len()
+    {
+        return Err(
+            OptimizedProgramStorageSemanticWrapperObjectError::InstalledProviderContinuationMismatch,
+        );
+    }
+    Ok(())
 }
 
 pub fn encode_optimized_program_storage_semantic_wrapper_object(
@@ -620,8 +746,10 @@ fn validate_terminal_entry_shape(
         return Err(OptimizedProgramStorageSemanticWrapperObjectError::TerminalEntryShapeMismatch);
     };
     let [image_root, storage_root] = contract.roots();
-    if entry.attachment.is_some()
-        || !entry.parameters.is_empty()
+    // A statically attached namespace does not imply a runtime receiver. The
+    // checked source signature and `is_self` flags below remain the authority
+    // for the receiver-free ProgramStorage contract.
+    if !entry.parameters.is_empty()
         || entry.result != TerminalMachineResult::Unit
         || image.position != 0
         || storage.position != 1

@@ -73,6 +73,11 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    StructuralCallContractMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+    },
     MissingEntryBlock {
         machine: MachineId,
         block: BlockId,
@@ -10293,6 +10298,19 @@ fn validate_values_and_bindings(
                     },
                 );
             }
+            if !operation_structural_call_contract_matches(
+                &node.operation,
+                functions,
+                boundary_machines,
+            ) {
+                return Err(
+                    OptimizationUnitValidationError::StructuralCallContractMismatch {
+                        machine: function.machine,
+                        block: block.id,
+                        node: u32::try_from(node_index).expect("unit node index fits u32"),
+                    },
+                );
+            }
             for edge in &node.successors {
                 let target = blocks.get(&edge.target).expect("successor validated");
                 if edge.bindings.len() != target.parameters.len() {
@@ -10320,6 +10338,56 @@ fn validate_values_and_bindings(
         }
     }
     Ok(())
+}
+
+/// Independently retain the first exact structural-call signature axis.
+///
+/// Scalar lanes are checked separately above. Structural type/path,
+/// multiplicity, qualification, and claim correspondence remain owned by the
+/// broader structural-call validator; this check prevents an otherwise
+/// self-consistent optimization unit from changing argument count or replacing
+/// an owned argument with a borrow (or vice versa).
+fn operation_structural_call_contract_matches(
+    operation: &O,
+    functions: &BTreeMap<MachineId, &PsiOptimizationFunction>,
+    boundary_machines: &BTreeMap<BoundaryMachineId, &psi_terminal::BoundaryMachineDeclaration>,
+) -> bool {
+    let arguments_match =
+        |arguments: &[psi_terminal::StructuralArgument],
+         parameters: &[psi_terminal::StructuralParameterDeclaration]| {
+            arguments.len() == parameters.len()
+                && arguments
+                    .iter()
+                    .zip(parameters)
+                    .all(|(argument, parameter)| argument.access == parameter.access)
+        };
+    match operation {
+        O::CallUnit {
+            callee,
+            structural_arguments,
+            ..
+        }
+        | O::CallStructuralScalar {
+            callee,
+            structural_arguments,
+            ..
+        }
+        | O::CallStructural {
+            callee,
+            structural_arguments,
+            ..
+        } => functions.get(callee).is_none_or(|callee| {
+            arguments_match(structural_arguments, &callee.structural_parameters)
+        }),
+        O::BoundaryCall {
+            boundary,
+            structural_arguments,
+            ..
+        } => boundary_machines.get(boundary).is_none_or(|boundary| {
+            arguments_match(structural_arguments, &boundary.structural_parameters)
+        }),
+        _ => true,
+    }
 }
 
 fn operation_scalar_types_match(
@@ -11615,6 +11683,95 @@ mod tests {
             .unwrap()
     }
 
+    fn structural_call_unit() -> PsiOptimizationUnit {
+        let caller = id(331, MachineId::new);
+        let callee = id(332, MachineId::new);
+        let caller_block = id(333, BlockId::new);
+        let callee_block = id(334, BlockId::new);
+        let caller_place = id(335, PlaceId::new);
+        let callee_place = id(336, PlaceId::new);
+        let structural_type = id(337, psi_core::StructuralTypeId::new);
+        let parameter = |place, position| psi_terminal::StructuralParameterDeclaration {
+            place,
+            position,
+            is_self: false,
+            structural_type,
+            multiplicity: psi_terminal::StructuralMultiplicity::Unrestricted,
+            access: psi_terminal::StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        };
+        let plan = TerminalAbstractOperationPlan {
+            terminal_psi: TerminalPsiIdentity {
+                vocabulary_marker: VocabularyMarker::CURRENT,
+                program_fingerprint: SemanticFingerprint::from_bytes([15; 32]),
+            },
+            entry: caller,
+            structural_types: vec![psi_terminal::StructuralTypeDeclaration {
+                id: structural_type,
+                identity: "validation::structural-call-argument".into(),
+                shape: psi_terminal::StructuralTypeShape::ByteSequence(
+                    psi_terminal::ByteSequenceCarrier::BoundedOwned { capacity: 8 },
+                ),
+            }],
+            boundary_machines: Vec::new(),
+            provider_candidates: Vec::new(),
+            functions: vec![
+                TerminalAbstractFunction {
+                    machine: caller,
+                    attachment: None,
+                    entry: caller_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(caller_place, 0)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: caller_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![
+                        TerminalAbstractOperation::CallUnit {
+                            psi_operation: id(338, OperationId::new),
+                            callee,
+                            structural_arguments: vec![psi_terminal::StructuralArgument {
+                                place: caller_place,
+                                path: Vec::new(),
+                                access: psi_terminal::StructuralAccess::Owned,
+                            }],
+                            claim_transfers: Vec::new(),
+                        },
+                        TerminalAbstractOperation::ReturnUnit {
+                            psi_edge: id(339, EdgeId::new),
+                            cleanup_actions: Vec::new(),
+                        },
+                    ],
+                },
+                TerminalAbstractFunction {
+                    machine: callee,
+                    attachment: None,
+                    entry: callee_block,
+                    parameters: Vec::new(),
+                    structural_parameters: vec![parameter(callee_place, 0)],
+                    result: TerminalAbstractFunctionResult::Unit,
+                    entry_claims: Vec::new(),
+                    published_service_ceiling: Vec::new(),
+                    block_entries: vec![TerminalAbstractBlockEntry {
+                        block: callee_block,
+                        parameters: Vec::new(),
+                        operation_offset: 0,
+                    }],
+                    operations: vec![TerminalAbstractOperation::ReturnUnit {
+                        psi_edge: id(340, EdgeId::new),
+                        cleanup_actions: Vec::new(),
+                    }],
+                },
+            ],
+        };
+        reconstruct_psi_optimization_unit_seed(&plan, FuelScheduleIdentity::new(1).unwrap())
+            .unwrap()
+    }
+
     fn redundant_parameter_region_fixture() -> (
         PsiOptimizationUnit,
         PsiOptimizationUnit,
@@ -11975,6 +12132,90 @@ mod tests {
         assert!(matches!(
             validate_psi_optimization_unit(&duplicate_boundary),
             Err(OptimizationUnitValidationError::DuplicateBoundaryMachine(_))
+        ));
+    }
+
+    #[test]
+    fn rejects_structural_call_argument_arity_and_access_corruption() {
+        let baseline = structural_call_unit();
+        validate_psi_optimization_unit(&baseline)
+            .expect("matching structural argument access should validate");
+
+        let mut access = baseline.clone();
+        let TerminalAbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut access.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with a structural Unit call")
+        };
+        structural_arguments[0].access = psi_terminal::StructuralAccess::SharedBorrow;
+        refresh_node_derivatives(&mut access, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&access),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+
+        let mut arity = baseline;
+        let TerminalAbstractOperation::CallUnit {
+            structural_arguments,
+            ..
+        } = &mut arity.functions[0].blocks[0].nodes[0].operation
+        else {
+            panic!("fixture begins with a structural Unit call")
+        };
+        structural_arguments.clear();
+        refresh_node_derivatives(&mut arity, 0, 0, 0);
+        assert!(matches!(
+            validate_psi_optimization_unit(&arity),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
+        ));
+
+        let mut boundary = structural_call_unit();
+        let boundary_id = id(341, BoundaryMachineId::new);
+        boundary
+            .boundary_machines
+            .push(psi_terminal::BoundaryMachineDeclaration {
+                id: boundary_id,
+                identity: "validation::structural-boundary".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: vec![boundary.functions[1].structural_parameters[0].clone()],
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            });
+        let (psi_operation, structural_arguments) =
+            match &boundary.functions[0].blocks[0].nodes[0].operation {
+                TerminalAbstractOperation::CallUnit {
+                    psi_operation,
+                    structural_arguments,
+                    ..
+                } => (*psi_operation, structural_arguments.clone()),
+                _ => panic!("fixture begins with a structural Unit call"),
+            };
+        boundary.functions[0].blocks[0].nodes[0].operation =
+            TerminalAbstractOperation::BoundaryCall {
+                psi_operation,
+                result: None,
+                boundary: boundary_id,
+                arguments: Vec::new(),
+                structural_arguments,
+                completion_claim_sources: Vec::new(),
+                completion_receipts: Vec::new(),
+            };
+        refresh_node_derivatives(&mut boundary, 0, 0, 0);
+        validate_psi_optimization_unit(&boundary)
+            .expect("matching boundary structural access should validate");
+
+        boundary.boundary_machines[0].structural_parameters[0].access =
+            psi_terminal::StructuralAccess::SharedBorrow;
+        refresh_identity(&mut boundary);
+        assert!(matches!(
+            validate_psi_optimization_unit(&boundary),
+            Err(OptimizationUnitValidationError::StructuralCallContractMismatch { node: 0, .. })
         ));
     }
 

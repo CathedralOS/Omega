@@ -18,13 +18,18 @@ pub use optimized_semantic_wrapper_object::*;
 
 use std::collections::BTreeSet;
 
+use omega_effects::provider_plan::ProviderBinding;
 use omega_terminal_abstract_operations_to_target_operations::{
     AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
+    lower_to_target_operations_with_provider_executions_and_installation,
 };
 use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
 pub use omega_terminal_native_artifact::{
     TerminalNativeArtifact, TerminalNativeArtifactParts, TerminalNativeProviderExecution,
     TerminalNativeSelectedProviderPlan,
+};
+use omega_terminal_psi_to_abstract_operations::{
+    SelectedProviderAdapter, admit_provider_installation,
 };
 use omega_terminal_target_operations::TerminalBoundaryRealization;
 use psi_checked_trees_to_terminal::{
@@ -43,6 +48,18 @@ impl StagedAbstractOperations {
         match self {
             Self::Compatibility(plan) => plan,
             Self::Optimized(optimized) => optimized.plan(),
+        }
+    }
+
+    /// Provider installation admission replays the canonical artifact, so it
+    /// must compare against the verified pre-rewrite plan. The optimized plan
+    /// remains the only plan used for target lowering.
+    fn provider_installation_plan(
+        &self,
+    ) -> &omega_terminal_abstract_operations::TerminalAbstractOperationPlan {
+        match self {
+            Self::Compatibility(plan) => plan,
+            Self::Optimized(optimized) => optimized.verified_input().plan(),
         }
     }
 }
@@ -515,23 +532,71 @@ pub fn realize_terminal_native_artifact(
             ))
     });
 
+    let installation_plan = abstract_operations.provider_installation_plan();
+    let provider_installation = if installation_plan.provider_candidates.is_empty() {
+        None
+    } else {
+        let selected =
+            project_selected_provider_adapters(request.selected_provider_plans, installation_plan)
+                .map_err(|error| {
+                    realization_error("selected checked-provider projection", error)
+                })?;
+        if selected.is_empty() {
+            None
+        } else {
+            Some(
+                admit_provider_installation(
+                    installation_plan,
+                    semantic_bytes,
+                    proof_bytes,
+                    request.profile,
+                    &selected,
+                )
+                .map_err(|error| {
+                    realization_error("checked-provider installation", format!("{error:?}"))
+                })?,
+            )
+        }
+    };
+
     let target_operations = match abstract_operations {
         StagedAbstractOperations::Compatibility(abstract_operations) => {
-            lower_to_target_operations_with_provider_executions(
-                &abstract_operations,
-                request.target,
-                &admitted,
-            )
+            match provider_installation.as_ref() {
+                Some(installation) => {
+                    lower_to_target_operations_with_provider_executions_and_installation(
+                        &abstract_operations,
+                        request.target,
+                        &admitted,
+                        Some(installation),
+                    )
+                }
+                None => lower_to_target_operations_with_provider_executions(
+                    &abstract_operations,
+                    request.target,
+                    &admitted,
+                ),
+            }
             .map_err(|error| realization_error("target operation lowering", error))?
         }
         StagedAbstractOperations::Optimized(optimized) => {
-            let _physical = omega_optimization_pipeline::
-                stage_optimized_verified_physical_pipeline_with_provider_executions(
-                    *optimized, request.target, &admitted,
-                )
-                .map_err(|error| {
-                    optimized_physical_stage_error(request.optimization_selections, error)
-                })?;
+            let physical = match provider_installation {
+                Some(installation) => omega_optimization_pipeline::
+                    stage_optimized_verified_physical_pipeline_with_provider_executions_and_installation(
+                        *optimized,
+                        request.target,
+                        &admitted,
+                        installation,
+                    ),
+                None => omega_optimization_pipeline::
+                    stage_optimized_verified_physical_pipeline_with_provider_executions(
+                        *optimized,
+                        request.target,
+                        &admitted,
+                    ),
+            };
+            let _physical = physical.map_err(|error| {
+                optimized_physical_stage_error(request.optimization_selections, error)
+            })?;
             return Err(optimized_publication_unavailable(
                 request.optimization_selections,
             ));
@@ -575,6 +640,87 @@ pub fn realize_terminal_native_artifact(
         provider_executions,
     })
     .map_err(|error| realization_error("native artifact replay", error))
+}
+
+/// Project only checked, in-artifact provider adapters from the selected
+/// provider closure. External bindings continue through provider-execution
+/// settlements; they must never be reinterpreted as checked Omega machines.
+fn project_selected_provider_adapters(
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    terminal: &omega_terminal_abstract_operations::TerminalAbstractOperationPlan,
+) -> Result<Vec<SelectedProviderAdapter>, String> {
+    let relevant_requirements = terminal
+        .provider_candidates
+        .iter()
+        .map(|candidate| candidate.requirement_identity.as_str())
+        .collect::<BTreeSet<_>>();
+    project_selected_provider_adapters_for_requirements(selected, &relevant_requirements)
+}
+
+fn project_selected_provider_adapters_for_requirements(
+    selected: &omega_effects::SelectedProviderPlanFacts,
+    relevant_requirements: &BTreeSet<&str>,
+) -> Result<Vec<SelectedProviderAdapter>, String> {
+    let mut adapters = Vec::new();
+    for plan in selected.plans() {
+        for row in &plan.rows {
+            let ProviderBinding::CheckedAdapter {
+                machine_identity,
+                machine_package_identity,
+            } = &row.binding
+            else {
+                continue;
+            };
+            if !relevant_requirements.contains(row.requirement_identity.as_str()) {
+                continue;
+            }
+            if plan.provider_type.is_empty() {
+                return Err(format!(
+                    "selected ProviderPlan `{}` has a checked adapter but no exact provider type identity",
+                    plan.name
+                ));
+            }
+            if row.requirement_identity.is_empty() || machine_identity.is_empty() {
+                return Err(format!(
+                    "selected ProviderPlan `{}` has an incomplete checked-adapter identity",
+                    plan.name
+                ));
+            }
+            if *machine_package_identity != plan.origin_package_identity {
+                return Err(format!(
+                    "selected checked adapter `{machine_identity}` for ProviderPlan `{}` drifted from the plan's exact origin package",
+                    plan.name
+                ));
+            }
+            adapters.push(SelectedProviderAdapter {
+                requirement_identity: row.requirement_identity.clone(),
+                provider_identity: plan.provider_type.clone(),
+                machine_identity: machine_identity.clone(),
+            });
+        }
+    }
+    adapters.sort_by(|left, right| {
+        (
+            &left.requirement_identity,
+            &left.provider_identity,
+            &left.machine_identity,
+        )
+            .cmp(&(
+                &right.requirement_identity,
+                &right.provider_identity,
+                &right.machine_identity,
+            ))
+    });
+    if let Some(duplicate) = adapters
+        .windows(2)
+        .find(|rows| rows[0].requirement_identity == rows[1].requirement_identity)
+    {
+        return Err(format!(
+            "selected provider closure projects more than one checked adapter for exact requirement `{}`",
+            duplicate[0].requirement_identity
+        ));
+    }
+    Ok(adapters)
 }
 
 fn realization_error(context: &str, error: impl std::fmt::Display) -> Vec<Diagnostic> {
@@ -621,6 +767,9 @@ fn optimized_publication_unavailable(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use omega_effects::provider_plan::{
+        ProviderPlan, ProviderPlanRow, ServiceMethod, ServiceSchema,
+    };
     use psi_source_files_to_tokens::Lexer;
     use psi_symbol_resolved_trees_to_typed_trees::lower_symbol_resolved_trees;
     use psi_syntax_trees_to_symbol_resolved_trees::lower_syntax_trees;
@@ -674,6 +823,186 @@ mod tests {
         .expect("ProgramEntry Terminal artifact");
         let (artifact, receipt) = produced.into_parts();
         (artifact, receipt, source)
+    }
+
+    fn checked_adapter_plan(
+        name: &str,
+        provider: &str,
+        requirement_owner: &str,
+        requirement: &str,
+        machine: &str,
+    ) -> ProviderPlan {
+        ProviderPlan {
+            name: name.into(),
+            provider_type: provider.into(),
+            provider_type_package_identity: None,
+            target: "uefi_x64".into(),
+            schema: ServiceSchema {
+                trait_name: requirement_owner.into(),
+                trait_package_identity: None,
+                methods: vec![ServiceMethod {
+                    name: "enter".into(),
+                    requirement_owner: requirement_owner.into(),
+                    requirement_owner_package_identity: None,
+                    requirement_identity: requirement.into(),
+                    parameter_count: 0,
+                    parameter_type_identities: Vec::new(),
+                    entry_claims: Vec::new(),
+                    has_result: false,
+                    result_type_identity: None,
+                    result_claims: Vec::new(),
+                    service_reach: vec![requirement_owner.into()],
+                    synchronous_invocations: Vec::new(),
+                    may_suspend: false,
+                    may_block: false,
+                    terminates_guarantee: false,
+                    termination_premises: Vec::new(),
+                    calling_plan_fingerprint: None,
+                }],
+            },
+            rows: vec![ProviderPlanRow {
+                method: "enter".into(),
+                requirement_identity: requirement.into(),
+                binding: ProviderBinding::CheckedAdapter {
+                    machine_identity: machine.into(),
+                    machine_package_identity: None,
+                },
+            }],
+            origin_package_identity: None,
+            origin_package: "test".into(),
+        }
+    }
+
+    #[test]
+    fn selected_checked_adapter_projection_is_exact_and_fail_closed() {
+        let selected = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![
+            checked_adapter_plan(
+                "program-storage",
+                "ProgramStorageProvider",
+                "ProgramStorageEntry",
+                "ProgramStorageEntry::enter",
+                "ProgramStorageProvider::enter(Extent, Extent) -> Unit",
+            ),
+        ])
+        .expect("valid selected checked-adapter plan");
+        assert_eq!(
+            project_selected_provider_adapters_for_requirements(
+                &selected,
+                &BTreeSet::from(["ProgramStorageEntry::enter"]),
+            )
+            .unwrap(),
+            vec![SelectedProviderAdapter {
+                requirement_identity: "ProgramStorageEntry::enter".into(),
+                provider_identity: "ProgramStorageProvider".into(),
+                machine_identity: "ProgramStorageProvider::enter(Extent, Extent) -> Unit".into(),
+            }]
+        );
+
+        let mut external = checked_adapter_plan(
+            "external-program-storage",
+            "ProgramStorageProvider",
+            "ProgramStorageEntry",
+            "ProgramStorageEntry::enter",
+            "ProgramStorageProvider::enter(Extent, Extent) -> Unit",
+        );
+        external.rows[0].binding = ProviderBinding::CompilerIntrinsic {
+            machine: "TargetProgramStorage::enter(Extent, Extent) -> Unit".into(),
+        };
+        let external =
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![external])
+                .expect("valid non-checked selected provider plan");
+        assert!(
+            project_selected_provider_adapters_for_requirements(
+                &external,
+                &BTreeSet::from(["ProgramStorageEntry::enter"]),
+            )
+            .expect("non-checked provider selection is not an installation")
+            .is_empty()
+        );
+
+        let duplicate = omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![
+            checked_adapter_plan(
+                "first",
+                "FirstProvider",
+                "FirstBoundary",
+                "Shared::enter",
+                "FirstProvider::enter() -> Unit",
+            ),
+            checked_adapter_plan(
+                "second",
+                "SecondProvider",
+                "SecondBoundary",
+                "Shared::enter",
+                "SecondProvider::enter() -> Unit",
+            ),
+        ])
+        .expect("the selected closure itself permits distinct slots");
+        assert!(
+            project_selected_provider_adapters_for_requirements(
+                &duplicate,
+                &BTreeSet::from(["Shared::enter"]),
+            )
+            .expect_err("one Terminal requirement cannot acquire two checked adapters")
+            .contains("more than one checked adapter")
+        );
+
+        let unrelated_duplicates =
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![
+                checked_adapter_plan(
+                    "program-storage",
+                    "ProgramStorageProvider",
+                    "ProgramStorageEntry",
+                    "ProgramStorageEntry::enter",
+                    "ProgramStorageProvider::enter(Extent, Extent) -> Unit",
+                ),
+                checked_adapter_plan(
+                    "first-unrelated",
+                    "FirstProvider",
+                    "FirstBoundary",
+                    "Unrelated::enter",
+                    "FirstProvider::enter() -> Unit",
+                ),
+                checked_adapter_plan(
+                    "second-unrelated",
+                    "SecondProvider",
+                    "SecondBoundary",
+                    "Unrelated::enter",
+                    "SecondProvider::enter() -> Unit",
+                ),
+            ])
+            .expect("selected closure may contain unrelated boundary slots");
+        assert_eq!(
+            project_selected_provider_adapters_for_requirements(
+                &unrelated_duplicates,
+                &BTreeSet::from(["ProgramStorageEntry::enter"]),
+            )
+            .expect("projection ignores checked rows outside the Terminal closure")
+            .len(),
+            1
+        );
+
+        let package = psi_core::PackageKeyIdentity::from_digest([0x5a; 32])
+            .expect("nonzero package identity");
+        let mut drifted = checked_adapter_plan(
+            "drifted",
+            "Provider",
+            "Boundary",
+            "Boundary::enter",
+            "Provider::enter() -> Unit",
+        );
+        let ProviderBinding::CheckedAdapter {
+            machine_package_identity,
+            ..
+        } = &mut drifted.rows[0].binding
+        else {
+            unreachable!()
+        };
+        *machine_package_identity = Some(package);
+        assert!(
+            omega_effects::SelectedProviderPlanFacts::from_selected_plans(vec![drifted])
+                .expect_err("sealed selected facts must reject checked-adapter package drift")
+                .contains("package identity")
+        );
     }
 
     #[test]
