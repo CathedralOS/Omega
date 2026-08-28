@@ -45,9 +45,11 @@ These facts constrain the work below.
   for bounded liveness, ranges, candidate legality, the first strict
   transition-free physical-home assignment, arbitrary transitive components
   of distinct earlier-Use-to-later-Def ties, any number of exact
-  single-Def-against-Uses early-clobber rows, the first isolated composition
-  whose early Def is tied to one earlier source while clobbering unrelated
-  Uses, and a separately validated local pressure-victim
+  single-Def-against-Uses early-clobber rows, and the exact composition whose
+  early Def is tied to one earlier source inside a larger ordinary transitive
+  component while clobbering unrelated untied Uses. Each such component owns
+  exactly one early row; multiple larger compositions must be disjoint. A
+  separately validated local pressure-victim
   decision. It is not yet a
   general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
@@ -1653,7 +1655,7 @@ dependency.
   validator reconstructs CFG order, effects, transfers, canonical sets, and a
   domain-separated content identity. Opt-in orchestration retains this result
   only in a nested custody carrier that grants no interval, allocation,
-  emission, or publication authority. The v4 analysis admits any canonical set
+  emission, or publication authority. The v7 analysis admits any canonical set
   of distinct earlier-Use-to-later-Def ties within the selected SSA vocabulary.
   Multiple Defs may
   target one Use, and a VReg may join later ties, so chains and forks form one
@@ -1662,14 +1664,16 @@ dependency.
   `MultipleSingleDistinctDefAgainstUsesEarlyClobberV1` rows. Each instruction
   has exactly one early-clobber Def and one or more distinct Uses, with no
   UseDef, additional Def, or repeated participant. The separately closed
-  `IsolatedTiedDefAgainstOtherUsesEarlyClobberV1` composition permits that Def
-  to be tied to exactly one earlier distinct same-class Use while retaining at
-  least one unrelated Use. The tied source/Def form an isolated size-two
-  component; unrelated Uses cannot be tied and are the only members of the
-  before-phase early-clobber hazard. Multiple disjoint rows and ordinary
-  cross-instruction SSA reuse remain valid. Other UseDef, tie-component, and
-  early-clobber compositions reject rather than pretending their phase
-  semantics are complete.
+  `SingleEarlyDefTiedComponentAgainstUntiedUsesV1` composition permits that Def
+  to be tied directly to exactly one earlier distinct same-class Use while the
+  source/Def edge participates in an arbitrary ordinary transitive tie chain or
+  fork. The complete component may contain earlier or later ordinary members
+  but exactly one tied early Def/row. At least one unrelated same-instruction
+  Use remains outside every tied component and is the only member of the
+  before-phase early-clobber hazard. Multiple early rows remain valid only in
+  disjoint tied components. A second early row in one component, a tied hazard
+  Use, UseDef, additional Def, repeated participant, cross-class tie, or other
+  composition rejects rather than inventing phase semantics.
   A second independently validated artifact converts
   the facts into maximal half-open fragments within each block, exact
   polarity/edge connectors across blocks, ordered occurrence and fixed-view
@@ -1711,7 +1715,7 @@ dependency.
   The tied source and early Def receive the same home while that complete write
   footprint remains disjoint from every unrelated Use home. Spill choice stays
   fail-closed for every tied or early-clobber topology. Liveness and live-range
-  identities are v6; the strict home identity/codec remains v5 because its
+  identities are v7; the strict home identity/codec remains v5 because its
   schema did not change.
   This does not authorize
   physical emission. Home production and independent replay separately require
@@ -1752,7 +1756,8 @@ dependency.
 
   Remaining to close: live-interval construction, loop weights, calls and call
   crossings, crashes, cleanup and suspension frontiers, UseDef representation,
-  and early-clobber/tie composition beyond the exact isolated admitted forms.
+  and early-clobber/tie composition beyond the exact one-early-row-per-component
+  admitted form.
   General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the

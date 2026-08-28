@@ -1806,14 +1806,16 @@ target one Use, and a VReg may participate in later ties, admitting both chains
 and forks. `MultipleSingleDistinctDefAgainstUsesEarlyClobberV1` permits any
 number of disjoint instruction rows, each with exactly one early Def and one or
 more distinct Uses, excluding UseDef, other Defs, and repeated participants.
-The separately closed `IsolatedTiedDefAgainstOtherUsesEarlyClobberV1` form
-permits the early Def to be tied to exactly one earlier distinct same-class Use
-when that source/Def pair is an isolated size-two tied component and at least
-one unrelated untied Use remains. Ordinary cross-instruction SSA reuse and
-multiple disjoint rows remain valid. Other UseDef, tied-component, and early-
-clobber compositions, spills, loops, calls, crashes, cleanup, and suspension
-remain refused until they have explicit selected-IR frontiers and dedicated
-validation rules.
+The separately closed `SingleEarlyDefTiedComponentAgainstUntiedUsesV1` form
+permits the early Def to be tied directly to exactly one earlier distinct same-
+class Use while that edge participates in a larger ordinary transitive chain or
+fork. The component contains exactly one tied early Def/row, and at least one
+unrelated same-instruction Use remains outside all tied components. Multiple
+such rows are valid only in disjoint components. A second early row in one
+component, a tied hazard Use, UseDef, additional Def, repeated participant, or
+cross-class tie rejects. Spills, loops, calls, crashes, cleanup, suspension, and
+other compositions remain refused until they have explicit selected-IR
+frontiers and dedicated validation rules.
 
 A two-machine disconnected fixture exercises the complete current vertical on
 x86-64 and AArch64. Selection intentionally restarts dense block and VReg IDs
@@ -1846,8 +1848,13 @@ publication authority.
 Early clobber is not modeled by moving the Def's semantic live range backward.
 The Def still begins at the after point, while a separate canonical phase-
 hazard row binds its before point and every unrelated same-instruction Use. In
-the admitted tied form, the tied source is represented only by the ordinary tie
-row and is deliberately absent from this hazard list. Legality
+the admitted `SingleEarlyDefTiedComponentAgainstUntiedUsesV1` form, the early
+Def is tied directly to one earlier distinct same-class Use, and that edge may
+belong to a larger ordinary transitive tie chain or fork. Exactly one tied early
+Def/row may inhabit the component. At least one unrelated same-instruction Use
+must remain outside every tied component; only those unrelated Uses enter the
+phase-hazard list, while the tied source remains represented by its ordinary
+tie row. Multiple rows are admitted only in disjoint tied components. Legality
 derives an additional before-phase Def candidate row under the same fixed-view,
 reservation, architectural-state, and availability checks. Home assignment and
 its independent replay then require the selected Def view's complete write
@@ -1872,10 +1879,14 @@ Every unordered component member pair must be noninterfering. Replay rejects
 component interference, disjoint candidates, malformed topology, or unequal
 homes. Spill-choice fails closed while any tied component is present rather
 than separating tied values without a proved copy/storage strategy. The
-isolated tied source and early Def share the component home, while its complete
-write footprint remains disjoint from every unrelated Use home. Liveness and
-live-range identities are v6; the strict home identity and codec remain v5
-because their schema did not change.
+complete transitive component shares one home, while the early Def's complete
+write footprint remains disjoint from every unrelated Use home. Production
+uses graph closure and union-find; independent replay separately merges the
+same components and rejects a second early member, a tied hazard Use,
+interference, disjoint candidate sets, or write/storage aliasing. Liveness and
+live-range identities are v7; the strict legality/home identities and home
+codec remain unchanged because their schemas did not change and already bind
+the new v7 roots.
 
 The same artifact exposes incompatible entry and operand fixed views as
 transition requirements. In the current forwarded-value fixture, the shared
