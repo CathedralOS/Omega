@@ -45,6 +45,7 @@ pub use rules::{
     IntegerBitwiseXorConstantsRule, IntegerEqualConstantsRule, IntegerLessOrEqualConstantsRule,
     IntegerLessThanConstantsRule, IntegerWidenConstantsRule, LinearEmptyBlockThreadRule,
     LiveProofCertifiedExactIntegerMultiplyByZeroEliminationRule,
+    LiveProofCertifiedExactIntegerSelfSubtractEliminationRule,
     LiveProofCertifiedExactIntegerZeroValueShiftEliminationRule,
     LiveProofCertifiedIntegerDivideByOneEliminationRule,
     LiveProofCertifiedIntegerIdentityEliminationRule,
