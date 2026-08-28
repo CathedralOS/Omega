@@ -187,26 +187,3 @@ fn service_reach_rows_are_identity_sets_without_global_name_bits() {
     let row = rows.intern(vec![filesystem, console, filesystem]);
     assert_eq!(rows.services(row), &[console, filesystem]);
 }
-
-/// LOSS 5 (record §Multiplicity, ownership summaries): control-flow
-/// RE-PINNED (CML3, 2026-07-17): checked flow and every downstream semantic
-/// spine now retain Establish / Transfer / Consume / AffineDrop permission
-/// events (including conditional-payload debt). No parallel move/drop fields
-/// remain. CML3 slice 3 added multiplicity, explicit
-/// owned/shared/exclusive access, transfer-stable root-lineage provenance, and
-/// an independent transfer-stable permission claim identity.
-/// Borrow activations/weakenings also enter this context, and the linear
-/// judgment and downstream IRs carry no parallel move/drop summary.
-#[test]
-fn downstream_ownership_summary_carries_qualified_permission_events() {
-    use omega_control_flow::{StateOwnershipSummary, StatePermissionEvent};
-    use psi_language_semantics::{
-        Multiplicity, PermissionAccess, PermissionClaimIdentity, PermissionProvenance,
-    };
-    let StateOwnershipSummary { permissions: _ } = StateOwnershipSummary::default();
-    let event = StatePermissionEvent::default();
-    assert_eq!(event.multiplicity, Multiplicity::Affine);
-    assert_eq!(event.access, PermissionAccess::Owned);
-    assert_eq!(event.claim_identity, PermissionClaimIdentity::Unknown);
-    assert_eq!(event.provenance, PermissionProvenance::Unknown);
-}

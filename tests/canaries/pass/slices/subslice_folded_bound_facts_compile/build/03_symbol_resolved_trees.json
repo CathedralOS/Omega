@@ -1,0 +1,304 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entry",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "value",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "entries",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Entry"
+              },
+              "length": "4"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "view",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "entries"
+                  },
+                  "target": "as_slice",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "start",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "initial_value": {
+                  "kind": "integer",
+                  "value": 1
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "width",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "initial_value": {
+                  "kind": "integer",
+                  "value": 2
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "end",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "start"
+                    ]
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "name",
+                    "path": [
+                      "width"
+                    ]
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "tail",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "view"
+                    ]
+                  },
+                  "index": {
+                    "kind": "range",
+                    "start": {
+                      "kind": "name",
+                      "path": [
+                        "start"
+                      ]
+                    },
+                    "end": null,
+                    "end_inclusive": false
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "middle",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Entry"
+                    }
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "view"
+                    ]
+                  },
+                  "index": {
+                    "kind": "range",
+                    "start": {
+                      "kind": "name",
+                      "path": [
+                        "start"
+                      ]
+                    },
+                    "end": {
+                      "kind": "name",
+                      "path": [
+                        "end"
+                      ]
+                    },
+                    "end_inclusive": false
+                  }
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "chosen",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Entry"
+                },
+                "initial_value": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "middle"
+                    ]
+                  },
+                  "index": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "end"
+                      ]
+                    },
+                    "operator": "-",
+                    "right": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "tail"
+                      ]
+                    },
+                    "member": "len"
+                  },
+                  "operator": "+",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "middle"
+                      ]
+                    },
+                    "member": "len"
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 8
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 27,
+    "statement_count": 8,
+    "type_reference_count": 18
+  }
+}

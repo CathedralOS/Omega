@@ -9,12 +9,12 @@ name = "omega_object_file"
 path = "src/lib.rs"
 
 [dependencies]
-omega-core = { path = "../../../foundation/omega-core" }
-omega-function-identity = { path = "../../../foundation/omega-function-identity" }
-omega-optimization-core = { path = "../../../foundation/omega-optimization-core" }
-omega-terminal-selected-instructions = { path = "../../../representations/omega-terminal-selected-instructions" }
+omega-core = { path = "../../../representations/omega-core" }
+omega-function-identity = { path = "../../../representations/omega-function-identity" }
+omega-optimization-core = { path = "../../../representations/omega-optimization-core" }
+omega-selected-instructions = { path = "../../../representations/omega-selected-instructions" }
 psi-arena = { path = "../../../../psi/foundation/psi-arena" }
 psi-core = { path = "../../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
-omega-target = { path = "../../../foundation/omega-target" }
+omega-target = { path = "../../../representations/omega-target" }
 sha2 = "0.10.9"

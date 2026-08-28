@@ -1,0 +1,260 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Job",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "id",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "WorkResult",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "job_id",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ok",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Worker",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Scheduler",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Worker::run",
+        "attached_data": "Worker",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "job",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Job"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "WorkResult"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "WorkResult",
+                  "fields": [
+                    {
+                      "name": "job_id",
+                      "value": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "job"
+                          ]
+                        },
+                        "member": "id"
+                      }
+                    },
+                    {
+                      "name": "ok",
+                      "value": {
+                        "kind": "boolean",
+                        "value": true
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      },
+      {
+        "name": "Scheduler::run",
+        "attached_data": "Scheduler",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "job",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Job"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "handle",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "WorkResult"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "Worker"
+                    ]
+                  },
+                  "target": "run",
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "job"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "result",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "WorkResult"
+                },
+                "initial_value": {
+                  "kind": "name",
+                  "path": [
+                    "handle"
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "result"
+                    ]
+                  },
+                  "member": "job_id"
+                }
+              }
+            ],
+            "table_statement_count": 3
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 10,
+    "statement_count": 4,
+    "type_reference_count": 10
+  }
+}

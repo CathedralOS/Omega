@@ -51,12 +51,10 @@ continuation still lacks ordinary frame/exit, object/image, and publication
 validation. The selected continuation must replace bounded assignment at that
 join; compilation never falls back or runs an alternate route.
 
-The ordinary realization graph no longer reaches the historical
-`omega-program-storage` implementation or `omega-backend-pipeline`. The
-source/target ProgramEntry declarations needed by build evaluation and native
-realization live in the data-only `omega-program-entry-plan` crate. Legacy
-storage-wrapper tests reuse those same identities from below; they do not own
-or provide an alternate compiler route.
+The ordinary realization graph uses the data-only `omega-program-entry-plan`
+for source/target ProgramEntry declarations and
+`omega-terminal-psi-to-native-artifact` for the shared composition edge. No
+historical storage-wrapper or backend-coordinator route remains.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
 canonical semantic and proof sections plus an explicit admission profile,
@@ -152,41 +150,18 @@ closure must equal the retained root declaration: missing, padded, stale, or
 unused rows reject. A direct service use is not erased merely because the same
 service also occurs in an abstract row's upper bound.
 
-## Why the bootstrap stages are not the cut
+## The cut
 
-The older bootstrap lane does not provide a portable expression-lowering
-boundary:
+`psi-checked-trees-to-terminal` is the sole executable semantic handoff.
+`omega-psi-to-abstract-operations` consumes the verified artifact; unsupported
+vocabulary rejects at that boundary. The former checked-tree, StateGraph, and
+control-flow backend route has been deleted.
 
-- `CheckedTrees` embeds `TypedTrees` plus checked fact tables;
-- `StateGraphCode` copies the typed expression table, and operations and
-  transitions retain `ExpressionHandle`;
-- `ControlFlowCode` clones the same expression table and mostly remaps the
-  graph topology and semantic arenas; and
-- its abstract-operation construction and instruction selection inspect and
-  substitute tree expressions directly.
-
-`StateGraph` and `ControlFlowPlan` are therefore useful topology and evidence
-scaffolds for slices not yet migrated, not self-contained executable
-representations. Conversely,
-`AbstractOperations` already owns runtime storage regions, calling-convention
-classes, ABI aggregate distinctions, and other Omega realization concerns.
-Removing those fields would not reveal a hidden portable IR.
-
-`psi-checked-trees-to-terminal` now builds the supported portable slices, and
-`omega-terminal-psi-to-abstract-operations` consumes verified terminal Psi.
-The remaining migration extends that one boundary and retires corresponding
-tree consumers. It does not serialize `StateGraph`, purify
-`AbstractOperations`, or place a second similar block IR beside
-`ControlFlowPlan`.
-
-The production driver now has one typed request boundary for its existing
-native route. That request carries compile options, executable-TCB policy,
-observation policy, and the optional reconciled package graph; compatibility
-entry points delegate to the same operation. Test entry overrides and worker
-ceilings remain outside it. This is request normalization only: it does not
-make the legacy checked-tree backend a terminal-Psi consumer, and it does not
-complete the mandatory cutover described in `TASKS.md`.
-
+Build orchestration may separately retain source-declaration receipts needed to
+prove author intent, ProgramEntry identity, provider selection, and target
+closure. Those receipts rejoin the canonical artifact in
+`omega-terminal-psi-to-native-artifact`; they are not an alternate executable
+representation and cannot supply operation semantics missing from Terminal Psi.
 ## Terminal requirements
 
 Terminal Psi is immutable and self-contained. It contains no arena handle that
@@ -212,7 +187,7 @@ direct faithful `define` certificate. The codec serializes the complete
 source-free certificate and rederives its retained identity on decode;
 representation validation independently reconstructs its theorem,
 correspondence, eligibility, and direct-result shape. A nonempty table is still
-rejected by execution validation, owns no Terminal machine or operation, and
+rejected by execution validation, owns no machine or operation, and
 does not authorize a representative call. The explicit producer attachment is
 therefore a canonical-retention prerequisite, not executable quotient
 lowering.
@@ -2125,13 +2100,13 @@ manifest identity bytes; construction independently decodes every section and
 rebuilds the manifest before custody crosses into Omega. The typed compiler
 `TerminalArtifact` product stops at this carrier without entering StateGraph,
 native emission, output, or installation. Unsupported Terminal vocabulary
-rejects there and cannot select the legacy backend as a fallback.
+rejects there and cannot select another backend as a fallback.
 
 The compiler exposes one production native-realization boundary after that
 owner. It consumes the complete canonical artifact by value, then performs
 portable verification, target assignment, machine emission, object/image
 construction, and exact final-image replay into a non-visible
-`TerminalNativeArtifact`. Its production signature accepts no checked, typed,
+`NativeArtifact`. Its production signature accepts no checked, typed,
 syntax, or source representation and cannot lower or re-encode Terminal Psi.
 The ordinary retained-native product stops at this carrier. Component staging
 wraps the same carrier with the richer source-selected provider-plan facts and
@@ -2147,8 +2122,8 @@ authority. The deployment owner consumes the component candidate, joins
 real installation occurrences and receipts under the live registry, acquires
 installed-code custody, and only then produces a runnable carrier.
 The source-free native carrier belongs to the neutral
-`omega-terminal-native-artifact` crate. The component-specific wrapper remains
-in `omega-terminal-component-candidate`; compiler and deployment depend on
+`omega-native-artifact` crate. The component-specific wrapper remains
+in `omega-component-candidate`; compiler and deployment depend on
 those neutral owners without a cycle. Constructing either carrier grants no
 authority: deployment still independently replays the artifact, installation,
 provider, and progress joins before any registry claim or publication. The
@@ -2194,7 +2169,7 @@ failure returns that carrier, the deployment owner, and report metadata, while
 success proceeds through acquisition, deployment, publication, and report
 custody. A separate typed terminal compile handoff now runs the ordinary
 Psi-owned checked frontend and routes its result into this connected driver
-without entering the legacy backend coordinator. The checked result retains its
+without entering another backend coordinator. The checked result retains its
 exact consumed source count and build-selected image subsystem. The request
 retains compile options, optional package inputs, externally borrowed admission
 and settlement evidence, and the external deployment-input owner: frontend
@@ -3264,16 +3239,16 @@ families rather than a second responsibility embedded in the production root.
 Proposition vocabulary, evidence-term identity, contract lanes, proof-output
 invocations, and producer provenance likewise share one evidence-publication
 module behind a single parent-facing installation API.
-Terminal native machine emission keeps its byte/width/policy regression corpus
-in the separately compiled `omega-terminal-machine-emission/src/tests.rs`;
+native machine emission keeps its byte/width/policy regression corpus
+in the separately compiled `omega-machine-emission/src/tests.rs`;
 the production root does not embed that second responsibility.
-`omega-terminal-machine-emission/src/unit.rs` owns Unit-body and calling-policy
+`omega-machine-emission/src/unit.rs` owns Unit-body and calling-policy
 emission, exact per-target parameter homes, aggregate argument staging/copying,
 and Unit stack/fuel/effect evidence behind the parent-facing Unit emitter and
-cleanup-call helpers. `omega-terminal-machine-emission/src/cleanup.rs` owns
+cleanup-call helpers. `omega-machine-emission/src/cleanup.rs` owns
 scalar-return and Boolean-control cleanup emission, nominal-cleanup admission,
 exact residual partitioning, and cleanup stack/fuel/call evidence behind five
-parent-facing contracts. `omega-terminal-machine-emission/src/scalar.rs` is a
+parent-facing contracts. `omega-machine-emission/src/scalar.rs` is a
 small orchestration/re-export root over `scalar/x86_64.rs`,
 `scalar/aarch64.rs`, and `scalar/shared.rs`. The architecture modules own their
 scalar control, calls, arithmetic, register/stack mechanics, and exact byte

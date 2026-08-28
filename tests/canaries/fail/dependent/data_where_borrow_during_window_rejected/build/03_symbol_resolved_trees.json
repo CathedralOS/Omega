@@ -1,0 +1,150 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Map",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "start",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "end",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "map",
+            "type_reference": {
+              "kind": "named",
+              "name": "Map"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::run",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "map"
+                  },
+                  "member": "start"
+                },
+                "value": {
+                  "kind": "integer",
+                  "text": "10"
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "view",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "is_mutable": true
+                },
+                "initial_value": {
+                  "kind": "mutable",
+                  "value": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "map"
+                    },
+                    "member": "start"
+                  }
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "name",
+                  "path": [
+                    "view"
+                  ]
+                },
+                "value": {
+                  "kind": "integer",
+                  "text": "20"
+                }
+              }
+            ],
+            "table_statement_count": 3
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 13,
+    "statement_count": 3,
+    "type_reference_count": 6
+  }
+}

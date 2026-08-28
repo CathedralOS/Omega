@@ -1,0 +1,263 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Entity",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "None",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Monster",
+            "payload": [
+              {
+                "name": "health",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "entity",
+            "type_reference": {
+              "kind": "named",
+              "name": "Entity"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "Entity::Dangerous",
+        "target_type": {
+          "kind": "named",
+          "name": "Entity"
+        },
+        "facts": [
+          {
+            "kind": "membership",
+            "value": {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            },
+            "domain": [
+              "Entity",
+              "Monster"
+            ],
+            "domain_symbol": 0
+          },
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "health"
+              },
+              "operator": ">",
+              "right": {
+                "kind": "integer",
+                "text": "0"
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 18
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "threat"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "entity"
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "name",
+                        "path": [
+                          "Entity",
+                          "Monster"
+                        ]
+                      }
+                    },
+                    "operator": "&&",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "self"
+                            ]
+                          },
+                          "member": "entity"
+                        },
+                        "member": "health"
+                      },
+                      "operator": ">",
+                      "right": {
+                        "kind": "integer",
+                        "text": "0"
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "calm"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          },
+          {
+            "name": "calm",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          },
+          {
+            "name": "threat",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 3,
+    "domain_definition_count": 1,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 3,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 13,
+    "expression_struct_field_count": 0,
+    "statement_count": 2,
+    "transition_target_count": 2,
+    "type_reference_count": 6,
+    "type_constraint_count": 0
+  }
+}

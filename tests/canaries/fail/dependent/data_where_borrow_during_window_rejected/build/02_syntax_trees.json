@@ -1,0 +1,246 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Map",
+        "source_id": 0,
+        "start": 154,
+        "end": 157,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "start",
+            "source_id": 0,
+            "start": 192,
+            "end": 197,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 199,
+              "end": 202,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "end",
+            "source_id": 0,
+            "start": 209,
+            "end": 212,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 214,
+              "end": 217,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 228,
+        "end": 232,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "map",
+            "source_id": 0,
+            "start": 235,
+            "end": 238,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Map",
+              "source_id": 0,
+              "start": 240,
+              "end": 243,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 262,
+            "end": 265,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "map",
+                    "source_id": 0,
+                    "start": 289,
+                    "end": 292,
+                    "source_backed": true
+                  }
+                },
+                "member": {
+                  "text": "start",
+                  "source_id": 0,
+                  "start": 293,
+                  "end": 298,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "integer",
+                "text": "10"
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "view",
+                "source_id": 0,
+                "start": 314,
+                "end": 318,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "i32",
+                    "source_id": 0,
+                    "start": 325,
+                    "end": 328,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "initial_value": {
+                "kind": "mutable",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "map",
+                      "source_id": 0,
+                      "start": 341,
+                      "end": 344,
+                      "source_backed": true
+                    }
+                  },
+                  "member": {
+                    "text": "start",
+                    "source_id": 0,
+                    "start": 345,
+                    "end": 350,
+                    "source_backed": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "view",
+                    "source_id": 0,
+                    "start": 357,
+                    "end": 361,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "value": {
+                "kind": "integer",
+                "text": "20"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

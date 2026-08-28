@@ -16,9 +16,8 @@ psi-numerics = { path = "../../foundation/psi-numerics" }
 psi-syntax-trees = { path = "../../representations/psi-syntax-trees" }
 
 [dev-dependencies]
-omega-checked-trees-to-state-graph = { path = "../../../omega/pipeline/omega-checked-trees-to-state-graph" }
 omega-layout = { path = "../../../omega/backend/omega-layout" }
-omega-target = { path = "../../../omega/foundation/omega-target" }
+omega-target = { path = "../../../omega/representations/omega-target" }
 psi-checked-trees = { path = "../../representations/psi-checked-trees" }
 psi-source-files-to-tokens = { path = "../psi-source-files-to-tokens" }
 psi-symbol-resolved-trees-to-typed-trees = { path = "../psi-symbol-resolved-trees-to-typed-trees" }

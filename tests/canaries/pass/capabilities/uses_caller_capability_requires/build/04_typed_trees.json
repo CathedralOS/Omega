@@ -1,0 +1,318 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Folder",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Thumbnailer",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "fs",
+            "type_reference": {
+              "kind": "named",
+              "name": "Filesystem"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "[u8]::Utf8",
+        "target_type": {
+          "kind": "slice",
+          "element_type": {
+            "kind": "named",
+            "name": "u8"
+          }
+        },
+        "classifier": {
+          "kind": "call",
+          "receiver": null,
+          "target": "valid_utf8",
+          "arguments": [
+            {
+              "kind": "name",
+              "path": [
+                "self"
+              ]
+            }
+          ]
+        },
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      },
+      {
+        "name": "Folder::Writable",
+        "target_type": {
+          "kind": "named",
+          "name": "Folder"
+        },
+        "classifier": null,
+        "facts": [],
+        "operators": [],
+        "body_token_count": 0
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Thumbnailer::write_cache",
+        "attached_data": "Thumbnailer",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "filesystem_io"
+        ],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "cache"
+                  ]
+                },
+                "domain": [
+                  "Folder",
+                  "Writable"
+                ],
+                "domain_symbol": 32
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "write_cache",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "cache",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "fs"
+                ],
+                "target": "write_bytes",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "cache"
+                    ]
+                  },
+                  {
+                    "kind": "string",
+                    "value": "thumb.bin"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Filesystem",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "write_bytes",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "folder",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Folder"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "path",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "constrained",
+                    "base_type": {
+                      "kind": "slice",
+                      "element_type": {
+                        "kind": "named",
+                        "name": "u8"
+                      }
+                    },
+                    "constraints": [
+                      {
+                        "kind": "named",
+                        "name": "Utf8"
+                      }
+                    ]
+                  },
+                  "is_mutable": false,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [
+              "filesystem_io"
+            ],
+            "contracts": [
+              {
+                "kind": "requires",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "folder"
+                      ]
+                    },
+                    "domain": [
+                      "Folder",
+                      "Writable"
+                    ],
+                    "domain_symbol": 32
+                  }
+                ],
+                "token_count": 8
+              },
+              {
+                "kind": "requires",
+                "facts": [
+                  {
+                    "kind": "membership",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "path"
+                      ]
+                    },
+                    "domain": [
+                      "[u8]",
+                      "Utf8"
+                    ],
+                    "domain_symbol": 31
+                  }
+                ],
+                "token_count": 0
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 0,
+    "data_member_count": 1,
+    "domain_definition_count": 2,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 2,
+    "state_parameter_count": 5,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 7,
+    "expression_struct_field_count": 0,
+    "statement_count": 1,
+    "transition_target_count": 0,
+    "type_reference_count": 12,
+    "type_constraint_count": 1
+  }
+}

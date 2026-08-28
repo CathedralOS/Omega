@@ -4,19 +4,19 @@
 //! Terminal Psi realization requirements.
 //!
 //! This crate deliberately performs no optimization. It makes the implicit
-//! structure in [`TerminalAbstractOperationPlan`] explicit so independent
+//! structure in [`AbstractOperationPlan`] explicit so independent
 //! validators and later passes do not have to rediscover CFG, SSA, semantic
 //! fuel, effects, or provenance from a mutable instruction stream.
 
 use std::{collections::BTreeSet, sync::Arc};
 
+use omega_abstract_operations::{
+    AbstractFunction, AbstractFunctionResult, AbstractOperation, AbstractOperationPlan,
+    AbstractSuccessor, ValueBinding,
+};
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, OptimizationUnitIdentity, OwnershipFrontierFactIdentity,
     ProofQuestionIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
-};
-use omega_terminal_abstract_operations::{
-    TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
-    TerminalAbstractOperationPlan, TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{
     AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity,
@@ -60,9 +60,9 @@ pub use rewrite::{
     PsiRealizationSite, PsiRewriteCandidate, PsiRewriteCandidateError, PsiRewriteDecisionPoint,
     PsiRewritePatch, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
     ScalarConstantValue, ScalarEvaluationWitness, ScalarSubstitution, SccpBlockRow, SccpEdgeRow,
-    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState,
-    SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
-    derived_sccp_scalar_constant_fact_identity, literal_scalar_constant_fact_identity,
+    SccpEdgeState, SccpMachineSnapshot, SccpValueRow, SccpValueState, SharedJumpFusionRewrite,
+    UnreachablePrivateMachinesRewrite, derived_sccp_scalar_constant_fact_identity,
+    literal_scalar_constant_fact_identity,
 };
 
 /// The exact immutable Terminal Psi semantic site realized by one unit node.
@@ -114,7 +114,7 @@ pub struct ValueUse {
 pub struct OptimizationEdge {
     pub psi_edge: EdgeId,
     pub target: BlockId,
-    pub bindings: Vec<TerminalValueBinding>,
+    pub bindings: Vec<ValueBinding>,
     /// Exact ordered affine discard work executed on this edge.
     pub trivial_affine_discards: Vec<PlaceId>,
     /// Ordered source custody charged only when this exact CFG edge is taken.
@@ -161,7 +161,7 @@ pub enum OptimizationFact {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OptimizationNode {
-    pub operation: TerminalAbstractOperation,
+    pub operation: AbstractOperation,
     /// Ordered logical source custody. Normally this is the operation's exact
     /// source roster. A validator-authorized unconditional Jump fusion keeps
     /// its own edge first and may append only co-executed inherited edges.
@@ -196,7 +196,7 @@ pub struct PsiOptimizationFunction {
     pub structural_places: Vec<StructuralPlaceDeclaration>,
     /// Exact normal result signature retained independently of executable
     /// return nodes, including Unit and structural-result distinctions.
-    pub result: TerminalAbstractFunctionResult,
+    pub result: AbstractFunctionResult,
     pub declared_places: BTreeSet<PlaceId>,
     /// Full ordered caller/root claim signature. `entry_claims` below is the
     /// independently checked membership index used by ownership validation.
@@ -226,7 +226,7 @@ pub struct PsiOptimizationFunction {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AcceptedObligationFact {
     pub identity: AcceptedObligationFactIdentity,
-    pub terminal_psi: TerminalPsiIdentity,
+    pub psi: TerminalPsiIdentity,
     pub proof_bundle_fingerprint: [u8; 32],
     pub machine: MachineId,
     pub operation: OperationId,
@@ -535,7 +535,7 @@ pub struct OwnershipFrontierSnapshot {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct OwnershipFrontierFact {
     pub identity: OwnershipFrontierFactIdentity,
-    pub terminal_psi: TerminalPsiIdentity,
+    pub psi: TerminalPsiIdentity,
     pub machine: MachineId,
     pub site: OwnershipFrontierSite,
     pub snapshot: OwnershipFrontierSnapshot,
@@ -543,15 +543,15 @@ pub struct OwnershipFrontierFact {
 
 impl OwnershipFrontierFact {
     pub fn new(
-        terminal_psi: TerminalPsiIdentity,
+        psi: TerminalPsiIdentity,
         machine: MachineId,
         site: OwnershipFrontierSite,
         snapshot: OwnershipFrontierSnapshot,
     ) -> Self {
-        let identity = ownership_frontier_fact_identity(terminal_psi, machine, site, &snapshot);
+        let identity = ownership_frontier_fact_identity(psi, machine, site, &snapshot);
         Self {
             identity,
-            terminal_psi,
+            psi,
             machine,
             site,
             snapshot,
@@ -560,25 +560,20 @@ impl OwnershipFrontierFact {
 
     pub fn has_canonical_identity(&self) -> bool {
         self.identity
-            == ownership_frontier_fact_identity(
-                self.terminal_psi,
-                self.machine,
-                self.site,
-                &self.snapshot,
-            )
+            == ownership_frontier_fact_identity(self.psi, self.machine, self.site, &self.snapshot)
     }
 }
 
 pub fn ownership_frontier_fact_identity(
-    terminal_psi: TerminalPsiIdentity,
+    psi: TerminalPsiIdentity,
     machine: MachineId,
     site: OwnershipFrontierSite,
     snapshot: &OwnershipFrontierSnapshot,
 ) -> OwnershipFrontierFactIdentity {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-ownership-frontier-fact.v1\0");
-    canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&machine.get().to_le_bytes());
     encode_frontier_site_identity(&mut canonical, site);
     encode_frontier_snapshot_identity(&mut canonical, snapshot);
@@ -663,7 +658,7 @@ fn encode_frontier_multiplicity(bytes: &mut Vec<u8>, multiplicity: Option<Struct
 
 impl AcceptedObligationFact {
     pub fn new(
-        terminal_psi: TerminalPsiIdentity,
+        psi: TerminalPsiIdentity,
         proof_bundle_fingerprint: [u8; 32],
         machine: MachineId,
         operation: OperationId,
@@ -671,7 +666,7 @@ impl AcceptedObligationFact {
         proposition: Vec<u8>,
     ) -> Self {
         let identity = accepted_obligation_fact_identity(
-            terminal_psi,
+            psi,
             proof_bundle_fingerprint,
             machine,
             operation,
@@ -680,7 +675,7 @@ impl AcceptedObligationFact {
         );
         Self {
             identity,
-            terminal_psi,
+            psi,
             proof_bundle_fingerprint,
             machine,
             operation,
@@ -692,7 +687,7 @@ impl AcceptedObligationFact {
     pub fn has_canonical_identity(&self) -> bool {
         self.identity
             == accepted_obligation_fact_identity(
-                self.terminal_psi,
+                self.psi,
                 self.proof_bundle_fingerprint,
                 self.machine,
                 self.operation,
@@ -703,7 +698,7 @@ impl AcceptedObligationFact {
 }
 
 pub fn accepted_obligation_fact_identity(
-    terminal_psi: TerminalPsiIdentity,
+    psi: TerminalPsiIdentity,
     proof_bundle_fingerprint: [u8; 32],
     machine: MachineId,
     operation: OperationId,
@@ -712,8 +707,8 @@ pub fn accepted_obligation_fact_identity(
 ) -> AcceptedObligationFactIdentity {
     let mut canonical = Vec::new();
     canonical.extend_from_slice(b"omega.psi-accepted-obligation-fact.v1\0");
-    canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
-    canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(psi.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
     canonical.extend_from_slice(&proof_bundle_fingerprint);
     canonical.extend_from_slice(&machine.get().to_le_bytes());
     canonical.extend_from_slice(&operation.get().to_le_bytes());
@@ -893,7 +888,7 @@ fn encode_proof_question_bytes(bytes: &mut Vec<u8>, value: &[u8]) {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationUnit {
     pub identity: OptimizationUnitIdentity,
-    pub terminal_psi: TerminalPsiIdentity,
+    pub psi: TerminalPsiIdentity,
     pub fuel_schedule: FuelScheduleIdentity,
     pub entry: MachineId,
     /// Target-neutral module declarations needed by layout, ABI, and checked
@@ -958,10 +953,7 @@ pub fn attach_ownership_frontier_facts(
     if !unit.ownership_frontier_facts.is_empty() {
         return Err(OwnershipFrontierFactIndexError::AlreadyAttached);
     }
-    if facts
-        .iter()
-        .any(|fact| fact.terminal_psi != unit.terminal_psi)
-    {
+    if facts.iter().any(|fact| fact.psi != unit.psi) {
         return Err(OwnershipFrontierFactIndexError::TerminalIdentityMismatch);
     }
     if facts.iter().any(|fact| !fact.has_canonical_identity()) {
@@ -1026,10 +1018,7 @@ pub fn attach_accepted_obligation_facts(
     if !unit.accepted_obligation_facts.is_empty() {
         return Err(AcceptedObligationFactIndexError::AlreadyAttached);
     }
-    if facts
-        .iter()
-        .any(|fact| fact.terminal_psi != unit.terminal_psi)
-    {
+    if facts.iter().any(|fact| fact.psi != unit.psi) {
         return Err(AcceptedObligationFactIndexError::TerminalIdentityMismatch);
     }
     if facts.iter().any(|fact| !fact.has_canonical_identity()) {
@@ -1074,7 +1063,7 @@ pub fn attach_proof_questions(
     }
     if questions
         .iter()
-        .any(|question| question.terminal_psi != unit.terminal_psi)
+        .any(|question| question.terminal_psi != unit.psi)
     {
         return Err(ProofQuestionIndexError::TerminalIdentityMismatch);
     }
@@ -1124,7 +1113,7 @@ impl std::error::Error for OptimizationUnitBuildError {}
 /// the unit must use the verified constructor owned by the Terminal-Psi
 /// artifact boundary so the plan cannot detach from its verifier context.
 pub fn reconstruct_psi_optimization_unit_seed(
-    plan: &TerminalAbstractOperationPlan,
+    plan: &AbstractOperationPlan,
     fuel_schedule: FuelScheduleIdentity,
 ) -> Result<PsiOptimizationUnit, OptimizationUnitBuildError> {
     let functions = plan
@@ -1134,7 +1123,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         .collect::<Result<Vec<_>, _>>()?;
     let mut unit = PsiOptimizationUnit {
         identity: OptimizationUnitIdentity::from_canonical_bytes(b"pending canonical content"),
-        terminal_psi: plan.terminal_psi,
+        psi: plan.psi,
         fuel_schedule,
         entry: plan.entry,
         structural_types: plan.structural_types.clone(),
@@ -1154,7 +1143,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
 }
 
 fn build_function(
-    function: &TerminalAbstractFunction,
+    function: &AbstractFunction,
 ) -> Result<PsiOptimizationFunction, OptimizationUnitBuildError> {
     if function.block_entries.is_empty() {
         return Err(OptimizationUnitBuildError::MissingBlocks(function.machine));
@@ -1287,12 +1276,12 @@ fn build_function(
                 .collect();
             collect_places(operation, &mut declared_places);
             match operation {
-                TerminalAbstractOperation::EstablishPayloadlessCase {
+                AbstractOperation::EstablishPayloadlessCase {
                     psi_operation,
                     result,
                     ..
                 }
-                | TerminalAbstractOperation::CallStructural {
+                | AbstractOperation::CallStructural {
                     psi_operation,
                     result,
                     ..
@@ -1303,8 +1292,8 @@ fn build_function(
                         structural_type: result.structural_type,
                     },
                 }),
-                TerminalAbstractOperation::EstablishByteSequenceLiteral { place, .. }
-                | TerminalAbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
+                AbstractOperation::EstablishByteSequenceLiteral { place, .. }
+                | AbstractOperation::EstablishTrivialAffineLocal { place, .. } => {
                     structural_places.push(*place);
                 }
                 _ => {}
@@ -1358,8 +1347,8 @@ fn build_function(
     })
 }
 
-fn operation_node_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiProvenance> {
-    use TerminalAbstractOperation as O;
+fn operation_node_provenance(operation: &AbstractOperation) -> Vec<PsiProvenance> {
+    use AbstractOperation as O;
     let site = match operation {
         O::Jump { .. } | O::Conditional { .. } => return Vec::new(),
         O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
@@ -1430,8 +1419,8 @@ fn operation_node_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiPr
     vec![site]
 }
 
-fn operation_definition(operation: &TerminalAbstractOperation) -> Option<(ValueId, ScalarType)> {
-    use TerminalAbstractOperation as O;
+fn operation_definition(operation: &AbstractOperation) -> Option<(ValueId, ScalarType)> {
+    use AbstractOperation as O;
     match operation {
         O::Call {
             result,
@@ -1576,8 +1565,8 @@ fn operation_definition(operation: &TerminalAbstractOperation) -> Option<(ValueI
     }
 }
 
-fn operation_uses(operation: &TerminalAbstractOperation) -> Vec<ValueId> {
-    use TerminalAbstractOperation as O;
+fn operation_uses(operation: &AbstractOperation) -> Vec<ValueId> {
+    use AbstractOperation as O;
     match operation {
         O::Call { arguments, .. } | O::BoundaryCall { arguments, .. } => arguments.clone(),
         O::BooleanNot { operand, .. }
@@ -1624,8 +1613,8 @@ fn operation_uses(operation: &TerminalAbstractOperation) -> Vec<ValueId> {
     }
 }
 
-fn operation_edges(operation: &TerminalAbstractOperation) -> Vec<OptimizationEdge> {
-    use TerminalAbstractOperation as O;
+fn operation_edges(operation: &AbstractOperation) -> Vec<OptimizationEdge> {
+    use AbstractOperation as O;
     match operation {
         O::Jump {
             psi_edge,
@@ -1652,7 +1641,7 @@ fn operation_edges(operation: &TerminalAbstractOperation) -> Vec<OptimizationEdg
     }
 }
 
-fn successor_edge(successor: &TerminalAbstractSuccessor) -> OptimizationEdge {
+fn successor_edge(successor: &AbstractSuccessor) -> OptimizationEdge {
     OptimizationEdge {
         psi_edge: successor.psi_edge,
         target: successor.target,
@@ -1666,8 +1655,8 @@ fn successor_edge(successor: &TerminalAbstractSuccessor) -> OptimizationEdge {
     }
 }
 
-fn collect_places(operation: &TerminalAbstractOperation, places: &mut BTreeSet<PlaceId>) {
-    use TerminalAbstractOperation as O;
+fn collect_places(operation: &AbstractOperation, places: &mut BTreeSet<PlaceId>) {
+    use AbstractOperation as O;
     match operation {
         O::EstablishByteSequenceLiteral { place, .. }
         | O::EstablishTrivialAffineLocal { place, .. } => {
@@ -1683,7 +1672,7 @@ fn collect_places(operation: &TerminalAbstractOperation, places: &mut BTreeSet<P
     }
 }
 
-fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<OptimizationFact>) {
+fn collect_fact(operation: &AbstractOperation, facts: &mut Vec<OptimizationFact>) {
     if let Some((obligation, support)) = operation_obligation(operation) {
         facts.push(OptimizationFact::OperationObligationReference {
             obligation,
@@ -1691,7 +1680,7 @@ fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<Optimizat
         });
     }
     match operation {
-        TerminalAbstractOperation::BooleanConstant {
+        AbstractOperation::BooleanConstant {
             psi_operation,
             result,
             value,
@@ -1700,7 +1689,7 @@ fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<Optimizat
             constant: *value,
             support: *psi_operation,
         }),
-        TerminalAbstractOperation::IntegerConstant {
+        AbstractOperation::IntegerConstant {
             psi_operation,
             result,
             value,
@@ -1714,10 +1703,8 @@ fn collect_fact(operation: &TerminalAbstractOperation, facts: &mut Vec<Optimizat
     }
 }
 
-fn operation_obligation(
-    operation: &TerminalAbstractOperation,
-) -> Option<(ObligationId, OperationId)> {
-    use TerminalAbstractOperation as O;
+fn operation_obligation(operation: &AbstractOperation) -> Option<(ObligationId, OperationId)> {
+    use AbstractOperation as O;
     match operation {
         O::IntegerExactCast {
             psi_operation,
@@ -1783,8 +1770,8 @@ fn operation_obligation(
     }
 }
 
-fn operation_ownership(operation: &TerminalAbstractOperation) -> Vec<OwnershipEvent> {
-    use TerminalAbstractOperation as O;
+fn operation_ownership(operation: &AbstractOperation) -> Vec<OwnershipEvent> {
+    use AbstractOperation as O;
     match operation {
         O::CallUnit {
             claim_transfers, ..
@@ -1842,9 +1829,8 @@ fn operation_ownership(operation: &TerminalAbstractOperation) -> Vec<OwnershipEv
 #[cfg(test)]
 mod tests {
     use super::*;
-    use omega_terminal_abstract_operations::{
-        TerminalAbstractBlockEntry, TerminalAbstractFunctionResult, TerminalAbstractParameter,
-        TerminalAbstractResult, TerminalValueBinding,
+    use omega_abstract_operations::{
+        AbstractBlockEntry, AbstractFunctionResult, AbstractParameter, AbstractResult, ValueBinding,
     };
     use psi_core::{
         BoundaryMachineId, ContentPlaceVersion, DomainSemanticId, IntegerSign, IntegerType,
@@ -1860,14 +1846,14 @@ mod tests {
         constructor(raw).expect("nonzero test identity")
     }
 
-    fn plan() -> TerminalAbstractOperationPlan {
+    fn plan() -> AbstractOperationPlan {
         let machine = id(1, MachineId::new);
         let block = id(2, BlockId::new);
         let value = id(3, ValueId::new);
         let result = id(4, ValueId::new);
         let integer = IntegerType::new(IntegerSign::Unsigned, 8).expect("valid width");
-        TerminalAbstractOperationPlan {
-            terminal_psi: TerminalPsiIdentity {
+        AbstractOperationPlan {
+            psi: TerminalPsiIdentity {
                 vocabulary_marker: VocabularyMarker::CURRENT,
                 program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
             },
@@ -1875,36 +1861,34 @@ mod tests {
             structural_types: Vec::new(),
             boundary_machines: Vec::new(),
             provider_candidates: Vec::new(),
-            functions: vec![TerminalAbstractFunction {
+            functions: vec![AbstractFunction {
                 machine,
                 attachment: None,
                 entry: block,
-                parameters: vec![TerminalAbstractParameter {
+                parameters: vec![AbstractParameter {
                     value,
                     scalar_type: ScalarType::Integer(integer),
                 }],
                 structural_parameters: Vec::new(),
-                result: TerminalAbstractFunctionResult::Scalar(
-                    omega_terminal_abstract_operations::TerminalAbstractResult {
-                        value: result,
-                        scalar_type: ScalarType::Integer(integer),
-                    },
-                ),
+                result: AbstractFunctionResult::Scalar(omega_abstract_operations::AbstractResult {
+                    value: result,
+                    scalar_type: ScalarType::Integer(integer),
+                }),
                 entry_claims: Vec::new(),
                 published_service_ceiling: Vec::new(),
-                block_entries: vec![TerminalAbstractBlockEntry {
+                block_entries: vec![AbstractBlockEntry {
                     block,
                     parameters: Vec::new(),
                     operation_offset: 0,
                 }],
                 operations: vec![
-                    TerminalAbstractOperation::IntegerConstant {
+                    AbstractOperation::IntegerConstant {
                         psi_operation: id(5, OperationId::new),
                         result,
                         scalar_type: ScalarType::Integer(integer),
                         value: IntegerValue::Unsigned(9),
                     },
-                    TerminalAbstractOperation::Return {
+                    AbstractOperation::Return {
                         psi_edge: id(6, EdgeId::new),
                         result,
                         value: result,
@@ -1982,7 +1966,7 @@ mod tests {
         let mut mutations = Vec::new();
 
         let mut unit = baseline.clone();
-        unit.terminal_psi.program_fingerprint = SemanticFingerprint::from_bytes([8; 32]);
+        unit.psi.program_fingerprint = SemanticFingerprint::from_bytes([8; 32]);
         mutations.push(("terminal identity", unit));
         let mut unit = baseline.clone();
         unit.fuel_schedule = FuelScheduleIdentity::new(2).unwrap();
@@ -2052,7 +2036,7 @@ mod tests {
         let mut unit = baseline.clone();
         unit.accepted_obligation_facts
             .push(AcceptedObligationFact::new(
-                unit.terminal_psi,
+                unit.psi,
                 [4; 32],
                 machine,
                 id(5, OperationId::new),
@@ -2062,7 +2046,7 @@ mod tests {
         mutations.push(("accepted fact", unit));
         let mut unit = baseline.clone();
         unit.proof_questions.push(ProofQuestion::new(
-            unit.terminal_psi,
+            unit.psi,
             [5; 32],
             ProofQuestionOwner::Operation {
                 machine,
@@ -2079,7 +2063,7 @@ mod tests {
         let mut unit = baseline.clone();
         unit.ownership_frontier_facts
             .push(OwnershipFrontierFact::new(
-                unit.terminal_psi,
+                unit.psi,
                 machine,
                 OwnershipFrontierSite::BlockEntry(block),
                 OwnershipFrontierSnapshot {
@@ -2140,7 +2124,7 @@ mod tests {
             });
         mutations.push(("content entry claim", unit));
         let mut unit = baseline.clone();
-        unit.functions[0].result = TerminalAbstractFunctionResult::Unit;
+        unit.functions[0].result = AbstractFunctionResult::Unit;
         mutations.push(("function result signature", unit));
         let mut unit = baseline.clone();
         unit.functions[0]
@@ -2169,7 +2153,7 @@ mod tests {
         unit.functions[0].blocks[0].id = id(98, BlockId::new);
         mutations.push(("block", unit));
         let mut unit = baseline.clone();
-        let TerminalAbstractOperation::IntegerConstant { value, .. } =
+        let AbstractOperation::IntegerConstant { value, .. } =
             &mut unit.functions[0].blocks[0].nodes[0].operation
         else {
             unreachable!()
@@ -2198,7 +2182,7 @@ mod tests {
             .push(OptimizationEdge {
                 psi_edge: id(101, EdgeId::new),
                 target: block,
-                bindings: vec![TerminalValueBinding {
+                bindings: vec![ValueBinding {
                     parameter: id(102, ValueId::new),
                     argument: id(103, ValueId::new),
                     scalar_type,
@@ -2304,13 +2288,13 @@ mod tests {
             partial_custody: Vec::new(),
         };
         let block_fact = OwnershipFrontierFact::new(
-            seed.terminal_psi,
+            seed.psi,
             machine,
             OwnershipFrontierSite::BlockEntry(block),
             empty.clone(),
         );
         let edge_fact = OwnershipFrontierFact::new(
-            seed.terminal_psi,
+            seed.psi,
             machine,
             OwnershipFrontierSite::EdgeEntry(id(6, EdgeId::new)),
             empty,
@@ -2341,7 +2325,7 @@ mod tests {
             attach_ownership_frontier_facts(
                 seed.clone(),
                 vec![OwnershipFrontierFact::new(
-                    seed.terminal_psi,
+                    seed.psi,
                     machine,
                     OwnershipFrontierSite::BlockEntry(block),
                     duplicate_place_snapshot,
@@ -2385,7 +2369,7 @@ mod tests {
         );
         assert!(matches!(
             observations.nodes[1].events[0].operation,
-            TerminalAbstractOperation::Return { .. }
+            AbstractOperation::Return { .. }
         ));
     }
 
@@ -2402,28 +2386,28 @@ mod tests {
         let first_argument = function.parameters[0].value;
         let second_argument = id(70, ValueId::new);
         let scalar_type = function.parameters[0].scalar_type;
-        function.parameters.push(TerminalAbstractParameter {
+        function.parameters.push(AbstractParameter {
             value: second_argument,
             scalar_type,
         });
-        function.result = TerminalAbstractFunctionResult::Scalar(TerminalAbstractResult {
+        function.result = AbstractFunctionResult::Scalar(AbstractResult {
             value: first_parameter,
             scalar_type,
         });
         function.block_entries = vec![
-            TerminalAbstractBlockEntry {
+            AbstractBlockEntry {
                 block: entry,
                 parameters: Vec::new(),
                 operation_offset: 0,
             },
-            TerminalAbstractBlockEntry {
+            AbstractBlockEntry {
                 block: target,
                 parameters: vec![
-                    TerminalAbstractParameter {
+                    AbstractParameter {
                         value: first_parameter,
                         scalar_type,
                     },
-                    TerminalAbstractParameter {
+                    AbstractParameter {
                         value: second_parameter,
                         scalar_type,
                     },
@@ -2432,16 +2416,16 @@ mod tests {
             },
         ];
         function.operations = vec![
-            TerminalAbstractOperation::Jump {
+            AbstractOperation::Jump {
                 psi_edge: id(60, EdgeId::new),
                 target,
                 bindings: vec![
-                    TerminalValueBinding {
+                    ValueBinding {
                         parameter: first_parameter,
                         argument: first_argument,
                         scalar_type,
                     },
-                    TerminalValueBinding {
+                    ValueBinding {
                         parameter: second_parameter,
                         argument: second_argument,
                         scalar_type,
@@ -2449,7 +2433,7 @@ mod tests {
                 ],
                 trivial_affine_discards: Vec::new(),
             },
-            TerminalAbstractOperation::Return {
+            AbstractOperation::Return {
                 psi_edge: id(61, EdgeId::new),
                 result: first_parameter,
                 value: first_parameter,

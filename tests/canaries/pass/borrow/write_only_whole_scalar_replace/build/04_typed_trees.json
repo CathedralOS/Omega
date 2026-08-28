@@ -1,0 +1,268 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "replace",
+        "attached_data": null,
+        "type_parameters": [],
+        "supply": {
+          "kind": "checked_body"
+        },
+        "termination": {
+          "interface": "internal_derived"
+        },
+        "invokes": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "destination",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "access": "write_only"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "name",
+                  "path": [
+                    "destination"
+                  ]
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "value"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "forward",
+        "attached_data": null,
+        "type_parameters": [],
+        "supply": {
+          "kind": "checked_body"
+        },
+        "termination": {
+          "interface": "internal_derived"
+        },
+        "invokes": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "destination",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "i32"
+                  },
+                  "access": "write_only"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": null,
+                "target": "replace",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "borrow",
+                    "access": "write_only",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "destination"
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      "value"
+                    ]
+                  }
+                ],
+                "acknowledgement_synthesized": false,
+                "acknowledges_suspend": false,
+                "acknowledges_block": false
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "supply": {
+          "kind": "checked_body"
+        },
+        "termination": {
+          "interface": "internal_derived"
+        },
+        "invokes": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "access": "mutable"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "destination",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "initial_value": {
+                  "kind": "integer",
+                  "text": "0"
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": null,
+                "target": "forward",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "borrow",
+                    "access": "write_only",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "destination"
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "integer",
+                    "text": "42"
+                  }
+                ],
+                "acknowledgement_synthesized": false,
+                "acknowledges_suspend": false,
+                "acknowledges_block": false
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "propositions": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 1,
+    "data_type_parameter_count": 0,
+    "data_member_count": 0,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 3,
+    "operator_count": 0,
+    "proposition_count": 0,
+    "proposition_binder_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 3,
+    "state_parameter_count": 5,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 9,
+    "expression_struct_field_count": 0,
+    "statement_count": 4,
+    "transition_target_count": 0,
+    "type_reference_count": 9,
+    "type_constraint_count": 0
+  }
+}

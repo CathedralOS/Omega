@@ -20,25 +20,25 @@ These facts constrain the work below.
   canonical Terminal Psi. Omega begins at verified Terminal Psi and owns
   provider installation, optimization, ABI/storage realization, and native
   lowering.
-- The current development compiler still routes ordinary builds through
-  `CheckedTrees -> StateGraph -> ControlFlowPlan`. `StateGraph` and
-  `ControlFlowPlan` retain checked-tree expression data and are explicitly
-  transitional, so they are not foundations for a new optimizer.
+- The compiler has one semantic handoff into Omega: canonical Terminal Psi.
+  The former `CheckedTrees -> StateGraph -> ControlFlowPlan` backend and its
+  representations have been deleted; architecture tests fence their package
+  names and prevent a source-shaped fallback from returning.
 - The clean lane already decodes and verifies Terminal Psi artifact sections
-  before constructing `TerminalAbstractOperationPlan`. That representation has
+  before constructing `AbstractOperationPlan`. That representation has
   explicit blocks, typed values, operations, edges, places, claims, cleanup,
   boundary calls, and stable Psi provenance. It is the seed for the optimizer
   unit.
-- The legacy state-value planner already contains expression substitution,
-  exact integer/float folding, Boolean simplification, and guarded helper
-  expansion. This is useful behavior to port and test, not a durable pass
-  framework: it consumes `CheckedTrees`, has local fuel/depth caps, and is
-  interwoven with lowering.
-- `omega-target-operations-to-assigned-target-operations` currently assigns
-  computed values by cycling through six x86-64 or nine AArch64 scratch
-  registers. It has no general liveness, interference, spilling, splitting,
-  coalescing, or frame allocation. The clean Terminal assignment lane handles
-  bounded forms but is also not a general allocator.
+- Optimization begins from the verified Terminal-Psi-derived optimization
+  unit. Any expression substitution, folding, or simplification worth keeping
+  must be expressed and checked there; no checked-tree optimizer remains to
+  port around.
+- `omega-target-operations-to-assigned-target-operations` is the remaining
+  bounded publication adapter. It assigns computed values by cycling through
+  six x86-64 or nine AArch64 scratch registers and has no general liveness,
+  interference, spilling, splitting, coalescing, or frame allocation. It is
+  retained only until the selected-instruction continuation covers the full
+  target-operation vocabulary and reaches native publication.
 - `omega-register-model` now owns separate target-neutral declarative physical-
   register and instruction-constraint vocabularies with total structural
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
@@ -271,7 +271,7 @@ These facts constrain the work below.
   Checked compilation now retains the complete
   `SelectedCompilerProgramEntry`, not merely its machine name. The exact
   target-owned source signature and optional paired semantic/physical calling
-  plans stay together through Terminal native-realization input validation.
+  plans stay together through Terminal-Psi-to-native-artifact input validation.
   `ProgramEntrySourceSignatureIdentity` provides a canonical SHA-256 join over
   the complete normalized callable, target slot, receiver, ordered parameter
   roles/types/layouts/modes, and Unit result while excluding compilation-local
@@ -378,8 +378,8 @@ These facts constrain the work below.
   and its leaf cannot replace the entry bound by the checked settlement.
 
   That composite-object milestone has now landed in
-  `omega-terminal-native-realization`. Its opaque stage consumes the validated
-  ProgramEntry settlement, canonical optimized Terminal object artifact, and
+  `omega-terminal-psi-to-native-artifact`. Its opaque stage consumes the validated
+  ProgramEntry settlement, canonical optimized Omega object artifact, and
   compact wrapper encoding by value; independently replays all three; and
   rebuilds the semantic contract and wrapper plan. It places the 90-byte
   compiler-owned wrapper before a byte-for-byte retained copy of the canonical
@@ -465,7 +465,7 @@ These facts constrain the work below.
   retain the complete entry-claim source roster at each occurrence, and complete
   only the receipt-selected claim. That same checked continuation now reaches
   liveness, empty live ranges/homes, structural realization, a resolved 91-byte
-  two-symbol zero-relocation child object, and canonical Terminal object
+  two-symbol zero-relocation child object, and canonical Omega object
   custody. Object carriers expose the retained installation only by borrow. The
   semantic join independently matches the installed call, provider candidate,
   operation, arguments, completion evidence, entry claims, provider function,
@@ -649,7 +649,7 @@ These facts constrain the work below.
   effect vocabulary survive the Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
-  Terminal abstract, target, and assigned-target operations. Exact add,
+  abstract, target, and assigned-target operations. Exact add,
   subtract, and multiply remain distinct from wrapping operations until final
   ISA opcode realization. The optimization unit indexes these operation-to-
   obligation references and its independent validator reconstructs that index.
@@ -665,7 +665,7 @@ These facts constrain the work below.
   consumes an exact range plus direct-literal fact; the remaining ordered-
   comparison family and wider range consumers remain open.
 - The clean artifact boundary now exposes a required
-  `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
+  `VerifiedPsiOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
   bundle and fingerprint, verifier-reconstructed obligation set, and accepted
   facts. The ordinary empty-selection path continues to request only the bare
@@ -804,7 +804,7 @@ These facts constrain the work below.
   cyclic synthetic CFGs, preparing dead-scalar rules without treating the
   current acyclic Terminal slice as an architectural limitation.
 - The optimization unit now reconstructs an exhaustive observation row for
-  every Terminal abstract operation. Each row now retains the full operation
+  every abstract operation. Each row now retains the full operation
   and CFG successor payload even for pure scalar work, alongside definitions/
   uses, the effect token, ownership and cleanup events, exact Psi provenance
   and logical fuel, conservative crash/suspension knowledge, and classified
@@ -1129,8 +1129,9 @@ These facts constrain the work below.
   relocation records. Frame construction, external/process entry bridging,
   native image construction, installation, and publication remain unavailable.
   Final physical/publication and artifact metadata remain open.
-- `omega-lowering-optimizer` now owns a custody-preserving bridge from a
-  completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
+- `omega-optimization-run-to-abstract-operations` now owns a
+  custody-preserving pipeline stage from a
+  completed `OptimizationRun` to a clean `AbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
   independent rewrite validator, checks commit/ledger/manifest/bundle
   agreement, revalidates the transformed unit against the immutable verifier
@@ -1148,7 +1149,7 @@ These facts constrain the work below.
   Clean compiler staging uses this as its only selected route and consumes the
   opaque optimized carrier through a dedicated target-lowering API. The
   empty-selection compatibility route does not call it. All currently
-  representable Terminal abstract operations cross this cut by exhaustive
+  representable abstract operations cross this cut by exhaustive
   behavioral observation and lowering; unavailable named families reject at
   registry construction. The compiler-facing physical wrapper derives the
   selected-lowering projection from retained suite custody and covers Psi-only,
@@ -1185,32 +1186,32 @@ coverage test proving that every enabled rule phase is actually scheduled.
 Final product source:
 
 ```text
-source/omega/optimization/
-  core/
-  psi/{analyses,passes,validation}/
-  lowering/
-  regalloc/
-  machine/
-  policy/
-  cost/
 source/omega/pipeline/
+  optimization/
+    core/
+    psi/{analyses,passes,validation}/
+    lowering/
+    regalloc/
+    machine/
+    policy/
+    cost/
 ```
 
 Rust migration/reference implementation:
 
 ```text
 source/omega-rust/omega/
-  foundation/omega-optimization-core/
+  representations/omega-optimization-core/
   representations/omega-optimization-unit/
   representations/omega-register-model/
-  optimization/
+  pipeline/omega-optimization-run-to-abstract-operations/
+  pipeline/optimization/
     omega-psi-optimizer/
-    omega-lowering-optimizer/
     omega-regalloc/
     omega-machine-optimizer/
     omega-optimization-validation/
     omega-optimization-policy/
-  orchestration/omega-optimization-pipeline/
+    omega-optimization-pipeline/
 ```
 
 Do not create one crate per analysis or pass. Do not place Rust under
@@ -1219,6 +1220,25 @@ their data; optimizer/pipeline crates transform them. ISA crates own declarative
 target facts and encodings, not cross-target pass policy.
 
 ## Global gates
+
+- **OPT-SINGLE-PHYSICAL-CONVEYOR.** Delete the temporary Terminal
+  target-operation-to-assigned-operation publication adapter and make
+  legalization, selected instructions, liveness, allocation, physical
+  realization, machine emission, object construction, and image publication
+  one mandatory conveyor. Empty optimization selection is identity work in
+  that conveyor, never an alternate lowering route.
+
+  The compiler now has one public optimizer-owned native-continuation API; the
+  baseline and selected low-level entry points are no longer independently
+  callable by native realization. The remaining implementation split is real,
+  not cosmetic: forcing all current sources through selected legalization
+  failed the runtime/backend canary surface because the selected vocabulary is
+  deliberately narrow. Completion therefore requires full target-
+  operation coverage, general frame/exit evidence, and a selected-physical to
+  executable-image join. Acceptance: the complete compiler canary suite passes
+  with the compatibility-assignment variant and
+  `omega-target-operations-to-assigned-target-operations` removed;
+  repository search finds no target-to-assigned compatibility producer.
 
 Every milestone below must maintain all of these gates.
 
@@ -1258,9 +1278,9 @@ P0 explicit build selections + disabled-path firewall
 ```
 
 Terminal-Psi vertical-slice coverage proceeds in parallel with P0-P2. A pass is
-enabled only for the operation vocabulary its validator understands. Do not
-route new optimization through legacy `StateGraph` merely to avoid that
-dependency.
+enabled only for the operation vocabulary its validator understands. Missing
+coverage fails closed; it must not recreate a tree-consuming optimizer or an
+alternate semantic handoff.
 
 ## P0 — Opt-in and compatibility firewall
 
@@ -1287,7 +1307,7 @@ dependency.
   canonical container bytes,
   and the independently replayed absence of relocation records while declaring
   the external entry bridge, image, installation, and publication unavailable.
-  `ValidatedOptimizedTerminalObjectArtifactV1` now joins that clean object to
+  `ValidatedOptimizedObjectArtifactV1` now joins that clean object to
   the exact decoded Terminal module and proof bundle, optimization selection,
   target, semantic entry, every pre-physical through object manifest, canonical
   object roots, and zero-relocation statistics. Its strict `OMGOTA`/`OMGOTM`
@@ -1304,7 +1324,7 @@ dependency.
 ## P1 — Optimization representation and rule engine
 
 - **OPT-UNIT-BUILDER.** Build `PsiOptimizationUnit` from a verified
-  `TerminalAbstractOperationPlan`.
+  `AbstractOperationPlan`.
 
   Acceptance: functions have explicit blocks and edges, typed SSA scalar
   values, structural places, memory/effect chains, calls, crash/suspension
@@ -1943,11 +1963,12 @@ dependency.
   or source binding substitution is needed for supported Terminal slices.
   Unsupported shapes fail at a named boundary.
 
-  Current slice: the independently validated `omega-lowering-optimizer`
-  projection and opaque custody carriers are landed. The opt-in-only
+  Current slice: the independently validated
+  `omega-optimization-run-to-abstract-operations` projection and opaque
+  abstract custody carrier are landed. The opt-in-only
   `omega-optimization-pipeline` is the clean compiler lane's sole selected
-  entry, and SCCP/copy-propagation outputs lower through a dedicated optimized
-  target-operation API without legacy state. The opaque staged-assignment
+  entry, owns the target-custody join, and lowers SCCP/copy-propagation outputs
+  through a dedicated optimized target-operation API without legacy state. The opaque staged-assignment
   carrier now also retains that complete custody through the existing bounded
   scratch-register assignment and independently checks Terminal-Psi identity,
   the domain-separated independent projection-receipt identity, native target,
@@ -1980,15 +2001,15 @@ dependency.
   temporary scratch needs are visible to liveness; instruction encoders receive
   only assigned physical operands later.
 
-  Current slice: `omega-terminal-selected-instructions` owns a data-only,
+  Current slice: `omega-selected-instructions` owns a data-only,
   target-neutral selected CFG with typed virtual registers, exact definition
   sites, explicit operand access/class/fixed-view constraints, machine-state
   uses/defs/clobbers, source block/edge/value/operation provenance, and
   path-specific logical-fuel settlements. Selection now accepts only the
-  opaque validated `omega-terminal-legalized-operations` carrier; it cannot
+  opaque validated `omega-legalized-operations` carrier; it cannot
   freely recombine raw target operations, an abstract plan, and an optimization
   unit. The separate
-  `omega-terminal-target-operations-to-selected-instructions` stage produces
+  `omega-target-operations-to-selected-instructions` stage produces
   and validates seven deliberately bounded production shapes
   over one runtime Boolean parameter and a three-block conditional: leaf-local
   unsigned-i64 constants, one shared returned entry parameter, or two
@@ -2026,7 +2047,7 @@ dependency.
   complete provenance; legalization does not allocate registers or select
   stack offsets.
 
-  Current slice: `omega-terminal-legalized-operations` is a data-only,
+  Current slice: `omega-legalized-operations` is a data-only,
   target-bound representation below target operations and above instruction
   selection. Its V5 identity commits to Terminal-Psi, optimization-unit and
   fuel-schedule identities, exact `NativeTarget`, entry/function roster,
@@ -2123,7 +2144,7 @@ dependency.
   assembly, and the first ordinary materialize/copy/three-address-add/
   three-address-subtract/compare/branch forms for
   the existing System V, Microsoft, AAPCS64, and Darwin conventions. The
-  declarations live in clean Terminal ISA crates and are joined into a
+  declarations live in Omega ISA crates and are joined into a
   validated target-register environment retained by optimized staging. Both
   generic structural and ISA-semantic corruption suites are required. The ISA
   validators now reject a structurally valid but semantically altered
@@ -2519,8 +2540,8 @@ dependency.
   peephole, and state-footprint validation. Encoders reject undeclared implicit
   state.
 
-  Current slice: `omega-terminal-selected-instructions` now owns a closed v1
-  target machine-effect catalog vocabulary, and the two clean Terminal ISA
+  Current slice: `omega-selected-instructions` now owns a closed v1
+  target machine-effect catalog vocabulary, and the two Omega ISA
   owners publish and semantically validate catalogs for all nine currently
   admitted selected kinds. Each declaration binds its exact register-
   constraint key, explicit no-memory/no-trap/no-call/no-cleanup status, control
@@ -2599,7 +2620,7 @@ dependency.
   when `REX.X=1`; only reserved RSP has the no-index encoding, so R12+R12 must
   remain legal rather than falling back to an undeclared flag-writing ADD.
 
-  Each clean Terminal ISA owner now also has a `selected_form_encoding` module
+  Each Omega ISA owner now also has a `selected_form_encoding` module
   for layout-independent scalar forms. The modules resolve canonical physical
   views through target-owned architectural-name tables, reject foreign,
   reserved, or non-GPR64 views, emit only one versioned canonical byte form,
@@ -2779,7 +2800,7 @@ dependency.
   installation, and publication remain unavailable.
 
   The next object-owned boundary now consumes that validated text section by
-  value. `ValidatedRelocationFreeTerminalObjectContainerV1` creates exactly one
+  value. `ValidatedRelocationFreeObjectContainerV1` creates exactly one
   private object-local symbol per placed function in source order, names each
   from its `MachineId`, covers the text section with exact dense symbol
   intervals, and binds the semantic entry to exactly one of those symbols even
@@ -2793,7 +2814,7 @@ dependency.
 
   A canonical semantic/proof-to-object boundary now consumes both the verified
   Terminal artifact and clean object carrier by value.
-  `ValidatedOptimizedTerminalObjectArtifactV1` requires exact decoded module
+  `ValidatedOptimizedObjectArtifactV1` requires exact decoded module
   and proof-bundle equality, then binds the Terminal artifact, Psi and proof
   roots, optional debug fingerprint, selection set, target, semantic entry,
   every pre-physical through object manifest, canonical object/container roots,
@@ -2881,7 +2902,7 @@ dependency.
   its unrestricted parameters and empty claim roster do not match the checked
   ProgramStorage entry's linear qualified roots. The next backend boundary is
   the distinct compiler-owned semantic `ProgramStorageEntry` composite object
-  in `omega-terminal-native-realization`. The scalar-result conditional fixture
+  in `omega-terminal-psi-to-native-artifact`. The scalar-result conditional fixture
   used by the callable classifier remains
   intentionally ineligible. The current UEFI surface explicitly calls its
   physical shell planned and non-invoked: no authoritative contract maps
@@ -2908,8 +2929,8 @@ dependency.
 
 - **OPT-PROGRAM-STORAGE-WRAPPER-OBJECT — checked installed-provider composite
   and substitution matrix landed.** The owning semantic-entry join in
-  `omega-terminal-native-realization` consumes by value one replayed native
-  ProgramEntry settlement, the exact canonical optimized Terminal object for
+  `omega-terminal-psi-to-native-artifact` consumes by value one replayed native
+  ProgramEntry settlement, the exact canonical optimized Omega object for
   that settlement, and the selected compact semantic-wrapper encoding. It
   independently rebuilds the semantic ProgramStorage contract and wrapper plan,
   verifies the checked entry's ordered linear owned `Extent in Granted` roots
@@ -2937,7 +2958,7 @@ dependency.
 
   Landed coverage independently replays the composition and codecs and rejects
   object/manifest identity drift, child-text drift, and any attempt to classify
-  the compiler wrapper as a Terminal machine. A diagnostic-only independent
+  the compiler wrapper as a machine. A diagnostic-only independent
   replay now compares cloned selected evidence with the retained opaque
   installation without granting carrier authority. The checked-source
   integration matrix rejects provider/candidate identity, installed/authored

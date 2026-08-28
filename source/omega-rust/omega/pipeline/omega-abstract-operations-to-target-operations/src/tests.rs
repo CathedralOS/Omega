@@ -1,688 +1,2714 @@
-use crate::build_target_operation_plan;
+use super::*;
 use omega_abstract_operations::{
-    AbstractBoundaryEdge, AbstractBoundaryLink, AbstractBoundaryPolicyVerdict,
-    AbstractFunctionPlan, AbstractHostCallNativeArgument, AbstractHostCallOccurrence,
-    AbstractHostCallSourceSite, AbstractOperationPlan, AbstractPermissionEvent,
-    AbstractSourceBoundaryEdge, AbstractValueFact, AbstractValueOrigin, AbstractValueStatementRole,
-    BoundaryFootprintFragment, BoundaryFootprintFragmentOrigin, BoundaryFootprintPlan,
-    CallbackBoundaryFootprintPlan,
+    AbstractBlockEntry, AbstractFunction, AbstractOperation, AbstractOperationPlan,
+    AbstractParameter, AbstractResult, AbstractSuccessor, ValueBinding,
 };
-use omega_calling_conventions::{
-    HostCapability, HostOperation, HostOperationKey, MachineRegister, MachineStateSet, RegisterSet,
-    StateFootprintEvidence, build_host_abi_plan, callback_native_parameter_id,
+use omega_target_operations::MachineRegister;
+use psi_core::{BlockId, EdgeId, PlaceId, StructuralFieldId, StructuralTypeId};
+use psi_terminal::{
+    BoundaryMachineDeclaration, SemanticFingerprint, StructuralAccess, StructuralArgument,
+    StructuralFieldDeclaration, StructuralMultiplicity, StructuralParameterDeclaration,
+    StructuralPathSegment, StructuralTypeDeclaration, StructuralTypeShape,
+    TerminalAffineCleanupAction, TerminalPsiIdentity, VocabularyMarker,
 };
-use omega_control_flow::{MachineFunctionIdentity, StateKey};
-use omega_platform_interface::HostCallPlan;
-use omega_target::NativeTarget;
-use psi_symbols::SymbolHandle;
-use std::sync::Arc;
+
+fn structural_scalar_call_plan() -> AbstractOperationPlan {
+    let caller = MachineId::new(70).unwrap();
+    let callee = MachineId::new(71).unwrap();
+    let structural_type = StructuralTypeId::new(70).unwrap();
+    let caller_place = PlaceId::new(70).unwrap();
+    let callee_place = PlaceId::new(71).unwrap();
+    let caller_result = ValueId::new(70).unwrap();
+    let callee_result = ValueId::new(71).unwrap();
+    let callee_value = ValueId::new(72).unwrap();
+    let block_entry = |machine: MachineId| omega_abstract_operations::AbstractBlockEntry {
+        block: BlockId::new(machine.get()).unwrap(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    };
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Affine,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: caller,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Token".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(70).unwrap(),
+                    identity: "live".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                }],
+            },
+        }],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: BlockId::new(caller.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place, 0)],
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: caller_result,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(caller)],
+                operations: vec![
+                    AbstractOperation::CallStructuralScalar {
+                        psi_operation: OperationId::new(70).unwrap(),
+                        result: AbstractResult {
+                            value: caller_result,
+                            scalar_type: ScalarType::Boolean,
+                        },
+                        callee,
+                        structural_arguments: vec![StructuralArgument {
+                            place: caller_place,
+                            access: StructuralAccess::Owned,
+                            path: Vec::new(),
+                        }],
+                        claim_transfers: Vec::new(),
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: EdgeId::new(70).unwrap(),
+                        result: caller_result,
+                        value: caller_result,
+                        scalar_type: ScalarType::Boolean,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            AbstractFunction {
+                machine: callee,
+                attachment: None,
+                entry: BlockId::new(callee.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place, 0)],
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: callee_result,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(callee)],
+                operations: vec![
+                    AbstractOperation::BooleanConstant {
+                        psi_operation: OperationId::new(71).unwrap(),
+                        result: callee_value,
+                        value: true,
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: EdgeId::new(71).unwrap(),
+                        result: callee_result,
+                        value: callee_value,
+                        scalar_type: ScalarType::Boolean,
+                        cleanup_actions: vec![TerminalAffineCleanupAction::DiscardRoot(
+                            callee_place,
+                        )],
+                    },
+                ],
+            },
+        ],
+    }
+}
 
 #[test]
-fn preserves_exact_host_call_occurrences_in_target_semantics() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let requirement: Arc<str> = Arc::from("package::Registrar::register#exact");
-    let mut arguments = psi_arena::HandleSpan::empty();
-    abstract_operations
-        .semantics
-        .boundaries
-        .host_call_arguments
-        .append_to_span(
-            &mut arguments,
-            AbstractHostCallNativeArgument {
-                formal_ordinal: 0,
-                native_parameter: Some(callback_native_parameter_id(&requirement, 0)),
-            },
-        );
-    abstract_operations
-        .semantics
-        .boundaries
-        .host_calls
-        .insert(AbstractHostCallOccurrence {
-            source_call_index: 3,
-            source_call_generation: 1,
-            source_site: AbstractHostCallSourceSite::Statement(
-                psi_arena::Handle::from_arena_index(5),
-            ),
-            registration_operation: SymbolHandle::from_arena_index(7),
-            requirement_identity: requirement,
-            source_key: StateKey::default(),
-            statement_index: 2,
-            call_ordinal: 1,
-            lowering_index: 9,
-            lowering_generation: 1,
-            arguments,
-        });
-
-    let target_operations = build_target_operation_plan(
+fn whole_root_structural_call_retains_direct_scalar_return_abi() {
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
         NativeTarget::linux_arm64(),
-        &build_host_abi_plan(NativeTarget::linux_arm64()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&structural_scalar_call_plan(), target)
+            .expect("bounded structural scalar call lowers");
+        let TargetOperation::ReturnStructuralScalarCall {
+            scalar_type,
+            callee,
+            structural_parameters,
+            arguments,
+            ..
+        } = &lowered.functions[0].operation
+        else {
+            panic!("structural scalar call retains its dedicated target carrier")
+        };
+        assert_eq!(*scalar_type, ScalarType::Boolean);
+        assert_eq!(*callee, MachineId::new(71).unwrap());
+        assert_eq!(structural_parameters.len(), 1);
+        assert_eq!(arguments.len(), 1);
+        assert!(arguments[0].path.is_empty());
+        assert_eq!(arguments[0].source_byte_offset, 0);
+    }
+}
 
-    assert_eq!(
-        target_operations.semantics.boundaries.host_calls,
-        abstract_operations.semantics.boundaries.host_calls
-    );
-    assert_eq!(
-        target_operations.semantics.boundaries.host_call_arguments,
-        abstract_operations.semantics.boundaries.host_call_arguments
-    );
+fn bounded_boolean_cleanup_plan() -> AbstractOperationPlan {
+    let caller = MachineId::new(40).unwrap();
+    let cleanup = MachineId::new(41).unwrap();
+    let helper = MachineId::new(42).unwrap();
+    let token_type = StructuralTypeId::new(40).unwrap();
+    let plain_type = StructuralTypeId::new(41).unwrap();
+    let helper_type = StructuralTypeId::new(42).unwrap();
+    let token = PlaceId::new(40).unwrap();
+    let plain = PlaceId::new(41).unwrap();
+    let left = ValueId::new(40).unwrap();
+    let right = ValueId::new(41).unwrap();
+    let false_value = ValueId::new(42).unwrap();
+    let true_value = ValueId::new(43).unwrap();
+    let second_false_value = ValueId::new(44).unwrap();
+    let result = ValueId::new(45).unwrap();
+    let cleanup_actions = vec![
+        TerminalAffineCleanupAction::DiscardRoot(plain),
+        TerminalAffineCleanupAction::InvokeNominal(psi_terminal::NominalAffineCleanup {
+            place: token,
+            structural_type: token_type,
+            cleanup_machine: cleanup,
+            cleanup_receiver: None,
+            requirement_obligations: Vec::new(),
+        }),
+    ];
+    let leaf_return = |edge, value| AbstractOperation::Return {
+        psi_edge: EdgeId::new(edge).unwrap(),
+        result,
+        value,
+        scalar_type: ScalarType::Boolean,
+        cleanup_actions: cleanup_actions.clone(),
+    };
+    let block_entry = |block, operation_offset| omega_abstract_operations::AbstractBlockEntry {
+        block: BlockId::new(block).unwrap(),
+        parameters: Vec::new(),
+        operation_offset,
+    };
+    let return_unit = |edge| AbstractOperation::ReturnUnit {
+        psi_edge: EdgeId::new(edge).unwrap(),
+        cleanup_actions: Vec::new(),
+    };
+    let unit_function = |machine, attachment, operations| AbstractFunction {
+        machine,
+        attachment,
+        entry: BlockId::new(machine.get()).unwrap(),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![block_entry(machine.get(), 0)],
+        operations,
+    };
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: caller,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: token_type,
+                identity: "Token".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: plain_type,
+                identity: "Plain".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+            StructuralTypeDeclaration {
+                id: helper_type,
+                identity: "Helper".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: BlockId::new(1).unwrap(),
+                parameters: vec![
+                    AbstractParameter {
+                        value: left,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                    AbstractParameter {
+                        value: right,
+                        scalar_type: ScalarType::Boolean,
+                    },
+                ],
+                structural_parameters: vec![
+                    StructuralParameterDeclaration {
+                        place: token,
+                        position: 0,
+                        is_self: false,
+                        structural_type: token_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                    },
+                    StructuralParameterDeclaration {
+                        place: plain,
+                        position: 1,
+                        is_self: false,
+                        structural_type: plain_type,
+                        multiplicity: StructuralMultiplicity::Affine,
+                        access: StructuralAccess::Owned,
+                        qualifications: Vec::new(),
+                    },
+                ],
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: result,
+                    scalar_type: ScalarType::Boolean,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![
+                    block_entry(1, 0),
+                    block_entry(2, 1),
+                    block_entry(3, 2),
+                    block_entry(4, 4),
+                    block_entry(5, 6),
+                ],
+                operations: vec![
+                    AbstractOperation::Conditional {
+                        condition: left,
+                        when_true: AbstractSuccessor {
+                            psi_edge: EdgeId::new(1).unwrap(),
+                            target: BlockId::new(2).unwrap(),
+                            bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: AbstractSuccessor {
+                            psi_edge: EdgeId::new(2).unwrap(),
+                            target: BlockId::new(3).unwrap(),
+                            bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    AbstractOperation::Conditional {
+                        condition: right,
+                        when_true: AbstractSuccessor {
+                            psi_edge: EdgeId::new(3).unwrap(),
+                            target: BlockId::new(4).unwrap(),
+                            bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: AbstractSuccessor {
+                            psi_edge: EdgeId::new(4).unwrap(),
+                            target: BlockId::new(5).unwrap(),
+                            bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                    AbstractOperation::BooleanConstant {
+                        psi_operation: OperationId::new(40).unwrap(),
+                        result: false_value,
+                        value: false,
+                    },
+                    leaf_return(5, false_value),
+                    AbstractOperation::BooleanConstant {
+                        psi_operation: OperationId::new(41).unwrap(),
+                        result: true_value,
+                        value: true,
+                    },
+                    leaf_return(6, true_value),
+                    AbstractOperation::BooleanConstant {
+                        psi_operation: OperationId::new(42).unwrap(),
+                        result: second_false_value,
+                        value: false,
+                    },
+                    leaf_return(7, second_false_value),
+                ],
+            },
+            unit_function(
+                cleanup,
+                Some(token_type),
+                vec![
+                    AbstractOperation::CallUnit {
+                        psi_operation: OperationId::new(43).unwrap(),
+                        callee: helper,
+                        structural_arguments: Vec::new(),
+                        claim_transfers: Vec::new(),
+                    },
+                    return_unit(8),
+                ],
+            ),
+            unit_function(helper, Some(helper_type), vec![return_unit(9)]),
+        ],
+    }
 }
 
 #[test]
-fn preserves_generated_function_identity_in_target_plan() {
-    let continuation = StateKey {
-        machine: SymbolHandle::from_arena_index(1),
-        state: SymbolHandle::from_arena_index(2),
-        segment_index: 0,
-    };
-    let identity = MachineFunctionIdentity::program_storage_entry_wrapper(continuation)
-        .expect("valid continuation should admit wrapper identity");
-    let mut abstract_operations = AbstractOperationPlan::default();
-    abstract_operations
-        .code
-        .functions
-        .insert(AbstractFunctionPlan {
-            symbol: Arc::from("__omega_program_storage_entry"),
-            identity,
-            instructions: Default::default(),
-        });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::host(),
-        &build_host_abi_plan(NativeTarget::host()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    let [function] = target_operations.code.functions.storage_slice() else {
-        panic!("one abstract function should produce one target function")
-    };
-    assert_eq!(function.identity, identity);
-    assert_eq!(function.identity.source_key(), None);
-    assert_eq!(
-        function.identity.program_storage_entry_continuation(),
-        Some(continuation)
-    );
+fn bounded_boolean_control_retains_one_uniform_mixed_cleanup_frontier() {
+    let plan = bounded_boolean_cleanup_plan();
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&plan, target)
+            .expect("bounded Boolean control and mixed cleanup lower");
+        let TargetOperation::BooleanControlWithCleanup {
+            control,
+            structural_parameters,
+            cleanup_actions,
+            ..
+        } = &lowered.functions[0].operation
+        else {
+            panic!("bounded Boolean cleanup retains its target carrier")
+        };
+        assert_eq!(structural_parameters.len(), 2);
+        assert!(matches!(
+            cleanup_actions.as_slice(),
+            [
+                TerminalAffineCleanupAction::DiscardRoot(discarded),
+                TerminalAffineCleanupAction::InvokeNominal(cleanup),
+            ] if *discarded == PlaceId::new(41).unwrap()
+                && cleanup.place == PlaceId::new(40).unwrap()
+                && cleanup.cleanup_machine == MachineId::new(41).unwrap()
+                && cleanup.cleanup_receiver.is_none()
+                && cleanup.requirement_obligations.is_empty()
+        ));
+        let TargetBooleanControl::Conditional {
+            when_true,
+            when_false,
+            ..
+        } = control
+        else {
+            panic!("outer runtime input remains the root decision")
+        };
+        let TargetBooleanControl::Conditional {
+            when_true: nested_true,
+            when_false: nested_false,
+            ..
+        } = when_true.control.as_ref()
+        else {
+            panic!("true arm retains the second decision")
+        };
+        let leaf_edge = |control: &TargetBooleanControl| match control {
+            TargetBooleanControl::ReturnImmediate {
+                psi_return_edge, ..
+            } => *psi_return_edge,
+            _ => panic!("bounded decision leaf returns one immediate Boolean"),
+        };
+        assert_eq!(
+            [
+                leaf_edge(&nested_true.control),
+                leaf_edge(&nested_false.control),
+                leaf_edge(&when_false.control),
+            ],
+            [
+                EdgeId::new(6).unwrap(),
+                EdgeId::new(7).unwrap(),
+                EdgeId::new(5).unwrap(),
+            ],
+        );
+    }
 }
 
 #[test]
-fn preserves_outgoing_stack_address_recipe_in_target_plan() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let instructions = abstract_operations.code.instructions.insert_many([
-        omega_abstract_operations::AbstractOperation {
-            kind: omega_abstract_operations::AbstractOperationKind::ReserveOutgoingStackFrame {
-                byte_count: 72,
-            },
-            ..Default::default()
-        },
-        omega_abstract_operations::AbstractOperation {
-            kind: omega_abstract_operations::AbstractOperationKind::WriteOutgoingStackU64 {
-                stack_byte_offset: 32,
-                value: 0x1020,
-            },
-            ..Default::default()
-        },
-        omega_abstract_operations::AbstractOperation {
-            kind: omega_abstract_operations::AbstractOperationKind::LoadOutgoingStackAddress {
-                register: MachineRegister::X86Rcx,
-                stack_byte_offset: 32,
-            },
-            ..Default::default()
-        },
-        omega_abstract_operations::AbstractOperation {
-            kind: omega_abstract_operations::AbstractOperationKind::ReleaseOutgoingStackFrame {
-                byte_count: 72,
-            },
-            ..Default::default()
-        },
-    ]);
-    abstract_operations
-        .code
-        .functions
-        .insert(AbstractFunctionPlan {
-            symbol: Arc::from("synthetic_wrapper"),
-            identity: MachineFunctionIdentity::default(),
-            instructions,
-        });
-    let target = NativeTarget::uefi_x64();
-    let target_operations = build_target_operation_plan(
-        target,
-        &build_host_abi_plan(target),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-    let [reserve, write, instruction, release] =
-        target_operations.code.instructions.storage_slice()
+fn bounded_boolean_cleanup_rejects_nonuniform_or_hidden_frontiers() {
+    let mut plan = bounded_boolean_cleanup_plan();
+    let AbstractOperation::Return {
+        cleanup_actions, ..
+    } = &mut plan.functions[0].operations[3]
     else {
-        panic!("balanced caller-frame recipes should survive lowering")
+        unreachable!("first leaf returns")
     };
-    assert_eq!(
-        reserve.kind,
-        omega_target_operations::TargetOperationKind::ReserveOutgoingStackFrame { byte_count: 72 }
+    cleanup_actions.clear();
+    assert!(matches!(
+        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+        Err(LoweringError::UnsupportedOperationInScalarFunction(_))
+    ));
+
+    let mut ordinary = constant_conditional_plan(false);
+    let place = PlaceId::new(90).unwrap();
+    let AbstractOperation::Return {
+        cleanup_actions, ..
+    } = &mut ordinary.functions[0].operations[3]
+    else {
+        unreachable!("constant fixture true arm returns")
+    };
+    cleanup_actions.push(TerminalAffineCleanupAction::DiscardRoot(place));
+    assert!(matches!(
+        lower_to_target_operations(&ordinary, NativeTarget::linux_x64()),
+        Err(LoweringError::UnsupportedOperationInScalarFunction(_))
+    ));
+}
+
+#[test]
+fn two_nominal_cleanups_admit_zero_one_distinct_or_shared_bounded_executable_bodies() {
+    let caller = MachineId::new(1).unwrap();
+    let executable_cleanup = MachineId::new(2).unwrap();
+    let empty_cleanup = MachineId::new(3).unwrap();
+    let helper = MachineId::new(4).unwrap();
+    let receiver_type = StructuralTypeId::new(1).unwrap();
+    let helper_type = StructuralTypeId::new(2).unwrap();
+    let first_place = PlaceId::new(1).unwrap();
+    let second_place = PlaceId::new(2).unwrap();
+    let block = |machine: MachineId| BlockId::new(machine.get()).unwrap();
+    let return_unit = |edge| AbstractOperation::ReturnUnit {
+        psi_edge: EdgeId::new(edge).unwrap(),
+        cleanup_actions: Vec::new(),
+    };
+    let unit_function = |machine, attachment, operations| AbstractFunction {
+        machine,
+        attachment,
+        entry: block(machine),
+        parameters: Vec::new(),
+        structural_parameters: Vec::new(),
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+            block: block(machine),
+            parameters: Vec::new(),
+            operation_offset: 0,
+        }],
+        operations,
+    };
+    let cleanup = |place, cleanup_machine| psi_terminal::NominalAffineCleanup {
+        place,
+        structural_type: receiver_type,
+        cleanup_machine,
+        cleanup_receiver: None,
+        requirement_obligations: Vec::new(),
+    };
+    let caller_parameters = [first_place, second_place]
+        .into_iter()
+        .enumerate()
+        .map(|(position, place)| StructuralParameterDeclaration {
+            place,
+            position: u32::try_from(position).unwrap(),
+            is_self: false,
+            structural_type: receiver_type,
+            multiplicity: StructuralMultiplicity::Affine,
+            access: StructuralAccess::Owned,
+            qualifications: Vec::new(),
+        })
+        .collect::<Vec<_>>();
+    let executable_call = AbstractOperation::CallUnit {
+        psi_operation: OperationId::new(1).unwrap(),
+        callee: helper,
+        structural_arguments: Vec::new(),
+        claim_transfers: Vec::new(),
+    };
+    let mut plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: caller,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: receiver_type,
+                identity: "Receiver".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                        )),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: helper_type,
+                identity: "Helper".into(),
+                shape: StructuralTypeShape::Record { fields: Vec::new() },
+            },
+        ],
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                structural_parameters: caller_parameters,
+                ..unit_function(
+                    caller,
+                    None,
+                    vec![AbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(1).unwrap(),
+                        cleanup_actions: vec![
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup(
+                                second_place,
+                                executable_cleanup,
+                            )),
+                            TerminalAffineCleanupAction::InvokeNominal(cleanup(
+                                first_place,
+                                empty_cleanup,
+                            )),
+                        ],
+                    }],
+                )
+            },
+            unit_function(
+                executable_cleanup,
+                Some(receiver_type),
+                vec![executable_call.clone(), return_unit(2)],
+            ),
+            unit_function(empty_cleanup, Some(receiver_type), vec![return_unit(3)]),
+            unit_function(helper, Some(helper_type), vec![return_unit(4)]),
+        ],
+    };
+
+    lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("one executable and one empty cleanup lower");
+
+    plan.functions[1].operations.remove(0);
+    lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("two empty cleanup bodies remain accepted");
+
+    plan.functions[1]
+        .operations
+        .insert(0, executable_call.clone());
+    plan.functions[2].operations.insert(
+        0,
+        AbstractOperation::CallUnit {
+            psi_operation: OperationId::new(2).unwrap(),
+            callee: helper,
+            structural_arguments: Vec::new(),
+            claim_transfers: Vec::new(),
+        },
     );
+    lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("two distinct executable cleanup bodies lower");
+
+    let AbstractOperation::ReturnUnit {
+        cleanup_actions, ..
+    } = &mut plan.functions[0].operations[0]
+    else {
+        unreachable!("caller remains a direct return")
+    };
+    let TerminalAffineCleanupAction::InvokeNominal(second) = &mut cleanup_actions[1] else {
+        unreachable!("second action remains nominal")
+    };
+    second.cleanup_machine = executable_cleanup;
+    let scalar_cleanup_actions = cleanup_actions.clone();
+    lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("two actions sharing one executable cleanup body lower");
+
+    let scalar_value = ValueId::new(1).unwrap();
+    let scalar_result = ValueId::new(2).unwrap();
+    plan.functions[0].result = AbstractFunctionResult::Scalar(AbstractResult {
+        value: scalar_result,
+        scalar_type: ScalarType::Boolean,
+    });
+    plan.functions[0].operations = vec![
+        AbstractOperation::BooleanConstant {
+            psi_operation: OperationId::new(3).unwrap(),
+            result: scalar_value,
+            value: true,
+        },
+        AbstractOperation::Return {
+            psi_edge: EdgeId::new(1).unwrap(),
+            result: scalar_result,
+            value: scalar_value,
+            scalar_type: ScalarType::Boolean,
+            cleanup_actions: scalar_cleanup_actions.clone(),
+        },
+    ];
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64())
+        .expect("scalar result composes the same ordered cleanup frontier");
+    assert!(matches!(
+        &lowered.functions[0].operation,
+        TargetOperation::ScalarReturnWithCleanup {
+            scalar,
+            structural_parameters,
+            cleanup_actions: lowered_actions,
+            ..
+        } if matches!(scalar.as_ref(), TargetOperation::ReturnBooleanImmediate {
+            value: true,
+            ..
+        })
+            && structural_parameters.len() == 2
+            && lowered_actions == &scalar_cleanup_actions
+    ));
+}
+
+#[test]
+fn refuses_a_return_whose_value_was_never_materialized() {
+    let machine = MachineId::new(1).expect("machine");
+    let unknown = ValueId::new(1).expect("unknown value");
+    let result = ValueId::new(2).expect("result");
+    let i32_type = IntegerType::new(psi_core::IntegerSign::Signed, 32).expect("i32");
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(1).expect("block"),
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type: ScalarType::Integer(i32_type),
+            }),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: Vec::new(),
+            operations: vec![AbstractOperation::Return {
+                psi_edge: EdgeId::new(1).expect("edge"),
+                result,
+                value: unknown,
+                scalar_type: ScalarType::Integer(i32_type),
+                cleanup_actions: Vec::new(),
+            }],
+        }],
+    };
+
     assert_eq!(
-        write.kind,
-        omega_target_operations::TargetOperationKind::WriteOutgoingStackU64 {
-            stack_byte_offset: 32,
-            value: 0x1020,
-        }
-    );
-    assert_eq!(
-        instruction.kind,
-        omega_target_operations::TargetOperationKind::LoadOutgoingStackAddress {
-            register: MachineRegister::X86Rcx,
-            stack_byte_offset: 32,
-        }
-    );
-    assert_eq!(
-        release.kind,
-        omega_target_operations::TargetOperationKind::ReleaseOutgoingStackFrame { byte_count: 72 }
+        lower_to_target_operations(&plan, NativeTarget::linux_x64()),
+        Err(LoweringError::UnknownValue(unknown))
     );
 }
 
 #[test]
-fn preserves_single_word_data_address_write_in_target_plan() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let data = omega_abstract_operations::AbstractDataObjectHandle::from_arena_index(4);
-    let instructions = abstract_operations.code.instructions.insert_many([
-        omega_abstract_operations::AbstractOperation {
-            kind: omega_abstract_operations::AbstractOperationKind::WritePlaceAddress {
-                source: omega_abstract_operations::Place::at(
-                    omega_abstract_operations::RuntimeStorageRegion::RuntimeFrame,
-                    24,
-                ),
-                target_offset: 80,
+fn unit_fixed_array_call_selects_exact_forty_byte_native_placements() {
+    let root = MachineId::new(1).unwrap();
+    let callee = MachineId::new(2).unwrap();
+    let element_type = StructuralTypeId::new(1).unwrap();
+    let structural_type = StructuralTypeId::new(2).unwrap();
+    let root_place = PlaceId::new(1).unwrap();
+    let callee_place = PlaceId::new(2).unwrap();
+    let u64_type =
+        ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
+    let structural_types = vec![
+        StructuralTypeDeclaration {
+            id: element_type,
+            identity: "Acknowledgement".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(u64_type),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).unwrap(),
+                        identity: "proof".into(),
+                        relevance: psi_terminal::BindingRelevance::Erased,
+                        field_type: StructuralFieldType::Erased {
+                            type_identity: "named(name(example::Evidence))".into(),
+                        },
+                    },
+                ],
             },
-            ..Default::default()
         },
-        omega_abstract_operations::AbstractOperation {
-            kind:
-                omega_abstract_operations::AbstractOperationKind::WriteDataAddressToRuntimeFrame {
-                    data,
-                    target_offset: 88,
-                },
-            ..Default::default()
+        StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "[Acknowledgement; 5]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: element_type,
+                length: 5,
+            },
         },
-    ]);
-    abstract_operations
-        .code
-        .functions
-        .insert(AbstractFunctionPlan {
-            symbol: Arc::from("dynamic_descriptor_fixture"),
-            identity: MachineFunctionIdentity::default(),
-            instructions,
-        });
+    ];
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    let unit_function = |machine, place, operations| AbstractFunction {
+        machine,
+        attachment: None,
+        entry: BlockId::new(machine.get()).unwrap(),
+        parameters: Vec::new(),
+        structural_parameters: vec![parameter(place)],
+        result: AbstractFunctionResult::Unit,
+        entry_claims: Vec::new(),
+        published_service_ceiling: Vec::new(),
+        block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+            block: BlockId::new(machine.get()).unwrap(),
+            parameters: Vec::new(),
+            operation_offset: 0,
+        }],
+        operations,
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: root,
+        structural_types,
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            unit_function(
+                root,
+                root_place,
+                vec![
+                    AbstractOperation::CallUnit {
+                        psi_operation: OperationId::new(1).unwrap(),
+                        callee,
+                        structural_arguments: vec![psi_terminal::StructuralArgument {
+                            place: root_place,
+                            access: StructuralAccess::Owned,
+                            path: Vec::new(),
+                        }],
+                        claim_transfers: Vec::new(),
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(1).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            ),
+            unit_function(
+                callee,
+                callee_place,
+                vec![AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(2).unwrap(),
+                    cleanup_actions: Vec::new(),
+                }],
+            ),
+        ],
+    };
 
-    let target = NativeTarget::linux_arm64();
-    let target_operations = build_target_operation_plan(
-        target,
-        &build_host_abi_plan(target),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-    let [instance, table] = target_operations.code.instructions.storage_slice() else {
-        panic!("both dynamic descriptor word writes must survive target lowering")
+    for target in [
+        NativeTarget::linux_x64(),
+        NativeTarget::windows_x64(),
+        NativeTarget::uefi_x64(),
+        NativeTarget::linux_arm64(),
+        NativeTarget::macos_arm64(),
+    ] {
+        let lowered = lower_to_target_operations(&plan, target).unwrap();
+        let TargetOperation::UnitBody(root) = &lowered.functions[0].operation else {
+            panic!("root must remain Unit")
+        };
+        assert_eq!(root.parameters[0].shape, ValueShape::integer(40, 8));
+        let TargetUnitOperation::Call { arguments, .. } = &root.operations[0] else {
+            panic!("root must call helper")
+        };
+        assert!(arguments[0].path.is_empty());
+        assert_eq!(arguments[0].shape, ValueShape::integer(40, 8));
+    }
+
+    let linux = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    let TargetOperation::UnitBody(linux_root) = &linux.functions[0].operation else {
+        panic!("root must remain Unit")
+    };
+    assert_eq!(linux_root.parameters[0].shape, ValueShape::integer(40, 8));
+    assert_eq!(linux_root.parameters[0].placement.locations.len(), 5);
+    assert!(
+        linux_root.parameters[0]
+            .placement
+            .locations
+            .iter()
+            .enumerate()
+            .all(|(index, location)| matches!(
+                location,
+                ValueLocation::Stack {
+                    stack_byte_offset,
+                    value_byte_offset,
+                    byte_size: 8,
+                    alignment: 8,
+                } if *stack_byte_offset == index as u32 * 8
+                    && *value_byte_offset == index as u16 * 8
+            ))
+    );
+    let TargetUnitOperation::Call { arguments, .. } = &linux_root.operations[0] else {
+        panic!("root must call helper")
+    };
+    assert_eq!(arguments[0].source, arguments[0].destination);
+
+    let windows = lower_to_target_operations(&plan, NativeTarget::windows_x64()).unwrap();
+    let TargetOperation::UnitBody(windows_root) = &windows.functions[0].operation else {
+        panic!("root must remain Unit")
     };
     assert!(matches!(
-        instance.kind,
-        omega_target_operations::TargetOperationKind::WritePlaceAddress {
-            target_offset: 80,
+        windows_root.parameters[0].placement.locations.as_slice(),
+        [ValueLocation::Indirect {
+            pointer: omega_calling_conventions::IndirectPointerLocation::Register(
+                MachineRegister::X86Rcx
+            ),
+            byte_size: 40,
+            alignment: 8,
+            ..
+        }]
+    ));
+    let TargetUnitOperation::Call { arguments, .. } = &windows_root.operations[0] else {
+        panic!("root must call helper")
+    };
+    assert_eq!(arguments[0].source, arguments[0].destination);
+}
+
+#[test]
+fn fixed_array_layout_repeats_padded_nested_elements_and_rejects_overflow() {
+    let element_type = StructuralTypeId::new(1).unwrap();
+    let inner_array_type = StructuralTypeId::new(2).unwrap();
+    let outer_array_type = StructuralTypeId::new(3).unwrap();
+    let oversized_array_type = StructuralTypeId::new(4).unwrap();
+    let u64_type =
+        ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
+    let declarations = vec![
+        StructuralTypeDeclaration {
+            id: element_type,
+            identity: "PaddedElement".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "tag".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Boolean),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(2).unwrap(),
+                        identity: "value".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(u64_type),
+                    },
+                ],
+            },
+        },
+        StructuralTypeDeclaration {
+            id: inner_array_type,
+            identity: "[PaddedElement; 2]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: element_type,
+                length: 2,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: outer_array_type,
+            identity: "[[PaddedElement; 2]; 3]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: inner_array_type,
+                length: 3,
+            },
+        },
+        StructuralTypeDeclaration {
+            id: oversized_array_type,
+            identity: "[PaddedElement; 4096]".into(),
+            shape: StructuralTypeShape::FixedArray {
+                element: element_type,
+                length: 4096,
+            },
+        },
+    ];
+    let declarations = declarations
+        .iter()
+        .map(|declaration| (declaration.id, declaration))
+        .collect::<BTreeMap<_, _>>();
+
+    let shape = structural_shape(
+        outer_array_type,
+        &declarations,
+        &mut BTreeMap::new(),
+        &mut BTreeSet::new(),
+    )
+    .unwrap();
+    assert_eq!(shape, ValueShape::integer(96, 8));
+    assert_eq!(
+        structural_shape(
+            oversized_array_type,
+            &declarations,
+            &mut BTreeMap::new(),
+            &mut BTreeSet::new(),
+        ),
+        Err(LoweringError::StructuralTypeTooLarge(oversized_array_type))
+    );
+}
+
+#[test]
+fn metadata_only_boundary_requires_the_exact_preceding_port_realization() {
+    use omega_target_operations::{
+        MetadataOnlyPortRealization, ProviderExecutionBinding, ProviderPlanIdentity,
+    };
+
+    let machine = MachineId::new(1).unwrap();
+    let boundary = BoundaryMachineId::new(1).unwrap();
+    let port_operation = OperationId::new(1).unwrap();
+    let settlement_operation = OperationId::new(2).unwrap();
+    let service = psi_core::ServiceId::new(1).unwrap();
+    let element_type = StructuralTypeId::new(1).unwrap();
+    let array_type = StructuralTypeId::new(2).unwrap();
+    let argument_place = PlaceId::new(1).unwrap();
+    let boundary_place = PlaceId::new(2).unwrap();
+    let u64_type =
+        ScalarType::Integer(IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap());
+    let provider_execution = ProviderExecutionBinding::from_execution_record(
+        ProviderPlanIdentity::new(7).unwrap(),
+        8,
+        9,
+        10,
+        11,
+    )
+    .unwrap();
+    let realization = MetadataOnlyPortRealization {
+        effect_operation: port_operation,
+        service,
+        port: 0x20,
+        value: 0x20,
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: vec![
+            StructuralTypeDeclaration {
+                id: element_type,
+                identity: "Acknowledgement".into(),
+                shape: StructuralTypeShape::Record {
+                    fields: vec![StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(1).unwrap(),
+                        identity: "value".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(u64_type),
+                    }],
+                },
+            },
+            StructuralTypeDeclaration {
+                id: array_type,
+                identity: "[Acknowledgement; 2]".into(),
+                shape: StructuralTypeShape::FixedArray {
+                    element: element_type,
+                    length: 2,
+                },
+            },
+        ],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "InterruptAcknowledgement::complete".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: boundary_place,
+                position: 0,
+                is_self: false,
+                structural_type: element_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            }],
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: vec![service],
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(1).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: argument_place,
+                position: 0,
+                is_self: false,
+                structural_type: array_type,
+                multiplicity: StructuralMultiplicity::Affine,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            }],
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: vec![service],
+            block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+                block: BlockId::new(1).unwrap(),
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::PortWrite {
+                    psi_operation: port_operation,
+                    service,
+                    port: 0x20,
+                    value: 0x20,
+                },
+                AbstractOperation::BoundaryCall {
+                    psi_operation: settlement_operation,
+                    result: None,
+                    boundary,
+                    arguments: Vec::new(),
+                    structural_arguments: vec![psi_terminal::StructuralArgument {
+                        place: argument_place,
+                        access: StructuralAccess::Owned,
+                        path: vec![StructuralPathSegment::FixedIndex(1)],
+                    }],
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(1).unwrap(),
+                    cleanup_actions: vec![psi_terminal::TerminalAffineCleanupAction::DiscardRoot(
+                        argument_place,
+                    )],
+                },
+            ],
+        }],
+    };
+    let binding = BoundarySettlementBinding {
+        boundary,
+        provider_execution,
+        realization: realization.into(),
+    };
+    let lowered =
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding])
+            .expect("exact effect evidence");
+    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("Unit body")
+    };
+    let TargetUnitOperation::BoundarySettlement {
+        provider_execution: actual,
+        realization: actual_realization,
+        arguments,
+        ..
+    } = &body.operations[1]
+    else {
+        panic!("boundary settlement")
+    };
+    assert_eq!(*actual, provider_execution);
+    assert_eq!(*actual_realization, realization.into());
+    assert_eq!(
+        arguments,
+        &[psi_terminal::StructuralArgument {
+            place: argument_place,
+            access: StructuralAccess::Owned,
+            path: vec![StructuralPathSegment::FixedIndex(1)],
+        }]
+    );
+
+    let mut scalar_argument = plan.clone();
+    let argument = ValueId::new(1).unwrap();
+    scalar_argument.boundary_machines[0]
+        .scalar_parameters
+        .push(ScalarType::Boolean);
+    scalar_argument.functions[0]
+        .parameters
+        .push(AbstractParameter {
+            value: argument,
+            scalar_type: ScalarType::Boolean,
+        });
+    let AbstractOperation::BoundaryCall { arguments, .. } =
+        &mut scalar_argument.functions[0].operations[1]
+    else {
+        unreachable!("fixture contains a boundary call")
+    };
+    arguments.push(argument);
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &scalar_argument,
+            NativeTarget::linux_x64(),
+            &[binding],
+        ),
+        Err(
+            LoweringError::ScalarBoundaryArgumentsRequireNativeRealization {
+                machine,
+                operation: settlement_operation,
+                boundary,
+            }
+        )
+    );
+
+    let wrong = BoundarySettlementBinding {
+        realization: MetadataOnlyPortRealization {
+            value: 0x21,
+            ..realization
+        }
+        .into(),
+        ..binding
+    };
+    assert_eq!(
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[wrong],),
+        Err(LoweringError::BoundaryRealizationMismatch(boundary))
+    );
+
+    let mut result_bearing = plan.clone();
+    let result = AbstractResult {
+        value: ValueId::new(1).unwrap(),
+        scalar_type: ScalarType::Boolean,
+    };
+    result_bearing.boundary_machines[0].result = Some(result.scalar_type);
+    let AbstractOperation::BoundaryCall {
+        result: operation_result,
+        ..
+    } = &mut result_bearing.functions[0].operations[1]
+    else {
+        unreachable!("fixture contains a boundary call")
+    };
+    *operation_result = Some(result);
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &result_bearing,
+            NativeTarget::linux_x64(),
+            &[binding],
+        ),
+        Err(
+            LoweringError::ResultBearingBoundarySettlementRequiresNativeRealization {
+                machine,
+                operation: settlement_operation,
+                boundary,
+            }
+        )
+    );
+}
+
+#[test]
+fn claim_completion_only_boundary_retains_two_linear_claims_without_physical_inputs() {
+    use omega_abstract_operations::CompletionClaimSource;
+    use omega_target_operations::{
+        ClaimCompletionOnlyRealization, ProviderExecutionBinding, ProviderPlanIdentity,
+    };
+    use psi_core::{ClaimId, StructuralDomainId};
+    use psi_terminal::{CompletionReceipt, EntryClaim};
+
+    let machine = MachineId::new(31).unwrap();
+    let boundary = BoundaryMachineId::new(31).unwrap();
+    let extent = StructuralTypeId::new(31).unwrap();
+    let boundary_place = PlaceId::new(31).unwrap();
+    let image = PlaceId::new(32).unwrap();
+    let storage = PlaceId::new(33).unwrap();
+    let image_claim = ClaimId::new(31).unwrap();
+    let storage_claim = ClaimId::new(32).unwrap();
+    let granted = StructuralDomainId::new(31).unwrap();
+    let image_settle = OperationId::new(31).unwrap();
+    let storage_settle = OperationId::new(32).unwrap();
+    let return_edge = EdgeId::new(31).unwrap();
+    let provider_execution = ProviderExecutionBinding::from_execution_record(
+        ProviderPlanIdentity::new(31).unwrap(),
+        32,
+        33,
+        34,
+        35,
+    )
+    .unwrap();
+    let entry_claims = vec![
+        EntryClaim {
+            claim: image_claim,
+            input: image,
+            path: Vec::new(),
+        },
+        EntryClaim {
+            claim: storage_claim,
+            input: storage,
+            path: Vec::new(),
+        },
+    ];
+    let claim_sources = entry_claims
+        .iter()
+        .cloned()
+        .map(|entry| CompletionClaimSource {
+            claim: entry.claim,
+            entry: Some(entry),
+            content: None,
+        })
+        .collect::<Vec<_>>();
+    let parameter = |place, position| StructuralParameterDeclaration {
+        place,
+        position,
+        is_self: false,
+        structural_type: extent,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: vec![granted],
+    };
+    let settle = |operation, place, claim| AbstractOperation::BoundaryCall {
+        psi_operation: operation,
+        result: None,
+        boundary,
+        arguments: Vec::new(),
+        structural_arguments: vec![StructuralArgument {
+            place,
+            access: StructuralAccess::Owned,
+            path: Vec::new(),
+        }],
+        completion_claim_sources: claim_sources.clone(),
+        completion_receipts: vec![CompletionReceipt {
+            claim,
+            argument_index: 0,
+        }],
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: extent,
+            identity: "Extent".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(31).unwrap(),
+                        identity: "base".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::address(64).unwrap(),
+                        )),
+                    },
+                    StructuralFieldDeclaration {
+                        id: StructuralFieldId::new(32).unwrap(),
+                        identity: "length".into(),
+                        relevance: psi_terminal::BindingRelevance::Relevant,
+                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                            IntegerType::new(psi_core::IntegerSign::Unsigned, 64).unwrap(),
+                        )),
+                    },
+                ],
+            },
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Extent::settle".into(),
+            attachment: Some(extent),
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![StructuralParameterDeclaration {
+                place: boundary_place,
+                position: 0,
+                is_self: true,
+                structural_type: extent,
+                multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
+                qualifications: vec![granted],
+            }],
+            result: None,
+            requires: vec![psi_terminal::StructuralDomainRequirement {
+                argument_index: 0,
+                domain: granted,
+            }],
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(31).unwrap(),
+            parameters: Vec::new(),
+            structural_parameters: vec![parameter(image, 0), parameter(storage, 1)],
+            result: AbstractFunctionResult::Unit,
+            entry_claims,
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block: BlockId::new(31).unwrap(),
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                settle(image_settle, image, image_claim),
+                settle(storage_settle, storage, storage_claim),
+                AbstractOperation::ReturnUnit {
+                    psi_edge: return_edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+    let binding = BoundarySettlementBinding {
+        boundary,
+        provider_execution,
+        realization: ClaimCompletionOnlyRealization.into(),
+    };
+
+    let lowered =
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::uefi_x64(), &[binding])
+            .expect("claim completion is an evidence-bearing zero-input target settlement");
+    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("Unit body")
+    };
+    assert_eq!(body.operations.len(), 3);
+    for (index, (operation, claim)) in
+        [(image_settle, image_claim), (storage_settle, storage_claim)]
+            .into_iter()
+            .enumerate()
+    {
+        let TargetUnitOperation::BoundarySettlement {
+            psi_operation,
+            provider_execution: actual_provider,
+            realization: BoundaryRealization::ClaimCompletionOnly(_),
+            scalar_arguments,
+            byte_sequence_arguments,
+            completion_claim_sources,
+            completion_receipts,
+            ..
+        } = &body.operations[index]
+        else {
+            panic!("claim-completion-only settlement")
+        };
+        assert_eq!(*psi_operation, operation);
+        assert_eq!(*actual_provider, provider_execution);
+        assert!(scalar_arguments.is_empty());
+        assert!(byte_sequence_arguments.is_empty());
+        assert_eq!(completion_claim_sources, &claim_sources);
+        assert_eq!(
+            completion_receipts,
+            &[CompletionReceipt {
+                claim,
+                argument_index: 0,
+            }]
+        );
+    }
+    assert!(matches!(
+        body.operations[2],
+        TargetUnitOperation::Return { psi_edge, ref cleanup_actions }
+            if psi_edge == return_edge && cleanup_actions.is_empty()
+    ));
+
+    let mut missing_receipt = plan.clone();
+    let AbstractOperation::BoundaryCall {
+        completion_receipts,
+        ..
+    } = &mut missing_receipt.functions[0].operations[0]
+    else {
+        unreachable!()
+    };
+    completion_receipts.clear();
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &missing_receipt,
+            NativeTarget::uefi_x64(),
+            &[binding],
+        ),
+        Err(LoweringError::InvalidClaimCompletionOnlyShape {
+            machine,
+            operation: image_settle,
+            boundary,
+        })
+    );
+}
+
+#[test]
+fn selects_native_register_and_stack_locations_for_runtime_parameters() {
+    let register_cases = [
+        (
+            NativeTarget::linux_x64(),
+            ScalarParameterLocation::Register(MachineRegister::X86Rdi),
+        ),
+        (
+            NativeTarget::windows_x64(),
+            ScalarParameterLocation::Register(MachineRegister::X86Rcx),
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            ScalarParameterLocation::Register(MachineRegister::Aarch64X(0)),
+        ),
+    ];
+    for (target, expected) in register_cases {
+        let lowered = lower_to_target_operations(&parameter_return_plan(1), target).unwrap();
+        assert!(matches!(
+            lowered.functions[0].operation,
+            TargetOperation::ReturnIntegerParameter {
+                parameter_index: 0,
+                location,
+                ..
+            } if location == expected
+        ));
+    }
+
+    let stack_cases = [
+        (
+            NativeTarget::linux_x64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 16 },
+        ),
+        (
+            NativeTarget::windows_x64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 64 },
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 0 },
+        ),
+    ];
+    for (target, expected) in stack_cases {
+        let lowered = lower_to_target_operations(&parameter_return_plan(9), target).unwrap();
+        assert!(matches!(
+            lowered.functions[0].operation,
+            TargetOperation::ReturnIntegerParameter {
+                parameter_index: 8,
+                location,
+                ..
+            } if location == expected
+        ));
+    }
+}
+
+#[test]
+fn direct_calls_retain_stack_locations_from_the_callee_call_plan() {
+    let stack_cases = [
+        (
+            NativeTarget::linux_x64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 16 },
+        ),
+        (
+            NativeTarget::windows_x64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 64 },
+        ),
+        (
+            NativeTarget::linux_arm64(),
+            ScalarParameterLocation::IncomingStack { byte_offset: 0 },
+        ),
+    ];
+    for (target, expected) in stack_cases {
+        let lowered = lower_to_target_operations(&direct_call_plan(9), target).unwrap();
+        let TargetOperation::ReturnIntegerExpression { expression, .. } =
+            &lowered.functions[0].operation
+        else {
+            panic!("caller must return its call result")
+        };
+        let TargetIntegerExpression::Call { arguments, .. } = expression else {
+            panic!("caller result must remain a direct call")
+        };
+        assert_eq!(arguments[8].location, expected);
+    }
+}
+
+#[test]
+fn lowers_runtime_parameter_arithmetic_to_a_typed_target_expression() {
+    let mut plan = parameter_return_plan(2);
+    let function = &mut plan.functions[0];
+    let sum = ValueId::new(50).expect("sum");
+    let scalar_type = match scalar_result(function).scalar_type {
+        ScalarType::Integer(integer) => integer,
+        ScalarType::Boolean => unreachable!("fixture is integer"),
+    };
+    function.operations.insert(
+        0,
+        AbstractOperation::WrappingIntegerAdd {
+            psi_operation: psi_core::OperationId::new(50).expect("operation"),
+            result: sum,
+            scalar_type,
+            left: function.parameters[0].value,
+            right: function.parameters[1].value,
+        },
+    );
+    let AbstractOperation::Return { value, .. } = &mut function.operations[1] else {
+        unreachable!("fixture ends in return")
+    };
+    *value = sum;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::host()).unwrap();
+    assert!(matches!(
+        &lowered.functions[0].operation,
+        TargetOperation::ReturnIntegerExpression {
+            source_value,
+            scalar_type: result_type,
+            expression: TargetIntegerExpression::WrappingAdd {
+                psi_operation,
+                left,
+                right,
+            },
+            ..
+        } if *source_value == sum
+            && *result_type == scalar_type
+            && *psi_operation == psi_core::OperationId::new(50).expect("operation")
+            && matches!(
+                left.as_ref(),
+                TargetIntegerExpression::Parameter {
+                    parameter_index: 0,
+                    ..
+                }
+            )
+            && matches!(
+                right.as_ref(),
+                TargetIntegerExpression::Parameter {
+                    parameter_index: 1,
+                    ..
+                }
+            )
+    ));
+}
+
+#[test]
+fn folds_closed_wrapping_subtraction_at_the_declared_width() {
+    let mut plan = parameter_return_plan(1);
+    let function = &mut plan.functions[0];
+    let left = ValueId::new(50).expect("left");
+    let right = ValueId::new(51).expect("right");
+    let difference = ValueId::new(52).expect("difference");
+    let scalar_type = match scalar_result(function).scalar_type {
+        ScalarType::Integer(integer) => integer,
+        ScalarType::Boolean => unreachable!("fixture is integer"),
+    };
+    function.operations.splice(
+        0..0,
+        [
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(50).expect("left operation"),
+                result: left,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(5),
+            },
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(51).expect("right operation"),
+                result: right,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(10),
+            },
+            AbstractOperation::WrappingIntegerSubtract {
+                psi_operation: psi_core::OperationId::new(52).expect("subtract operation"),
+                result: difference,
+                scalar_type,
+                left,
+                right,
+            },
+        ],
+    );
+    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = difference;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        lowered.functions[0].operation,
+        TargetOperation::ReturnIntegerImmediate {
+            source_value,
+            scalar_type: result_type,
+            value: IntegerValue::Unsigned(251),
+            ..
+        } if source_value == difference && result_type == scalar_type
+    ));
+}
+
+#[test]
+fn folds_closed_saturating_subtraction_at_zero() {
+    let mut plan = parameter_return_plan(1);
+    let function = &mut plan.functions[0];
+    let left = ValueId::new(50).expect("left");
+    let right = ValueId::new(51).expect("right");
+    let difference = ValueId::new(52).expect("difference");
+    let scalar_type = match scalar_result(function).scalar_type {
+        ScalarType::Integer(integer) => integer,
+        ScalarType::Boolean => unreachable!("fixture is integer"),
+    };
+    function.operations.splice(
+        0..0,
+        [
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(50).expect("left operation"),
+                result: left,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(5),
+            },
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(51).expect("right operation"),
+                result: right,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(10),
+            },
+            AbstractOperation::SaturatingIntegerSubtract {
+                psi_operation: psi_core::OperationId::new(52).expect("subtract operation"),
+                result: difference,
+                scalar_type,
+                left,
+                right,
+            },
+        ],
+    );
+    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = difference;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        lowered.functions[0].operation,
+        TargetOperation::ReturnIntegerImmediate {
+            source_value,
+            scalar_type: result_type,
+            value: IntegerValue::Unsigned(0),
+            ..
+        } if source_value == difference && result_type == scalar_type
+    ));
+}
+
+#[test]
+fn folds_closed_wrapping_multiplication_at_the_declared_width() {
+    let mut plan = parameter_return_plan(1);
+    let function = &mut plan.functions[0];
+    let left = ValueId::new(50).expect("left");
+    let right = ValueId::new(51).expect("right");
+    let product = ValueId::new(52).expect("product");
+    let scalar_type = match scalar_result(function).scalar_type {
+        ScalarType::Integer(integer) => integer,
+        ScalarType::Boolean => unreachable!("fixture is integer"),
+    };
+    function.operations.splice(
+        0..0,
+        [
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(50).expect("left operation"),
+                result: left,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(20),
+            },
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(51).expect("right operation"),
+                result: right,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(13),
+            },
+            AbstractOperation::WrappingIntegerMultiply {
+                psi_operation: psi_core::OperationId::new(52).expect("multiply operation"),
+                result: product,
+                scalar_type,
+                left,
+                right,
+            },
+        ],
+    );
+    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = product;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        lowered.functions[0].operation,
+        TargetOperation::ReturnIntegerImmediate {
+            source_value,
+            scalar_type: result_type,
+            value: IntegerValue::Unsigned(4),
+            ..
+        } if source_value == product && result_type == scalar_type
+    ));
+}
+
+#[test]
+fn folds_closed_saturating_multiplication_at_the_declared_width() {
+    let mut plan = parameter_return_plan(1);
+    let function = &mut plan.functions[0];
+    let left = ValueId::new(50).expect("left");
+    let right = ValueId::new(51).expect("right");
+    let product = ValueId::new(52).expect("product");
+    let scalar_type = match scalar_result(function).scalar_type {
+        ScalarType::Integer(integer) => integer,
+        ScalarType::Boolean => unreachable!("fixture is integer"),
+    };
+    function.operations.splice(
+        0..0,
+        [
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(50).expect("left operation"),
+                result: left,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(20),
+            },
+            AbstractOperation::IntegerConstant {
+                psi_operation: psi_core::OperationId::new(51).expect("right operation"),
+                result: right,
+                scalar_type: ScalarType::Integer(scalar_type),
+                value: IntegerValue::Unsigned(13),
+            },
+            AbstractOperation::SaturatingIntegerMultiply {
+                psi_operation: psi_core::OperationId::new(52).expect("multiply operation"),
+                result: product,
+                scalar_type,
+                left,
+                right,
+            },
+        ],
+    );
+    let AbstractOperation::Return { value, .. } = function.operations.last_mut().expect("return")
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = product;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        lowered.functions[0].operation,
+        TargetOperation::ReturnIntegerImmediate {
+            source_value,
+            scalar_type: result_type,
+            value: IntegerValue::Unsigned(255),
+            ..
+        } if source_value == product && result_type == scalar_type
+    ));
+}
+
+#[test]
+fn lowers_a_boolean_runtime_parameter_with_its_selected_abi_location() {
+    let mut plan = parameter_return_plan(1);
+    let function = &mut plan.functions[0];
+    function.parameters[0].scalar_type = ScalarType::Boolean;
+    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
+    let AbstractOperation::Return { scalar_type, .. } = &mut function.operations[0] else {
+        unreachable!("fixture ends in return")
+    };
+    *scalar_type = ScalarType::Boolean;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        lowered.functions[0].operation,
+        TargetOperation::ReturnBooleanParameter {
+            parameter_index: 0,
+            location: ScalarParameterLocation::Register(MachineRegister::X86Rdi),
             ..
         }
     ));
-    assert_eq!(
-        table.kind,
-        omega_target_operations::TargetOperationKind::WriteDataAddressToRuntimeFrame {
-            data: omega_target_operations::TargetDataObjectHandle::from_arena_index(4),
-            target_offset: 88,
-        }
-    );
 }
 
 #[test]
-fn copies_abstract_value_summary_to_target_plan() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let machine_symbol = SymbolHandle::from_arena_index(1);
-    let state_symbol = SymbolHandle::from_arena_index(2);
-
-    abstract_operations
-        .semantics
-        .values
-        .values
-        .insert(AbstractValueFact {
-            source_key: Default::default(),
-            machine_symbol,
-            state_symbol,
-            expression: Default::default(),
-            origin: AbstractValueOrigin::Statement {
-                statement_index: 5,
-                role: AbstractValueStatementRole::AssignmentValue,
-            },
-            arithmetic_policy_adapter: None,
-            operator_provider_plan_identity: None,
-        });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::host(),
-        &build_host_abi_plan(NativeTarget::host()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    assert_eq!(target_operations.semantics.values.values.len(), 1);
-    let value = target_operations
-        .semantics
-        .values
-        .values
-        .iter()
-        .next()
-        .map(|(_, value)| value)
-        .expect("target value");
-    assert_eq!(
-        value.origin,
-        AbstractValueOrigin::Statement {
-            statement_index: 5,
-            role: AbstractValueStatementRole::AssignmentValue,
-        }
-    );
-}
-
-#[test]
-fn copies_abstract_source_boundary_edges_to_target_plan() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let machine_symbol = SymbolHandle::from_arena_index(1);
-    let state_symbol = SymbolHandle::from_arena_index(2);
-    let trait_symbol = SymbolHandle::from_arena_index(3);
-    let signature_symbol = SymbolHandle::from_arena_index(4);
-
-    abstract_operations
-        .semantics
-        .boundaries
-        .source_edges
-        .insert(AbstractSourceBoundaryEdge {
-            source_key: Default::default(),
-            statement_index: 9,
-            call_ordinal: 1,
-            receiver_symbol: machine_symbol,
-            target_symbol: state_symbol,
-            boundary_trait_symbol: trait_symbol,
-            boundary_signature_symbol: signature_symbol,
-        });
-    abstract_operations
-        .semantics
-        .boundaries
-        .footprints
-        .boundary_contract_fingerprint = Some(0x1234);
-    abstract_operations
-        .semantics
-        .boundaries
-        .footprints
-        .fragments
-        .push(BoundaryFootprintFragment {
-            origin: BoundaryFootprintFragmentOrigin::EntryStorage,
-            evidence: StateFootprintEvidence::new(
-                RegisterSet::new([MachineRegister::X86R15]),
-                MachineStateSet::empty(),
-            ),
-        });
-    let callback_identity = MachineFunctionIdentity::callback_thunk(
-        StateKey {
-            machine: SymbolHandle::from_arena_index(8),
-            state: SymbolHandle::from_arena_index(9),
-            segment_index: 0,
-        },
+fn lowers_runtime_boolean_equality_to_a_target_expression() {
+    let mut plan = parameter_return_plan(2);
+    let function = &mut plan.functions[0];
+    for parameter in &mut function.parameters {
+        parameter.scalar_type = ScalarType::Boolean;
+    }
+    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
+    let result = ValueId::new(50).expect("equality result");
+    function.operations.insert(
         0,
-    )
-    .expect("callback identity");
-    abstract_operations
-        .semantics
-        .boundaries
-        .callback_footprints
-        .push(CallbackBoundaryFootprintPlan {
-            placement_index: 0,
-            function_identity: callback_identity,
-            footprints: BoundaryFootprintPlan {
-                boundary_contract_fingerprint: Some(0x5678),
-                ..Default::default()
-            },
-        });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::host(),
-        &build_host_abi_plan(NativeTarget::host()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    assert_eq!(target_operations.semantics.boundaries.source_edges.len(), 1);
-    let edge = target_operations
-        .semantics
-        .boundaries
-        .source_edges
-        .iter()
-        .next()
-        .map(|(_, edge)| edge)
-        .expect("target source boundary edge");
-    assert_eq!(edge.statement_index, 9);
-    assert_eq!(edge.call_ordinal, 1);
-    assert_eq!(edge.boundary_trait_symbol, trait_symbol);
-    assert_eq!(edge.boundary_signature_symbol, signature_symbol);
-    assert_eq!(
-        target_operations
-            .semantics
-            .boundaries
-            .footprints
-            .boundary_contract_fingerprint,
-        Some(0x1234)
+        AbstractOperation::BooleanEqual {
+            psi_operation: OperationId::new(50).expect("equality operation"),
+            result,
+            left: function.parameters[0].value,
+            right: function.parameters[1].value,
+        },
     );
-    assert_eq!(
-        target_operations.semantics.boundaries.footprints.fragments[0].origin,
-        BoundaryFootprintFragmentOrigin::EntryStorage
-    );
-    let [callback] = target_operations
-        .semantics
-        .boundaries
-        .callback_footprints
-        .as_slice()
+    let AbstractOperation::Return {
+        value, scalar_type, ..
+    } = &mut function.operations[1]
     else {
-        panic!("one target callback footprint")
+        unreachable!("fixture ends in return")
     };
-    assert_eq!(callback.placement_index, 0);
-    assert_eq!(callback.function_identity, callback_identity);
-    assert_eq!(
-        callback.footprints.boundary_contract_fingerprint,
-        Some(0x5678)
-    );
-}
+    *value = result;
+    *scalar_type = ScalarType::Boolean;
 
-#[test]
-fn validates_linked_boundary_operation_against_host_binding() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let source_edge = abstract_operations
-        .semantics
-        .boundaries
-        .source_edges
-        .insert(AbstractSourceBoundaryEdge {
-            source_key: Default::default(),
-            statement_index: 9,
-            call_ordinal: 1,
-            receiver_symbol: SymbolHandle::from_arena_index(1),
-            target_symbol: SymbolHandle::from_arena_index(2),
-            boundary_trait_symbol: SymbolHandle::from_arena_index(3),
-            boundary_signature_symbol: SymbolHandle::from_arena_index(4),
-        });
-    let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
-    let lowered_edge =
-        abstract_operations
-            .semantics
-            .boundaries
-            .edges
-            .insert(AbstractBoundaryEdge {
-                host_call: psi_arena::Handle::invalid(),
-                source_key: Default::default(),
-                statement_index: 9,
-                call_ordinal: 1,
-                operation_ordinal: 0,
-                operation_key,
-            });
-    abstract_operations
-        .semantics
-        .boundaries
-        .links
-        .insert(AbstractBoundaryLink {
-            source_edge,
-            lowered_edge,
-        });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::linux_arm64(),
-        &build_host_abi_plan(NativeTarget::linux_arm64()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    let checks: Vec<_> = target_operations
-        .semantics
-        .boundaries
-        .policy_checks
-        .iter()
-        .map(|(_, check)| check)
-        .collect();
-    assert_eq!(checks.len(), 1);
-    assert_eq!(checks[0].source_edge, source_edge);
-    assert_eq!(checks[0].lowered_edge, lowered_edge);
-    assert_eq!(checks[0].operation_key, operation_key);
-    assert_eq!(
-        checks[0].boundary_policy.as_ref(),
-        "omega::host::targets::linux"
-    );
-    assert_eq!(checks[0].verdict, AbstractBoundaryPolicyVerdict::Accepted);
-}
-
-#[test]
-fn records_missing_source_boundary_for_unlinked_host_operation() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
-    let lowered_edge =
-        abstract_operations
-            .semantics
-            .boundaries
-            .edges
-            .insert(AbstractBoundaryEdge {
-                host_call: psi_arena::Handle::invalid(),
-                source_key: Default::default(),
-                statement_index: 9,
-                call_ordinal: 1,
-                operation_ordinal: 0,
-                operation_key,
-            });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::linux_arm64(),
-        &build_host_abi_plan(NativeTarget::linux_arm64()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    let check = target_operations
-        .semantics
-        .boundaries
-        .policy_checks
-        .iter()
-        .next()
-        .map(|(_, check)| check)
-        .expect("boundary policy check");
-    assert_eq!(
-        target_operations.semantics.boundaries.policy_checks.len(),
-        1
-    );
-    assert!(!check.source_edge.is_valid());
-    assert_eq!(check.lowered_edge, lowered_edge);
-    assert_eq!(
-        check.verdict,
-        AbstractBoundaryPolicyVerdict::MissingSourceBoundary
-    );
-}
-
-#[test]
-fn records_missing_host_binding_for_unknown_boundary_operation() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let source_edge = abstract_operations
-        .semantics
-        .boundaries
-        .source_edges
-        .insert(AbstractSourceBoundaryEdge {
-            source_key: Default::default(),
-            statement_index: 9,
-            call_ordinal: 1,
-            receiver_symbol: SymbolHandle::from_arena_index(1),
-            target_symbol: SymbolHandle::from_arena_index(2),
-            boundary_trait_symbol: SymbolHandle::from_arena_index(3),
-            boundary_signature_symbol: SymbolHandle::from_arena_index(4),
-        });
-    let operation_key = HostOperationKey::new(HostCapability::Unknown, HostOperation::Unknown);
-    let lowered_edge =
-        abstract_operations
-            .semantics
-            .boundaries
-            .edges
-            .insert(AbstractBoundaryEdge {
-                host_call: psi_arena::Handle::invalid(),
-                source_key: Default::default(),
-                statement_index: 9,
-                call_ordinal: 1,
-                operation_ordinal: 0,
-                operation_key,
-            });
-    abstract_operations
-        .semantics
-        .boundaries
-        .links
-        .insert(AbstractBoundaryLink {
-            source_edge,
-            lowered_edge,
-        });
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::linux_arm64(),
-        &build_host_abi_plan(NativeTarget::linux_arm64()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    let check = target_operations
-        .semantics
-        .boundaries
-        .policy_checks
-        .iter()
-        .next()
-        .map(|(_, check)| check)
-        .expect("boundary policy check");
-    assert_eq!(
-        check.verdict,
-        AbstractBoundaryPolicyVerdict::MissingHostBinding
-    );
-    assert!(check.boundary_policy.is_empty());
-}
-
-#[test]
-fn records_disallowed_boundary_policy_for_unallowed_host_binding_policy() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let source_edge = abstract_operations
-        .semantics
-        .boundaries
-        .source_edges
-        .insert(AbstractSourceBoundaryEdge {
-            source_key: Default::default(),
-            statement_index: 9,
-            call_ordinal: 1,
-            receiver_symbol: SymbolHandle::from_arena_index(1),
-            target_symbol: SymbolHandle::from_arena_index(2),
-            boundary_trait_symbol: SymbolHandle::from_arena_index(3),
-            boundary_signature_symbol: SymbolHandle::from_arena_index(4),
-        });
-    let operation_key = HostOperationKey::new(HostCapability::Stdout, HostOperation::Write);
-    let lowered_edge =
-        abstract_operations
-            .semantics
-            .boundaries
-            .edges
-            .insert(AbstractBoundaryEdge {
-                host_call: psi_arena::Handle::invalid(),
-                source_key: Default::default(),
-                statement_index: 9,
-                call_ordinal: 1,
-                operation_ordinal: 0,
-                operation_key,
-            });
-    abstract_operations
-        .semantics
-        .boundaries
-        .links
-        .insert(AbstractBoundaryLink {
-            source_edge,
-            lowered_edge,
-        });
-    let mut host_abi = build_host_abi_plan(NativeTarget::linux_arm64());
-    host_abi.boundary_policies.clear();
-
-    let target_operations = build_target_operation_plan(
-        NativeTarget::linux_arm64(),
-        &host_abi,
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    let check = target_operations
-        .semantics
-        .boundaries
-        .policy_checks
-        .iter()
-        .next()
-        .map(|(_, check)| check)
-        .expect("boundary policy check");
-    assert_eq!(
-        check.verdict,
-        AbstractBoundaryPolicyVerdict::DisallowedBoundaryPolicy
-    );
-    assert_eq!(
-        check.boundary_policy.as_ref(),
-        "omega::host::targets::linux"
-    );
-}
-
-#[test]
-fn copies_abstract_permission_summary_to_target_plan() {
-    let mut abstract_operations = AbstractOperationPlan::default();
-    let target_symbol = SymbolHandle::from_arena_index(1);
-    abstract_operations
-        .semantics
-        .ownership
-        .permissions
-        .insert(AbstractPermissionEvent {
-            source: psi_language_semantics::PermissionEventSource::Call {
-                statement_index: 7,
-                call_ordinal: 2,
-                target_symbol,
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        &lowered.functions[0].operation,
+        TargetOperation::ReturnBooleanExpression {
+            source_value,
+            expression: TargetBooleanExpression::Equal {
+                psi_operation,
+                left,
+                right,
             },
-            ..AbstractPermissionEvent::default()
-        });
+            ..
+        } if *source_value == result
+            && *psi_operation == OperationId::new(50).expect("equality operation")
+            && matches!(
+                left.as_ref(),
+                TargetBooleanExpression::Parameter { parameter_index: 0, .. }
+            )
+            && matches!(
+                right.as_ref(),
+                TargetBooleanExpression::Parameter { parameter_index: 1, .. }
+            )
+    ));
+}
 
-    let target_operations = build_target_operation_plan(
-        NativeTarget::host(),
-        &build_host_abi_plan(NativeTarget::host()),
-        &HostCallPlan::default(),
-        &abstract_operations,
-    )
-    .unwrap();
-
-    assert_eq!(target_operations.semantics.ownership.permissions.len(), 1);
-    let event = target_operations
-        .semantics
-        .ownership
-        .permissions
-        .iter()
-        .next()
-        .map(|(_, event)| event)
-        .expect("target ownership event");
-    assert_eq!(
-        event.source,
-        psi_language_semantics::PermissionEventSource::Call {
-            statement_index: 7,
-            call_ordinal: 2,
-            target_symbol,
-        }
+#[test]
+fn lowers_runtime_integer_equality_to_a_typed_target_expression() {
+    let mut plan = parameter_return_plan(2);
+    let function = &mut plan.functions[0];
+    let integer_type = match function.parameters[0].scalar_type {
+        ScalarType::Integer(integer_type) => integer_type,
+        ScalarType::Boolean => unreachable!("fixture has integer parameters"),
+    };
+    scalar_result_mut(function).scalar_type = ScalarType::Boolean;
+    let result = ValueId::new(51).expect("integer-equality result");
+    function.operations.insert(
+        0,
+        AbstractOperation::IntegerEqual {
+            psi_operation: OperationId::new(51).expect("integer-equality operation"),
+            result,
+            left: function.parameters[0].value,
+            right: function.parameters[1].value,
+        },
     );
+    let AbstractOperation::Return {
+        value, scalar_type, ..
+    } = &mut function.operations[1]
+    else {
+        unreachable!("fixture ends in return")
+    };
+    *value = result;
+    *scalar_type = ScalarType::Boolean;
+
+    let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).unwrap();
+    assert!(matches!(
+        &lowered.functions[0].operation,
+        TargetOperation::ReturnBooleanExpression {
+            source_value,
+            expression: TargetBooleanExpression::IntegerEqual {
+                psi_operation,
+                scalar_type,
+                left,
+                right,
+            },
+            ..
+        } if *source_value == result
+            && *psi_operation == OperationId::new(51).expect("integer-equality operation")
+            && *scalar_type == integer_type
+            && matches!(
+                left.as_ref(),
+                TargetIntegerExpression::Parameter { parameter_index: 0, .. }
+            )
+            && matches!(
+                right.as_ref(),
+                TargetIntegerExpression::Parameter { parameter_index: 1, .. }
+            )
+    ));
+}
+
+#[test]
+fn folds_a_compile_known_conditional_to_only_the_selected_arm() {
+    let condition_operation = psi_core::OperationId::new(20).expect("condition operation");
+    let true_operation = psi_core::OperationId::new(21).expect("true operation");
+    let false_operation = psi_core::OperationId::new(22).expect("false operation");
+    let true_edge = EdgeId::new(1).expect("true edge");
+    let false_edge = EdgeId::new(2).expect("false edge");
+    let true_return = EdgeId::new(3).expect("true return");
+    let false_return = EdgeId::new(4).expect("false return");
+
+    for (select_true, selected_operation, selected_edges) in [
+        (true, true_operation, [true_edge, true_return]),
+        (false, false_operation, [false_edge, false_return]),
+    ] {
+        let plan = constant_conditional_plan(select_true);
+        let lowered = lower_to_target_operations(&plan, NativeTarget::linux_x64()).expect("lower");
+        let function = &lowered.functions[0];
+        assert_eq!(
+            function.provenance.operations,
+            [condition_operation, selected_operation]
+        );
+        assert_eq!(function.provenance.edges, selected_edges);
+        assert!(
+            matches!(
+                &function.operation,
+                TargetOperation::ReturnIntegerExpression {
+                    psi_edge,
+                    expression:
+                        TargetIntegerExpression::WrappingAdd { psi_operation, .. },
+                    ..
+                } if select_true && *psi_edge == true_return && *psi_operation == true_operation
+            ) || matches!(
+                &function.operation,
+                TargetOperation::ReturnIntegerExpression {
+                    psi_edge,
+                    expression:
+                        TargetIntegerExpression::SaturatingMultiply {
+                            psi_operation,
+                            ..
+                        },
+                    ..
+                } if !select_true && *psi_edge == false_return && *psi_operation == false_operation
+            )
+        );
+    }
+}
+
+fn constant_conditional_plan(select_true: bool) -> AbstractOperationPlan {
+    let machine = MachineId::new(20).expect("machine");
+    let integer = IntegerType::new(psi_core::IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let argument = ValueId::new(1).expect("argument");
+    let condition = ValueId::new(2).expect("condition");
+    let true_parameter = ValueId::new(3).expect("true parameter");
+    let false_parameter = ValueId::new(4).expect("false parameter");
+    let true_value = ValueId::new(5).expect("true value");
+    let false_value = ValueId::new(6).expect("false value");
+    let result = ValueId::new(7).expect("result");
+    let true_edge = EdgeId::new(1).expect("true edge");
+    let false_edge = EdgeId::new(2).expect("false edge");
+    let true_return = EdgeId::new(3).expect("true return");
+    let false_return = EdgeId::new(4).expect("false return");
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(1).expect("entry block"),
+            parameters: vec![AbstractParameter {
+                value: argument,
+                scalar_type,
+            }],
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type,
+            }),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![
+                omega_abstract_operations::AbstractBlockEntry {
+                    block: BlockId::new(1).expect("entry block"),
+                    parameters: Vec::new(),
+                    operation_offset: 0,
+                },
+                omega_abstract_operations::AbstractBlockEntry {
+                    block: BlockId::new(2).expect("true block"),
+                    parameters: Vec::new(),
+                    operation_offset: 2,
+                },
+                omega_abstract_operations::AbstractBlockEntry {
+                    block: BlockId::new(3).expect("false block"),
+                    parameters: Vec::new(),
+                    operation_offset: 4,
+                },
+            ],
+            operations: vec![
+                AbstractOperation::BooleanConstant {
+                    psi_operation: psi_core::OperationId::new(20).expect("condition operation"),
+                    result: condition,
+                    value: select_true,
+                },
+                AbstractOperation::Conditional {
+                    condition,
+                    when_true: AbstractSuccessor {
+                        psi_edge: true_edge,
+                        target: BlockId::new(2).expect("true block"),
+                        bindings: vec![ValueBinding {
+                            parameter: true_parameter,
+                            argument,
+                            scalar_type,
+                        }],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                    when_false: AbstractSuccessor {
+                        psi_edge: false_edge,
+                        target: BlockId::new(3).expect("false block"),
+                        bindings: vec![ValueBinding {
+                            parameter: false_parameter,
+                            argument,
+                            scalar_type,
+                        }],
+                        trivial_affine_discards: Vec::new(),
+                    },
+                },
+                AbstractOperation::WrappingIntegerAdd {
+                    psi_operation: psi_core::OperationId::new(21).expect("true operation"),
+                    result: true_value,
+                    scalar_type: integer,
+                    left: true_parameter,
+                    right: true_parameter,
+                },
+                AbstractOperation::Return {
+                    psi_edge: true_return,
+                    result,
+                    value: true_value,
+                    scalar_type,
+                    cleanup_actions: Vec::new(),
+                },
+                AbstractOperation::SaturatingIntegerMultiply {
+                    psi_operation: psi_core::OperationId::new(22).expect("false operation"),
+                    result: false_value,
+                    scalar_type: integer,
+                    left: false_parameter,
+                    right: false_parameter,
+                },
+                AbstractOperation::Return {
+                    psi_edge: false_return,
+                    result,
+                    value: false_value,
+                    scalar_type,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    }
+}
+
+fn parameter_return_plan(parameter_count: usize) -> AbstractOperationPlan {
+    let machine = MachineId::new(10).expect("machine");
+    let result = ValueId::new(100).expect("result");
+    let integer = IntegerType::new(psi_core::IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let parameters = (0..parameter_count)
+        .map(|index| AbstractParameter {
+            value: ValueId::new(10 + index as u64).expect("parameter"),
+            scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let returned = parameters.last().expect("fixture has parameters").value;
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: BlockId::new(10).expect("block"),
+            parameters,
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Scalar(AbstractResult {
+                value: result,
+                scalar_type,
+            }),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: Vec::new(),
+            operations: vec![AbstractOperation::Return {
+                psi_edge: EdgeId::new(10).expect("edge"),
+                result,
+                value: returned,
+                scalar_type,
+                cleanup_actions: Vec::new(),
+            }],
+        }],
+    }
+}
+
+fn direct_call_plan(parameter_count: usize) -> AbstractOperationPlan {
+    let caller = MachineId::new(1).expect("caller");
+    let callee = MachineId::new(2).expect("callee");
+    let integer = IntegerType::new(psi_core::IntegerSign::Unsigned, 8).expect("u8");
+    let scalar_type = ScalarType::Integer(integer);
+    let caller_parameters = (0..parameter_count)
+        .map(|index| AbstractParameter {
+            value: ValueId::new(10 + index as u64).expect("caller parameter"),
+            scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let callee_parameters = (0..parameter_count)
+        .map(|index| AbstractParameter {
+            value: ValueId::new(30 + index as u64).expect("callee parameter"),
+            scalar_type,
+        })
+        .collect::<Vec<_>>();
+    let caller_result = ValueId::new(100).expect("caller result");
+    let callee_result = ValueId::new(101).expect("callee result");
+    AbstractOperationPlan {
+        psi: identity(),
+        entry: caller,
+        structural_types: Vec::new(),
+        boundary_machines: Vec::new(),
+        provider_candidates: Vec::new(),
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: BlockId::new(1).expect("caller block"),
+                parameters: caller_parameters.clone(),
+                structural_parameters: Vec::new(),
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: caller_result,
+                    scalar_type,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: Vec::new(),
+                operations: vec![
+                    AbstractOperation::Call {
+                        psi_operation: OperationId::new(1).expect("call"),
+                        result: caller_result,
+                        scalar_type,
+                        callee,
+                        arguments: caller_parameters
+                            .iter()
+                            .map(|parameter| parameter.value)
+                            .collect(),
+                    },
+                    AbstractOperation::Return {
+                        psi_edge: EdgeId::new(1).expect("caller return"),
+                        result: caller_result,
+                        value: caller_result,
+                        scalar_type,
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            AbstractFunction {
+                machine: callee,
+                attachment: None,
+                entry: BlockId::new(2).expect("callee block"),
+                parameters: callee_parameters.clone(),
+                structural_parameters: Vec::new(),
+                result: AbstractFunctionResult::Scalar(AbstractResult {
+                    value: callee_result,
+                    scalar_type,
+                }),
+                entry_claims: Vec::new(),
+                published_service_ceiling: Vec::new(),
+                block_entries: Vec::new(),
+                operations: vec![AbstractOperation::Return {
+                    psi_edge: EdgeId::new(2).expect("callee return"),
+                    result: callee_result,
+                    value: callee_parameters.last().expect("parameter").value,
+                    scalar_type,
+                    cleanup_actions: Vec::new(),
+                }],
+            },
+        ],
+    }
+}
+
+fn identity() -> TerminalPsiIdentity {
+    TerminalPsiIdentity {
+        vocabulary_marker: VocabularyMarker::CURRENT,
+        program_fingerprint: SemanticFingerprint::from_bytes([7; 32]),
+    }
+}
+
+#[derive(Debug)]
+struct InstalledProviderFixture {
+    psi: TerminalPsiIdentity,
+    calls: Vec<InstalledProviderUnitCallEvidence>,
+}
+
+impl ProviderInstallationEvidence for InstalledProviderFixture {
+    fn psi(&self) -> TerminalPsiIdentity {
+        self.psi
+    }
+
+    fn installed_provider_unit_calls(&self) -> Vec<InstalledProviderUnitCallEvidence> {
+        self.calls.clone()
+    }
+}
+
+fn installed_provider_plan() -> (
+    AbstractOperationPlan,
+    InstalledProviderFixture,
+    BoundaryMachineId,
+    OperationId,
+) {
+    let caller = MachineId::new(950).unwrap();
+    let callee = MachineId::new(951).unwrap();
+    let boundary = BoundaryMachineId::new(950).unwrap();
+    let operation = OperationId::new(950).unwrap();
+    let structural_type = StructuralTypeId::new(950).unwrap();
+    let caller_place = PlaceId::new(950).unwrap();
+    let boundary_place = PlaceId::new(951).unwrap();
+    let callee_place = PlaceId::new(952).unwrap();
+    let claim = psi_core::ClaimId::new(950).unwrap();
+    let parameter = |place| StructuralParameterDeclaration {
+        place,
+        position: 0,
+        is_self: false,
+        structural_type,
+        multiplicity: StructuralMultiplicity::Linear,
+        access: StructuralAccess::Owned,
+        qualifications: Vec::new(),
+    };
+    let argument = StructuralArgument {
+        place: caller_place,
+        access: StructuralAccess::Owned,
+        path: Vec::new(),
+    };
+    let entry_source = psi_terminal::EntryClaim {
+        claim,
+        input: caller_place,
+        path: Vec::new(),
+    };
+    let receipt = psi_terminal::CompletionReceipt {
+        claim,
+        argument_index: 0,
+    };
+    let provider = psi_terminal::ProviderCandidateConformance {
+        boundary,
+        requirement_identity: "ProgramEntry::enter".into(),
+        provider_identity: "ProgramProvider".into(),
+        candidate_identity: "ProgramProvider::enter".into(),
+        candidate: callee,
+        signature: psi_terminal::ProviderUnitSignature {
+            parameters: vec![psi_terminal::ProviderSignatureParameter {
+                position: 0,
+                is_self: false,
+                structural_type,
+                multiplicity: StructuralMultiplicity::Linear,
+                access: StructuralAccess::Owned,
+                qualifications: Vec::new(),
+            }],
+        },
+        refinement: psi_terminal::ProviderUnitRefinement {
+            positional_parameters: vec![psi_terminal::ProviderParameterRefinement {
+                boundary_index: 0,
+                candidate_index: 0,
+            }],
+            required_domains: Vec::new(),
+            realized_service_ceiling: Vec::new(),
+        },
+    };
+    let block_entry = |machine: MachineId| AbstractBlockEntry {
+        block: BlockId::new(machine.get()).unwrap(),
+        parameters: Vec::new(),
+        operation_offset: 0,
+    };
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: caller,
+        structural_types: vec![StructuralTypeDeclaration {
+            id: structural_type,
+            identity: "Extent".into(),
+            shape: StructuralTypeShape::Record {
+                fields: vec![StructuralFieldDeclaration {
+                    id: StructuralFieldId::new(950).unwrap(),
+                    identity: "length".into(),
+                    relevance: psi_terminal::BindingRelevance::Relevant,
+                    field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                        IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                    )),
+                }],
+            },
+        }],
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "ProgramEntry::enter".into(),
+            attachment: None,
+            scalar_parameters: Vec::new(),
+            structural_parameters: vec![parameter(boundary_place)],
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: vec![provider.clone()],
+        functions: vec![
+            AbstractFunction {
+                machine: caller,
+                attachment: None,
+                entry: BlockId::new(caller.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(caller_place)],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: vec![entry_source.clone()],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(caller)],
+                operations: vec![
+                    AbstractOperation::BoundaryCall {
+                        psi_operation: operation,
+                        result: None,
+                        boundary,
+                        arguments: Vec::new(),
+                        structural_arguments: vec![argument.clone()],
+                        completion_claim_sources: vec![
+                            omega_abstract_operations::CompletionClaimSource {
+                                claim,
+                                entry: Some(entry_source.clone()),
+                                content: None,
+                            },
+                        ],
+                        completion_receipts: vec![receipt],
+                    },
+                    AbstractOperation::ReturnUnit {
+                        psi_edge: EdgeId::new(950).unwrap(),
+                        cleanup_actions: Vec::new(),
+                    },
+                ],
+            },
+            AbstractFunction {
+                machine: callee,
+                attachment: Some(structural_type),
+                entry: BlockId::new(callee.get()).unwrap(),
+                parameters: Vec::new(),
+                structural_parameters: vec![parameter(callee_place)],
+                result: AbstractFunctionResult::Unit,
+                entry_claims: vec![psi_terminal::EntryClaim {
+                    claim: psi_core::ClaimId::new(951).unwrap(),
+                    input: callee_place,
+                    path: Vec::new(),
+                }],
+                published_service_ceiling: Vec::new(),
+                block_entries: vec![block_entry(callee)],
+                operations: vec![AbstractOperation::ReturnUnit {
+                    psi_edge: EdgeId::new(951).unwrap(),
+                    cleanup_actions: Vec::new(),
+                }],
+            },
+        ],
+    };
+    let installation = InstalledProviderFixture {
+        psi: plan.psi,
+        calls: vec![InstalledProviderUnitCallEvidence {
+            caller,
+            psi_operation: operation,
+            boundary,
+            provider,
+            structural_arguments: vec![argument],
+            completion_claim_sources: vec![InstalledProviderCompletionClaimSource {
+                claim,
+                entry: Some(entry_source),
+                content: None,
+            }],
+            completion_receipts: vec![receipt],
+        }],
+    };
+    (plan, installation, boundary, operation)
+}
+
+#[test]
+fn admitted_structural_provider_projects_to_distinct_target_call() {
+    let (plan, installation, boundary, operation) = installed_provider_plan();
+    assert_eq!(
+        lower_to_target_operations(&plan, NativeTarget::uefi_x64()),
+        Err(LoweringError::MissingBoundarySettlement(boundary))
+    );
+    let lowered = lower_to_target_operations_with_provider_executions_and_installation(
+        &plan,
+        NativeTarget::uefi_x64(),
+        &[],
+        Some(&installation),
+    )
+    .expect("installed provider call lowers without an external settlement");
+    let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+        panic!("caller remains a Unit body")
+    };
+    assert!(matches!(
+        &body.operations[0],
+        TargetUnitOperation::InstalledProviderCall {
+            psi_operation,
+            boundary: actual_boundary,
+            provider,
+            arguments,
+            claim_transfers,
+            completion_receipts,
+            ..
+        } if *psi_operation == operation
+            && *actual_boundary == boundary
+            && provider == &installation.calls[0].provider
+            && arguments.len() == 1
+            && arguments[0].access == StructuralAccess::Owned
+            && claim_transfers.len() == 1
+            && completion_receipts.len() == 1
+    ));
+}
+
+#[test]
+fn linux_exit_group_i32_requires_exact_literal_shape_and_stays_fail_closed_elsewhere() {
+    let machine = MachineId::new(901).unwrap();
+    let boundary = BoundaryMachineId::new(901).unwrap();
+    let constant_operation = OperationId::new(901).unwrap();
+    let settlement_operation = OperationId::new(902).unwrap();
+    let return_edge = EdgeId::new(901).unwrap();
+    let value = ValueId::new(901).unwrap();
+    let block = BlockId::new(901).unwrap();
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let scalar_type = ScalarType::Integer(i32_type);
+    let provider_execution =
+        omega_target_operations::ProviderExecutionBinding::from_execution_record(
+            omega_target_operations::ProviderPlanIdentity::new(901).unwrap(),
+            902,
+            903,
+            904,
+            905,
+        )
+        .unwrap();
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: Vec::new(),
+        boundary_machines: vec![BoundaryMachineDeclaration {
+            id: boundary,
+            identity: "Console::exit_process(i32)->Unit".into(),
+            attachment: None,
+            scalar_parameters: vec![scalar_type],
+            structural_parameters: Vec::new(),
+            result: None,
+            requires: Vec::new(),
+            program_local_root_introductions: Vec::new(),
+            content_guarantees: Vec::new(),
+            published_service_ceiling: Vec::new(),
+        }],
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![omega_abstract_operations::AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::IntegerConstant {
+                    psi_operation: constant_operation,
+                    result: value,
+                    scalar_type,
+                    value: IntegerValue::Signed(37),
+                },
+                AbstractOperation::BoundaryCall {
+                    psi_operation: settlement_operation,
+                    result: None,
+                    boundary,
+                    arguments: vec![value],
+                    structural_arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: return_edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+    let binding = omega_target_operations::BoundarySettlementBinding {
+        boundary,
+        provider_execution,
+        realization: omega_target_operations::LinuxExitGroupI32Realization.into(),
+    };
+
+    let x86 =
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding])
+            .expect("Linux x86-64 exit_group lowering");
+    assert_eq!(
+        x86,
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_x64(), &[binding],)
+            .expect("deterministic lowering")
+    );
+    assert!(matches!(
+        &x86.functions[0].operation,
+        TargetOperation::ExitProcessI32 { argument, nominal_return_edge, .. }
+            if argument.source_value == value
+                && argument.scalar_type == scalar_type
+                && argument.immediate == IntegerValue::Signed(37)
+                && argument.destination == MachineRegister::X86Rdi
+                && *nominal_return_edge == return_edge
+    ));
+    let arm =
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::linux_arm64(), &[binding])
+            .expect("Linux AArch64 exit_group lowering");
+    assert!(matches!(
+        &arm.functions[0].operation,
+        TargetOperation::ExitProcessI32 { argument, .. }
+            if argument.destination == MachineRegister::Aarch64X(0)
+    ));
+    assert!(matches!(
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::windows_x64(), &[binding],),
+        Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+    ));
+    assert!(matches!(
+        lower_to_target_operations_with_settlements(&plan, NativeTarget::macos_arm64(), &[binding],),
+        Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+    ));
+
+    let mut wrong_signature = plan;
+    wrong_signature.boundary_machines[0].scalar_parameters[0] = ScalarType::Boolean;
+    assert_eq!(
+        lower_to_target_operations_with_settlements(
+            &wrong_signature,
+            NativeTarget::linux_x64(),
+            &[binding],
+        ),
+        Err(LoweringError::InvalidLinuxExitGroupShape(machine))
+    );
+}
+
+#[test]
+fn linux_write_line_and_exit_compose_in_one_shared_unit_body() {
+    let machine = MachineId::new(920).unwrap();
+    let block = BlockId::new(920).unwrap();
+    let write_boundary = BoundaryMachineId::new(920).unwrap();
+    let exit_boundary = BoundaryMachineId::new(921).unwrap();
+    let byte_type = StructuralTypeId::new(920).unwrap();
+    let literal_place = PlaceId::new(920).unwrap();
+    let exit_value = ValueId::new(920).unwrap();
+    let literal_operation = OperationId::new(920).unwrap();
+    let write_operation = OperationId::new(921).unwrap();
+    let constant_operation = OperationId::new(922).unwrap();
+    let exit_operation = OperationId::new(923).unwrap();
+    let return_edge = EdgeId::new(920).unwrap();
+    let bytes = vec![0, 0x80, 0xff];
+    let byte_declaration = StructuralTypeDeclaration {
+        id: byte_type,
+        identity: "test::BorrowedBytes".into(),
+        shape: StructuralTypeShape::ByteSequence(psi_terminal::ByteSequenceCarrier::BorrowedView),
+    };
+    let literal_declaration = psi_terminal::StructuralPlaceDeclaration {
+        id: literal_place,
+        kind: psi_core::StructuralPlaceKind::ByteSequenceLiteral {
+            declaration_ordinal: 0,
+            structural_type: byte_type,
+        },
+    };
+    let i32_type = IntegerType::new(IntegerSign::Signed, 32).unwrap();
+    let plan = AbstractOperationPlan {
+        psi: identity(),
+        entry: machine,
+        structural_types: vec![byte_declaration.clone()],
+        boundary_machines: vec![
+            BoundaryMachineDeclaration {
+                id: write_boundary,
+                identity: "Console::write_line(&[u8])->Unit".into(),
+                attachment: None,
+                scalar_parameters: Vec::new(),
+                structural_parameters: vec![StructuralParameterDeclaration {
+                    place: PlaceId::new(921).unwrap(),
+                    position: 0,
+                    is_self: false,
+                    structural_type: byte_type,
+                    multiplicity: StructuralMultiplicity::Unrestricted,
+                    access: StructuralAccess::SharedBorrow,
+                    qualifications: Vec::new(),
+                }],
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            },
+            BoundaryMachineDeclaration {
+                id: exit_boundary,
+                identity: "Console::exit_process(i32)->Unit".into(),
+                attachment: None,
+                scalar_parameters: vec![ScalarType::Integer(i32_type)],
+                structural_parameters: Vec::new(),
+                result: None,
+                requires: Vec::new(),
+                program_local_root_introductions: Vec::new(),
+                content_guarantees: Vec::new(),
+                published_service_ceiling: Vec::new(),
+            },
+        ],
+        provider_candidates: Vec::new(),
+        functions: vec![AbstractFunction {
+            machine,
+            attachment: None,
+            entry: block,
+            parameters: Vec::new(),
+            structural_parameters: Vec::new(),
+            result: AbstractFunctionResult::Unit,
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            block_entries: vec![AbstractBlockEntry {
+                block,
+                parameters: Vec::new(),
+                operation_offset: 0,
+            }],
+            operations: vec![
+                AbstractOperation::EstablishByteSequenceLiteral {
+                    psi_operation: literal_operation,
+                    place: literal_declaration,
+                    structural_type: byte_declaration,
+                    bytes: bytes.clone(),
+                },
+                AbstractOperation::BoundaryCall {
+                    psi_operation: write_operation,
+                    result: None,
+                    boundary: write_boundary,
+                    arguments: Vec::new(),
+                    structural_arguments: vec![StructuralArgument {
+                        place: literal_place,
+                        access: StructuralAccess::SharedBorrow,
+                        path: Vec::new(),
+                    }],
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+                AbstractOperation::IntegerConstant {
+                    psi_operation: constant_operation,
+                    result: exit_value,
+                    scalar_type: ScalarType::Integer(i32_type),
+                    value: IntegerValue::Signed(37),
+                },
+                AbstractOperation::BoundaryCall {
+                    psi_operation: exit_operation,
+                    result: None,
+                    boundary: exit_boundary,
+                    arguments: vec![exit_value],
+                    structural_arguments: Vec::new(),
+                    completion_claim_sources: Vec::new(),
+                    completion_receipts: Vec::new(),
+                },
+                AbstractOperation::ReturnUnit {
+                    psi_edge: return_edge,
+                    cleanup_actions: Vec::new(),
+                },
+            ],
+        }],
+    };
+    let provider = |seed| {
+        omega_target_operations::ProviderExecutionBinding::from_execution_record(
+            omega_target_operations::ProviderPlanIdentity::new(seed).unwrap(),
+            seed + 1,
+            seed + 2,
+            seed + 3,
+            seed + 4,
+        )
+        .unwrap()
+    };
+    let settlements = [
+        omega_target_operations::BoundarySettlementBinding {
+            boundary: write_boundary,
+            provider_execution: provider(920),
+            realization: omega_target_operations::LinuxWriteLineRealization.into(),
+        },
+        omega_target_operations::BoundarySettlementBinding {
+            boundary: exit_boundary,
+            provider_execution: provider(930),
+            realization: omega_target_operations::LinuxExitGroupI32Realization.into(),
+        },
+    ];
+
+    for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+        let lowered = lower_to_target_operations_with_settlements(&plan, target, &settlements)
+            .expect("composed Linux effect body lowers");
+        let TargetOperation::UnitBody(body) = &lowered.functions[0].operation else {
+            panic!("write_line -> exit_process remains a shared Unit body")
+        };
+        assert!(matches!(
+            &body.operations[0],
+            TargetUnitOperation::EstablishByteSequenceLiteral { bytes: actual, .. }
+                if actual == &bytes
+        ));
+        assert!(matches!(
+            &body.operations[1],
+            TargetUnitOperation::BoundarySettlement {
+                realization: omega_target_operations::BoundaryRealization::LinuxWriteLine(_),
+                byte_sequence_arguments,
+                ..
+            } if byte_sequence_arguments[0].bytes == bytes
+        ));
+        assert!(matches!(
+            &body.operations[3],
+            TargetUnitOperation::BoundarySettlement {
+                realization: omega_target_operations::BoundaryRealization::LinuxExitGroupI32(_),
+                scalar_arguments,
+                ..
+            } if scalar_arguments[0].immediate == IntegerValue::Signed(37)
+        ));
+    }
+    assert!(matches!(
+        lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::windows_x64(),
+            &settlements,
+        ),
+        Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid { .. })
+            | Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+    ));
+    assert!(matches!(
+        lower_to_target_operations_with_settlements(
+            &plan,
+            NativeTarget::macos_arm64(),
+            &settlements,
+        ),
+        Err(LoweringError::LinuxWriteLineUnsupportedOrInvalid { .. })
+            | Err(LoweringError::LinuxExitGroupUnsupportedTarget { .. })
+    ));
+}
+
+fn scalar_result(function: &AbstractFunction) -> AbstractResult {
+    function.result.scalar().expect("fixture is scalar")
+}
+
+fn scalar_result_mut(function: &mut AbstractFunction) -> &mut AbstractResult {
+    let AbstractFunctionResult::Scalar(result) = &mut function.result else {
+        panic!("fixture is scalar")
+    };
+    result
 }

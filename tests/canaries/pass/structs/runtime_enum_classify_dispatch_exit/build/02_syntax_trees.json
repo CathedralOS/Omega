@@ -1,0 +1,1473 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Console",
+        "source_id": 0,
+        "start": 438,
+        "end": 445,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "exit_process",
+            "source_id": 0,
+            "start": 456,
+            "end": 468,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "return_code",
+                "source_id": 0,
+                "start": 469,
+                "end": 480,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 482,
+                  "end": 485,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "effects": [],
+          "contracts": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Sign",
+        "source_id": 0,
+        "start": 495,
+        "end": 499,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Neg",
+            "source_id": 0,
+            "start": 507,
+            "end": 510,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Zero",
+            "source_id": 0,
+            "start": 517,
+            "end": 521,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Pos",
+            "source_id": 0,
+            "start": 528,
+            "end": 531,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 540,
+        "end": 544,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "console",
+            "source_id": 0,
+            "start": 547,
+            "end": 554,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Console",
+              "source_id": 0,
+              "start": 556,
+              "end": 563,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::classify",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "classify",
+            "source_id": 0,
+            "start": 581,
+            "end": 589,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "n",
+                "source_id": 0,
+                "start": 597,
+                "end": 598,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 600,
+                  "end": 603,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Sign",
+              "source_id": 0,
+              "start": 608,
+              "end": 612,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "pos",
+                    "source_id": 0,
+                    "start": 654,
+                    "end": 657,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "n",
+                          "source_id": 0,
+                          "start": 630,
+                          "end": 631,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "greater",
+                    "right": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "nonpos",
+                    "source_id": 0,
+                    "start": 673,
+                    "end": 679,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "pos",
+            "source_id": 0,
+            "start": 698,
+            "end": 701,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Sign",
+              "source_id": 0,
+              "start": 712,
+              "end": 716,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 737,
+                      "end": 741,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Pos",
+                      "source_id": 0,
+                      "start": 743,
+                      "end": 746,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "nonpos",
+            "source_id": 0,
+            "start": 761,
+            "end": 767,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Sign",
+              "source_id": 0,
+              "start": 778,
+              "end": 782,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "neg",
+                    "source_id": 0,
+                    "start": 820,
+                    "end": 823,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "n",
+                          "source_id": 0,
+                          "start": 804,
+                          "end": 805,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less",
+                    "right": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "zero",
+                    "source_id": 0,
+                    "start": 831,
+                    "end": 835,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "neg",
+            "source_id": 0,
+            "start": 856,
+            "end": 859,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Sign",
+              "source_id": 0,
+              "start": 870,
+              "end": 874,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 895,
+                      "end": 899,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Neg",
+                      "source_id": 0,
+                      "start": 901,
+                      "end": 904,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "zero",
+            "source_id": 0,
+            "start": 919,
+            "end": 923,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Sign",
+              "source_id": 0,
+              "start": 934,
+              "end": 938,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 959,
+                      "end": 963,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 965,
+                      "end": 969,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 990,
+            "end": 994,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_pos",
+                    "source_id": 0,
+                    "start": 1030,
+                    "end": 1039,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_pos",
+            "source_id": 0,
+            "start": 1054,
+            "end": 1063,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "s",
+                "source_id": 0,
+                "start": 1089,
+                "end": 1090,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Sign",
+                  "source_id": 0,
+                  "start": 1092,
+                  "end": 1096,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "classify",
+                  "source_id": 0,
+                  "start": 1104,
+                  "end": 1112,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 7
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_neg",
+                    "source_id": 0,
+                    "start": 1153,
+                    "end": 1162,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1136,
+                        "end": 1137,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1140,
+                      "end": 1144,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Pos",
+                      "source_id": 0,
+                      "start": 1146,
+                      "end": 1149,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1178,
+                    "end": 1181,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1136,
+                        "end": 1137,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1165,
+                      "end": 1169,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Neg",
+                      "source_id": 0,
+                      "start": 1171,
+                      "end": 1174,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1198,
+                    "end": 1201,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1136,
+                        "end": 1137,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1184,
+                      "end": 1188,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 1190,
+                      "end": 1194,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_neg",
+            "source_id": 0,
+            "start": 1222,
+            "end": 1231,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "s",
+                "source_id": 0,
+                "start": 1257,
+                "end": 1258,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Sign",
+                  "source_id": 0,
+                  "start": 1260,
+                  "end": 1264,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "classify",
+                  "source_id": 0,
+                  "start": 1272,
+                  "end": 1280,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": -4
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "check_zero",
+                    "source_id": 0,
+                    "start": 1322,
+                    "end": 1332,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1305,
+                        "end": 1306,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1309,
+                      "end": 1313,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Neg",
+                      "source_id": 0,
+                      "start": 1315,
+                      "end": 1318,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1348,
+                    "end": 1351,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1305,
+                        "end": 1306,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1335,
+                      "end": 1339,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Pos",
+                      "source_id": 0,
+                      "start": 1341,
+                      "end": 1344,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1368,
+                    "end": 1371,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1305,
+                        "end": 1306,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1354,
+                      "end": 1358,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 1360,
+                      "end": 1364,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "check_zero",
+            "source_id": 0,
+            "start": 1392,
+            "end": 1402,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "s",
+                "source_id": 0,
+                "start": 1428,
+                "end": 1429,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Sign",
+                  "source_id": 0,
+                  "start": 1431,
+                  "end": 1435,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "classify",
+                  "source_id": 0,
+                  "start": 1443,
+                  "end": 1451,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 0
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "ok",
+                    "source_id": 0,
+                    "start": 1493,
+                    "end": 1495,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1475,
+                        "end": 1476,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1479,
+                      "end": 1483,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Zero",
+                      "source_id": 0,
+                      "start": 1485,
+                      "end": 1489,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1511,
+                    "end": 1514,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1475,
+                        "end": 1476,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1498,
+                      "end": 1502,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Pos",
+                      "source_id": 0,
+                      "start": 1504,
+                      "end": 1507,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "bad",
+                    "source_id": 0,
+                    "start": 1530,
+                    "end": 1533,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": []
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "s",
+                        "source_id": 0,
+                        "start": 1475,
+                        "end": 1476,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "Sign",
+                      "source_id": 0,
+                      "start": 1517,
+                      "end": 1521,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Neg",
+                      "source_id": 0,
+                      "start": 1523,
+                      "end": 1526,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "ok",
+            "source_id": 0,
+            "start": 1554,
+            "end": 1556,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1576,
+                  "end": 1583,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1584,
+                "end": 1596,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 70
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "bad",
+            "source_id": 0,
+            "start": 1614,
+            "end": 1617,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "console",
+                  "source_id": 0,
+                  "start": 1636,
+                  "end": 1643,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "exit_process",
+                "source_id": 0,
+                "start": 1644,
+                "end": 1656,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "integer",
+                  "value": 71
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

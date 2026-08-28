@@ -1,0 +1,1629 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "ItemKind",
+        "source_id": 0,
+        "start": 5,
+        "end": 13,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "RustedDagger",
+            "source_id": 0,
+            "start": 21,
+            "end": 33,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "HealingCharm",
+            "source_id": 0,
+            "start": 40,
+            "end": 52,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "RewardKind",
+        "source_id": 0,
+        "start": 62,
+        "end": 72,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Gold",
+            "source_id": 0,
+            "start": 80,
+            "end": 84,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "GoldAndItem",
+            "source_id": 0,
+            "start": 91,
+            "end": 102,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Reward",
+        "source_id": 0,
+        "start": 114,
+        "end": 120,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "kind",
+            "source_id": 0,
+            "start": 128,
+            "end": 132,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "RewardKind",
+              "source_id": 0,
+              "start": 134,
+              "end": 144,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "gold",
+            "source_id": 0,
+            "start": 151,
+            "end": 155,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "u32",
+                "source_id": 0,
+                "start": 157,
+                "end": 160,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Wrapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "item",
+            "source_id": 0,
+            "start": 179,
+            "end": 183,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "ItemKind",
+              "source_id": 0,
+              "start": 185,
+              "end": 193,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Enemy",
+        "source_id": 0,
+        "start": 206,
+        "end": 211,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "depth",
+            "source_id": 0,
+            "start": 219,
+            "end": 224,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "constrained",
+            "base_type": {
+              "kind": "named",
+              "name": {
+                "text": "u32",
+                "source_id": 0,
+                "start": 226,
+                "end": 229,
+                "source_backed": true
+              }
+            },
+            "constraints": [
+              {
+                "kind": "arithmetic_domain",
+                "domain": "Wrapping"
+              }
+            ]
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "RandomState",
+        "source_id": 0,
+        "start": 254,
+        "end": 265,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 277,
+        "end": 281,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 304,
+            "end": 308,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "enemy",
+                "source_id": 0,
+                "start": 331,
+                "end": 336,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Enemy",
+                  "source_id": 0,
+                  "start": 338,
+                  "end": 343,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 350,
+                "end": 356,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 363,
+                    "end": 374,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "reward",
+                "source_id": 0,
+                "start": 381,
+                "end": 387,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Reward",
+                    "source_id": 0,
+                    "start": 394,
+                    "end": 400,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "enemy_item",
+                    "source_id": 0,
+                    "start": 467,
+                    "end": 477,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "enemy",
+                        "source_id": 0,
+                        "start": 478,
+                        "end": 483,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "random",
+                        "source_id": 0,
+                        "start": 485,
+                        "end": 491,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "reward",
+                        "source_id": 0,
+                        "start": 493,
+                        "end": 499,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "call",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "target": {
+                      "text": "chance",
+                      "source_id": 0,
+                      "start": 427,
+                      "end": 433,
+                      "source_backed": true
+                    },
+                    "arguments": [
+                      {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "random",
+                            "source_id": 0,
+                            "start": 434,
+                            "end": 440,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "integer",
+                        "value": 1
+                      },
+                      {
+                        "kind": "integer",
+                        "value": 4
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "named",
+                "path": [
+                  {
+                    "text": "enemy_gold",
+                    "source_id": 0,
+                    "start": 519,
+                    "end": 529,
+                    "source_backed": true
+                  }
+                ],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "enemy",
+                        "source_id": 0,
+                        "start": 530,
+                        "end": 535,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "random",
+                        "source_id": 0,
+                        "start": 537,
+                        "end": 543,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "reward",
+                        "source_id": 0,
+                        "start": 545,
+                        "end": 551,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "call",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "target": {
+                      "text": "chance",
+                      "source_id": 0,
+                      "start": 427,
+                      "end": 433,
+                      "source_backed": true
+                    },
+                    "arguments": [
+                      {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "random",
+                            "source_id": 0,
+                            "start": 434,
+                            "end": 440,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      {
+                        "kind": "integer",
+                        "value": 1
+                      },
+                      {
+                        "kind": "integer",
+                        "value": 4
+                      }
+                    ]
+                  },
+                  "operator": "equal",
+                  "right": {
+                    "kind": "boolean",
+                    "value": false
+                  }
+                }
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "enemy_item",
+            "source_id": 0,
+            "start": 579,
+            "end": 589,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "enemy",
+                "source_id": 0,
+                "start": 620,
+                "end": 625,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Enemy",
+                  "source_id": 0,
+                  "start": 627,
+                  "end": 632,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 643,
+                "end": 649,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 656,
+                    "end": 667,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "reward",
+                "source_id": 0,
+                "start": 678,
+                "end": 684,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Reward",
+                    "source_id": 0,
+                    "start": 691,
+                    "end": 697,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 716,
+                      "end": 722,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "kind",
+                  "source_id": 0,
+                  "start": 723,
+                  "end": 727,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "RewardKind",
+                    "source_id": 0,
+                    "start": 730,
+                    "end": 740,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "GoldAndItem",
+                    "source_id": 0,
+                    "start": 742,
+                    "end": 753,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 764,
+                      "end": 770,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "gold",
+                  "source_id": 0,
+                  "start": 771,
+                  "end": 775,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 1
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "enemy",
+                          "source_id": 0,
+                          "start": 782,
+                          "end": 787,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "depth",
+                      "source_id": 0,
+                      "start": 788,
+                      "end": 793,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "target": {
+                    "text": "range",
+                    "source_id": 0,
+                    "start": 801,
+                    "end": 806,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "random",
+                          "source_id": 0,
+                          "start": 807,
+                          "end": 813,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 5
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 828,
+                      "end": 834,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "item",
+                  "source_id": 0,
+                  "start": 835,
+                  "end": 839,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "roll_item",
+                  "source_id": 0,
+                  "start": 847,
+                  "end": 856,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "enemy",
+                          "source_id": 0,
+                          "start": 857,
+                          "end": 862,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "depth",
+                      "source_id": 0,
+                      "start": 863,
+                      "end": 868,
+                      "source_backed": true
+                    }
+                  },
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "random",
+                        "source_id": 0,
+                        "start": 870,
+                        "end": 876,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": {
+            "text": "enemy_gold",
+            "source_id": 0,
+            "start": 899,
+            "end": 909,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "enemy",
+                "source_id": 0,
+                "start": 940,
+                "end": 945,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Enemy",
+                  "source_id": 0,
+                  "start": 947,
+                  "end": 952,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 963,
+                "end": 969,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 976,
+                    "end": 987,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "reward",
+                "source_id": 0,
+                "start": 998,
+                "end": 1004,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Reward",
+                    "source_id": 0,
+                    "start": 1011,
+                    "end": 1017,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 1036,
+                      "end": 1042,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "kind",
+                  "source_id": 0,
+                  "start": 1043,
+                  "end": 1047,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "RewardKind",
+                    "source_id": 0,
+                    "start": 1050,
+                    "end": 1060,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "Gold",
+                    "source_id": 0,
+                    "start": 1062,
+                    "end": 1066,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 1077,
+                      "end": 1083,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "gold",
+                  "source_id": 0,
+                  "start": 1084,
+                  "end": 1088,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 2
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "enemy",
+                            "source_id": 0,
+                            "start": 1095,
+                            "end": 1100,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "depth",
+                        "source_id": 0,
+                        "start": 1101,
+                        "end": 1106,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "multiply",
+                    "right": {
+                      "kind": "integer",
+                      "value": 2
+                    }
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "target": {
+                    "text": "range",
+                    "source_id": 0,
+                    "start": 1118,
+                    "end": 1123,
+                    "source_backed": true
+                  },
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "random",
+                          "source_id": 0,
+                          "start": 1124,
+                          "end": 1130,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "integer",
+                      "value": 6
+                    }
+                  ]
+                }
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "reward",
+                      "source_id": 0,
+                      "start": 1145,
+                      "end": 1151,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "item",
+                  "source_id": 0,
+                  "start": 1152,
+                  "end": 1156,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "ItemKind",
+                    "source_id": 0,
+                    "start": 1159,
+                    "end": 1167,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "RustedDagger",
+                    "source_id": 0,
+                    "start": 1169,
+                    "end": 1181,
+                    "source_backed": true
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::range",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "range",
+            "source_id": 0,
+            "start": 1214,
+            "end": 1219,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 1231,
+                "end": 1237,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 1244,
+                    "end": 1255,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "limit",
+                "source_id": 0,
+                "start": 1257,
+                "end": 1262,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1264,
+                  "end": 1267,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "u32",
+              "source_id": 0,
+              "start": 1272,
+              "end": 1275,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "value": 1
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::chance",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "chance",
+            "source_id": 0,
+            "start": 1311,
+            "end": 1317,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 1329,
+                "end": 1335,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 1342,
+                    "end": 1353,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "top",
+                "source_id": 0,
+                "start": 1355,
+                "end": 1358,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1360,
+                  "end": 1363,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "bottom",
+                "source_id": 0,
+                "start": 1365,
+                "end": 1371,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1373,
+                  "end": 1376,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 0,
+              "start": 1381,
+              "end": 1385,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "boolean",
+                "value": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::roll_item",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "roll_item",
+            "source_id": 0,
+            "start": 1424,
+            "end": 1433,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "depth",
+                "source_id": 0,
+                "start": 1456,
+                "end": 1461,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "u32",
+                  "source_id": 0,
+                  "start": 1463,
+                  "end": 1466,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "random",
+                "source_id": 0,
+                "start": 1473,
+                "end": 1479,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "RandomState",
+                    "source_id": 0,
+                    "start": 1486,
+                    "end": 1497,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "ItemKind",
+              "source_id": 0,
+              "start": 1508,
+              "end": 1516,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "ItemKind",
+                      "source_id": 0,
+                      "start": 1559,
+                      "end": 1567,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "HealingCharm",
+                      "source_id": 0,
+                      "start": 1569,
+                      "end": 1581,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "when",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "depth",
+                        "source_id": 0,
+                        "start": 1546,
+                        "end": 1551,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "greater",
+                  "right": {
+                    "kind": "integer",
+                    "value": 1
+                  }
+                }
+              }
+            },
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "ItemKind",
+                      "source_id": 0,
+                      "start": 1596,
+                      "end": 1604,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "RustedDagger",
+                      "source_id": 0,
+                      "start": 1606,
+                      "end": 1618,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

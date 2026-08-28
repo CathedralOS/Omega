@@ -1,0 +1,67 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "InterruptMaskGuard",
+      "opaque": true,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "InterruptMaskControl",
+      "opaque": true,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "InterruptAcknowledgement",
+      "opaque": true,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    }
+  ],
+  "safe_point_crossings": [
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "Main::settle",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "InterruptMaskControl::save_and_mask",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "InterruptMaskGuard::restore",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "InterruptAcknowledgement::complete",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

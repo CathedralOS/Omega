@@ -1,6 +1,6 @@
 # Target Operations To Assigned Target Operations
 
-[Pipeline](../pipeline.md) | Previous: [Abstract Operations To Target Operations](abstract_operations_to_target_operations.md) | Next: [Assigned Target Operations To Machine Instructions](assigned_target_operations_to_machine_instructions.md)
+[Pipeline](../pipeline.md) | Previous: [Abstract Operations To Target Operations](abstract_operations_to_target_operations.md) | Next: Assigned Operations To Machine Code
 
 This stage assigns physical homes such as registers, stack slots, spills, and calling-convention locations.
 
@@ -14,35 +14,14 @@ Primary responsibility: decide physical registers, stack slots, spill homes, and
 
 ## Implementation Map
 
-- `omega-target-operations/src/instruction/plan.rs` is the input
-  representation root: executable target operation shape and host bindings live
-  under `TargetOperationCode`, while preserved semantic evidence lives under
-  `TargetSemanticSummary`.
-- `omega-assigned-target-operations/src/plan.rs` is the output
-  representation root: assigned executable shape and host bindings live under
-  `AssignedTargetOperationCode`, while preserved semantic evidence lives under
-  `AssignedSemanticSummary`.
-- `builder.rs` owns the stage conveyor only: target identity, assigned code
-  root, and preserved semantic root are assembled there.
-- `code.rs` owns assigned executable-code root construction from target
-  operation arenas and delegates runtime value home assignment to `values.rs`.
-- `functions.rs` owns function metadata remapping while operation ordering is preserved.
-- `operations.rs` owns target operation and instruction-operand conversion into assigned operation records.
-- `instruction_operands.rs` owns assigned instruction operand records such as immediates, data addresses, and runtime string descriptors.
-- `value_operands.rs` owns assigned runtime value operand records and their target/assigned handle bridge.
-- `operation_conversions/` owns directional conversion between target operation kinds and assigned operation kinds.
-- `semantics.rs` owns the assigned-stage semantic aliases.
-  `AssignedSemanticSummary` is the preserved target/abstract semantic spine,
-  not a new duplicate values/boundaries/ownership container. The stage should
-  still assemble value, boundary, and ownership roots through the shared
-  semantic-summary constructor so preservation remains explicit.
-- `values.rs` owns runtime value operand home assignment, including stack/runtime homes and scratch-register selection.
-- `registers.rs` owns architecture-specific scratch register selection until real allocation replaces the current fixed policy.
-- `tests.rs` owns stage-level preservation canaries for value, ownership, and
-  boundary policy-check metadata. Assigned operation and operand arenas retain
-  the target arena identity used by the later exact callback registrar binding;
-  this stage does not infer a binding from operand position.
-
+- `omega-target-operations-to-assigned-target-operations/src/lib.rs` owns the
+  compatibility assignment boundary.
+- `structural_result.rs` and `structural_scalar.rs` own the currently supported
+  physical families.
+- `omega-assigned-target-operations/src/lib.rs` owns the output representation.
+- This is the bounded compatibility continuation. The selected-instruction,
+  liveness, and allocation continuation is its durable replacement; neither is
+  a source-shaped fallback backend.
 ## Semantic Ownership
 
 | Noun | Ownership |

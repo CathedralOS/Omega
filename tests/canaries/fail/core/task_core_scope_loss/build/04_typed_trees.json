@@ -1,0 +1,146 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Task",
+        "type_parameters": [
+          "T"
+        ],
+        "members": [
+          {
+            "kind": "field",
+            "name": "provider",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "activation",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Task<i32>",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "provider",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "activation",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "task",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Task<i32>"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Task",
+                  "fields": [
+                    {
+                      "name": "provider",
+                      "value": {
+                        "kind": "integer",
+                        "text": "1"
+                      }
+                    },
+                    {
+                      "name": "activation",
+                      "value": {
+                        "kind": "integer",
+                        "text": "7"
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 1,
+    "data_member_count": 4,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 1,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 3,
+    "expression_struct_field_count": 2,
+    "statement_count": 1,
+    "transition_target_count": 0,
+    "type_reference_count": 6,
+    "type_constraint_count": 0
+  }
+}

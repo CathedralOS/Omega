@@ -1,0 +1,46 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "ByteRead",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "Main::main",
+      "analysis_complete": false,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "console_write_bytes",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write_line",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

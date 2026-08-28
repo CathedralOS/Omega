@@ -1,0 +1,4 @@
+# Omega Wire Protocols
+
+identity-keyed schemas: 0
+edge compatibility demands: 0

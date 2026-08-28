@@ -1,0 +1,165 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "wire_data",
+      "name": {
+        "text": "CounterMessage",
+        "source_id": 0,
+        "start": 263,
+        "end": 277,
+        "source_backed": true
+      },
+      "encoding": null,
+      "members": [
+        {
+          "kind": "version",
+          "name": {
+            "text": "v1",
+            "source_id": 0,
+            "start": 293,
+            "end": 295,
+            "source_backed": true
+          },
+          "members": [
+            {
+              "kind": "field",
+              "number": 0,
+              "name": {
+                "text": "counter",
+                "source_id": 0,
+                "start": 310,
+                "end": 317,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "i32",
+                  "source_id": 0,
+                  "start": 319,
+                  "end": 322,
+                  "source_backed": true
+                }
+              }
+            }
+          ]
+        },
+        {
+          "kind": "reserved",
+          "number": 0
+        },
+        {
+          "kind": "field",
+          "number": 1,
+          "name": {
+            "text": "counter",
+            "source_id": 0,
+            "start": 357,
+            "end": 364,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 366,
+              "end": 369,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "number": 2,
+          "name": {
+            "text": "timestamp_millis",
+            "source_id": 0,
+            "start": 379,
+            "end": 395,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i64",
+              "source_id": 0,
+              "start": 397,
+              "end": 400,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 413,
+        "end": 417,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 440,
+            "end": 444,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

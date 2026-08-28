@@ -1,0 +1,103 @@
+{
+  "data": [
+    {
+      "type": "Representative",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "EquivalenceClass",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "safe_point_crossings": [
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "equivalent",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "equivalent_reflexive",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "equivalent_symmetric",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "equivalent_transitive",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "advance",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "advance_respects",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "lifted_advance",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "combine",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "combine_respects",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "lifted_combine",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 7,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

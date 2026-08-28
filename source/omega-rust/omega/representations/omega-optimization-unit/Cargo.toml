@@ -9,7 +9,7 @@ name = "omega_optimization_unit"
 path = "src/lib.rs"
 
 [dependencies]
-omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
-omega-terminal-abstract-operations = { path = "../omega-terminal-abstract-operations" }
+omega-optimization-core = { path = "../omega-optimization-core" }
+omega-abstract-operations = { path = "../omega-abstract-operations" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }

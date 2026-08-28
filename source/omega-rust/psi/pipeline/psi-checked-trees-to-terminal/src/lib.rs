@@ -988,8 +988,8 @@ pub fn lower_machine(
 
 /// Produce the canonical source-free artifact consumed at the Psi/Omega seam.
 ///
-/// Unsupported checked constructs fail at lowering; this operation never
-/// selects the legacy checked-tree backend as a fallback.
+/// Unsupported checked constructs fail at lowering; there is no alternate
+/// checked-tree backend to select as a fallback.
 pub fn produce_terminal_artifact(
     checked: &CheckedTrees,
     machine_name: &str,

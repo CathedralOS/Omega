@@ -1,0 +1,22 @@
+[package]
+name = "omega-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-optimization-core = { path = "../omega-optimization-core" }
+omega-optimization-unit = { path = "../omega-optimization-unit" }
+omega-register-model = { path = "../omega-register-model" }
+omega-target = { path = "../omega-target" }
+omega-abstract-operations = { path = "../omega-abstract-operations" }
+omega-legalized-operations = { path = "../omega-legalized-operations" }
+omega-target-operations = { path = "../omega-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+sha2 = "0.10.9"

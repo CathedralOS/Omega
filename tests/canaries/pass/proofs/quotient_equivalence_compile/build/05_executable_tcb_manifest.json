@@ -1,0 +1,10 @@
+{
+  "known_entries": [],
+  "completeness": {
+    "status": "complete",
+    "scope": "caller_address_space",
+    "evidence": [
+      {"kind": "selected_provider_closure", "identity": "0xa8c7f832281a39c5"}
+    ]
+  }
+}

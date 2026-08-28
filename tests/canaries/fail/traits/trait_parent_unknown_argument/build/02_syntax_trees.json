@@ -1,0 +1,139 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Policy",
+        "source_id": 0,
+        "start": 6,
+        "end": 12,
+        "source_backed": true
+      },
+      "is_boundary": false,
+      "type_parameters": [
+        {
+          "name": {
+            "text": "C",
+            "source_id": 0,
+            "start": 13,
+            "end": 14,
+            "source_backed": true
+          },
+          "kind": "type",
+          "const_type": null
+        }
+      ],
+      "parents": [],
+      "invariants": [],
+      "requires": [],
+      "machines": []
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Broken",
+        "source_id": 0,
+        "start": 27,
+        "end": 33,
+        "source_backed": true
+      },
+      "is_boundary": false,
+      "type_parameters": [],
+      "parents": [
+        {
+          "kind": "generic",
+          "base_name": {
+            "text": "Policy",
+            "source_id": 0,
+            "start": 35,
+            "end": 41,
+            "source_backed": true
+          },
+          "arguments": [
+            {
+              "kind": "named",
+              "name": {
+                "text": "MissingConvention",
+                "source_id": 0,
+                "start": 42,
+                "end": 59,
+                "source_backed": true
+              }
+            }
+          ]
+        }
+      ],
+      "invariants": [],
+      "requires": [],
+      "machines": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 71,
+        "end": 75,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 95,
+            "end": 99,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

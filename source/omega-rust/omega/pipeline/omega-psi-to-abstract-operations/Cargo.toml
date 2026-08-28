@@ -1,0 +1,23 @@
+[package]
+name = "omega-psi-to-abstract-operations"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_psi_to_abstract_operations"
+path = "src/lib.rs"
+
+[dependencies]
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-terminal-interpreter = { path = "../../../psi/semantics/psi-terminal-interpreter" }
+psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }
+
+[dev-dependencies]
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }

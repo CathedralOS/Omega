@@ -1,0 +1,90 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "TestConvention",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [
+      {
+        "name": "Calling",
+        "is_boundary": false,
+        "type_parameters": [
+          "C"
+        ],
+        "invariants": [],
+        "requires": [],
+        "machines": []
+      },
+      {
+        "name": "Readable",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": []
+      },
+      {
+        "name": "Filesystem",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [
+          "Readable",
+          "Calling<TestConvention>"
+        ],
+        "machines": []
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 0,
+    "statement_count": 0,
+    "type_reference_count": 1
+  }
+}

@@ -1,0 +1,617 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "domain",
+      "name": {
+        "text": "[u8]::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "slice",
+        "element_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 0,
+            "start": 8,
+            "end": 10,
+            "source_backed": true
+          }
+        }
+      },
+      "classifier": {
+        "kind": "call",
+        "receiver": null,
+        "target": {
+          "text": "valid_utf8",
+          "source_id": 0,
+          "start": 23,
+          "end": 33,
+          "source_backed": true
+        },
+        "arguments": [
+          {
+            "kind": "self_value"
+          }
+        ]
+      },
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Folder",
+        "source_id": 0,
+        "start": 504,
+        "end": 510,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "File",
+        "source_id": 0,
+        "start": 521,
+        "end": 525,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "File::Writable",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "File",
+          "source_id": 0,
+          "start": 538,
+          "end": 542,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "trait",
+      "name": {
+        "text": "Filesystem",
+        "source_id": 0,
+        "start": 573,
+        "end": 583,
+        "source_backed": true
+      },
+      "is_boundary": true,
+      "type_parameters": [],
+      "invariants": [],
+      "requires": [],
+      "machines": [
+        {
+          "name": {
+            "text": "open",
+            "source_id": 0,
+            "start": 598,
+            "end": 602,
+            "source_backed": true
+          },
+          "is_default": false,
+          "parameters": [
+            {
+              "name": {
+                "text": "folder",
+                "source_id": 0,
+                "start": 603,
+                "end": 609,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Folder",
+                  "source_id": 0,
+                  "start": 611,
+                  "end": 617,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "path",
+                "source_id": 0,
+                "start": 619,
+                "end": 623,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "constrained",
+                  "base_type": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": {
+                        "text": "u8",
+                        "source_id": 0,
+                        "start": 627,
+                        "end": 629,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "constraints": [
+                    {
+                      "kind": "named",
+                      "name": {
+                        "text": "Utf8",
+                        "source_id": 0,
+                        "start": 634,
+                        "end": 638,
+                        "source_backed": true
+                      }
+                    }
+                  ]
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "File",
+              "source_id": 0,
+              "start": 643,
+              "end": 647,
+              "source_backed": true
+            }
+          },
+          "effects": [
+            {
+              "text": "filesystem_io",
+              "source_id": 0,
+              "start": 713,
+              "end": 726,
+              "source_backed": true
+            }
+          ],
+          "contracts": [
+            {
+              "kind": {
+                "kind": "ensures"
+              },
+              "facts": [
+                {
+                  "kind": "membership",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "result",
+                        "source_id": 0,
+                        "start": 668,
+                        "end": 674,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "domain": [
+                    {
+                      "text": "File",
+                      "source_id": 0,
+                      "start": 678,
+                      "end": 682,
+                      "source_backed": true
+                    },
+                    {
+                      "text": "Writable",
+                      "source_id": 0,
+                      "start": 684,
+                      "end": 692,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ],
+              "token_count": 8
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Worker",
+        "source_id": 0,
+        "start": 736,
+        "end": 742,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "fs",
+            "source_id": 0,
+            "start": 749,
+            "end": 751,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Filesystem",
+              "source_id": 0,
+              "start": 753,
+              "end": 763,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Worker::open_log",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Worker",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "filesystem_io",
+          "source_id": 0,
+          "start": 840,
+          "end": 853,
+          "source_backed": true
+        }
+      ],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "open_log",
+            "source_id": 0,
+            "start": 784,
+            "end": 792,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "folder",
+                "source_id": 0,
+                "start": 804,
+                "end": 810,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Folder",
+                  "source_id": 0,
+                  "start": 812,
+                  "end": 818,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "File",
+              "source_id": 0,
+              "start": 823,
+              "end": 827,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "fs",
+                    "source_id": 0,
+                    "start": 865,
+                    "end": 867,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "open",
+                  "source_id": 0,
+                  "start": 868,
+                  "end": 872,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "folder",
+                        "source_id": 0,
+                        "start": 873,
+                        "end": 879,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  {
+                    "kind": "string",
+                    "text": "log.txt"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Worker::open_main_log",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Worker",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "filesystem_io",
+          "source_id": 0,
+          "start": 972,
+          "end": 985,
+          "source_backed": true
+        }
+      ],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "open_main_log",
+            "source_id": 0,
+            "start": 911,
+            "end": 924,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "folder",
+                "source_id": 0,
+                "start": 936,
+                "end": 942,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Folder",
+                  "source_id": 0,
+                  "start": 944,
+                  "end": 950,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "File",
+              "source_id": 0,
+              "start": 955,
+              "end": 959,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "target": {
+                  "text": "open_log",
+                  "source_id": 0,
+                  "start": 997,
+                  "end": 1005,
+                  "source_backed": true
+                },
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "folder",
+                        "source_id": 0,
+                        "start": 1006,
+                        "end": 1012,
+                        "source_backed": true
+                      }
+                    ]
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 1022,
+        "end": 1026,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 1046,
+            "end": 1050,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

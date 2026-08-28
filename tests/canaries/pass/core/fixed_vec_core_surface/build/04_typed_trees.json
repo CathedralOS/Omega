@@ -1,0 +1,196 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "FixedVec",
+        "supply": "checked_shape",
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "members": [
+          {
+            "kind": "field",
+            "name": "items",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "T"
+              },
+              "length": "N"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "length",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "is_mutable": true
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "FixedVec",
+          "Length"
+        ],
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 0,
+        "spelling": null,
+        "token_count": 35
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "FixedVec",
+          "push"
+        ],
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 60
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "FixedVec",
+          "pop"
+        ],
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 46
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "FixedVec",
+          "get"
+        ],
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "parameter_count": 2,
+        "has_return_type": true,
+        "contract_count": 1,
+        "spelling": null,
+        "token_count": 51
+      },
+      {
+        "is_boundary": true,
+        "has_symbol": true,
+        "name": [
+          "FixedVec",
+          "as_slice"
+        ],
+        "type_parameters": [
+          "T",
+          "N"
+        ],
+        "parameter_count": 1,
+        "has_return_type": true,
+        "contract_count": 2,
+        "spelling": null,
+        "token_count": 62
+      }
+    ],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 12,
+    "data_member_count": 2,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 5,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 8,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 25,
+    "expression_struct_field_count": 0,
+    "statement_count": 0,
+    "transition_target_count": 0,
+    "type_reference_count": 40,
+    "type_constraint_count": 0
+  }
+}

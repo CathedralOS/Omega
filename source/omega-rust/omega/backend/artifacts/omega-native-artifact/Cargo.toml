@@ -1,0 +1,15 @@
+[package]
+name = "omega-native-artifact"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_native_artifact"
+path = "src/lib.rs"
+
+[dependencies]
+omega-target = { path = "../../../representations/omega-target" }
+omega-image-emission = { path = "../../images/omega-image-emission" }
+omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
+psi-terminal-codec = { path = "../../../../psi/semantics/psi-terminal-codec" }

@@ -179,7 +179,7 @@ Remaining:
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
   Darwin realizations for `read_byte`, `write_byte`, and `exit_process`. Do not
-  bypass Terminal Psi, revive the legacy backend, or route around the failure
+  bypass Terminal Psi, revive the deleted backend, or route around the failure
   in report/artifact policy.
   Do not recover speed by duplicating token access, generating state
   permutations, or enabling unconsumed viewers/debug output.
@@ -2058,7 +2058,7 @@ and unsupported atomic operations reject before code generation.
 
 Owners:
 
-- `wiki/architecture/pipeline/terminal_psi.md`
+- `wiki/architecture/pipeline/psi.md`
 - `wiki/design_briefs/canonical_ir_fuel_and_resource_provisioning.md`
 - `wiki/architecture/bootstrap_lattice/proof_kernel.md`
 
@@ -2067,7 +2067,7 @@ Remaining:
 - **PSI-OMEGA-CUTOVER — finish deleting the superseded pre-Psi backend
   vocabulary.** The executable cutover is complete: `compile` has one
   checked-Psi frontend, one canonical Terminal-Psi handoff, and one
-  Terminal-native realization route. The former `StateGraphHarness`, its
+  native realization route. The former `StateGraphHarness`, its
   `CheckedTrees -> StateGraph -> ControlFlow` orchestration, legacy output
   writer, emitted-program carrier, report-only policies, and production
   compiler dependencies are deleted. No requested product or unsupported
@@ -2080,7 +2080,7 @@ Remaining:
   compiler product stops at that carrier without entering StateGraph, native
   emission, output, or installation. The ordinary `NativeArtifact` product and
   component staging now consume that same carrier by value through one
-  source-free Terminal-native realization operation. It performs portable
+  source-free native realization operation. It performs portable
   verification, target realization, machine/object/image emission, and exact
   image replay, then returns a non-clonable artifact retaining the canonical
   Terminal identity, target, selected-provider projection, object, relocation,
@@ -2090,81 +2090,29 @@ Remaining:
   Terminal vocabulary rejects without fallback, and architecture tests fence
   the route and dependency closure.
 
-  Old `StateGraph`, `ControlFlow`, abstract/target/assigned-operation, and
-  machine-program crates still survive below test fixtures and the historical
-  program-storage wrapper implementation. They are not an alternate compiler
-  route, but they remain duplicate vocabulary and must be removed or replaced
-  by views derived from Terminal Psi. Optimization is now a mandatory stage of
-  that route. An empty selected set is the identity transformation: native
-  realization still reconstructs the verified optimizer unit, runs its bounded
-  pass manager, and projects the resulting abstract plan before target
-  lowering. Nonempty selections now consume the same optimized carrier and run
-  the optimizer-owned legalization, selected-instruction, liveness, allocation,
-  home, and post-allocation-machine continuation. They fail closed at the
-  remaining frame/exit, executable-image, and publication join without running
-  or discarding into the bounded baseline route. This work is now owned by the
-  canonical native realization path; any separately tracked optimizer-agent
-  task is subordinate to this join and must not restore its former private
-  production fork. The selected continuation must replace the current bounded
-  direct assignment when its machine/object metadata closure is complete.
-  `CompileReport` no longer retains the historical
-  `ProgramStorageEntryPlanBinding` / `ProgramStorageEntryNativeBridgePlan`
-  pair: the canonical driver had supplied `None` for both, but those dead
-  fields kept the legacy emitted-wrapper/backend closure in the ordinary
-  reporting API. The compiler-owned integration test that reconstructed and
-  installed that obsolete bridge was removed with the fields; program-entry
-  settlement now belongs to the canonical Terminal-native request and artifact.
-  The data-only ProgramEntry source/target/semantic contract has been split
-  into `omega-program-entry-plan`. Ordinary build evaluation, provider
-  planning, and Terminal-native realization now depend on that small contract
-  crate; the normal compiler graph no longer contains the historical
-  `omega-program-storage` implementation or `omega-backend-pipeline` closure.
-  The legacy storage implementation reuses the same contract identities only
-  for its isolated lower-level tests and must not re-enter production.
+  The mechanical cutover is complete. The former StateGraph/control-flow
+  backend, its duplicate operation representations, legacy ISA/emission
+  packages, storage-wrapper coordinator, and fallback orchestration have been
+  deleted rather than renamed. Reusable target encoders and post-handoff writer
+  logic now live under the canonical ISA and ProgramEntry owners. The shared
+  composition edge is named for its exact endpoints:
+  `omega-terminal-psi-to-native-artifact`.
 
-  Restore the original mechanical split before doing further redesign:
+  Architecture tests now fence the one production call graph and the retired
+  package names. Unsupported Terminal-Psi vocabulary fails closed. Any future
+  graph or optimizer view must be derived from Terminal Psi inside Omega and
+  cannot become a second language-semantics boundary.
 
-  1. Establish one canonical handoff artifact at the settled ownership seam.
-     Psi alone consumes source, syntax, typed trees, and checked trees and emits
-     terminal Psi plus its proof/evidence payload. Omega target realization
-     consumes that artifact and no earlier Psi representation.
-  2. Make the ordinary compiler, component staging, native differential tests,
-     interpretation, object emission, and executable-image emission enter the
-     same terminal-Psi realization API. Component packaging is a policy layered
-     over the universal compiler path, not the owner of a second backend.
-  3. Cut over mechanically first. The initial handoff may preserve or be
-     structurally isomorphic to the exact pre-cut semantic representation where
-     necessary to retain behavior. Do not require a simultaneous idealized IR
-     redesign, and do not build a parallel replacement stage for each legacy
-     stage. Canonicalize and improve the representation only after every build
-     crosses the seam.
-  4. Port every still-supported aggregate, cleanup, transfer, boundary, loop,
-     suspension, ordering, provider, storage, callback, and reporting path to
-     that single route. During the cutover an unsupported construct must reject
-     explicitly; it must never select the legacy backend as a hidden fallback.
-  5. Delete the executable `CheckedProgramSurface -> StateGraph ->
-     ControlFlowPlan` production route and remove its orchestration and crate
-     dependencies. A state graph, control-flow graph, or other optimizer view
-     may survive only when derived from terminal Psi inside Omega; it may not be
-     a competing language-semantics boundary.
-  6. Remove candidate-only naming and APIs once the shared route lands. The
-     public operation is terminal-artifact realization; ordinary builds and
-     independently installable components merely request different artifact
-     products and installation policy from it.
-  7. Add architecture fences over the production dependency graph and function
-     signatures, not only the clean terminal lane: no Omega realization crate
-     may depend on typed/checked/source trees, no production realization entry
-     may accept them, and no native artifact may be emitted without a retained
-     terminal-Psi identity and independently replayable obligation record.
+  Remaining work belongs to ordinary vertical-slice coverage and to replacing
+  the bounded compatibility assignment with the selected-instruction,
+  liveness, allocation, and physical continuation. It must extend this route,
+  never restore the deleted backend.
 
   Acceptance: one production call graph exists from checked Omega source to a
-  native artifact; the only Psi-to-Omega executable handoff is terminal Psi;
-  ordinary and component builds share it; all supported canaries pass through
-  it; deliberately unsupported features fail at that boundary; architecture
-  tests reject reintroduction of the checked-tree/state-graph bypass; and the
-  legacy production crates and dependencies are removed rather than relabeled
-  as a permanent bootstrap path.
-
+  native artifact; the sole executable semantic handoff from Psi to Omega is
+  canonical Terminal Psi; ordinary and component builds share it; unsupported
+  features reject; and architecture tests reject reintroduction of the deleted
+  checked-tree/StateGraph path.
 - **COMPILER-DRIVER-CLEANUP — restore `compiler.rs` as a thin pipeline
   coordinator.** The large alternate driver is gone. `compiler.rs` now declares
   only `Compiler`, delegates one typed request to `driver.rs`, and owns no
@@ -2193,9 +2141,9 @@ Remaining:
   now runs the Psi-owned checked frontend and exact canonical producer, returns
   the complete report-owned artifact, and never enters StateGraph, native
   emission, output, or installation; unsupported Terminal vocabulary rejects
-  instead of selecting the legacy backend. `NativeArtifact` now enters the
+  instead of selecting another backend. `NativeArtifact` now enters the
   same Psi-owned frontend and canonical producer, then crosses one source-free
-  Terminal realization operation shared with component staging. Its retained
+  native realization operation shared with component staging. Its retained
   report payload owns the canonical Terminal artifact, exact target and
   provider projections, object/relocation/text evidence, and replayed final
   image while owning no output path, publication, installation, or runtime
@@ -2229,7 +2177,7 @@ Remaining:
   instead of couriering a raw machine-name vector, while authored row order and
   `build override > target default > unique declaration default` precedence
   remain unchanged. Native publication is now one explicit product-owned
-  operation after compilation: it validates the retained Terminal-native
+  operation after compilation: it validates the retained native
   artifact, stages and replays exact bytes, atomically exposes the file, and
   returns a publication receipt. It is not a compiler route or request product.
   Remaining post-check fact couriers and the stale `CompileOptions.write_output`
@@ -2296,7 +2244,7 @@ Remaining:
   extends the representation behind that seam; it must not add or retain a
   parallel source-to-native route. The detailed accepted
   vocabulary and current fences live in
-  [`terminal_psi.md`](wiki/architecture/pipeline/terminal_psi.md); do not
+  [`psi.md`](wiki/architecture/pipeline/psi.md); do not
   duplicate its operation-by-operation ledger here.
 
   Producer and verifier proof reconstruction independently own one mutable,
@@ -5100,7 +5048,7 @@ Remaining:
   over ten contract, call/control, exact-arithmetic, scalar-operation, and
   crash/admission families. All 115 tests and 137 functions remain, and no
   family exceeds 2,030 lines.
-  Terminal native machine emission has undergone the same split: its
+  native machine emission has undergone the same split: its
   12,922-line crate root is now an 891-line production orchestrator with the
   complete 58-case, 5,028-line regression corpus compiled separately.
   Unit-body and calling-policy emission, per-target parameter homes, aggregate
@@ -5368,7 +5316,7 @@ Remaining:
   independently provisioned exhaustion sponsor path with both fixed provision
   and `FuelSuspensionFree`; unavailable realization falls back only to an
   explicitly interpreter-enabled hosted environment and rejects for hosted
-  native-only or freestanding installation. Terminal object evidence now also
+  native-only or freestanding installation. Omega object evidence now also
   exposes a normalized read-only projection of its already byte-validated fuel
   attribution rows and complete target. The backend now retains the exact
   `TargetProfile` as well as its native tuple, preventing Windows and UEFI
@@ -5412,7 +5360,7 @@ Remaining:
   image emission consume only those replayed bytes; x86-64 and AArch64 final
   images require complete compiler-function region classification and the exact
   final relocation envelope. The carrier deliberately does not masquerade as
-  the existing semantic `TerminalObjectArtifact`: effect, settlement, stack,
+  the existing semantic `ObjectArtifact`: effect, settlement, stack,
   cleanup, return, and installation offsets still name the immutable source
   evidence. A dependency-light final-image projection now rejoins the exact
   source attribution, target recipe, replayed hot/semantic/cold intervals,
@@ -8223,7 +8171,7 @@ compiler concept is introduced.
   this endpoint without losing the accepted manifest or installed custody.
 
   The authority-free terminal component candidate now lives in the neutral
-  `omega-terminal-component-candidate` crate. Both the compiler and deployment
+  `omega-component-candidate` crate. Both the compiler and deployment
   owner depend on that carrier, and deployment no longer depends on the
   compiler. This removes the crate cycle that prevented the compiler from
   invoking deployment while retaining private candidate fields, consuming
@@ -8306,7 +8254,7 @@ compiler concept is introduced.
   reaches terminal-deployment report custody unchanged.
 
   The ordinary Psi-owned checked frontend now has a separate typed terminal
-  compile handoff without entering the legacy backend coordinator.
+  compile handoff without entering another backend coordinator.
   `CheckedCompilation` retains its exact consumed source count and build-
   selected image subsystem; `TerminalComponentCompileRequest` owns compile
   options, optional package inputs, the externally borrowed admission profile
@@ -9011,7 +8959,7 @@ Remaining N6/N8 work:
   producer attachment consumes only the complete extractor batch and is not an
   ordinary `lower_machine` path. Ordinary validation still rejects every
   quotient request, one unsupported request prevents returning a partial
-  batch, and no row owns a Terminal machine or executable operation. This
+  batch, and no row owns a machine or executable operation. This
   closes the module-retention prerequisite only: stage 3 is still incomplete
   at Q9, while checked executable authorization and stage-4 operation/result
   lowering remain open.
@@ -9842,7 +9790,7 @@ checked-result arithmetic decision listed below.
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.
 - The first exact component stack-needs column is live. A Terminal component
-  candidate retains the emitter-derived `TerminalStackDemand` for its canonical
+  candidate retains the emitter-derived `StackDemand` for its canonical
   object entry, independently rederives the complete target-specific internal
   call-graph closure during candidate admission, and rejects even a
   same-architecture demand from another object format. Candidate decomposition

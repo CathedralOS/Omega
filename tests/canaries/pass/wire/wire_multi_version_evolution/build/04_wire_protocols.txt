@@ -1,0 +1,42 @@
+# Omega Wire Protocols
+
+wire data schemas: 1
+
+## wire data CounterMessage
+encoding: (default)
+current era: 2
+fields:
+  1 timestamp_millis i64
+  2 retry_count i32
+reserved: 0
+
+### version v1 (era 0)
+fields:
+  0 counter i32
+  1 created_millis i64
+
+### compatibility v1 -> v2
+compatible:
+  field 1 renamed created_millis -> timestamp_millis (number and type stable)
+requires migration:
+  none
+reserved:
+  field 0 counter retired; number reserved
+incompatible:
+  none
+
+### version v2 (era 1)
+fields:
+  1 timestamp_millis i64
+reserved: 0
+
+### compatibility v2 -> current
+compatible:
+  field 1 timestamp_millis i64 unchanged
+  added field 2 retry_count i32
+requires migration:
+  none
+reserved:
+  none
+incompatible:
+  none

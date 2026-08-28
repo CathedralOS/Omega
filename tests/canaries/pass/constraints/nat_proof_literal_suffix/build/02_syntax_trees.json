@@ -1,0 +1,148 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "machine",
+      "name": {
+        "text": "pythagorean_3_4_5",
+        "source_id": 0,
+        "start": 266,
+        "end": 283,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "ensures"
+          },
+          "facts": [
+            {
+              "kind": "expression",
+              "expression": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "integer",
+                      "value": 3
+                    },
+                    "operator": "multiply",
+                    "right": {
+                      "kind": "integer",
+                      "value": 3
+                    }
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "integer",
+                      "value": 4
+                    },
+                    "operator": "multiply",
+                    "right": {
+                      "kind": "integer",
+                      "value": 4
+                    }
+                  }
+                },
+                "operator": "equal",
+                "right": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "integer",
+                    "value": 5
+                  },
+                  "operator": "multiply",
+                  "right": {
+                    "kind": "integer",
+                    "value": 5
+                  }
+                }
+              }
+            }
+          ],
+          "token_count": 22
+        }
+      ],
+      "states": []
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 355,
+        "end": 359,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 382,
+            "end": 386,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

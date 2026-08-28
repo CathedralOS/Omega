@@ -1,0 +1,642 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 292,
+        "end": 296,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "port",
+            "source_id": 0,
+            "start": 303,
+            "end": 307,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u16",
+              "source_id": 0,
+              "start": 309,
+              "end": 312,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "status",
+            "source_id": 0,
+            "start": 318,
+            "end": 324,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "u8",
+              "source_id": 0,
+              "start": 326,
+              "end": 328,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [
+        {
+          "text": "device_io",
+          "source_id": 0,
+          "start": 375,
+          "end": 384,
+          "source_backed": true
+        }
+      ],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 347,
+            "end": 351,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [],
+              "target": {
+                "text": "asm#port_out",
+                "source_id": 0,
+                "start": 405,
+                "end": 408,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "port",
+                    "source_id": 0,
+                    "start": 414,
+                    "end": 418,
+                    "source_backed": true
+                  }
+                },
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "status",
+                    "source_id": 0,
+                    "start": 425,
+                    "end": 431,
+                    "source_backed": true
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "self_value"
+                },
+                "member": {
+                  "text": "status",
+                  "source_id": 0,
+                  "start": 449,
+                  "end": 455,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "call",
+                "receiver": null,
+                "target": {
+                  "text": "asm#port_in",
+                  "source_id": 0,
+                  "start": 441,
+                  "end": 443,
+                  "source_backed": true
+                },
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "self_value"
+                    },
+                    "member": {
+                      "text": "port",
+                      "source_id": 0,
+                      "start": 462,
+                      "end": 466,
+                      "source_backed": true
+                    }
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "target",
+      "name": {
+        "text": "uefi_x64",
+        "source_id": 1,
+        "start": 7,
+        "end": 15,
+        "source_backed": true
+      },
+      "host": null,
+      "boundary_policies": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "build",
+        "source_id": 1,
+        "start": 29,
+        "end": 34,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "b",
+                "source_id": 1,
+                "start": 35,
+                "end": 36,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "Build",
+                    "source_id": 1,
+                    "start": 43,
+                    "end": 48,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 1,
+                      "start": 56,
+                      "end": 57,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "subsystem",
+                  "source_id": 1,
+                  "start": 58,
+                  "end": 67,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "Subsystem",
+                    "source_id": 1,
+                    "start": 70,
+                    "end": 79,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "EfiApplication",
+                    "source_id": 1,
+                    "start": 81,
+                    "end": 95,
+                    "source_backed": true
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "assignment",
+              "target": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "b",
+                      "source_id": 1,
+                      "start": 101,
+                      "end": 102,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "member": {
+                  "text": "freestanding",
+                  "source_id": 1,
+                  "start": 103,
+                  "end": 115,
+                  "source_backed": true
+                }
+              },
+              "value": {
+                "kind": "boolean",
+                "value": true
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Subsystem",
+        "source_id": 2,
+        "start": 91,
+        "end": 100,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Console",
+            "source_id": 2,
+            "start": 112,
+            "end": 119,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Gui",
+            "source_id": 2,
+            "start": 130,
+            "end": 133,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "EfiApplication",
+            "source_id": 2,
+            "start": 144,
+            "end": 158,
+            "source_backed": true
+          }
+        },
+        {
+          "kind": "variant",
+          "name": {
+            "text": "Unspecified",
+            "source_id": 2,
+            "start": 169,
+            "end": 180,
+            "source_backed": true
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Build",
+        "source_id": 2,
+        "start": 201,
+        "end": 206,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "subsystem",
+            "source_id": 2,
+            "start": 213,
+            "end": 222,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "Subsystem",
+              "source_id": 2,
+              "start": 224,
+              "end": 233,
+              "source_backed": true
+            }
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "freestanding",
+            "source_id": 2,
+            "start": 239,
+            "end": 251,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "bool",
+              "source_id": 2,
+              "start": 253,
+              "end": 257,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Build::depend",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Build",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "depend",
+            "source_id": 2,
+            "start": 276,
+            "end": 282,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "alias",
+                "source_id": 2,
+                "start": 294,
+                "end": 299,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 2,
+                  "start": 301,
+                  "end": 307,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "location",
+                "source_id": 2,
+                "start": 309,
+                "end": 317,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 2,
+                  "start": 319,
+                  "end": 325,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "path",
+        "source_id": 2,
+        "start": 339,
+        "end": 343,
+        "source_backed": true
+      },
+      "attached_data": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "entry",
+            "source_id": 0,
+            "start": 0,
+            "end": 0,
+            "source_backed": false
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "location",
+                "source_id": 2,
+                "start": 344,
+                "end": 352,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 2,
+                  "start": 354,
+                  "end": 360,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "String",
+              "source_id": 2,
+              "start": 365,
+              "end": 371,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "transition",
+              "target": {
+                "kind": "value",
+                "expression": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "location",
+                      "source_id": 2,
+                      "start": 397,
+                      "end": 405,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              },
+              "continuation": null,
+              "guard": {
+                "kind": "always"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

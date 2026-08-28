@@ -1,0 +1,508 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "IntPair",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "ByteRead",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Nat",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    }
+  ],
+  "safe_point_crossings": [
+  ],
+  "asynchronous_preemption": [
+    {
+      "machine": "Main::main",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "int_comm_consumer",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "int_mul_consumer",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_int",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "zero_int",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 3
+    },
+    {
+      "machine": "one_int",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 4
+    },
+    {
+      "machine": "neg_int",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_int_comm",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_int_assoc",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 12,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "cross_sum",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_int_neg",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 9,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_int",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 9,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_int_comm",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_int_assoc",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 8,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_int_distributes",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 8,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_int_respects_eq",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 8,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "int_eq_symmetric",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 7,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_int_respects_eq",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 8,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "int_eq_transitive",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 15,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_int_identity",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_int_identity",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 16,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "neg_int_involution",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "neg_int_respects_eq",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write_bytes",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "console_write_line",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 7,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "zero",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "one",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_zero_left",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_zero_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_one_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 2
+    },
+    {
+      "machine": "mul_zero_left",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_succ_law",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_comm",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_assoc",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_zero_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_succ_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_identity",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 9,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_distributes",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_distributes_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 5,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_assoc",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 16,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_one_left",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mul_one_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "mul_comm",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "add_cancel",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 13,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "pred",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_zero_right",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "succ_sub_succ",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 8,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_zero_left",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 6,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_self",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 9,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "add_sub_cancel",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 14,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "le_of_succ_le",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "pred_le_left",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_le",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 18,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_lt_succ",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 15,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_lt_of_le",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 16,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_lt",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 10,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "mod",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 23,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "pred_eq_succ",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "sub_eq_add",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 19,
+      "unnamed_strict_values": 2
+    },
+    {
+      "machine": "le_add",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 18,
+      "unnamed_strict_values": 2
+    },
+    {
+      "machine": "lt_of_sub_pos",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 15,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "le_one_succ",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 9,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "gcd",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 15,
+      "unnamed_strict_values": 2
+    },
+    {
+      "machine": "div",
+      "analysis_complete": true,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 13,
+      "unnamed_strict_values": 1
+    }
+  ]
+}

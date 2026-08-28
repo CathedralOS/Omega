@@ -1,0 +1,7 @@
+{
+  "entry_machine": "<missing>",
+  "entry_state": "<missing>",
+  "effect_bits": "0x0000000000000000",
+  "effects": [],
+  "capability_flows": {"uses": 0, "returns": 0, "acquires": 0, "stores": 0, "derives": 0}
+}

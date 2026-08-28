@@ -1,0 +1,326 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "fw",
+            "type_reference": {
+              "kind": "named",
+              "name": "Firmware"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "buf",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "u8"
+              },
+              "length": "12"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "size",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "cap",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "fw"
+                ],
+                "target": "get_map",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "size"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "cap"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "read"
+                  ],
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "size"
+                    },
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "cap"
+                    }
+                  ]
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 2
+          },
+          {
+            "name": "read",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "size",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "cap",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "word",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "is_mutable": false
+                },
+                "initial_value": {
+                  "kind": "cast",
+                  "value": {
+                    "kind": "indexed",
+                    "collection": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "buf"
+                    },
+                    "index": {
+                      "kind": "name",
+                      "path": [
+                        "size"
+                      ]
+                    }
+                  },
+                  "target_type": [
+                    "u32"
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [
+      {
+        "name": "Firmware",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "get_map",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "size",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "is_mutable": true
+                },
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "cap",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "u32"
+                  },
+                  "is_mutable": true
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": [
+              {
+                "kind": "ensures",
+                "facts": [
+                  {
+                    "kind": "expression",
+                    "value": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "name",
+                          "path": [
+                            "size"
+                          ]
+                        },
+                        "operator": "==",
+                        "right": {
+                          "kind": "name",
+                          "path": [
+                            "cap"
+                          ]
+                        }
+                      },
+                      "operator": "&&",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "name",
+                          "path": [
+                            "cap"
+                          ]
+                        },
+                        "operator": "<=",
+                        "right": {
+                          "kind": "integer",
+                          "text": "8"
+                        }
+                      }
+                    }
+                  }
+                ],
+                "token_count": 13
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 22,
+    "statement_count": 3,
+    "type_reference_count": 15
+  }
+}

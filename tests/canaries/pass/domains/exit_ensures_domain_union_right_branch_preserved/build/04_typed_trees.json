@@ -1,0 +1,269 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Password",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "length",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "score",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "password",
+            "type_reference": {
+              "kind": "named",
+              "name": "Password"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "Password::Valid",
+        "target_type": {
+          "kind": "named",
+          "name": "Password"
+        },
+        "classifier": null,
+        "facts": [
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "length"
+              },
+              "operator": ">",
+              "right": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 9
+      },
+      {
+        "name": "Password::Secure",
+        "target_type": {
+          "kind": "named",
+          "name": "Password"
+        },
+        "classifier": null,
+        "facts": [
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "score"
+              },
+              "operator": ">=",
+              "right": {
+                "kind": "integer",
+                "value": 8
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 9
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "password"
+                },
+                "domain": [
+                  "Password",
+                  "Secure"
+                ],
+                "domain_symbol": 32
+              }
+            ],
+            "token_count": 10
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "password"
+                      },
+                      "member": "length"
+                    },
+                    "operator": ">",
+                    "right": {
+                      "kind": "integer",
+                      "value": 0
+                    }
+                  },
+                  "operator": "||",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "member",
+                        "receiver": {
+                          "kind": "name",
+                          "path": [
+                            "self"
+                          ]
+                        },
+                        "member": "password"
+                      },
+                      "member": "score"
+                    },
+                    "operator": ">=",
+                    "right": {
+                      "kind": "integer",
+                      "value": 8
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 16
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 2,
+    "data_type_parameter_count": 0,
+    "data_member_count": 3,
+    "domain_definition_count": 2,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 1,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 22,
+    "expression_struct_field_count": 0,
+    "statement_count": 1,
+    "transition_target_count": 0,
+    "type_reference_count": 7,
+    "type_constraint_count": 0
+  }
+}

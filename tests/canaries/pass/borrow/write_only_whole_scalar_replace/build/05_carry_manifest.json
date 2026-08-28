@@ -1,0 +1,43 @@
+{
+  "data": [
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "claim_policies": [
+  ],
+  "safe_point_crossings": [
+  ],
+  "activation_wide_carry": [
+    {
+      "machine": "replace",
+      "machine_overload_identity": "named-callable(path(replace),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "forward",
+      "machine_overload_identity": "named-callable(path(forward),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    },
+    {
+      "machine": "Main::main",
+      "machine_overload_identity": "named-callable(path(Main::main),parameters(parameter\\(self\\(yes\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\($Self\\)\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 4,
+      "unnamed_strict_values": 1
+    }
+  ]
+}

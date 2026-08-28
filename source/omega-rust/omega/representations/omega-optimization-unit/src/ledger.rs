@@ -28,7 +28,7 @@ pub struct PsiTransformationRecord {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiTransformationLedger {
     identity: TransformationLedgerIdentity,
-    terminal_psi: TerminalPsiIdentity,
+    psi: TerminalPsiIdentity,
     fuel_schedule: FuelScheduleIdentity,
     input: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
@@ -85,7 +85,7 @@ impl std::error::Error for PsiTransformationLedgerDecodeError {}
 
 impl PsiTransformationLedger {
     pub fn new(
-        terminal_psi: TerminalPsiIdentity,
+        psi: TerminalPsiIdentity,
         fuel_schedule: FuelScheduleIdentity,
         input: OptimizationUnitIdentity,
         output: OptimizationUnitIdentity,
@@ -124,7 +124,7 @@ impl PsiTransformationLedger {
             return Err(InvalidPsiTransformationLedger::FinalRevisionMismatch);
         }
         let identity = TransformationLedgerIdentity::from_canonical_bytes(&encode_ledger(
-            terminal_psi,
+            psi,
             fuel_schedule,
             input,
             output,
@@ -132,7 +132,7 @@ impl PsiTransformationLedger {
         ));
         Ok(Self {
             identity,
-            terminal_psi,
+            psi,
             fuel_schedule,
             input,
             output,
@@ -144,8 +144,8 @@ impl PsiTransformationLedger {
         self.identity
     }
 
-    pub const fn terminal_psi(&self) -> TerminalPsiIdentity {
-        self.terminal_psi
+    pub const fn psi(&self) -> TerminalPsiIdentity {
+        self.psi
     }
 
     pub const fn fuel_schedule(&self) -> FuelScheduleIdentity {
@@ -166,7 +166,7 @@ impl PsiTransformationLedger {
 
     pub fn encode(&self) -> Vec<u8> {
         encode_ledger(
-            self.terminal_psi,
+            self.psi,
             self.fuel_schedule,
             self.input,
             self.output,
@@ -322,7 +322,7 @@ fn validate_provenance(rows: &[ProvenanceRewrite]) -> Result<(), InvalidPsiTrans
 }
 
 fn encode_ledger(
-    terminal_psi: TerminalPsiIdentity,
+    psi: TerminalPsiIdentity,
     fuel_schedule: FuelScheduleIdentity,
     input: OptimizationUnitIdentity,
     output: OptimizationUnitIdentity,
@@ -330,8 +330,8 @@ fn encode_ledger(
 ) -> Vec<u8> {
     let mut encoded = Vec::new();
     encoded.extend_from_slice(LEDGER_MAGIC);
-    encoded.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
-    encoded.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
+    encoded.extend_from_slice(&psi.vocabulary_marker.get().to_le_bytes());
+    encoded.extend_from_slice(psi.program_fingerprint.as_bytes());
     encoded.extend_from_slice(&fuel_schedule.marker().to_le_bytes());
     encoded.extend_from_slice(&input.bytes());
     encoded.extend_from_slice(&output.bytes());

@@ -47,7 +47,6 @@ impl<'facts> OperatorAcceptance<'facts> {
             .contract_fact_refs
             .span_or_empty(self.operator_use.ensures)
     }
-
 }
 
 #[cfg(test)]

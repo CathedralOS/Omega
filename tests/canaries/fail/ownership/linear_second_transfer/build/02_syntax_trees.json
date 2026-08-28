@@ -1,0 +1,272 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Receipt",
+        "source_id": 0,
+        "start": 133,
+        "end": 140,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "code",
+            "source_id": 0,
+            "start": 156,
+            "end": 160,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 162,
+              "end": 165,
+              "source_backed": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Receipt::ack",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Receipt",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "ack",
+            "source_id": 0,
+            "start": 187,
+            "end": 190,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 206,
+        "end": 210,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::run",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "run",
+            "source_id": 0,
+            "start": 229,
+            "end": 232,
+            "source_backed": true
+          },
+          "parameters": [],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 238,
+              "end": 241,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "receipt",
+                "source_id": 0,
+                "start": 252,
+                "end": 259,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 261,
+                  "end": 268,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "struct_literal",
+                "type_name": {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 271,
+                  "end": 278,
+                  "source_backed": true
+                },
+                "fields": [
+                  {
+                    "name": {
+                      "text": "code",
+                      "source_id": 0,
+                      "start": 281,
+                      "end": 285,
+                      "source_backed": true
+                    },
+                    "value": {
+                      "kind": "integer",
+                      "text": "7"
+                    }
+                  }
+                ]
+              }
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 296,
+                  "end": 303,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "ack",
+                "source_id": 0,
+                "start": 305,
+                "end": 308,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "receipt",
+                      "source_id": 0,
+                      "start": 309,
+                      "end": 316,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "Receipt",
+                  "source_id": 0,
+                  "start": 323,
+                  "end": 330,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "ack",
+                "source_id": 0,
+                "start": 332,
+                "end": 335,
+                "source_backed": true
+              },
+              "machine_arguments": [],
+              "arguments": [
+                {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "receipt",
+                      "source_id": 0,
+                      "start": 336,
+                      "end": 343,
+                      "source_backed": true
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "integer",
+                "text": "0"
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

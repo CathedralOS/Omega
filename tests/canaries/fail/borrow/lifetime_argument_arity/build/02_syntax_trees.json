@@ -1,0 +1,223 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "PairView",
+        "source_id": 0,
+        "start": 161,
+        "end": 169,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "lifetime_parameters": [
+        {
+          "text": "left",
+          "source_id": 0,
+          "start": 171,
+          "end": 175,
+          "source_backed": true
+        },
+        {
+          "text": "right",
+          "source_id": 0,
+          "start": 178,
+          "end": 183,
+          "source_backed": true
+        }
+      ],
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "left",
+            "source_id": 0,
+            "start": 191,
+            "end": 195,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 204,
+                "end": 207,
+                "source_backed": true
+              }
+            },
+            "is_mutable": false
+          }
+        },
+        {
+          "kind": "field",
+          "name": {
+            "text": "right",
+            "source_id": 0,
+            "start": 213,
+            "end": 218,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "reference",
+            "referee": {
+              "kind": "named",
+              "name": {
+                "text": "i32",
+                "source_id": 0,
+                "start": 228,
+                "end": 231,
+                "source_backed": true
+              }
+            },
+            "is_mutable": false
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Bad",
+        "source_id": 0,
+        "start": 241,
+        "end": 244,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "lifetime_parameters": [
+        {
+          "text": "only",
+          "source_id": 0,
+          "start": 246,
+          "end": 250,
+          "source_backed": true
+        }
+      ],
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "view",
+            "source_id": 0,
+            "start": 258,
+            "end": 262,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "generic",
+            "base_name": {
+              "text": "PairView",
+              "source_id": 0,
+              "start": 264,
+              "end": 272,
+              "source_backed": true
+            },
+            "lifetime_arguments": [
+              {
+                "text": "only",
+                "source_id": 0,
+                "start": 274,
+                "end": 278,
+                "source_backed": true
+              }
+            ],
+            "arguments": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 289,
+        "end": 293,
+        "source_backed": true
+      },
+      "supply": "checked_shape",
+      "type_parameters": [],
+      "properties": {
+        "multiplicity": "affine",
+        "zero_init": false
+      },
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "suspends": false,
+      "blocks": false,
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 313,
+            "end": 317,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "contracts": [],
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

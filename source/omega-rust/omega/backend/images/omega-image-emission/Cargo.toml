@@ -9,23 +9,26 @@ name = "omega_image_emission"
 path = "src/lib.rs"
 
 [dependencies]
-psi-arena = { path = "../../../../psi/foundation/psi-arena" }
+omega-calling-conventions = { path = "../../../representations/omega-calling-conventions" }
+omega-executable-installation = { path = "../../runtime/omega-executable-installation" }
 psi-diagnostics = { path = "../../../../psi/foundation/psi-diagnostics" }
-psi-language-core = { path = "../../../../psi/foundation/psi-language-core" }
 omega-image = { path = "../omega-image" }
 omega-image-elf = { path = "../omega-image-elf" }
 omega-image-macho = { path = "../omega-image-macho" }
 omega-image-pe = { path = "../omega-image-pe" }
-omega-calling-conventions = { path = "../../../foundation/omega-calling-conventions" }
-omega-control-flow = { path = "../../../representations/omega-control-flow" }
+omega-object-file = { path = "../../object/omega-object-file" }
+omega-target = { path = "../../../representations/omega-target" }
+omega-x86-encoding = { path = "../../instruction_set_architectures/omega-x86-encoding" }
+omega-machine-code = { path = "../../../representations/omega-machine-code" }
+omega-installation-evidence = { path = "../../../representations/omega-installation-evidence" }
+omega-target-operations = { path = "../../../representations/omega-target-operations" }
 omega-isa-aarch64 = { path = "../../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../../instruction_set_architectures/omega-isa-x86_64" }
-omega-machine-bytes = { path = "../../../representations/omega-machine-bytes" }
-omega-machine-instructions = { path = "../../../representations/omega-machine-instructions" }
-omega-object-file = { path = "../../object/omega-object-file" }
-omega-target = { path = "../../../foundation/omega-target" }
-omega-target-operations = { path = "../../../representations/omega-target-operations" }
+psi-core = { path = "../../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../../psi/representations/psi-terminal" }
+psi-terminal-fuel = { path = "../../../../psi/semantics/psi-terminal-fuel" }
+sha2 = "0.10"
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder", "instr_info"] }
 
 [dev-dependencies]
-psi-numerics = { path = "../../../../psi/foundation/psi-numerics" }
-psi-symbols = { path = "../../../../psi/foundation/psi-symbols" }
+omega-machine-emission = { path = "../../omega-machine-emission" }

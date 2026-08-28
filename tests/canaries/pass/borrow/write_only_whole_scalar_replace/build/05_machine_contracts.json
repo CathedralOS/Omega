@@ -1,0 +1,92 @@
+{
+  "machines": [
+    {
+      "machine": "replace",
+      "machine_overload_identity": "named-callable(path(replace),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())",
+      "contract": {
+        "fingerprint": "0x9b9238830c39f739",
+        "supply": "checked_body",
+        "service_reach": {"interface": "internal_inferred"},
+        "synchronous_invocation": {"interface": "internal_inferred", "targets": []},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "crashes": {"interface": "internal_inferred", "buckets": []},
+        "termination": {"interface": "internal_derived"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "checked_synchronous_invocations": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xe47cb722afab12d9", "paths": ["$P0"]}
+        ],
+        "checked_crash_sites": [],
+        "checked_crash_calls": [],
+        "checked_termination": {"kind": "terminates", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "forward",
+      "machine_overload_identity": "named-callable(path(forward),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())",
+      "contract": {
+        "fingerprint": "0x9b9238830c39f739",
+        "supply": "checked_body",
+        "service_reach": {"interface": "internal_inferred"},
+        "synchronous_invocation": {"interface": "internal_inferred", "targets": []},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "crashes": {"interface": "internal_inferred", "buckets": []},
+        "termination": {"interface": "internal_derived"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "checked_synchronous_invocations": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "complete", "fingerprint": "0xe47cb722afab12d9", "paths": ["$P0"]}
+        ],
+        "checked_crash_sites": [],
+        "checked_crash_calls": [
+          {"state": "entry", "statement_ordinal": 0, "call_ordinal": 0, "target_machine": "replace", "target_callable_overload_identity": "named-callable(path(replace),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())", "target_state": "entry", "target_contract_fingerprint": "0x9b9238830c39f739", "path_guard_conjuncts": [], "path_guard_consequences": [], "surviving_buckets": []}
+        ],
+        "checked_termination": {"kind": "terminates", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "machine_overload_identity": "named-callable(path(Main::main),parameters(parameter\\(self\\(yes\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\($Self\\)\\)\\)\\)),result-dispatch())",
+      "contract": {
+        "fingerprint": "0x93e424a15797cf55",
+        "supply": "checked_body",
+        "service_reach": {"interface": "internal_inferred"},
+        "synchronous_invocation": {"interface": "internal_inferred", "targets": []},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "crashes": {"interface": "internal_inferred", "buckets": []},
+        "termination": {"interface": "internal_derived"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "checked_synchronous_invocations": [],
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "complete", "fingerprint": "0xaf63bc4c8601b62c", "paths": []}
+        ],
+        "checked_crash_sites": [],
+        "checked_crash_calls": [
+          {"state": "main", "statement_ordinal": 1, "call_ordinal": 0, "target_machine": "forward", "target_callable_overload_identity": "named-callable(path(forward),parameters(parameter\\(self\\(no\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-write\\(named\\(name\\(i32\\)\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(i32\\)\\)\\)),result-dispatch())", "target_state": "entry", "target_contract_fingerprint": "0x9b9238830c39f739", "path_guard_conjuncts": [], "path_guard_consequences": [], "surviving_buckets": []}
+        ],
+        "checked_termination": {"kind": "terminates", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "crash_contract_capsules": [],
+  "specializations": [
+  ]
+}

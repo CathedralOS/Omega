@@ -9,20 +9,19 @@ name = "omega_machine_emission"
 path = "src/lib.rs"
 
 [dependencies]
+omega-target = { path = "../../representations/omega-target" }
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-x86-encoding = { path = "../instruction_set_architectures/omega-x86-encoding" }
 omega-assigned-target-operations = { path = "../../representations/omega-assigned-target-operations" }
-omega-calling-conventions = { path = "../../foundation/omega-calling-conventions" }
-omega-control-flow = { path = "../../representations/omega-control-flow" }
-psi-arena = { path = "../../../psi/foundation/psi-arena" }
-psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
-psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
-psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
-omega-instruction-selection = { path = "../omega-instruction-selection" }
+omega-machine-code = { path = "../../representations/omega-machine-code" }
+omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
 omega-isa-aarch64 = { path = "../instruction_set_architectures/omega-isa-aarch64" }
 omega-isa-x86_64 = { path = "../instruction_set_architectures/omega-isa-x86_64" }
-omega-machine-bytes = { path = "../../representations/omega-machine-bytes" }
-omega-machine-instructions = { path = "../../representations/omega-machine-instructions" }
-omega-target = { path = "../../foundation/omega-target" }
-omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal-fuel = { path = "../../../psi/semantics/psi-terminal-fuel" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+iced-x86 = { version = "1.21", default-features = false, features = ["std", "decoder"] }
 
 [dev-dependencies]
-psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+omega-target-operations-to-assigned-target-operations = { path = "../../pipeline/omega-target-operations-to-assigned-target-operations" }

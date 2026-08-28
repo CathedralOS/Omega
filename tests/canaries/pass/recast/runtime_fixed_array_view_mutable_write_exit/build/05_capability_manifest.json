@@ -1,0 +1,8 @@
+{
+  "entry_machine": "Main::main",
+  "entry_state": "main",
+  "service_reach": ["Console"],
+  "may_suspend": false,
+  "may_block": false,
+  "capability_flows": {"uses": 4, "returns": 0, "acquires": 2, "stores": 2, "derives": 0}
+}

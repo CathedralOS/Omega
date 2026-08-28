@@ -1,0 +1,27 @@
+[package]
+name = "omega-target-operations-to-selected-instructions"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_target_operations_to_selected_instructions"
+path = "src/lib.rs"
+
+[dependencies]
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-optimization-validation = { path = "../optimization/omega-optimization-validation" }
+omega-optimization-unit = { path = "../../representations/omega-optimization-unit" }
+omega-register-model = { path = "../../representations/omega-register-model" }
+omega-target = { path = "../../representations/omega-target" }
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-legalized-operations = { path = "../../representations/omega-legalized-operations" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+
+[dev-dependencies]
+omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }

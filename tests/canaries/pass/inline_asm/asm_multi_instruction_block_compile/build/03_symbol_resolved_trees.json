@@ -1,0 +1,350 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "port",
+            "type_reference": {
+              "kind": "named",
+              "name": "u16"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "status",
+            "type_reference": {
+              "kind": "named",
+              "name": "u8"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Subsystem",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Console"
+          },
+          {
+            "kind": "variant",
+            "name": "Gui"
+          },
+          {
+            "kind": "variant",
+            "name": "EfiApplication"
+          },
+          {
+            "kind": "variant",
+            "name": "Unspecified"
+          }
+        ]
+      },
+      {
+        "name": "Build",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "subsystem",
+            "type_reference": {
+              "kind": "named",
+              "name": "Subsystem"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "freestanding",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [
+          "device_io"
+        ],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": null,
+                "target": "asm#port_out",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "port"
+                  },
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "status"
+                  }
+                ]
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "status"
+                },
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "asm#port_in",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "port"
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      },
+      {
+        "name": "build",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Build"
+                  },
+                  "is_mutable": true
+                },
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "b"
+                    ]
+                  },
+                  "member": "subsystem"
+                },
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "Subsystem",
+                    "EfiApplication"
+                  ]
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "b"
+                    ]
+                  },
+                  "member": "freestanding"
+                },
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "table_statement_count": 2
+          }
+        ]
+      },
+      {
+        "name": "Build::depend",
+        "attached_data": "Build",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "depend",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "alias",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "location",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "path",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "location",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "String"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "String"
+            },
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "name",
+                    "path": [
+                      "location"
+                    ]
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 16,
+    "statement_count": 5,
+    "type_reference_count": 13
+  }
+}

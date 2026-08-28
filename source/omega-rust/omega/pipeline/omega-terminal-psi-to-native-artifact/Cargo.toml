@@ -1,0 +1,44 @@
+[package]
+name = "omega-terminal-psi-to-native-artifact"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_terminal_psi_to_native_artifact"
+path = "src/lib.rs"
+
+[dependencies]
+omega-effects = { path = "../../representations/omega-effects" }
+omega-calling-conventions = { path = "../../representations/omega-calling-conventions" }
+omega-object-file = { path = "../../backend/object/omega-object-file" }
+omega-optimization-core = { path = "../../representations/omega-optimization-core" }
+omega-optimization-pipeline = { path = "../optimization/omega-optimization-pipeline" }
+omega-program-entry-plan = { path = "../../backend/plans/omega-program-entry-plan" }
+omega-target = { path = "../../representations/omega-target" }
+omega-abstract-operations = { path = "../../representations/omega-abstract-operations" }
+omega-abstract-operations-to-target-operations = { path = "../omega-abstract-operations-to-target-operations" }
+omega-image-emission = { path = "../../backend/images/omega-image-emission" }
+omega-installation-evidence = { path = "../../representations/omega-installation-evidence" }
+omega-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-isa-x86_64" }
+omega-machine-emission = { path = "../../backend/omega-machine-emission" }
+omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact" }
+omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
+omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
+omega-target-operations = { path = "../../representations/omega-target-operations" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
+psi-proof-admission = { path = "../../../psi/semantics/psi-proof-admission" }
+psi-terminal-codec = { path = "../../../psi/semantics/psi-terminal-codec" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }
+
+[dev-dependencies]
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
+psi-symbols = { path = "../../../psi/foundation/psi-symbols" }
+psi-source-files-to-tokens = { path = "../../../psi/pipeline/psi-source-files-to-tokens" }
+psi-symbol-resolved-trees-to-typed-trees = { path = "../../../psi/pipeline/psi-symbol-resolved-trees-to-typed-trees" }
+psi-syntax-trees-to-symbol-resolved-trees = { path = "../../../psi/pipeline/psi-syntax-trees-to-symbol-resolved-trees" }
+psi-tokens-to-syntax-trees = { path = "../../../psi/pipeline/psi-tokens-to-syntax-trees" }
+psi-typed-trees-to-checked-trees = { path = "../../../psi/pipeline/psi-typed-trees-to-checked-trees" }

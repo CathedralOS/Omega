@@ -1,0 +1,176 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Player",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "health",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "player",
+            "type_reference": {
+              "kind": "named",
+              "name": "Player"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [
+      {
+        "name": "Player::Alive",
+        "target_type": {
+          "kind": "named",
+          "name": "Player"
+        },
+        "classifier": null,
+        "facts": [
+          {
+            "kind": "expression",
+            "value": {
+              "kind": "binary",
+              "left": {
+                "kind": "member",
+                "receiver": {
+                  "kind": "name",
+                  "path": [
+                    "self"
+                  ]
+                },
+                "member": "health"
+              },
+              "operator": ">",
+              "right": {
+                "kind": "integer",
+                "value": 0
+              }
+            }
+          }
+        ],
+        "operators": [],
+        "body_token_count": 9
+      }
+    ],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "player"
+                },
+                "domain": [
+                  "Player",
+                  "Alive"
+                ],
+                "domain_symbol": 31
+              }
+            ],
+            "token_count": 10
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "self"
+                    ]
+                  },
+                  "member": "player"
+                },
+                "domain": [
+                  "Player",
+                  "Alive"
+                ],
+                "domain_symbol": 31
+              }
+            ],
+            "token_count": 10
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 9,
+    "statement_count": 1,
+    "type_reference_count": 5
+  }
+}

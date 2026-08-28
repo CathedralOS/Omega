@@ -9,8 +9,8 @@ name = "omega_assigned_target_operations"
 path = "src/lib.rs"
 
 [dependencies]
-omega-control-flow = { path = "../omega-control-flow" }
-psi-arena = { path = "../../../psi/foundation/psi-arena" }
-psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
-omega-target = { path = "../../foundation/omega-target" }
+omega-calling-conventions = { path = "../omega-calling-conventions" }
+omega-target = { path = "../omega-target" }
 omega-target-operations = { path = "../omega-target-operations" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-terminal = { path = "../../../psi/representations/psi-terminal" }

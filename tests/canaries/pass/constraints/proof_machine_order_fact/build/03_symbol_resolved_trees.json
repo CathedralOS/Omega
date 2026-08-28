@@ -1,0 +1,149 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "distinct_indices",
+        "attached_data": null,
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "i"
+                    ]
+                  },
+                  "operator": "<",
+                  "right": {
+                    "kind": "name",
+                    "path": [
+                      "j"
+                    ]
+                  }
+                }
+              }
+            ],
+            "token_count": 6
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      "i"
+                    ]
+                  },
+                  "operator": "!=",
+                  "right": {
+                    "kind": "name",
+                    "path": [
+                      "j"
+                    ]
+                  }
+                }
+              }
+            ],
+            "token_count": 6
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "i",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "j",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 6,
+    "statement_count": 0,
+    "type_reference_count": 3
+  }
+}

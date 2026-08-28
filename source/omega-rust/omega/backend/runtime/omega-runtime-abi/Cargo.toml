@@ -1,0 +1,12 @@
+[package]
+name = "omega-runtime-abi"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_runtime_abi"
+path = "src/lib.rs"
+
+[dependencies]
+omega-target = { path = "../../../representations/omega-target" }

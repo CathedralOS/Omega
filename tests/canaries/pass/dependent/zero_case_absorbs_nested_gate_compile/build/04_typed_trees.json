@@ -1,0 +1,210 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Player",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "health",
+            "type_reference": {
+              "kind": "constrained",
+              "base_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "constraints": [
+                {
+                  "kind": "range",
+                  "minimum": {
+                    "kind": "integer",
+                    "text": "1"
+                  },
+                  "maximum": {
+                    "kind": "integer",
+                    "text": "100"
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      },
+      {
+        "name": "PlayerSlot",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Empty",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Filled",
+            "payload": [
+              {
+                "name": "player",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Player"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Team",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "roster",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "PlayerSlot"
+              },
+              "length": "8"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            }
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::run",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "run",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "team",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Team"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Team",
+                  "fields": []
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "text": "70"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 4,
+    "data_type_parameter_count": 0,
+    "data_member_count": 5,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 1,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 1,
+    "state_parameter_count": 2,
+    "trait_count": 1,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 1,
+    "expression_count": 4,
+    "expression_struct_field_count": 0,
+    "statement_count": 2,
+    "transition_target_count": 0,
+    "type_reference_count": 9,
+    "type_constraint_count": 1
+  }
+}

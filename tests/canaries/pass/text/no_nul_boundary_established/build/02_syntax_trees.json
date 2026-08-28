@@ -1,0 +1,1740 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "use",
+      "path": [
+        {
+          "text": "omega",
+          "source_id": 0,
+          "start": 4,
+          "end": 9,
+          "source_backed": true
+        },
+        {
+          "text": "language",
+          "source_id": 0,
+          "start": 11,
+          "end": 19,
+          "source_backed": true
+        },
+        {
+          "text": "core",
+          "source_id": 0,
+          "start": 21,
+          "end": 25,
+          "source_backed": true
+        },
+        {
+          "text": "str",
+          "source_id": 0,
+          "start": 27,
+          "end": 30,
+          "source_backed": true
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 283,
+        "end": 287,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "text",
+            "source_id": 0,
+            "start": 295,
+            "end": 299,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "String",
+              "source_id": 0,
+              "start": 301,
+              "end": 307,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::consume",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [
+        {
+          "kind": {
+            "kind": "requires"
+          },
+          "facts": [
+            {
+              "kind": "membership",
+              "value": {
+                "kind": "name",
+                "path": [
+                  {
+                    "text": "text",
+                    "source_id": 0,
+                    "start": 374,
+                    "end": 378,
+                    "source_backed": true
+                  }
+                ]
+              },
+              "domain": [
+                {
+                  "text": "String",
+                  "source_id": 0,
+                  "start": 382,
+                  "end": 388,
+                  "source_backed": true
+                },
+                {
+                  "text": "NoNul",
+                  "source_id": 0,
+                  "start": 390,
+                  "end": 395,
+                  "source_backed": true
+                }
+              ]
+            }
+          ],
+          "token_count": 8
+        }
+      ],
+      "states": [
+        {
+          "name": {
+            "text": "consume",
+            "source_id": 0,
+            "start": 329,
+            "end": 336,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": true
+            },
+            {
+              "name": {
+                "text": "text",
+                "source_id": 0,
+                "start": 344,
+                "end": 348,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "named",
+                  "name": {
+                    "text": "String",
+                    "source_id": 0,
+                    "start": 351,
+                    "end": 357,
+                    "source_backed": true
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 419,
+            "end": 423,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": [
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                },
+                {
+                  "text": "text",
+                  "source_id": 0,
+                  "start": 447,
+                  "end": 451,
+                  "source_backed": true
+                }
+              ],
+              "target": {
+                "text": "validate_no_nul",
+                "source_id": 0,
+                "start": 452,
+                "end": 467,
+                "source_backed": true
+              },
+              "arguments": []
+            },
+            {
+              "kind": "call",
+              "receiver": [
+                {
+                  "text": "self",
+                  "source_id": 0,
+                  "start": 0,
+                  "end": 0,
+                  "source_backed": false
+                }
+              ],
+              "target": {
+                "text": "consume",
+                "source_id": 0,
+                "start": 481,
+                "end": 488,
+                "source_backed": true
+              },
+              "arguments": [
+                {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "text",
+                    "source_id": 0,
+                    "start": 495,
+                    "end": 499,
+                    "source_backed": true
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 1007,
+            "end": 1013,
+            "source_backed": true
+          },
+          {
+            "text": "Length",
+            "source_id": 1,
+            "start": 1015,
+            "end": 1021,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 1022,
+              "end": 1026,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 1029,
+                  "end": 1035,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "usize",
+            "source_id": 1,
+            "start": 1040,
+            "end": 1045,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 16
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 1068,
+            "end": 1074,
+            "source_backed": true
+          },
+          {
+            "text": "Capacity",
+            "source_id": 1,
+            "start": 1076,
+            "end": 1084,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 1085,
+              "end": 1089,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 1092,
+                  "end": 1098,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "usize",
+            "source_id": 1,
+            "start": 1103,
+            "end": 1108,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 16
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 1131,
+            "end": 1137,
+            "source_backed": true
+          },
+          {
+            "text": "as_view",
+            "source_id": 1,
+            "start": 1139,
+            "end": 1146,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 1147,
+              "end": 1151,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 1154,
+                  "end": 1160,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "named",
+            "name": {
+              "text": "string",
+              "source_id": 1,
+              "start": 1166,
+              "end": 1172,
+              "source_backed": true
+            }
+          },
+          "is_mutable": false,
+          "is_relaxed": false
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 17
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 1195,
+            "end": 1201,
+            "source_backed": true
+          },
+          {
+            "text": "with_capacity",
+            "source_id": 1,
+            "start": 1203,
+            "end": 1216,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "capacity",
+              "source_id": 1,
+              "start": 1217,
+              "end": 1225,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "usize",
+                "source_id": 1,
+                "start": 1227,
+                "end": 1232,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "String",
+            "source_id": 1,
+            "start": 1237,
+            "end": 1243,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 15
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 1266,
+            "end": 1272,
+            "source_backed": true
+          },
+          {
+            "text": "push_str",
+            "source_id": 1,
+            "start": 1274,
+            "end": 1282,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 1283,
+              "end": 1287,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 1294,
+                  "end": 1300,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": true,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "value",
+              "source_id": 1,
+              "start": 1302,
+              "end": 1307,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "string",
+                  "source_id": 1,
+                  "start": 1310,
+                  "end": 1316,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "unit"
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "text",
+                            "source_id": 1,
+                            "start": 1339,
+                            "end": 1343,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "len",
+                        "source_id": 1,
+                        "start": 1344,
+                        "end": 1347,
+                        "source_backed": true
+                      }
+                    },
+                    "operator": "add",
+                    "right": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "value",
+                            "source_id": 1,
+                            "start": 1350,
+                            "end": 1355,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "len",
+                        "source_id": 1,
+                        "start": 1356,
+                        "end": 1359,
+                        "source_backed": true
+                      }
+                    }
+                  },
+                  "operator": "less_or_equal",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "text",
+                          "source_id": 1,
+                          "start": 1363,
+                          "end": 1367,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "capacity",
+                      "source_id": 1,
+                      "start": 1368,
+                      "end": 1376,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 15
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 47
+      }
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "String::NonEmpty",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "String",
+          "source_id": 1,
+          "start": 1481,
+          "end": 1487,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "len",
+                "source_id": 1,
+                "start": 1510,
+                "end": 1513,
+                "source_backed": true
+              }
+            },
+            "operator": "greater",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [],
+      "body_token_count": 9
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "String::NoNul",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "String",
+          "source_id": 1,
+          "start": 2108,
+          "end": 2114,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "String::Utf8",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "String",
+          "source_id": 1,
+          "start": 2137,
+          "end": 2143,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [],
+      "operators": [],
+      "body_token_count": 0
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 3018,
+            "end": 3024,
+            "source_backed": true
+          },
+          {
+            "text": "validate_utf8",
+            "source_id": 1,
+            "start": 3026,
+            "end": 3039,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 3040,
+              "end": 3044,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 3051,
+                  "end": 3057,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": true,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "unit"
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "text",
+                      "source_id": 1,
+                      "start": 3079,
+                      "end": 3083,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "domain": [
+                  {
+                    "text": "String",
+                    "source_id": 1,
+                    "start": 3087,
+                    "end": 3093,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "Utf8",
+                    "source_id": 1,
+                    "start": 3095,
+                    "end": 3099,
+                    "source_backed": true
+                  }
+                ]
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 29
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 3122,
+            "end": 3128,
+            "source_backed": true
+          },
+          {
+            "text": "validate_no_nul",
+            "source_id": 1,
+            "start": 3130,
+            "end": 3145,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 3146,
+              "end": 3150,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "String",
+                  "source_id": 1,
+                  "start": 3157,
+                  "end": 3163,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": true,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": true,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "unit"
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "text",
+                      "source_id": 1,
+                      "start": 3185,
+                      "end": 3189,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "domain": [
+                  {
+                    "text": "String",
+                    "source_id": 1,
+                    "start": 3193,
+                    "end": 3199,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "NoNul",
+                    "source_id": 1,
+                    "start": 3201,
+                    "end": 3206,
+                    "source_backed": true
+                  }
+                ]
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 41
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 4049,
+            "end": 4055,
+            "source_backed": true
+          },
+          {
+            "text": "from_utf8",
+            "source_id": 1,
+            "start": 4057,
+            "end": 4066,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "bytes",
+              "source_id": 1,
+              "start": 4067,
+              "end": 4072,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u8",
+                    "source_id": 1,
+                    "start": 4076,
+                    "end": 4078,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "String",
+            "source_id": 1,
+            "start": 4084,
+            "end": 4090,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "result",
+                      "source_id": 1,
+                      "start": 4105,
+                      "end": 4111,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "domain": [
+                  {
+                    "text": "String",
+                    "source_id": 1,
+                    "start": 4115,
+                    "end": 4121,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "Utf8",
+                    "source_id": 1,
+                    "start": 4123,
+                    "end": 4127,
+                    "source_backed": true
+                  }
+                ]
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 28
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "String",
+            "source_id": 1,
+            "start": 4150,
+            "end": 4156,
+            "source_backed": true
+          },
+          {
+            "text": "from_no_nul",
+            "source_id": 1,
+            "start": 4158,
+            "end": 4169,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "bytes",
+              "source_id": 1,
+              "start": 4170,
+              "end": 4175,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "slice",
+                "element_type": {
+                  "kind": "named",
+                  "name": {
+                    "text": "u8",
+                    "source_id": 1,
+                    "start": 4179,
+                    "end": 4181,
+                    "source_backed": true
+                  }
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "String",
+            "source_id": 1,
+            "start": 4187,
+            "end": 4193,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "ensures"
+            },
+            "facts": [
+              {
+                "kind": "membership",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "result",
+                      "source_id": 1,
+                      "start": 4208,
+                      "end": 4214,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "domain": [
+                  {
+                    "text": "String",
+                    "source_id": 1,
+                    "start": 4218,
+                    "end": 4224,
+                    "source_backed": true
+                  },
+                  {
+                    "text": "NoNul",
+                    "source_id": 1,
+                    "start": 4226,
+                    "end": 4231,
+                    "source_backed": true
+                  }
+                ]
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 30
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Str",
+            "source_id": 1,
+            "start": 4317,
+            "end": 4320,
+            "source_backed": true
+          },
+          {
+            "text": "Length",
+            "source_id": 1,
+            "start": 4322,
+            "end": 4328,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 4329,
+              "end": 4333,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "string",
+                  "source_id": 1,
+                  "start": 4336,
+                  "end": 4342,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "usize",
+            "source_id": 1,
+            "start": 4347,
+            "end": 4352,
+            "source_backed": true
+          }
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 16
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Str",
+            "source_id": 1,
+            "start": 4375,
+            "end": 4378,
+            "source_backed": true
+          },
+          {
+            "text": "bytes",
+            "source_id": 1,
+            "start": 4380,
+            "end": 4385,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 4386,
+              "end": 4390,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "string",
+                  "source_id": 1,
+                  "start": 4393,
+                  "end": 4399,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "slice",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "u8",
+                "source_id": 1,
+                "start": 4406,
+                "end": 4408,
+                "source_backed": true
+              }
+            }
+          },
+          "is_mutable": false,
+          "is_relaxed": false
+        },
+        "contracts": [],
+        "spelling": null,
+        "provider": null,
+        "token_count": 19
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Str",
+            "source_id": 1,
+            "start": 4432,
+            "end": 4435,
+            "source_backed": true
+          },
+          {
+            "text": "byte",
+            "source_id": 1,
+            "start": 4437,
+            "end": 4441,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 4442,
+              "end": 4446,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "string",
+                  "source_id": 1,
+                  "start": 4449,
+                  "end": 4455,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "index",
+              "source_id": 1,
+              "start": 4457,
+              "end": 4462,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "usize",
+                "source_id": 1,
+                "start": 4464,
+                "end": 4469,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "named",
+          "name": {
+            "text": "u8",
+            "source_id": 1,
+            "start": 4474,
+            "end": 4476,
+            "source_backed": true
+          }
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "index",
+                        "source_id": 1,
+                        "start": 4492,
+                        "end": 4497,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "operator": "less",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "text",
+                          "source_id": 1,
+                          "start": 4500,
+                          "end": 4504,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 1,
+                      "start": 4505,
+                      "end": 4508,
+                      "source_backed": true
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 7
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 32
+      }
+    },
+    {
+      "kind": "operator",
+      "operator": {
+        "is_boundary": true,
+        "name": [
+          {
+            "text": "Str",
+            "source_id": 1,
+            "start": 4531,
+            "end": 4534,
+            "source_backed": true
+          },
+          {
+            "text": "range",
+            "source_id": 1,
+            "start": 4536,
+            "end": 4541,
+            "source_backed": true
+          }
+        ],
+        "type_parameters": [],
+        "parameters": [
+          {
+            "name": {
+              "text": "text",
+              "source_id": 1,
+              "start": 4542,
+              "end": 4546,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "reference",
+              "referee": {
+                "kind": "named",
+                "name": {
+                  "text": "string",
+                  "source_id": 1,
+                  "start": 4549,
+                  "end": 4555,
+                  "source_backed": true
+                }
+              },
+              "is_mutable": false,
+              "is_relaxed": false
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "start",
+              "source_id": 1,
+              "start": 4557,
+              "end": 4562,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "usize",
+                "source_id": 1,
+                "start": 4564,
+                "end": 4569,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          },
+          {
+            "name": {
+              "text": "end",
+              "source_id": 1,
+              "start": 4571,
+              "end": 4574,
+              "source_backed": true
+            },
+            "type_reference": {
+              "kind": "named",
+              "name": {
+                "text": "usize",
+                "source_id": 1,
+                "start": 4576,
+                "end": 4581,
+                "source_backed": true
+              }
+            },
+            "is_const": false,
+            "is_mutable": false,
+            "is_self": false
+          }
+        ],
+        "return_type": {
+          "kind": "reference",
+          "referee": {
+            "kind": "named",
+            "name": {
+              "text": "string",
+              "source_id": 1,
+              "start": 4587,
+              "end": 4593,
+              "source_backed": true
+            }
+          },
+          "is_mutable": false,
+          "is_relaxed": false
+        },
+        "contracts": [
+          {
+            "kind": {
+              "kind": "requires"
+            },
+            "facts": [
+              {
+                "kind": "expression",
+                "expression": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "start",
+                          "source_id": 1,
+                          "start": 4609,
+                          "end": 4614,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less_or_equal",
+                    "right": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "end",
+                          "source_id": 1,
+                          "start": 4618,
+                          "end": 4621,
+                          "source_backed": true
+                        }
+                      ]
+                    }
+                  },
+                  "operator": "and",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "end",
+                          "source_id": 1,
+                          "start": 4625,
+                          "end": 4628,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "operator": "less_or_equal",
+                    "right": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          {
+                            "text": "text",
+                            "source_id": 1,
+                            "start": 4632,
+                            "end": 4636,
+                            "source_backed": true
+                          }
+                        ]
+                      },
+                      "member": {
+                        "text": "len",
+                        "source_id": 1,
+                        "start": 4637,
+                        "end": 4640,
+                        "source_backed": true
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "token_count": 15
+          }
+        ],
+        "spelling": null,
+        "provider": null,
+        "token_count": 47
+      }
+    }
+  ]
+}

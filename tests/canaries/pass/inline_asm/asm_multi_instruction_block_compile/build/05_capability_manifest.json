@@ -1,0 +1,7 @@
+{
+  "entry_machine": "Main::main",
+  "entry_state": "main",
+  "effect_bits": "0x0000000000040000",
+  "effects": ["device_io"],
+  "capability_flows": {"uses": 0, "returns": 0, "acquires": 0, "stores": 0, "derives": 0}
+}

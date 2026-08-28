@@ -25,7 +25,7 @@ home, emission, or publication authority.
 `omega-regalloc` exposes a sealed selected-analysis interface implemented only
 for the original opaque selector result and the opaque independently validated
 fixed-view-copy result. External code cannot implement it for a raw plan. This
-avoids forging `ValidatedTerminalSelectedInstructions` while allowing the same
+avoids forging `ValidatedSelectedInstructions` while allowing the same
 independent liveness and range validators to consume the transformed CFG.
 
 The stage revalidates transformation custody, then independently replays each
@@ -40,9 +40,9 @@ direct transition-free path. It still grants no machine-emission authority.
 
 ## Implementation Map
 
-- `optimization/omega-regalloc/src/selected_analysis_input.rs` owns the sealed
+- `pipeline/optimization/omega-regalloc/src/selected_analysis_input.rs` owns the sealed
   validated-analysis boundary.
-- `orchestration/omega-optimization-pipeline/src/selected_reanalysis.rs` owns
+- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/selected_reanalysis.rs` owns
   complete transformed analysis custody.
-- `orchestration/omega-optimization-pipeline/src/register_homes.rs` owns the
+- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/register_homes.rs` owns the
   separate post-copy home carrier.

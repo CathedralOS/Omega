@@ -1,0 +1,73 @@
+{
+  "data": [
+    {
+      "type": "Representative",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"}
+    },
+    {
+      "type": "EquivalenceClass",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    },
+    {
+      "type": "Main",
+      "opaque": false,
+      "declared": null,
+      "effective": {"suspension": "allowed", "cpu": "any", "thread": "any", "address": "movable"}
+    }
+  ],
+  "claim_policies": [
+  ],
+  "safe_point_crossings": [
+  ],
+  "activation_wide_carry": [
+    {
+      "machine": "equivalent_reflexive",
+      "machine_overload_identity": "named-callable(path(equivalent_reflexive),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "equivalent_symmetric",
+      "machine_overload_identity": "named-callable(path(equivalent_symmetric),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "equivalent_transitive",
+      "machine_overload_identity": "named-callable(path(equivalent_transitive),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 3,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "quotient_congruence",
+      "machine_overload_identity": "named-callable(path(quotient_congruence),parameters(parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)\\,parameter\\(self\\(no\\)\\,mutable\\(no\\)\\,const\\(no\\)\\,named\\(name\\(Representative\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 2,
+      "unnamed_strict_values": 0
+    },
+    {
+      "machine": "Main::main",
+      "machine_overload_identity": "named-callable(path(Main::main),parameters(parameter\\(self\\(yes\\)\\,mutable\\(yes\\)\\,const\\(no\\)\\,ref-mut\\(named\\(name\\($Self\\)\\)\\)\\)),result-dispatch())",
+      "analysis_complete": true,
+      "subtree_machine_count": 1,
+      "effective": {"suspension": "forbidden", "cpu": "same", "thread": "same", "address": "stable"},
+      "contributing_type_count": 1,
+      "unnamed_strict_values": 0
+    }
+  ]
+}

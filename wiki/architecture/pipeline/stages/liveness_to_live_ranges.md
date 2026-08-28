@@ -77,9 +77,9 @@ candidate facts rather than asking an allocator to rederive them.
 
 ## Implementation Map
 
-- `optimization/omega-regalloc` owns the range model, computation, identity,
+- `pipeline/optimization/omega-regalloc` owns the range model, computation, identity,
   independent replay, and opaque validated result.
-- `orchestration/omega-optimization-pipeline/src/live_ranges.rs` owns nested
+- `pipeline/optimization/omega-optimization-pipeline/src/stages/allocation/live_ranges.rs` owns nested
   cross-stage custody.
-- `omega-terminal-selected-instructions` and the liveness artifact remain the
+- `omega-selected-instructions` and the liveness artifact remain the
   authoritative inputs; transitional assigned scratch homes are not consulted.

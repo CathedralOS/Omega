@@ -1,0 +1,275 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Exit",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "destination",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Room",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "exits",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "Exit"
+              },
+              "length": "4"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "exit_count",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::append_exit",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "room"
+                      ]
+                    },
+                    "member": "exit_count"
+                  },
+                  "operator": "<",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "room"
+                        ]
+                      },
+                      "member": "exits"
+                    },
+                    "member": "len"
+                  }
+                }
+              }
+            ],
+            "token_count": 12
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "append_exit",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "room",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Room"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "destination",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "u32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "exits",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "slice",
+                    "element_type": {
+                      "kind": "named",
+                      "name": "Exit"
+                    }
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "room"
+                      ]
+                    },
+                    "member": "exits"
+                  },
+                  "target": "as_mut_slice",
+                  "arguments": []
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "index",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "usize"
+                },
+                "initial_value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "room"
+                    ]
+                  },
+                  "member": "exit_count"
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "indexed",
+                  "collection": {
+                    "kind": "name",
+                    "path": [
+                      "exits"
+                    ]
+                  },
+                  "index": {
+                    "kind": "name",
+                    "path": [
+                      "index"
+                    ]
+                  }
+                },
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Exit",
+                  "fields": [
+                    {
+                      "name": "destination",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "destination"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "table_statement_count": 3
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 16,
+    "statement_count": 3,
+    "type_reference_count": 13
+  }
+}

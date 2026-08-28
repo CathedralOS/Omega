@@ -1,0 +1,355 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Quantity",
+        "source_id": 0,
+        "start": 398,
+        "end": 406,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 414,
+            "end": 419,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 421,
+              "end": 424,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Quantity::Additive",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Quantity",
+          "source_id": 0,
+          "start": 439,
+          "end": 447,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "value",
+                "source_id": 0,
+                "start": 470,
+                "end": 475,
+                "source_backed": true
+              }
+            },
+            "operator": "greater_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [
+        {
+          "is_boundary": false,
+          "name": [
+            {
+              "text": "add",
+              "source_id": 0,
+              "start": 498,
+              "end": 501,
+              "source_backed": true
+            }
+          ],
+          "type_parameters": [],
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 502,
+                "end": 506,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Quantity",
+                  "source_id": 0,
+                  "start": 508,
+                  "end": 516,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 518,
+                "end": 523,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Quantity",
+                  "source_id": 0,
+                  "start": 525,
+                  "end": 533,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Quantity",
+              "source_id": 0,
+              "start": 538,
+              "end": 546,
+              "source_backed": true
+            }
+          },
+          "contracts": [],
+          "spelling": "+",
+          "provider": null,
+          "token_count": 23
+        }
+      ],
+      "body_token_count": 34
+    },
+    {
+      "kind": "domain",
+      "name": {
+        "text": "Quantity::Saturating",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "target_type": {
+        "kind": "named",
+        "name": {
+          "text": "Quantity",
+          "source_id": 0,
+          "start": 572,
+          "end": 580,
+          "source_backed": true
+        }
+      },
+      "classifier": null,
+      "facts": [
+        {
+          "kind": "expression",
+          "expression": {
+            "kind": "binary",
+            "left": {
+              "kind": "member",
+              "receiver": {
+                "kind": "self_value"
+              },
+              "member": {
+                "text": "value",
+                "source_id": 0,
+                "start": 605,
+                "end": 610,
+                "source_backed": true
+              }
+            },
+            "operator": "greater_or_equal",
+            "right": {
+              "kind": "integer",
+              "value": 0
+            }
+          }
+        }
+      ],
+      "operators": [
+        {
+          "is_boundary": false,
+          "name": [
+            {
+              "text": "add",
+              "source_id": 0,
+              "start": 633,
+              "end": 636,
+              "source_backed": true
+            }
+          ],
+          "type_parameters": [],
+          "parameters": [
+            {
+              "name": {
+                "text": "left",
+                "source_id": 0,
+                "start": 637,
+                "end": 641,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Quantity",
+                  "source_id": 0,
+                  "start": 643,
+                  "end": 651,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            },
+            {
+              "name": {
+                "text": "right",
+                "source_id": 0,
+                "start": 653,
+                "end": 658,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "Quantity",
+                  "source_id": 0,
+                  "start": 660,
+                  "end": 668,
+                  "source_backed": true
+                }
+              },
+              "is_const": false,
+              "is_mutable": false,
+              "is_self": false
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "Quantity",
+              "source_id": 0,
+              "start": 673,
+              "end": 681,
+              "source_backed": true
+            }
+          },
+          "contracts": [],
+          "spelling": "+",
+          "provider": null,
+          "token_count": 23
+        }
+      ],
+      "body_token_count": 34
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 705,
+        "end": 709,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": []
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 732,
+            "end": 736,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "missing"
+          },
+          "statements": []
+        }
+      ]
+    }
+  ]
+}

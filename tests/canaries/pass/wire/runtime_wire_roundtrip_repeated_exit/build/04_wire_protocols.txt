@@ -1,0 +1,11 @@
+# Omega Wire Protocols
+
+wire data schemas: 1
+
+## wire data SensorReadings
+encoding: (default)
+current era: 0
+fields:
+  0 sensor_id u32
+  1 samples [i32; 4]
+  2 flag bool

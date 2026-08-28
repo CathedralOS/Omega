@@ -1,0 +1,63 @@
+{
+  "machines": [
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x7c8246f957e4e3cb",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "console_write_bytes",
+      "contract": {
+        "fingerprint": "0xcebcc36aacf01d93",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": "Slice::Length",
+        "ranking_witness": {
+          "subjects": ["bytes"],
+          "view": "Slice::Length",
+          "view_arguments": []
+        }
+      }
+    },
+    {
+      "machine": "console_write",
+      "contract": {
+        "fingerprint": "0xd81d4fadcdb73f73",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "console_write_line",
+      "contract": {
+        "fingerprint": "0xd81d4fadcdb73f73",
+        "supply": "checked_body",
+        "published_effect_row": 2,
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

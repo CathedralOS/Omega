@@ -1,0 +1,1023 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Representative",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Zero",
+            "payload": []
+          },
+          {
+            "kind": "variant",
+            "name": "Next",
+            "payload": [
+              {
+                "name": "previous",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "EquivalenceClass",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "quotient": {
+          "carrier": {
+            "kind": "named",
+            "name": "Representative"
+          },
+          "relation": [
+            "equivalent"
+          ],
+          "relation_symbol": 49
+        },
+        "members": []
+      },
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "equivalent",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "value",
+                  "value": {
+                    "kind": "boolean",
+                    "value": true
+                  }
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "always"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "equivalent_reflexive",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "equivalent_symmetric",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 8
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "equivalent_transitive",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "c"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 16
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "c"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 8
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "c",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "advance",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Representative"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "struct_literal",
+                  "type_name": "Representative",
+                  "fields": [
+                    {
+                      "name": "previous",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "value"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "advance_respects",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "b"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 8
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "call",
+                      "receiver": null,
+                      "target": "advance",
+                      "machine_arguments": [],
+                      "arguments": [
+                        {
+                          "kind": "name",
+                          "path": [
+                            "a"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "call",
+                      "receiver": null,
+                      "target": "advance",
+                      "machine_arguments": [],
+                      "arguments": [
+                        {
+                          "kind": "name",
+                          "path": [
+                            "b"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 14
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "lifted_advance",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "EquivalenceClass"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "EquivalenceClass"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "__hoist_0",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "EquivalenceClass"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "advance",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "value"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "__hoist_0"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "combine",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "left",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "right",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "Representative"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "left"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "combine_respects",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [
+          {
+            "kind": "requires",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "left_a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "left_b"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "right_a"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "right_b"
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 16
+          },
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "equivalent",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "call",
+                      "receiver": null,
+                      "target": "combine",
+                      "machine_arguments": [],
+                      "arguments": [
+                        {
+                          "kind": "name",
+                          "path": [
+                            "left_a"
+                          ]
+                        },
+                        {
+                          "kind": "name",
+                          "path": [
+                            "right_a"
+                          ]
+                        }
+                      ]
+                    },
+                    {
+                      "kind": "call",
+                      "receiver": null,
+                      "target": "combine",
+                      "machine_arguments": [],
+                      "arguments": [
+                        {
+                          "kind": "name",
+                          "path": [
+                            "left_b"
+                          ]
+                        },
+                        {
+                          "kind": "name",
+                          "path": [
+                            "right_b"
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            ],
+            "token_count": 22
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "left_a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "left_b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "right_a",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "right_b",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Representative"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      },
+      {
+        "name": "lifted_combine",
+        "attached_data": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "entry",
+            "parameters": [
+              {
+                "name": "left",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "EquivalenceClass"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              },
+              {
+                "name": "right",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "EquivalenceClass"
+                },
+                "is_const": false,
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "EquivalenceClass"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "__hoist_1",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "EquivalenceClass"
+                },
+                "initial_value": {
+                  "kind": "call",
+                  "receiver": null,
+                  "target": "combine",
+                  "machine_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "name",
+                      "path": [
+                        "left"
+                      ]
+                    },
+                    {
+                      "kind": "name",
+                      "path": [
+                        "right"
+                      ]
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "name",
+                  "path": [
+                    "__hoist_1"
+                  ]
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Self"
+                  },
+                  "is_mutable": true
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": []
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 3,
+    "data_type_parameter_count": 0,
+    "data_member_count": 2,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 11,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 11,
+    "state_parameter_count": 21,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 50,
+    "expression_struct_field_count": 1,
+    "statement_count": 7,
+    "transition_target_count": 1,
+    "type_reference_count": 31,
+    "type_constraint_count": 0
+  }
+}

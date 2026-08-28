@@ -1,0 +1,50 @@
+{
+  "machines": [
+    {
+      "machine": "select",
+      "contract": {
+        "fingerprint": "0x332c365bfc5dffa8",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "entry", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    },
+    {
+      "machine": "Main::main",
+      "contract": {
+        "fingerprint": "0x1ea975ae87c6b7f8",
+        "supply": "checked_body",
+        "published_effect_row": 1,
+        "service_reach": {"interface": "internal_inferred"},
+        "suspension": {"interface": "internal_inferred"},
+        "blocking": {"interface": "internal_inferred"},
+        "published_termination": {"kind": "no_guarantee"}
+      },
+      "implementation": {
+        "checked_may_suspend": false,
+        "checked_may_block": false,
+        "checked_service_reach": [],
+        "inferred_write_frames": [
+          {"state": "main", "completeness": "opaque", "fingerprint": "0xaf63bf4c8601bb45", "paths": []}
+        ],
+        "checked_termination": {"kind": "eventual_terminal", "premises": []},
+        "resolved_ranking_view": ""
+      }
+    }
+  ],
+  "specializations": [
+  ]
+}

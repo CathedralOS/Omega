@@ -1,0 +1,8 @@
+{
+  "entry_machine": "Main::main",
+  "entry_state": "main",
+  "effect_bits": "0x0000000000000100",
+  "effects": ["process_exit"],
+  "service_reach": ["Console"],
+  "capability_flows": {"uses": 3, "returns": 0, "acquires": 1, "stores": 1, "derives": 0}
+}

@@ -1,0 +1,41 @@
+# Omega Wire Protocols
+
+wire data schemas: 1
+
+## wire data CounterMessage
+encoding: (default)
+current era: 2
+fields:
+  1 counter i32
+  2 retry_count i32
+
+### version v1 (era 0)
+fields:
+  1 counter i32
+  2 legacy_flags i64
+
+### compatibility v1 -> v2
+compatible:
+  field 1 counter i32 unchanged
+requires migration:
+  none
+reserved:
+  field 2 legacy_flags retired; number reserved
+incompatible:
+  none
+
+### version v2 (era 1)
+fields:
+  1 counter i32
+reserved: 2
+
+### compatibility v2 -> current
+compatible:
+  field 1 counter i32 unchanged
+  added field 2 retry_count i32 (recycles a number the prior era retired; the era discriminator disambiguates)
+requires migration:
+  none
+reserved:
+  none
+incompatible:
+  none

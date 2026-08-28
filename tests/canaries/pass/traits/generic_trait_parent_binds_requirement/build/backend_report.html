@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>backend_report</title>
+<style>
+
+:root {
+  --bg: #101318;
+  --panel: #171d25;
+  --panel-border: #2a3442;
+  --text: #eef3fb;
+  --muted: #9caaba;
+}
+* { box-sizing: border-box; }
+body {
+  min-height: 100vh;
+  margin: 0;
+  background: radial-gradient(circle at 20% 0%, #253144 0, #101318 42%);
+  color: var(--text);
+  display: grid;
+  grid-template-columns: minmax(280px, 22vw) 1fr;
+  font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+aside {
+  border-right: 1px solid var(--panel-border);
+  background: color-mix(in srgb, var(--panel) 92%, transparent);
+  min-height: 100vh;
+  padding: 18px;
+}
+h1 { margin: 0 0 16px; font-size: 18px; letter-spacing: 0.04em; }
+.phase-nav {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.phase-nav a {
+  border: 1px solid #303d50;
+  border-radius: 999px;
+  color: #d8e2ef;
+  font-size: 11px;
+  line-height: 1;
+  padding: 7px 9px;
+  text-decoration: none;
+}
+.phase-nav a:hover { background: #263247; border-color: #8ab4ff; }
+.phase-nav span { color: var(--muted); }
+main {
+  min-width: 0;
+  overflow: auto;
+  padding: 28px;
+}
+pre {
+  background: rgba(13, 17, 23, 0.82);
+  border: 1px solid #283343;
+  border-radius: 18px;
+  color: #d8e2ef;
+  line-height: 1.45;
+  margin: 0;
+  min-height: calc(100vh - 56px);
+  overflow: auto;
+  padding: 24px;
+  white-space: pre;
+}
+</style>
+</head>
+<body>
+<aside>
+<h1>backend_report</h1>
+<nav class="phase-nav" aria-label="Pipeline stages"><a target="_top" href="00_pipeline.html">Index</a><a target="_top" href="00_pipeline.html#timings"><span>00</span> Timings</a><a target="_top" href="00_pipeline.html#syntax"><span>02</span> Syntax</a><a target="_top" href="00_pipeline.html#symbols"><span>03</span> Symbols</a><a target="_top" href="00_pipeline.html#typed"><span>04</span> Typed</a><a target="_top" href="00_pipeline.html#checked"><span>05</span> Checked</a><a target="_top" href="00_pipeline.html#capabilities"><span>cap</span> Capabilities</a><a target="_top" href="00_pipeline.html#state-graph"><span>06</span> State Graph</a><a target="_top" href="00_pipeline.html#control-flow"><span>07</span> Control Flow</a><a target="_top" href="00_pipeline.html#abstract-operations"><span>08</span> Abstract Operations</a><a target="_top" href="00_pipeline.html#target-operations"><span>09</span> Target Operations</a><a target="_top" href="00_pipeline.html#assigned-target-operations"><span>10</span> Assigned Target Operations</a><a target="_top" href="00_pipeline.html#machine-instructions"><span>11</span> Machine Instructions</a><a target="_top" href="00_pipeline.html#emission"><span>12</span> Emission</a></nav>
+</aside>
+<main><pre># Omega Backend Plan
+
+target: NativeTarget { architecture: X86_64, object_format: Coff, pointer_size: 8, pointer_alignment: 8 }
+entry: Main::main.main as `main`
+
+## Backend Subphases
+subphase                        time    share  allocs   allocated
+--------------------------  --------  -------  ------  ----------
+host abi                    0.139 ms    4.41%     286   31.92 KiB
+layout/host calls           0.368 ms   11.67%      78  154.92 KiB
+vtable field offsets        0.009 ms    0.29%       0         0 B
+runtime flow/seed           0.033 ms    1.05%      13       306 B
+state calls/seed            0.188 ms    5.96%      30    3.17 KiB
+state dispatch              0.074 ms    2.35%      14   11.44 KiB
+alias flow                  0.001 ms    0.03%       0         0 B
+state storage/values        0.382 ms   12.11%      86  184.96 KiB
+runtime bodies              0.114 ms    3.61%      19   71.59 KiB
+runtime storage             0.130 ms    4.12%      37   45.17 KiB
+state guards                0.015 ms    0.48%       3       308 B
+runtime loop                0.052 ms    1.65%      10    2.49 KiB
+runtime branching           0.059 ms    1.87%       3       312 B
+runtime text                0.037 ms    1.17%      27       925 B
+target data                 0.020 ms    0.63%       1        16 B
+abstract operations         0.868 ms   27.52%     231   18.45 KiB
+target operations           0.062 ms    1.97%      13    2.62 KiB
+assigned target operations  0.042 ms    1.33%      14    2.63 KiB
+machine instructions        0.046 ms    1.46%      10    2.34 KiB
+machine emission            0.204 ms    6.47%      26    3.17 KiB
+object plan                 0.241 ms    7.64%     120    5.73 KiB
+relocations                 0.070 ms    2.22%       9    1.13 KiB
+--------------------------  --------  -------  ------  ----------
+total                       3.154 ms  100.00%   1,030  543.55 KiB
+
+## Backend String Storage
+This counts `String` fields still carried by backend planning structures.
+Identity strings are compiler debt; payload and generated symbols are expected later-stage text.
+
+category           strings     bytes  note
+-----------------  -------  --------  ----
+identity                41     234 B  machine/state/name strings still used as identity
+payload                  0       0 B  program text literals copied into backend structures
+generated symbols       62     666 B  labels, object symbols, and section names
+report                  22     335 B  diagnostic/report-only strings
+total                  125  1.21 KiB  all counted backend strings
+
+## Checked Semantics
+proof obligations: 0
+none
+invariants: 0
+none
+
+## Artifact Semantic Spine
+values: 3
+moves: 0
+drops: 0
+permissions: 0
+boundary policy checks: 0
+none
+
+## Host ABI
+bindings: 56
+- Stdin.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stdin.read_file import Kernel32.dll!ReadFile boundary `omega::host::targets::windows`
+- Stdin.read import Kernel32.dll!ReadFile boundary `omega::host::targets::windows`
+- Stdout.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stdout.write import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stdout.write_file import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stderr.get_std_handle import Kernel32.dll!GetStdHandle boundary `omega::host::targets::windows`
+- Stderr.write import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Stderr.write_file import Kernel32.dll!WriteFile boundary `omega::host::targets::windows`
+- Process.exit_process import Kernel32.dll!ExitProcess boundary `omega::host::targets::windows`
+- Clock.sleep import Kernel32.dll!Sleep boundary `omega::host::targets::windows`
+- Clock.tick_count import Kernel32.dll!GetTickCount64 boundary `omega::host::targets::windows`
+- Clock.monotonic_ticks import Kernel32.dll!QueryPerformanceCounter boundary `omega::host::targets::windows`
+- Clock.monotonic_ticks_per_second import Kernel32.dll!QueryPerformanceFrequency boundary `omega::host::targets::windows`
+- Clock.wall_clock_raw import Kernel32.dll!GetSystemTimePreciseAsFileTime boundary `omega::host::targets::windows`
+- Input.key_state import User32.dll!GetAsyncKeyState boundary `omega::host::targets::windows`
+- Gui.dc_create import Gdi32.dll!CreateCompatibleDC boundary `omega::host::targets::windows`
+- Gui.get_dc import User32.dll!GetDC boundary `omega::host::targets::windows`
+- Gui.window_create import User32.dll!CreateWindowExA boundary `omega::host::targets::windows`
+- Gui.blit import Gdi32.dll!StretchDIBits boundary `omega::host::targets::windows`
+- Gui.msg_peek import User32.dll!PeekMessageW boundary `omega::host::targets::windows`
+- Gui.msg_translate import User32.dll!TranslateMessage boundary `omega::host::targets::windows`
+- Gui.msg_dispatch import User32.dll!DispatchMessageW boundary `omega::host::targets::windows`
+- Gui.is_window import User32.dll!IsWindow boundary `omega::host::targets::windows`
+- Gui.window_destroy import User32.dll!DestroyWindow boundary `omega::host::targets::windows`
+- Gui.foreground_window import User32.dll!GetForegroundWindow boundary `omega::host::targets::windows`
+- Filesystem.open import msvcrt.dll!_open boundary `omega::host::targets::windows`
+- Filesystem.open_create import msvcrt.dll!_open boundary `omega::host::targets::windows`
+- Filesystem.creat import msvcrt.dll!_creat boundary `omega::host::targets::windows`
+- Filesystem.read import msvcrt.dll!_read boundary `omega::host::targets::windows`
+- Filesystem.write import msvcrt.dll!_write boundary `omega::host::targets::windows`
+- Filesystem.close import msvcrt.dll!_close boundary `omega::host::targets::windows`
+- Filesystem.unlink import msvcrt.dll!_unlink boundary `omega::host::targets::windows`
+- Filesystem.lseek import msvcrt.dll!_lseeki64 boundary `omega::host::targets::windows`
+- Filesystem.mkdir import msvcrt.dll!_mkdir boundary `omega::host::targets::windows`
+- Filesystem.rmdir import msvcrt.dll!_rmdir boundary `omega::host::targets::windows`
+- Filesystem.rename import msvcrt.dll!rename boundary `omega::host::targets::windows`
+- Filesystem.dup import msvcrt.dll!_dup boundary `omega::host::targets::windows`
+- Filesystem.fsync import msvcrt.dll!_commit boundary `omega::host::targets::windows`
+- Filesystem.chmod import msvcrt.dll!_chmod boundary `omega::host::targets::windows`
+- Filesystem.stat import msvcrt.dll!_stat64 boundary `omega::host::targets::windows`
+- Filesystem.fstat import msvcrt.dll!_fstat64 boundary `omega::host::targets::windows`
+- Filesystem.find_first import Kernel32.dll!FindFirstFileA boundary `omega::host::targets::windows`
+- Filesystem.find_next import Kernel32.dll!FindNextFileA boundary `omega::host::targets::windows`
+- Filesystem.find_close import Kernel32.dll!FindClose boundary `omega::host::targets::windows`
+- Filesystem.create_hard_link import Kernel32.dll!CreateHardLinkA boundary `omega::host::targets::windows`
+- Filesystem.open_path_handle import Kernel32.dll!CreateFileA boundary `omega::host::targets::windows`
+- Filesystem.close_handle import Kernel32.dll!CloseHandle boundary `omega::host::targets::windows`
+- Filesystem.get_osfhandle import msvcrt.dll!_get_osfhandle boundary `omega::host::targets::windows`
+- Filesystem.final_path_name_by_handle import Kernel32.dll!GetFinalPathNameByHandleA boundary `omega::host::targets::windows`
+- Filesystem.set_file_time import Kernel32.dll!SetFileTime boundary `omega::host::targets::windows`
+- Filesystem.lock_file_ex import Kernel32.dll!LockFileEx boundary `omega::host::targets::windows`
+- Filesystem.unlock_file import Kernel32.dll!UnlockFile boundary `omega::host::targets::windows`
+- Filesystem.get_last_error import Kernel32.dll!GetLastError boundary `omega::host::targets::windows`
+- Filesystem.ftruncate import msvcrt.dll!_chsize_s boundary `omega::host::targets::windows`
+- Filesystem.read_errno import msvcrt.dll!_errno boundary `omega::host::targets::windows`
+platform lowerings: 60
+- *.write_line =&gt; Stdout.get_std_handle -&gt; Stdout.write_file data first_text_argument append_newline=true
+- *.write =&gt; Stdout.get_std_handle -&gt; Stdout.write_file data first_text_argument append_newline=false
+- *.write_error_line =&gt; Stderr.get_std_handle -&gt; Stderr.write_file data first_text_argument append_newline=true
+- *.write_error =&gt; Stderr.get_std_handle -&gt; Stderr.write_file data first_text_argument append_newline=false
+- *.read_line =&gt; Stdin.get_std_handle -&gt; Stdin.read_file data mutable_output_buffer byte_capacity=256
+- *.read_byte =&gt; Stdin.get_std_handle -&gt; Stdin.read_file data single_byte_read
+- *.write_byte =&gt; Stdout.get_std_handle -&gt; Stdout.write_file data single_byte_write
+- *.exit_process =&gt; Process.exit_process
+- *.monotonic_ticks =&gt; Clock.monotonic_ticks
+- *.monotonic_ticks_per_second =&gt; Clock.monotonic_ticks_per_second
+- *.wall_clock_raw =&gt; Clock.wall_clock_raw
+- *.wall_clock_units_per_second =&gt; Clock.wall_clock_units_per_second data constant_result value=10000000
+- *.wall_clock_epoch_offset_seconds =&gt; Clock.wall_clock_epoch_offset_seconds data constant_result value=11644473600
+- *.tick_count =&gt; Clock.tick_count
+- *.key_state =&gt; Input.key_state
+- *.sleep =&gt; Clock.sleep
+- *.dc_create =&gt; Gui.dc_create
+- *.get_dc =&gt; Gui.get_dc
+- *.window_create =&gt; Gui.window_create
+- *.blit =&gt; Gui.blit
+- *.msg_peek =&gt; Gui.msg_peek
+- *.msg_translate =&gt; Gui.msg_translate
+- *.msg_dispatch =&gt; Gui.msg_dispatch
+- *.is_window =&gt; Gui.is_window
+- *.window_destroy =&gt; Gui.window_destroy
+- *.foreground_window =&gt; Gui.foreground_window
+- FilesystemHost.open =&gt; Filesystem.open
+- FilesystemHost.open_create =&gt; Filesystem.open_create
+- FilesystemHost.create =&gt; Filesystem.creat
+- FilesystemHost.read =&gt; Filesystem.read
+- FilesystemHost.write =&gt; Filesystem.write
+- FilesystemHost.close =&gt; Filesystem.close
+- FilesystemHost.remove =&gt; Filesystem.unlink
+- FilesystemHost.remove_name =&gt; Filesystem.unlink
+- FilesystemHost.remove_dir_name =&gt; Filesystem.rmdir
+- FilesystemHost.find_first =&gt; Filesystem.find_first
+- FilesystemHost.find_next =&gt; Filesystem.find_next
+- FilesystemHost.find_close =&gt; Filesystem.find_close
+- FilesystemHost.create_hard_link =&gt; Filesystem.create_hard_link
+- FilesystemHost.get_osfhandle =&gt; Filesystem.get_osfhandle
+- FilesystemHost.final_path_name_by_handle =&gt; Filesystem.final_path_name_by_handle
+- FilesystemHost.set_file_time =&gt; Filesystem.set_file_time
+- FilesystemHost.open_path_handle =&gt; Filesystem.open_path_handle
+- FilesystemHost.close_handle =&gt; Filesystem.close_handle
+- FilesystemHost.lock_file_ex =&gt; Filesystem.lock_file_ex
+- FilesystemHost.unlock_file =&gt; Filesystem.unlock_file
+- FilesystemHost.get_last_error =&gt; Filesystem.get_last_error
+- FilesystemHost.seek =&gt; Filesystem.lseek
+- FilesystemHost.create_dir =&gt; Filesystem.mkdir
+- FilesystemHost.create_dir_name =&gt; Filesystem.mkdir
+- FilesystemHost.remove_dir =&gt; Filesystem.rmdir
+- FilesystemHost.rename =&gt; Filesystem.rename
+- FilesystemHost.duplicate =&gt; Filesystem.dup
+- FilesystemHost.sync =&gt; Filesystem.fsync
+- FilesystemHost.sync_data =&gt; Filesystem.fsync
+- FilesystemHost.set_permissions =&gt; Filesystem.chmod
+- FilesystemHost.read_metadata =&gt; Filesystem.stat
+- FilesystemHost.read_file_metadata =&gt; Filesystem.fstat
+- FilesystemHost.set_len =&gt; Filesystem.ftruncate
+- FilesystemHost.errno =&gt; Filesystem.read_errno
+
+## Host Call Lowering
+calls: 0
+unsupported calls: 0
+operations: 0
+none
+
+## State Call Lowering
+calls: 1
+- Main::main.main statement 0 `counter` -&gt; Counter::put.put args 1 ContainedMachine/InlineLeaf reachable true required true
+  arguments:
+    - #0 `value` Value: `7` required true
+
+## Alias Flow
+aliases: 0
+none
+
+## State Storage
+locals: 0
+mutations: 1
+- Counter::put.put statement 0 MachineOwned/NeedsMachineOwnedWrite: `self.value` = `value` required true
+
+## Runtime Storage
+frame slots: 0
+writes: 1
+- #1 Counter::put.put statement 0 MachineOwned/NeedsMachineOwnedWrite: `self.value` = `value`
+
+## State Values
+values: 3
+- Counter::put.put statement 0 AssignmentTarget/Place: `self.value` required true
+- Counter::put.put statement 0 AssignmentValue/Place: `value` required true
+- Main::main.main statement 0 CallArgument/Literal: `7` required true
+
+## Runtime Text
+uses: 0
+buffers: 0
+slots: 1
+writes: 1
+builders: 0
+builder segments: 0
+uses: none
+buffers: none
+- slot `self.value` bytes 0 input_buffer false
+- write Counter::put.put statement 0 `self.value` = `value` StoredCopy
+builders: none
+
+## Native Data
+objects: 0
+bytes: 0
+none
+
+## Abstract Operations
+functions: 1
+instructions: 9
+operands: 0
+
+## Target Operations
+functions: 1
+instructions: 9
+operands: 0
+- function  from Main::main.main
+  instructions:
+    - statement 0: enter function
+    - statement 0: enter dispatch loop entry #1 terminal #0
+    - statement 0: enter dispatch case #1 `omega_state_symbol52_symbol63`
+    - statement 0: write place integer 7 (4b) -&gt; omega_machine_Main::main_storage[ConstOffset(0)]
+    - statement 0: write return register integer bytes 4 value 0
+    - statement 0: terminate dispatch
+    - statement 0: leave dispatch case
+    - statement 0: leave dispatch loop
+    - statement 0: leave function
+
+## Assigned Target Operations
+functions: 1
+instructions: 9
+runtime value homes: 0
+scratch homes: 0
+homes: none
+
+## Machine Instructions
+functions: 1
+instructions: 9
+encoded bytes: 68
+bytes: 68
+- function 
+  instructions:
+    - selected #1 NoOp encoded none
+    - selected #2 DispatchLoopEnter encoded 41 bc 01 00 00 00
+    - selected #3 DispatchCaseEnter encoded 41 81 fc 01 00 00 00 0f 85 30 00 00 00
+    - selected #4 RuntimeMachineIntegerWrite encoded 49 bf 00 00 00 00 00 00 00 00 48 b8 07 00 00 00 00 00 00 00 41 89 87 00 00 00 00
+    - selected #5 ReturnRegisterIntegerWrite encoded b8 00 00 00 00
+    - selected #6 DispatchTerminate encoded 41 bc 00 00 00 00 e9 05 00 00 00
+    - selected #7 DispatchCaseLeave encoded e9 c3 ff ff ff
+    - selected #8 NoOp encoded none
+    - selected #9 Return encoded c3
+
+## Source Native Surface
+entry candidates: 1
+- entry Main::main.main
+machines: 2
+- machine Counter::put: contains 0, owned data 0, states 1
+- machine Main::main: contains 0, owned data 0, states 1
+
+## State Schedule
+states: 2
+- Main::main.main#0
+- Counter::put.put#0
+
+## Runtime State Flow
+states: 1
+edges: 0
+cycles: 0
+states:
+- Main::main.main
+
+## Runtime Dispatch
+states: 1
+edges: 0
+- #1 Main::main.main label `omega_state_symbol52_symbol63`
+  edges: none
+
+## Runtime Guards
+guards: 0
+operands: 0
+none
+
+## Runtime Dispatch Loop
+needed: true
+entry dispatch index: #1
+terminal dispatch index: #0
+cases: 1
+edges: 0
+- #1 Main::main.main label `omega_state_symbol52_symbol63` operations 2
+  edges: none
+
+## Runtime Bodies
+bodies: 1
+operations: 2
+- #1 Main::main.main
+  operations:
+    - Main::main.main statement 0 InlineLeafStateCall { role: Statement, call_ordinal: 0, target_key: StateKey { machine: Handle { arena_index: 51, generation: 1 }, state: Handle { arena_index: 59, generation: 1 }, segment_index: 0 }, argument_count: 1 }
+    - Counter::put.put statement 0 Mutation { mutation_kind: MachineOwned, lowering: NeedsMachineOwnedWrite }
+
+## Runtime Branching Calls
+calls: 0
+edges: 0
+none
+
+## Runtime Leaf Branch Expansions
+expansions: 0
+operations: 0
+bindings: 0
+none
+
+## Runtime Straight-Line Branch Expansions
+expansions: 0
+operations: 0
+bindings: 0
+none
+
+## Layouts
+data layouts: 2
+machine layouts: 2
+fields: 4
+
+variants: 0
+
+- data Counter: size 4, align 4
+  fields:
+    - value @0: i32 size 4, align 4
+- data Main: size 4, align 4
+  fields:
+    - counter @0: Counter size 4, align 4
+- machine Counter::put: attached Counter, size 4, align 4
+  fields:
+    - value @0: i32 size 4, align 4
+- machine Main::main: attached Main, size 4, align 4
+  fields:
+    - counter @0: Counter size 4, align 4
+
+## Object
+sections: 3
+- section .text Text: size 68, align 16
+- section .data Data: size 0, align 8
+- section .bss Bss: size 4, align 4
+symbols: 58
+- symbol main Function: section .text, offset 0, size 68
+- symbol omega_machine_Main::main_storage Object: section .bss, offset 0, size 4
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol ReadFile Import: section none, offset 0, size 0
+- symbol ReadFile Import: section none, offset 0, size 0
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol GetStdHandle Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol WriteFile Import: section none, offset 0, size 0
+- symbol ExitProcess Import: section none, offset 0, size 0
+- symbol Sleep Import: section none, offset 0, size 0
+- symbol GetTickCount64 Import: section none, offset 0, size 0
+- symbol QueryPerformanceCounter Import: section none, offset 0, size 0
+- symbol QueryPerformanceFrequency Import: section none, offset 0, size 0
+- symbol GetSystemTimePreciseAsFileTime Import: section none, offset 0, size 0
+- symbol GetAsyncKeyState Import: section none, offset 0, size 0
+- symbol CreateCompatibleDC Import: section none, offset 0, size 0
+- symbol GetDC Import: section none, offset 0, size 0
+- symbol CreateWindowExA Import: section none, offset 0, size 0
+- symbol StretchDIBits Import: section none, offset 0, size 0
+- symbol PeekMessageW Import: section none, offset 0, size 0
+- symbol TranslateMessage Import: section none, offset 0, size 0
+- symbol DispatchMessageW Import: section none, offset 0, size 0
+- symbol IsWindow Import: section none, offset 0, size 0
+- symbol DestroyWindow Import: section none, offset 0, size 0
+- symbol GetForegroundWindow Import: section none, offset 0, size 0
+- symbol _open Import: section none, offset 0, size 0
+- symbol _open Import: section none, offset 0, size 0
+- symbol _creat Import: section none, offset 0, size 0
+- symbol _read Import: section none, offset 0, size 0
+- symbol _write Import: section none, offset 0, size 0
+- symbol _close Import: section none, offset 0, size 0
+- symbol _unlink Import: section none, offset 0, size 0
+- symbol _lseeki64 Import: section none, offset 0, size 0
+- symbol _mkdir Import: section none, offset 0, size 0
+- symbol _rmdir Import: section none, offset 0, size 0
+- symbol rename Import: section none, offset 0, size 0
+- symbol _dup Import: section none, offset 0, size 0
+- symbol _commit Import: section none, offset 0, size 0
+- symbol _chmod Import: section none, offset 0, size 0
+- symbol _stat64 Import: section none, offset 0, size 0
+- symbol _fstat64 Import: section none, offset 0, size 0
+- symbol FindFirstFileA Import: section none, offset 0, size 0
+- symbol FindNextFileA Import: section none, offset 0, size 0
+- symbol FindClose Import: section none, offset 0, size 0
+- symbol CreateHardLinkA Import: section none, offset 0, size 0
+- symbol CreateFileA Import: section none, offset 0, size 0
+- symbol CloseHandle Import: section none, offset 0, size 0
+- symbol _get_osfhandle Import: section none, offset 0, size 0
+- symbol GetFinalPathNameByHandleA Import: section none, offset 0, size 0
+- symbol SetFileTime Import: section none, offset 0, size 0
+- symbol LockFileEx Import: section none, offset 0, size 0
+- symbol UnlockFile Import: section none, offset 0, size 0
+- symbol GetLastError Import: section none, offset 0, size 0
+- symbol _chsize_s Import: section none, offset 0, size 0
+- symbol _errno Import: section none, offset 0, size 0
+
+## Relocations
+records: 1
+- X86_64Absolute64  text @21 width 8 instruction #4 -&gt; omega_machine_Main::main_storage
+</pre></main>
+</body>
+</html>

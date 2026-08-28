@@ -1,0 +1,315 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "IOError",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "code",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Buffer",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "len",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "ReadResult",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "ok",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "bytes_read",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "error",
+            "type_reference": {
+              "kind": "named",
+              "name": "IOError"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "File",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "handle",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "file",
+            "type_reference": {
+              "kind": "named",
+              "name": "File"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "buffer",
+            "type_reference": {
+              "kind": "named",
+              "name": "Buffer"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "result",
+            "type_reference": {
+              "kind": "named",
+              "name": "ReadResult"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "File::read",
+        "attached_data": "File",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "read",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              },
+              {
+                "name": "out",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "Buffer"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              },
+              {
+                "name": "result",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "named",
+                    "name": "ReadResult"
+                  },
+                  "is_mutable": true,
+                  "is_relaxed": false
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "result"
+                    ]
+                  },
+                  "member": "ok"
+                },
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              },
+              {
+                "kind": "assignment",
+                "target": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "result"
+                    ]
+                  },
+                  "member": "bytes_read"
+                },
+                "value": {
+                  "kind": "integer",
+                  "value": 0
+                }
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Self"
+                },
+                "is_const": false,
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "file"
+                ],
+                "target": "read",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "buffer"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "result"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "operators": [],
+    "platforms": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "data_definition_count": 5,
+    "data_type_parameter_count": 0,
+    "data_member_count": 9,
+    "domain_definition_count": 0,
+    "invariant_definition_count": 0,
+    "machine_count": 2,
+    "operator_count": 0,
+    "machine_contained_object_count": 0,
+    "machine_owned_data_count": 0,
+    "machine_state_count": 2,
+    "state_parameter_count": 4,
+    "platform_count": 0,
+    "platform_state_signature_count": 0,
+    "trait_count": 0,
+    "trait_requirement_count": 0,
+    "trait_machine_signature_count": 0,
+    "expression_count": 12,
+    "expression_struct_field_count": 0,
+    "statement_count": 3,
+    "transition_target_count": 0,
+    "type_reference_count": 15,
+    "type_constraint_count": 0
+  }
+}

@@ -377,7 +377,7 @@ forwarded pair shares one ID. A selected producer instead carries a separate
 canonical proof-bundle provenance identity keyed to its fresh ensured term and
 retaining its exact conformance, evidence trait, and normalized rows. That
 provenance changes proof identity, not semantic identity or runtime behavior.
-Each ensured terminal lane retains its public output selector beside the exact
+Each ensured realization pipeline retains its public output selector beside the exact
 term ID. A call-site capture row binds a selected callee lane to one fresh
 caller-local term; omitted lanes mint no term. The ordinary result remains on
 the canonical runtime `Call` operation, and proof rows add no executable work.

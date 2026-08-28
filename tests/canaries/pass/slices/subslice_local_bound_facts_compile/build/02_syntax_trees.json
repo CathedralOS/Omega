@@ -1,0 +1,518 @@
+{
+  "source_id": 0,
+  "root_items": [
+    {
+      "kind": "data",
+      "name": {
+        "text": "Entry",
+        "source_id": 0,
+        "start": 5,
+        "end": 10,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "value",
+            "source_id": 0,
+            "start": 18,
+            "end": 23,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "named",
+            "name": {
+              "text": "i32",
+              "source_id": 0,
+              "start": 25,
+              "end": 28,
+              "source_backed": true
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "data",
+      "name": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 41,
+        "end": 45,
+        "source_backed": true
+      },
+      "type_parameters": [],
+      "members": [
+        {
+          "kind": "field",
+          "name": {
+            "text": "entries",
+            "source_id": 0,
+            "start": 53,
+            "end": 60,
+            "source_backed": true
+          },
+          "type_reference": {
+            "kind": "fixed_array",
+            "element_type": {
+              "kind": "named",
+              "name": {
+                "text": "Entry",
+                "source_id": 0,
+                "start": 63,
+                "end": 68,
+                "source_backed": true
+              }
+            },
+            "length": {
+              "kind": "literal",
+              "value": 4
+            }
+          },
+          "initial_value": {
+            "kind": "name",
+            "path": []
+          }
+        }
+      ]
+    },
+    {
+      "kind": "machine",
+      "name": {
+        "text": "Main::main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "attached_data": {
+        "text": "Main",
+        "source_id": 0,
+        "start": 0,
+        "end": 0,
+        "source_backed": false
+      },
+      "abi": null,
+      "type_parameters": [],
+      "terminates": false,
+      "decreases": [],
+      "decrease_order": [],
+      "effects": [],
+      "contracts": [],
+      "states": [
+        {
+          "name": {
+            "text": "main",
+            "source_id": 0,
+            "start": 94,
+            "end": 98,
+            "source_backed": true
+          },
+          "parameters": [
+            {
+              "name": {
+                "text": "self",
+                "source_id": 0,
+                "start": 0,
+                "end": 0,
+                "source_backed": false
+              },
+              "type_reference": {
+                "kind": "self_type"
+              },
+              "is_const": false,
+              "is_mutable": true,
+              "is_self": true
+            }
+          ],
+          "return_type": {
+            "kind": "named",
+            "name": {
+              "text": "usize",
+              "source_id": 0,
+              "start": 113,
+              "end": 118,
+              "source_backed": true
+            }
+          },
+          "statements": [
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "view",
+                "source_id": 0,
+                "start": 130,
+                "end": 134,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Entry",
+                      "source_id": 0,
+                      "start": 138,
+                      "end": 143,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "call",
+                "receiver": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "self_value"
+                  },
+                  "member": {
+                    "text": "entries",
+                    "source_id": 0,
+                    "start": 152,
+                    "end": 159,
+                    "source_backed": true
+                  }
+                },
+                "target": {
+                  "text": "as_slice",
+                  "source_id": 0,
+                  "start": 160,
+                  "end": 168,
+                  "source_backed": true
+                },
+                "arguments": []
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "start",
+                "source_id": 0,
+                "start": 181,
+                "end": 186,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 188,
+                  "end": 193,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "integer",
+                "value": 1
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "end",
+                "source_id": 0,
+                "start": 208,
+                "end": 211,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "named",
+                "name": {
+                  "text": "usize",
+                  "source_id": 0,
+                  "start": 213,
+                  "end": 218,
+                  "source_backed": true
+                }
+              },
+              "initial_value": {
+                "kind": "integer",
+                "value": 3
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "tail",
+                "source_id": 0,
+                "start": 233,
+                "end": 237,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Entry",
+                      "source_id": 0,
+                      "start": 241,
+                      "end": 246,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "view",
+                      "source_id": 0,
+                      "start": 250,
+                      "end": 254,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "index": {
+                  "kind": "range",
+                  "start": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "start",
+                        "source_id": 0,
+                        "start": 255,
+                        "end": 260,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "end": null,
+                  "end_inclusive": false
+                }
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "prefix",
+                "source_id": 0,
+                "start": 274,
+                "end": 280,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Entry",
+                      "source_id": 0,
+                      "start": 284,
+                      "end": 289,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "view",
+                      "source_id": 0,
+                      "start": 293,
+                      "end": 297,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "index": {
+                  "kind": "range",
+                  "start": null,
+                  "end": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "end",
+                        "source_id": 0,
+                        "start": 300,
+                        "end": 303,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "end_inclusive": false
+                }
+              }
+            },
+            {
+              "kind": "local_data",
+              "name": {
+                "text": "middle",
+                "source_id": 0,
+                "start": 315,
+                "end": 321,
+                "source_backed": true
+              },
+              "type_reference": {
+                "kind": "reference",
+                "referee": {
+                  "kind": "slice",
+                  "element_type": {
+                    "kind": "named",
+                    "name": {
+                      "text": "Entry",
+                      "source_id": 0,
+                      "start": 325,
+                      "end": 330,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "is_mutable": false,
+                "is_relaxed": false
+              },
+              "initial_value": {
+                "kind": "indexed",
+                "collection": {
+                  "kind": "name",
+                  "path": [
+                    {
+                      "text": "view",
+                      "source_id": 0,
+                      "start": 334,
+                      "end": 338,
+                      "source_backed": true
+                    }
+                  ]
+                },
+                "index": {
+                  "kind": "range",
+                  "start": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "start",
+                        "source_id": 0,
+                        "start": 339,
+                        "end": 344,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "end": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "end",
+                        "source_id": 0,
+                        "start": 346,
+                        "end": 349,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "end_inclusive": false
+                }
+              }
+            },
+            {
+              "kind": "expression",
+              "value": {
+                "kind": "binary",
+                "left": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "tail",
+                          "source_id": 0,
+                          "start": 357,
+                          "end": 361,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 0,
+                      "start": 362,
+                      "end": 365,
+                      "source_backed": true
+                    }
+                  },
+                  "operator": "add",
+                  "right": {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        {
+                          "text": "prefix",
+                          "source_id": 0,
+                          "start": 368,
+                          "end": 374,
+                          "source_backed": true
+                        }
+                      ]
+                    },
+                    "member": {
+                      "text": "len",
+                      "source_id": 0,
+                      "start": 375,
+                      "end": 378,
+                      "source_backed": true
+                    }
+                  }
+                },
+                "operator": "add",
+                "right": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      {
+                        "text": "middle",
+                        "source_id": 0,
+                        "start": 381,
+                        "end": 387,
+                        "source_backed": true
+                      }
+                    ]
+                  },
+                  "member": {
+                    "text": "len",
+                    "source_id": 0,
+                    "start": 388,
+                    "end": 391,
+                    "source_backed": true
+                  }
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

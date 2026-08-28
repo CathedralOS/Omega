@@ -1,0 +1,902 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "Receipt",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "code",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": []
+      },
+      {
+        "name": "Task",
+        "supply": "checked_shape",
+        "type_parameters": [
+          "T"
+        ],
+        "members": [
+          {
+            "kind": "field",
+            "name": "provider",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "activation",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          }
+        ]
+      },
+      {
+        "name": "TaskFailureReceipt",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "provider",
+            "type_reference": {
+              "kind": "named",
+              "name": "u64"
+            }
+          },
+          {
+            "kind": "field",
+            "name": "code",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          }
+        ]
+      },
+      {
+        "name": "StartRejection",
+        "supply": "checked_shape",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "code",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          }
+        ]
+      },
+      {
+        "name": "TaskOutcome",
+        "supply": "checked_shape",
+        "type_parameters": [
+          "T"
+        ],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Cancelled"
+          },
+          {
+            "kind": "variant",
+            "name": "Returned"
+          },
+          {
+            "kind": "variant",
+            "name": "Failed"
+          }
+        ]
+      },
+      {
+        "name": "StartOutcome",
+        "supply": "checked_shape",
+        "type_parameters": [
+          "T",
+          "Arguments"
+        ],
+        "members": [
+          {
+            "kind": "variant",
+            "name": "Started"
+          },
+          {
+            "kind": "variant",
+            "name": "Rejected"
+          }
+        ]
+      },
+      {
+        "name": "TaskRuntime",
+        "supply": "boundary_opaque",
+        "type_parameters": [],
+        "members": []
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Receipt::ack",
+        "attached_data": "Receipt",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "ack",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Task::settle",
+        "attached_data": "Task",
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "settle",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "self_type"
+                  },
+                  "is_mutable": true
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "contracts": [],
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "returned_receipt",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Receipt"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Receipt",
+                  "fields": [
+                    {
+                      "name": "code",
+                      "value": {
+                        "kind": "integer",
+                        "text": "7"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "returned",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "TaskOutcome",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "Receipt"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "TaskOutcome",
+                  "fields": [
+                    {
+                      "name": "value",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "returned_receipt"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "returned_value",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Receipt"
+                },
+                "initial_value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "returned"
+                    ]
+                  },
+                  "member": "value"
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "Receipt"
+                ],
+                "target": "ack",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "returned_value"
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "local_data",
+                "name": "cancelled",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "TaskOutcome",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "Receipt"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "name",
+                  "path": [
+                    "TaskOutcome",
+                    "Cancelled"
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "failed",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "TaskOutcome",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "Receipt"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "TaskOutcome",
+                  "fields": [
+                    {
+                      "name": "receipt",
+                      "value": {
+                        "kind": "struct_literal",
+                        "type_name": "TaskFailureReceipt",
+                        "fields": [
+                          {
+                            "name": "provider",
+                            "value": {
+                              "kind": "integer",
+                              "text": "1"
+                            }
+                          },
+                          {
+                            "name": "code",
+                            "value": {
+                              "kind": "integer",
+                              "text": "2"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "rejected_receipt",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Receipt"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Receipt",
+                  "fields": [
+                    {
+                      "name": "code",
+                      "value": {
+                        "kind": "integer",
+                        "text": "9"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "rejected",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "StartOutcome",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "i32"
+                    },
+                    {
+                      "kind": "named",
+                      "name": "Receipt"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "StartOutcome",
+                  "fields": [
+                    {
+                      "name": "arguments",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "rejected_receipt"
+                        ]
+                      }
+                    },
+                    {
+                      "name": "reason",
+                      "value": {
+                        "kind": "struct_literal",
+                        "type_name": "StartRejection",
+                        "fields": [
+                          {
+                            "name": "code",
+                            "value": {
+                              "kind": "integer",
+                              "text": "1"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "recovered",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Receipt"
+                },
+                "initial_value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "rejected"
+                    ]
+                  },
+                  "member": "arguments"
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "Receipt"
+                ],
+                "target": "ack",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "recovered"
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "local_data",
+                "name": "task",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "Task",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "i32"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "Task",
+                  "fields": [
+                    {
+                      "name": "provider",
+                      "value": {
+                        "kind": "integer",
+                        "text": "1"
+                      }
+                    },
+                    {
+                      "name": "activation",
+                      "value": {
+                        "kind": "integer",
+                        "text": "11"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "started",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "StartOutcome",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "i32"
+                    },
+                    {
+                      "kind": "named",
+                      "name": "Receipt"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "StartOutcome",
+                  "fields": [
+                    {
+                      "name": "task",
+                      "value": {
+                        "kind": "name",
+                        "path": [
+                          "task"
+                        ]
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "local_data",
+                "name": "claim",
+                "type_reference": {
+                  "kind": "generic",
+                  "base_name": "Task",
+                  "lifetime_arguments": [],
+                  "arguments": [
+                    {
+                      "kind": "named",
+                      "name": "i32"
+                    }
+                  ]
+                },
+                "initial_value": {
+                  "kind": "member",
+                  "receiver": {
+                    "kind": "name",
+                    "path": [
+                      "started"
+                    ]
+                  },
+                  "member": "task"
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "Task"
+                ],
+                "target": "settle",
+                "machine_arguments": [],
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "claim"
+                    ]
+                  }
+                ]
+              },
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "integer",
+                  "text": "0"
+                }
+              }
+            ],
+            "table_statement_count": 15
+          }
+        ]
+      },
+      {
+        "name": "Task::request_cancel",
+        "attached_data": "Task",
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "token_count": 1
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "request_cancel",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "self_type"
+                  },
+                  "is_mutable": false
+                },
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "Task::finish",
+        "attached_data": "Task",
+        "type_parameters": [
+          "T"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": true,
+        "blocks": true,
+        "contracts": [
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "token_count": 1
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "finish",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": false,
+                "is_self": true
+              }
+            ],
+            "return_type": {
+              "kind": "generic",
+              "base_name": "TaskOutcome",
+              "lifetime_arguments": [],
+              "arguments": [
+                {
+                  "kind": "named",
+                  "name": "T"
+                }
+              ]
+            },
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "TaskRuntime::start",
+        "attached_data": "TaskRuntime",
+        "type_parameters": [
+          "T",
+          "Arguments",
+          "Target"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "token_count": 1
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "start",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "self_type"
+                  },
+                  "is_mutable": false
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "arguments",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Arguments"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "generic",
+              "base_name": "Task",
+              "lifetime_arguments": [],
+              "arguments": [
+                {
+                  "kind": "named",
+                  "name": "T"
+                }
+              ]
+            },
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      },
+      {
+        "name": "TaskRuntime::try_start",
+        "attached_data": "TaskRuntime",
+        "type_parameters": [
+          "T",
+          "Arguments",
+          "Target"
+        ],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "service_reach": [],
+        "suspends": false,
+        "blocks": false,
+        "contracts": [
+          {
+            "kind": "ensures",
+            "facts": [
+              {
+                "kind": "expression",
+                "value": {
+                  "kind": "boolean",
+                  "value": true
+                }
+              }
+            ],
+            "token_count": 1
+          }
+        ],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "try_start",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "reference",
+                  "referee": {
+                    "kind": "self_type"
+                  },
+                  "is_mutable": false
+                },
+                "is_mutable": false,
+                "is_self": true
+              },
+              {
+                "name": "arguments",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "Arguments"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": {
+              "kind": "generic",
+              "base_name": "StartOutcome",
+              "lifetime_arguments": [],
+              "arguments": [
+                {
+                  "kind": "named",
+                  "name": "T"
+                },
+                {
+                  "kind": "named",
+                  "name": "Arguments"
+                }
+              ]
+            },
+            "contracts": [],
+            "statements": [],
+            "table_statement_count": 0
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "traits": [],
+    "wire_schemas": []
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 34,
+    "statement_count": 15,
+    "type_reference_count": 53
+  }
+}

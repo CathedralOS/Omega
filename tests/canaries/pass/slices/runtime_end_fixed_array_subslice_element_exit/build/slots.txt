@@ -1,0 +1,11 @@
+# Omega frame-slot layout (region: omega_runtime_frame_storage)
+# absolute runtime address of a slot = (relocated region base) + byte_offset.
+# region base = the imm64 of the `movabsq $imm64,%r15` (frame storage) the dispatch
+#   loop loads, OR the address of the `omega_runtime_frame_storage` symbol in the image.
+# cdb (no-ASLR image base 0x140000000): bp <code>; g; dd (base+byte_offset) L<words>.
+# frame_scratch_base=40 frame_scratch_size=16
+# slots: 3
+# context  dispatch  stmt  machine#  state#  seg  kind                  name                  type                  offset    end       size
+0         1         6     34        45      0    local                 sub                   &[i32]                0         16        16
+0         2         -     35        53      0    param                 sub                   &[i32]                16        32        16
+0         3         -     36        61      0    param                 v                     i32                   32        36        4

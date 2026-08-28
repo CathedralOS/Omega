@@ -1,0 +1,823 @@
+{
+  "roots": {
+    "data_definitions": [
+      {
+        "name": "RoomHeaderValue",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "room_id",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "RoomPacketValue",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "header",
+            "type_reference": {
+              "kind": "named",
+              "name": "RoomHeaderValue"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "samples",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "length": "4"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "samples_count",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "depth",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            },
+            "initial_value": null
+          }
+        ]
+      },
+      {
+        "name": "Main",
+        "type_parameters": [],
+        "members": [
+          {
+            "kind": "field",
+            "name": "console",
+            "type_reference": {
+              "kind": "named",
+              "name": "Console"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "buffer",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "u8"
+              },
+              "length": "64"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "written",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "read",
+            "type_reference": {
+              "kind": "named",
+              "name": "usize"
+            },
+            "initial_value": null
+          },
+          {
+            "kind": "field",
+            "name": "ok",
+            "type_reference": {
+              "kind": "named",
+              "name": "bool"
+            },
+            "initial_value": null
+          }
+        ]
+      }
+    ],
+    "domain_definitions": [],
+    "invariant_definitions": [],
+    "machines": [
+      {
+        "name": "Main::main",
+        "attached_data": "Main",
+        "abi": null,
+        "type_parameters": [],
+        "terminates": false,
+        "decreases": [],
+        "decrease_order": [],
+        "effects": [],
+        "contracts": [],
+        "contains": [],
+        "owned_data": [],
+        "states": [
+          {
+            "name": "main",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "local_data",
+                "name": "msg",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "RoomPacketValue"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "RoomPacketValue",
+                  "fields": [
+                    {
+                      "name": "header",
+                      "value": {
+                        "kind": "struct_literal",
+                        "type_name": "RoomHeaderValue",
+                        "fields": [
+                          {
+                            "name": "room_id",
+                            "value": {
+                              "kind": "integer",
+                              "value": 300
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "samples",
+                      "value": {
+                        "kind": "array_literal",
+                        "values": [
+                          {
+                            "kind": "integer",
+                            "value": 150
+                          },
+                          {
+                            "kind": "binary",
+                            "left": {
+                              "kind": "integer",
+                              "value": 0
+                            },
+                            "operator": "-",
+                            "right": {
+                              "kind": "integer",
+                              "value": 2
+                            }
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "samples_count",
+                      "value": {
+                        "kind": "integer",
+                        "value": 2
+                      }
+                    },
+                    {
+                      "name": "depth",
+                      "value": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "-",
+                        "right": {
+                          "kind": "integer",
+                          "value": 64
+                        }
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "RoomPacket"
+                ],
+                "target": "encode_wire",
+                "arguments": [
+                  {
+                    "kind": "name",
+                    "path": [
+                      "msg"
+                    ]
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "buffer"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "written"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "local_data",
+                "name": "decoded",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "RoomPacketValue"
+                },
+                "initial_value": {
+                  "kind": "struct_literal",
+                  "type_name": "RoomPacketValue",
+                  "fields": [
+                    {
+                      "name": "header",
+                      "value": {
+                        "kind": "struct_literal",
+                        "type_name": "RoomHeaderValue",
+                        "fields": [
+                          {
+                            "name": "room_id",
+                            "value": {
+                              "kind": "integer",
+                              "value": 0
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "samples",
+                      "value": {
+                        "kind": "array_literal",
+                        "values": [
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          },
+                          {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        ]
+                      }
+                    },
+                    {
+                      "name": "samples_count",
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    },
+                    {
+                      "name": "depth",
+                      "value": {
+                        "kind": "integer",
+                        "value": 0
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "kind": "call",
+                "receiver": [
+                  "RoomPacket"
+                ],
+                "target": "decode_wire",
+                "arguments": [
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "name",
+                      "path": [
+                        "decoded"
+                      ]
+                    }
+                  },
+                  {
+                    "kind": "member",
+                    "receiver": {
+                      "kind": "name",
+                      "path": [
+                        "self"
+                      ]
+                    },
+                    "member": "buffer"
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "read"
+                    }
+                  },
+                  {
+                    "kind": "mutable",
+                    "value": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "self"
+                        ]
+                      },
+                      "member": "ok"
+                    }
+                  }
+                ]
+              },
+              {
+                "kind": "local_data",
+                "name": "matches",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "bool"
+                },
+                "initial_value": {
+                  "kind": "binary",
+                  "left": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "binary",
+                          "left": {
+                            "kind": "binary",
+                            "left": {
+                              "kind": "binary",
+                              "left": {
+                                "kind": "member",
+                                "receiver": {
+                                  "kind": "name",
+                                  "path": [
+                                    "self"
+                                  ]
+                                },
+                                "member": "ok"
+                              },
+                              "operator": "&&",
+                              "right": {
+                                "kind": "binary",
+                                "left": {
+                                  "kind": "member",
+                                  "receiver": {
+                                    "kind": "name",
+                                    "path": [
+                                      "self"
+                                    ]
+                                  },
+                                  "member": "written"
+                                },
+                                "operator": "==",
+                                "right": {
+                                  "kind": "integer",
+                                  "value": 13
+                                }
+                              }
+                            },
+                            "operator": "&&",
+                            "right": {
+                              "kind": "binary",
+                              "left": {
+                                "kind": "member",
+                                "receiver": {
+                                  "kind": "name",
+                                  "path": [
+                                    "self"
+                                  ]
+                                },
+                                "member": "read"
+                              },
+                              "operator": "==",
+                              "right": {
+                                "kind": "integer",
+                                "value": 13
+                              }
+                            }
+                          },
+                          "operator": "&&",
+                          "right": {
+                            "kind": "binary",
+                            "left": {
+                              "kind": "member",
+                              "receiver": {
+                                "kind": "member",
+                                "receiver": {
+                                  "kind": "name",
+                                  "path": [
+                                    "decoded"
+                                  ]
+                                },
+                                "member": "header"
+                              },
+                              "member": "room_id"
+                            },
+                            "operator": "==",
+                            "right": {
+                              "kind": "integer",
+                              "value": 300
+                            }
+                          }
+                        },
+                        "operator": "&&",
+                        "right": {
+                          "kind": "binary",
+                          "left": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "name",
+                              "path": [
+                                "decoded"
+                              ]
+                            },
+                            "member": "samples_count"
+                          },
+                          "operator": "==",
+                          "right": {
+                            "kind": "integer",
+                            "value": 2
+                          }
+                        }
+                      },
+                      "operator": "&&",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "indexed",
+                          "collection": {
+                            "kind": "member",
+                            "receiver": {
+                              "kind": "name",
+                              "path": [
+                                "decoded"
+                              ]
+                            },
+                            "member": "samples"
+                          },
+                          "index": {
+                            "kind": "integer",
+                            "value": 0
+                          }
+                        },
+                        "operator": "==",
+                        "right": {
+                          "kind": "integer",
+                          "value": 150
+                        }
+                      }
+                    },
+                    "operator": "&&",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "indexed",
+                        "collection": {
+                          "kind": "member",
+                          "receiver": {
+                            "kind": "name",
+                            "path": [
+                              "decoded"
+                            ]
+                          },
+                          "member": "samples"
+                        },
+                        "index": {
+                          "kind": "integer",
+                          "value": 1
+                        }
+                      },
+                      "operator": "==",
+                      "right": {
+                        "kind": "binary",
+                        "left": {
+                          "kind": "integer",
+                          "value": 0
+                        },
+                        "operator": "-",
+                        "right": {
+                          "kind": "integer",
+                          "value": 2
+                        }
+                      }
+                    }
+                  },
+                  "operator": "&&",
+                  "right": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "member",
+                      "receiver": {
+                        "kind": "name",
+                        "path": [
+                          "decoded"
+                        ]
+                      },
+                      "member": "depth"
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "binary",
+                      "left": {
+                        "kind": "integer",
+                        "value": 0
+                      },
+                      "operator": "-",
+                      "right": {
+                        "kind": "integer",
+                        "value": 64
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "good"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "matches"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": true
+                    }
+                  }
+                }
+              },
+              {
+                "kind": "transition",
+                "target": {
+                  "kind": "named",
+                  "path": [
+                    "bad"
+                  ],
+                  "arguments": []
+                },
+                "continuation": null,
+                "guard": {
+                  "kind": "when",
+                  "value": {
+                    "kind": "binary",
+                    "left": {
+                      "kind": "name",
+                      "path": [
+                        "matches"
+                      ]
+                    },
+                    "operator": "==",
+                    "right": {
+                      "kind": "boolean",
+                      "value": false
+                    }
+                  }
+                }
+              }
+            ],
+            "table_statement_count": 7
+          },
+          {
+            "name": "good",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 70
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          },
+          {
+            "name": "bad",
+            "parameters": [
+              {
+                "name": "self",
+                "type_reference": {
+                  "kind": "self_type"
+                },
+                "is_mutable": true,
+                "is_self": true
+              }
+            ],
+            "return_type": null,
+            "statements": [
+              {
+                "kind": "call",
+                "receiver": [
+                  "self",
+                  "console"
+                ],
+                "target": "exit_process",
+                "arguments": [
+                  {
+                    "kind": "integer",
+                    "value": 71
+                  }
+                ]
+              }
+            ],
+            "table_statement_count": 1
+          }
+        ]
+      }
+    ],
+    "measures": [],
+    "operators": [],
+    "platforms": [],
+    "traits": [
+      {
+        "name": "Console",
+        "is_boundary": true,
+        "type_parameters": [],
+        "invariants": [],
+        "requires": [],
+        "machines": [
+          {
+            "name": "exit_process",
+            "is_default": false,
+            "parameters": [
+              {
+                "name": "return_code",
+                "type_reference": {
+                  "kind": "named",
+                  "name": "i32"
+                },
+                "is_mutable": false,
+                "is_self": false
+              }
+            ],
+            "return_type": null,
+            "effects": [],
+            "contracts": []
+          }
+        ]
+      }
+    ],
+    "wire_schemas": [
+      {
+        "has_symbol": true,
+        "name": "RoomHeader",
+        "encoding": null,
+        "members": [
+          {
+            "kind": "field",
+            "number": 0,
+            "name": "room_id",
+            "type_reference": {
+              "kind": "named",
+              "name": "u32"
+            }
+          }
+        ]
+      },
+      {
+        "has_symbol": true,
+        "name": "RoomPacket",
+        "encoding": null,
+        "members": [
+          {
+            "kind": "field",
+            "number": 0,
+            "name": "header",
+            "type_reference": {
+              "kind": "named",
+              "name": "RoomHeader"
+            }
+          },
+          {
+            "kind": "field",
+            "number": 1,
+            "name": "samples",
+            "type_reference": {
+              "kind": "fixed_array",
+              "element_type": {
+                "kind": "named",
+                "name": "i32"
+              },
+              "length": "4"
+            }
+          },
+          {
+            "kind": "field",
+            "number": 2,
+            "name": "depth",
+            "type_reference": {
+              "kind": "named",
+              "name": "i32"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "tables": {
+    "type_constraint_count": 0,
+    "expression_count": 95,
+    "statement_count": 9,
+    "type_reference_count": 19
+  }
+}
