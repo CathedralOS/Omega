@@ -727,7 +727,6 @@ fn terminal_component_staging_consumes_only_the_psi_owned_artifact() {
             "Omega native realization reopened pre-Terminal state through `{forbidden}`"
         );
     }
-
     let component_path = root.join(
         "source/on-ramp/rust/omega/orchestration/omega-compiler/src/pipeline/terminal_component_candidate.rs",
     );
@@ -1093,6 +1092,51 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
             "target-neutral selected-instruction pipeline must receive target semantics from orchestration, not depend upward on {forbidden}"
         );
     }
+    assert!(
+        selection_manifest_source.contains("omega-terminal-legalized-operations"),
+        "instruction selection must consume the explicit legalized-operation representation"
+    );
+
+    let legalized_manifest = root.join(
+        "source/on-ramp/rust/omega/representations/omega-terminal-legalized-operations/Cargo.toml",
+    );
+    let legalized_manifest_source = std::fs::read_to_string(&legalized_manifest)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legalized_manifest.display()));
+    for forbidden in [
+        "omega-register-model",
+        "omega-terminal-selected-instructions",
+        "omega-regalloc",
+        "omega-terminal-isa-x86_64",
+        "omega-terminal-isa-aarch64",
+    ] {
+        assert!(
+            !legalized_manifest_source
+                .lines()
+                .any(|line| line.trim_start().starts_with(forbidden)),
+            "legalized-operation representation must remain pre-selection data and not depend on {forbidden}"
+        );
+    }
+
+    let legalized_representation = root.join(
+        "source/on-ramp/rust/omega/representations/omega-terminal-legalized-operations/src/lib.rs",
+    );
+    let legalized_representation_source = std::fs::read_to_string(&legalized_representation)
+        .unwrap_or_else(|error| {
+            panic!(
+                "failed to read {}: {error}",
+                legalized_representation.display()
+            )
+        });
+    for forbidden in [
+        "fn legalize_terminal_target_operations",
+        "fn validate_terminal_legalized_operations",
+        "ValidatedTerminalLegalizedOperations",
+    ] {
+        assert!(
+            !legalized_representation_source.contains(forbidden),
+            "legalized-operation representation must remain data-only; found {forbidden}"
+        );
+    }
 
     let selected_representation = root.join(
         "source/on-ramp/rust/omega/representations/omega-terminal-selected-instructions/src/lib.rs",
@@ -1120,6 +1164,13 @@ fn optimizer_register_models_remain_on_the_clean_terminal_isa_lane() {
         graph.get("omega-register-model").map(|krate| krate.layer),
         Some("representations"),
         "the canonical register model must stay in the representation layer"
+    );
+    assert_eq!(
+        graph
+            .get("omega-terminal-legalized-operations")
+            .map(|krate| krate.layer),
+        Some("representations"),
+        "target-legal operations must stay in the representation layer"
     );
     assert!(
         graph["omega-regalloc"]

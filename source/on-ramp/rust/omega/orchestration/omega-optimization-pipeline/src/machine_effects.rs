@@ -108,6 +108,7 @@ pub fn stage_optimized_machine_effects(
     let source_receipt = validate_optimized_selection_custody(
         source.optimized_target(),
         source.register_environment(),
+        source.legalized(),
         source.selected(),
     )
     .map_err(OptimizedMachineEffectPipelineError::Upstream)?;
@@ -194,6 +195,7 @@ pub fn validate_optimized_machine_effect_custody(
     let source_receipt = validate_optimized_selection_custody(
         source.optimized_target(),
         source.register_environment(),
+        source.legalized(),
         source.selected(),
     )
     .map_err(OptimizedMachineEffectPipelineError::Upstream)?;

@@ -1,95 +1,27 @@
 use omega_optimization_unit::{
     AcceptedObligationFact, FuelSettlement, OptimizationFact, PsiOptimizationUnit, PsiProvenance,
-    ValueDefinitionSite,
 };
 use omega_terminal_abstract_operations::{
-    TerminalAbstractOperation, TerminalAbstractOperationPlan, TerminalValueBinding,
+    TerminalAbstractOperation, TerminalAbstractOperationPlan,
+};
+use omega_terminal_legalized_operations::{
+    TerminalLegalizationRecipe, TerminalLegalizedFunction as SourceFunction,
+    TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
+    TerminalLegalizedLeafValue as SourceLeafValue,
 };
 use omega_terminal_target_operations::{
-    MachineRegister, TerminalPsiProvenance, TerminalScalarParameterLocation,
-    TerminalTargetIntegerControl, TerminalTargetIntegerExpression, TerminalTargetOperation,
-    TerminalTargetOperationPlan,
+    TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
+    TerminalTargetIntegerExpression, TerminalTargetOperation, TerminalTargetOperationPlan,
 };
-use psi_core::{
-    BlockId, EdgeId, IntegerSign, IntegerValue, ObligationId, OperationId, ScalarType, ValueId,
-};
+use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
 
-use crate::{SelectedInstructionError, SelectedInstructionError as Error};
-
-#[derive(Debug, Clone)]
-pub(crate) struct SourceFunction {
-    pub condition_source: ValueId,
-    pub condition_parameter_index: usize,
-    pub condition_register: MachineRegister,
-    pub condition_definition_site: ValueDefinitionSite,
-    pub entry_block: BlockId,
-    pub true_block: BlockId,
-    pub false_block: BlockId,
-    pub branch_true_edge: EdgeId,
-    pub branch_false_edge: EdgeId,
-    pub branch_true_fuel: Vec<FuelSettlement>,
-    pub branch_false_fuel: Vec<FuelSettlement>,
-    pub branch_true_bindings: Vec<TerminalValueBinding>,
-    pub branch_false_bindings: Vec<TerminalValueBinding>,
-    pub when_true: SourceLeaf,
-    pub when_false: SourceLeaf,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct SourceLeaf {
-    pub return_edge: EdgeId,
-    pub source_value: ValueId,
-    pub return_fuel: Vec<FuelSettlement>,
-    pub value: SourceLeafValue,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) enum SourceLeafValue {
-    Immediate {
-        value: IntegerValue,
-        constant_operation: OperationId,
-        definition_site: ValueDefinitionSite,
-        constant_fuel: Vec<FuelSettlement>,
-    },
-    EntryParameter {
-        parameter_index: usize,
-        register: MachineRegister,
-        definition_site: ValueDefinitionSite,
-    },
-    ExactAdd {
-        obligation: ObligationId,
-        accepted_fact: omega_optimization_core::AcceptedObligationFactIdentity,
-        add_operation: OperationId,
-        definition_site: ValueDefinitionSite,
-        add_fuel: Vec<FuelSettlement>,
-        left: SourceImmediate,
-        right: SourceImmediate,
-    },
-    ExactSubtract {
-        obligation: ObligationId,
-        accepted_fact: omega_optimization_core::AcceptedObligationFactIdentity,
-        subtract_operation: OperationId,
-        definition_site: ValueDefinitionSite,
-        subtract_fuel: Vec<FuelSettlement>,
-        left: SourceImmediate,
-        right: SourceImmediate,
-    },
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct SourceImmediate {
-    pub source_value: ValueId,
-    pub value: IntegerValue,
-    pub constant_operation: OperationId,
-    pub definition_site: ValueDefinitionSite,
-    pub fuel: Vec<FuelSettlement>,
-}
+use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
 pub(crate) fn derive_source_functions(
     target: &TerminalTargetOperationPlan,
     abstract_plan: &TerminalAbstractOperationPlan,
     unit: &PsiOptimizationUnit,
-) -> Result<Vec<SourceFunction>, SelectedInstructionError> {
+) -> Result<Vec<SourceFunction>, TerminalLegalizationError> {
     if omega_optimization_validation::validate_psi_optimization_unit(unit).is_err()
         || target.terminal_psi != abstract_plan.terminal_psi
         || target.terminal_psi != unit.terminal_psi
@@ -102,7 +34,7 @@ pub(crate) fn derive_source_functions(
         return Err(Error::SourceCustodyMismatch);
     }
 
-    target
+    let functions = target
         .functions
         .iter()
         .zip(&abstract_plan.functions)
@@ -117,7 +49,25 @@ pub(crate) fn derive_source_functions(
                 &unit.accepted_obligation_facts,
             )
         })
-        .collect()
+        .collect::<Result<Vec<_>, _>>()?;
+    if functions.iter().any(|function| {
+        function.condition_register.architecture() != target.target.architecture
+            || match (&function.when_true.value, &function.when_false.value) {
+                (
+                    SourceLeafValue::EntryParameter { register: left, .. },
+                    SourceLeafValue::EntryParameter {
+                        register: right, ..
+                    },
+                ) => {
+                    left.architecture() != target.target.architecture
+                        || right.architecture() != target.target.architecture
+                }
+                _ => false,
+            }
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(functions)
 }
 
 fn derive_source_function(
@@ -126,7 +76,7 @@ fn derive_source_function(
     abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
     accepted_obligation_facts: &[AcceptedObligationFact],
-) -> Result<SourceFunction, SelectedInstructionError> {
+) -> Result<SourceFunction, TerminalLegalizationError> {
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
@@ -266,7 +216,10 @@ fn derive_source_function(
     } else {
         (9, 4)
     };
+    let expected_parameter_count = if parameter_leaves { 2 } else { 1 };
     if abstracted.operations.len() != expected_operation_count
+        || abstracted.parameters.len() != expected_parameter_count
+        || optimized.parameters.len() != expected_parameter_count
         || abstracted
             .block_entries
             .iter()
@@ -372,11 +325,9 @@ fn derive_source_function(
         return Err(Error::UnsupportedSourceShape { function });
     }
     let expected_provenance = TerminalPsiProvenance {
-        operations: when_true
-            .value
-            .operations()
+        operations: source_operations(&when_true.value)
             .into_iter()
-            .chain(when_false.value.operations())
+            .chain(source_operations(&when_false.value))
             .collect(),
         edges: vec![
             abstract_true.psi_edge,
@@ -390,6 +341,18 @@ fn derive_source_function(
     }
 
     Ok(SourceFunction {
+        machine: target.machine,
+        attachment: target.attachment,
+        provenance: target.provenance.clone(),
+        recipe: if constant_leaves {
+            TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1
+        } else if parameter_leaves {
+            TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1
+        } else if exact_add_leaves {
+            TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
+        } else {
+            TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
+        },
         condition_source: *condition_source,
         condition_parameter_index: *condition_parameter_index,
         condition_register: *condition_register,
@@ -418,7 +381,7 @@ fn derive_leaf(
     abstracted: &omega_terminal_abstract_operations::TerminalAbstractFunction,
     optimized: &omega_optimization_unit::PsiOptimizationFunction,
     accepted_obligation_facts: &[AcceptedObligationFact],
-) -> Result<SourceLeaf, SelectedInstructionError> {
+) -> Result<SourceLeaf, TerminalLegalizationError> {
     if nodes.len() != abstract_operations.len()
         || nodes
             .iter()
@@ -668,34 +631,32 @@ fn derive_leaf(
     })
 }
 
-impl SourceLeafValue {
-    fn operations(&self) -> Vec<OperationId> {
-        match self {
-            Self::Immediate {
-                constant_operation, ..
-            } => vec![*constant_operation],
-            Self::EntryParameter { .. } => Vec::new(),
-            Self::ExactAdd {
-                add_operation,
-                left,
-                right,
-                ..
-            } => vec![
-                left.constant_operation,
-                right.constant_operation,
-                *add_operation,
-            ],
-            Self::ExactSubtract {
-                subtract_operation,
-                left,
-                right,
-                ..
-            } => vec![
-                left.constant_operation,
-                right.constant_operation,
-                *subtract_operation,
-            ],
-        }
+fn source_operations(value: &SourceLeafValue) -> Vec<OperationId> {
+    match value {
+        SourceLeafValue::Immediate {
+            constant_operation, ..
+        } => vec![*constant_operation],
+        SourceLeafValue::EntryParameter { .. } => Vec::new(),
+        SourceLeafValue::ExactAdd {
+            add_operation,
+            left,
+            right,
+            ..
+        } => vec![
+            left.constant_operation,
+            right.constant_operation,
+            *add_operation,
+        ],
+        SourceLeafValue::ExactSubtract {
+            subtract_operation,
+            left,
+            right,
+            ..
+        } => vec![
+            left.constant_operation,
+            right.constant_operation,
+            *subtract_operation,
+        ],
     }
 }
 
@@ -705,7 +666,7 @@ fn derive_immediate(
     target: &TerminalTargetIntegerExpression,
     node: &omega_optimization_unit::OptimizationNode,
     expected_type: ScalarType,
-) -> Result<SourceImmediate, SelectedInstructionError> {
+) -> Result<SourceImmediate, TerminalLegalizationError> {
     let TerminalTargetIntegerExpression::Immediate {
         source_value,
         value: target_value,
@@ -744,7 +705,7 @@ fn exact_edge_fuel(
     node: &omega_optimization_unit::OptimizationNode,
     edge: EdgeId,
     function: usize,
-) -> Result<Vec<FuelSettlement>, SelectedInstructionError> {
+) -> Result<Vec<FuelSettlement>, TerminalLegalizationError> {
     let custody = node
         .successors
         .iter()
@@ -765,7 +726,7 @@ fn exact_operation_fuel(
     node: &omega_optimization_unit::OptimizationNode,
     operation: OperationId,
     function: usize,
-) -> Result<Vec<FuelSettlement>, SelectedInstructionError> {
+) -> Result<Vec<FuelSettlement>, TerminalLegalizationError> {
     let fuel = node
         .fuel
         .iter()
