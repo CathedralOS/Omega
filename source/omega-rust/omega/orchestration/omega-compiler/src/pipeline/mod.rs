@@ -6,14 +6,13 @@ pub(crate) use omega_build_evaluation as build_config;
 pub(crate) use omega_build_evaluation as build_replay_record;
 pub(crate) use omega_provider_planning::calling_policy_plans;
 mod checked_entry;
+pub(crate) mod compatibility;
 mod compile_policy;
 pub(crate) use omega_provider_planning::component_progress;
 mod emitted_program;
 #[path = "dispatch/float_intrinsic.rs"]
 mod float_intrinsic_dispatch;
 pub mod frontend;
-pub(crate) mod legacy_driver;
-mod legacy_stages;
 #[path = "dispatch/operator_adapter.rs"]
 mod operator_adapter_dispatch;
 mod optimization_gate;

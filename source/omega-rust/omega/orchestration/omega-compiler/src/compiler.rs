@@ -42,7 +42,7 @@ impl Compiler {
     ) -> Result<CompileReport, Vec<Diagnostic>> {
         execution::run_on_compile_thread(move || {
             let mut driver =
-                crate::pipeline::legacy_driver::LegacyDriver::with_executable_tcb_policy(
+                crate::pipeline::compatibility::StateGraphHarness::with_executable_tcb_policy(
                     request.options,
                     ExecutableTcbBuildPolicy::default(),
                 )

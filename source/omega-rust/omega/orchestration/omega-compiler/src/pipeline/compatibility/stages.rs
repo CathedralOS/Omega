@@ -2,9 +2,9 @@
 //!
 //! This module begins at the obsolete checked-Psi to `StateGraph` seam. It is
 //! retained only while remaining canaries move to Terminal realization and is
-//! deleted with `LegacyDriver`; production native artifacts never enter it.
+//! deleted with `StateGraphHarness`; production native artifacts never enter it.
 
-use super::stages::CheckedProgramSurface;
+use crate::pipeline::stages::CheckedProgramSurface;
 use crate::pipeline::stage::{
     ABSTRACT_OPERATIONS_TO_TARGET_OPERATIONS, ASSIGNED_TARGET_OPERATIONS_TO_MACHINE_INSTRUCTIONS,
     BACKEND_PLAN_TO_NATIVE_IMAGE_PAYLOAD, CHECKED_TREES_TO_STATE_GRAPH,
