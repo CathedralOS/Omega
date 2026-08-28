@@ -10,6 +10,10 @@
 
 use std::collections::BTreeSet;
 
+use omega_calling_conventions::{
+    CallingPolicy, EntryControl, IndirectPointerLocation, MachineRegister, ValueClass,
+    ValueLocation,
+};
 use omega_optimization_core::OptimizationValidatorIdentity;
 use omega_optimization_unit::{
     FuelSettlement, PsiOptimizationUnit, PsiProvenance, ValueDefinitionSite,
@@ -20,9 +24,12 @@ use omega_register_model::{
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperationPlan;
 use omega_terminal_legalized_operations::{
-    TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
-    TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
-    TerminalLegalizedOperationPlan, TerminalLegalizedOperationPlanIdentity,
+    TerminalLegalizedCallUnit, TerminalLegalizedCallUnitArgument,
+    TerminalLegalizedCallUnitParameter, TerminalLegalizedFunction as SourceFunction,
+    TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
+    TerminalLegalizedLeafValue as SourceLeafValue, TerminalLegalizedOperationPlan,
+    TerminalLegalizedOperationPlanIdentity,
+    TerminalLegalizedStructuralUnitFunction as SourceStructuralUnitFunction,
     TerminalLegalizedUnitFunction as SourceUnitFunction,
     terminal_legalized_operation_plan_identity,
 };
@@ -31,12 +38,18 @@ use omega_terminal_selected_instructions::{
     TerminalSelectedFixedInputConstraint, TerminalSelectedFunction, TerminalSelectedInstruction,
     TerminalSelectedInstructionId, TerminalSelectedInstructionKind,
     TerminalSelectedInstructionPlan, TerminalSelectedInstructionPlanIdentity,
-    TerminalSelectedInstructionProvenance, TerminalSelectedOperand,
-    TerminalSelectedSelectionConstraints, TerminalSelectedSuccessor, TerminalSelectedTerminator,
-    TerminalVirtualRegister, TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
+    TerminalSelectedInstructionProvenance, TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+    TerminalSelectedOperand, TerminalSelectedSelectionConstraints,
+    TerminalSelectedStructuralUnitAbi, TerminalSelectedStructuralUnitAbiRecipe,
+    TerminalSelectedStructuralUnitCallArgument, TerminalSelectedStructuralUnitCallInstruction,
+    TerminalSelectedStructuralUnitFunction, TerminalSelectedStructuralUnitIndirectBinding,
+    TerminalSelectedStructuralUnitParameter, TerminalSelectedStructuralUnitReturn,
+    TerminalSelectedSuccessor, TerminalSelectedTerminator, TerminalVirtualRegister,
+    TerminalVirtualRegisterId, TerminalVirtualRegisterOrigin,
 };
 use omega_terminal_target_operations::TerminalTargetOperationPlan;
-use psi_core::{IntegerSign, ScalarType};
+use psi_core::{IntegerCarrier, IntegerSign, ScalarType};
+use psi_terminal::{BindingRelevance, StructuralAccess, StructuralFieldType, StructuralTypeShape};
 
 mod legalization_replay;
 mod source;
@@ -358,9 +371,6 @@ pub fn validate_terminal_selected_instructions(
     plan: TerminalSelectedInstructionPlan,
 ) -> Result<ValidatedTerminalSelectedInstructions, SelectedInstructionError> {
     let target = legalized.plan();
-    if !target.structural_unit_functions.is_empty() {
-        return Err(SelectedInstructionError::UnsupportedSourceShape { function: 0 });
-    }
     if target.terminal_psi != plan.terminal_psi
         || target.target != plan.target
         || target.entry != plan.entry
@@ -370,7 +380,9 @@ pub fn validate_terminal_selected_instructions(
     {
         return Err(SelectedInstructionError::TargetRegisterArchitectureMismatch);
     }
-    if target.functions.len() + target.unit_functions.len() != plan.functions.len() {
+    if target.functions.len() + target.unit_functions.len() != plan.functions.len()
+        || target.structural_unit_functions.len() != plan.structural_unit_functions.len()
+    {
         return Err(SelectedInstructionError::SourceCustodyMismatch);
     }
     let mut expected_machines = target
@@ -433,6 +445,37 @@ pub fn validate_terminal_selected_instructions(
             _ => return Err(SelectedInstructionError::SourceCustodyMismatch),
         }
     }
+    let mut expected_structural_machines = target
+        .structural_unit_functions
+        .iter()
+        .map(|function| function.machine)
+        .collect::<Vec<_>>();
+    expected_structural_machines.sort_unstable();
+    if plan
+        .structural_unit_functions
+        .iter()
+        .map(|function| function.machine)
+        .ne(expected_structural_machines)
+    {
+        return Err(SelectedInstructionError::SourceCustodyMismatch);
+    }
+    for (function_index, selected) in plan.structural_unit_functions.iter().enumerate() {
+        let Some(source) = target
+            .structural_unit_functions
+            .iter()
+            .find(|source| source.machine == selected.machine)
+        else {
+            return Err(SelectedInstructionError::SourceCustodyMismatch);
+        };
+        validate_structural_unit_function(
+            function_index + plan.functions.len(),
+            source,
+            selected,
+            target,
+            constraints.keys,
+            catalog,
+        )?;
+    }
     let receipt = receipt(&plan, legalized);
     Ok(ValidatedTerminalSelectedInstructions { plan, receipt })
 }
@@ -444,9 +487,6 @@ fn build_plan(
     catalog: &ValidatedRegisterConstraintCatalog,
 ) -> Result<TerminalSelectedInstructionPlan, SelectedInstructionError> {
     let target = legalized.plan();
-    if !target.structural_unit_functions.is_empty() {
-        return Err(SelectedInstructionError::UnsupportedSourceShape { function: 0 });
-    }
     require_key_rows(constraints.keys, catalog)?;
     let mut functions = target
         .functions
@@ -462,12 +502,22 @@ fn build_plan(
             .collect::<Result<Vec<_>, _>>()?,
     );
     functions.sort_by_key(|function| function.machine);
+    let mut structural_unit_functions = target
+        .structural_unit_functions
+        .iter()
+        .enumerate()
+        .map(|(index, source)| {
+            build_structural_unit_function(index, source, target, constraints.keys, catalog)
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    structural_unit_functions.sort_by_key(|function| function.machine);
     Ok(TerminalSelectedInstructionPlan {
         terminal_psi: target.terminal_psi,
         fuel_schedule: target.fuel_schedule,
         target: target.target,
         entry: target.entry,
         functions,
+        structural_unit_functions,
     })
 }
 
@@ -502,6 +552,258 @@ fn build_unit_function(
                 psi_return_edge: source.return_edge,
             },
         }],
+    })
+}
+
+fn structural_unit_layout(
+    function: usize,
+    source: &SourceStructuralUnitFunction,
+) -> Result<TerminalSelectedMicrosoftX64OwnedIndirectPairLayout, SelectedInstructionError> {
+    if source.call_plan.policy != CallingPolicy::MicrosoftX64
+        || source.call_plan.result.is_some()
+        || !source.call_plan.callback_materializations.is_empty()
+        || source.call_plan.stack_alignment != 16
+        || source.call_plan.shadow_bytes != 32
+        || source.call_plan.entry_control != EntryControl::CallReturn
+        || source.parameters.len() != 2
+        || source.call_plan.parameters.len() != 2
+    {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    }
+    let pointers = [MachineRegister::X86Rcx, MachineRegister::X86Rdx];
+    let offsets = [32, 48];
+    let mut bindings = [TerminalSelectedStructuralUnitIndirectBinding {
+        parameter_index: 0,
+        pointer: pointers[0],
+        copy_stack_byte_offset: offsets[0],
+        byte_count: 16,
+        alignment: 8,
+    }; 2];
+    for (index, parameter) in source.parameters.iter().enumerate() {
+        if parameter.semantic.position != index as u32
+            || parameter.semantic.is_self
+            || parameter.semantic.access != StructuralAccess::Owned
+            || parameter.target.place != parameter.semantic.place
+            || parameter.target.structural_type != parameter.semantic.structural_type
+            || parameter.target.multiplicity != parameter.semantic.multiplicity
+            || parameter.target.access != StructuralAccess::Owned
+            || parameter.target.shape.class != ValueClass::Integer
+            || parameter.target.shape.byte_size != 16
+            || parameter.target.shape.alignment != 8
+            || parameter.target.placement != source.call_plan.parameters[index]
+            || parameter.target.placement.locations.len() != 1
+        {
+            return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+        }
+        let ValueLocation::Indirect {
+            pointer: IndirectPointerLocation::Register(pointer),
+            copy_stack_byte_offset: Some(copy_stack_byte_offset),
+            byte_size,
+            alignment,
+        } = parameter.target.placement.locations[0]
+        else {
+            return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+        };
+        if pointer != pointers[index]
+            || copy_stack_byte_offset != offsets[index]
+            || byte_size != 16
+            || alignment != 8
+        {
+            return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+        }
+        bindings[index] = TerminalSelectedStructuralUnitIndirectBinding {
+            parameter_index: index,
+            pointer,
+            copy_stack_byte_offset,
+            byte_count: byte_size,
+            alignment,
+        };
+    }
+    if source.parameters[0].semantic.structural_type
+        != source.parameters[1].semantic.structural_type
+        || source.parameters[0].semantic.multiplicity != source.parameters[1].semantic.multiplicity
+        || source.parameters[0].semantic.qualifications
+            != source.parameters[1].semantic.qualifications
+        || source.parameters[0].semantic.place == source.parameters[1].semantic.place
+        || !is_extent_structural_type(source)
+    {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    }
+    Ok(TerminalSelectedMicrosoftX64OwnedIndirectPairLayout {
+        shadow_byte_count: 32,
+        outgoing_frame_byte_count: 72,
+        pre_call_stack_alignment: 16,
+        bindings,
+    })
+}
+
+fn is_extent_structural_type(source: &SourceStructuralUnitFunction) -> bool {
+    let structural_type = source.parameters[0].semantic.structural_type;
+    let Some(declaration) = source
+        .structural_types
+        .iter()
+        .find(|declaration| declaration.id == structural_type)
+    else {
+        return false;
+    };
+    let StructuralTypeShape::Record { fields } = &declaration.shape else {
+        return false;
+    };
+    if fields.len() != 2
+        || fields
+            .iter()
+            .any(|field| field.relevance != BindingRelevance::Relevant)
+    {
+        return false;
+    }
+    matches!(
+        fields[0].field_type,
+        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+            if integer.carrier() == IntegerCarrier::Address
+                && integer.sign() == IntegerSign::Unsigned
+                && integer.bits() == 64
+    ) && matches!(
+        fields[1].field_type,
+        StructuralFieldType::Scalar(ScalarType::Integer(integer))
+            if integer.carrier() == IntegerCarrier::Fixed
+                && integer.sign() == IntegerSign::Unsigned
+                && integer.bits() == 64
+    )
+}
+
+fn structural_call_row(
+    function: usize,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<&RegisterInstructionConstraint, SelectedInstructionError> {
+    let key = keys
+        .structural_unit_call
+        .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })?;
+    let row = row(catalog, key)?;
+    if !row.operands.is_empty() {
+        return Err(SelectedInstructionError::MissingConstraint(key));
+    }
+    Ok(row)
+}
+
+fn build_structural_unit_function(
+    function: usize,
+    source: &SourceStructuralUnitFunction,
+    plan: &TerminalLegalizedOperationPlan,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedStructuralUnitFunction, SelectedInstructionError> {
+    if plan.target != omega_target::NativeTarget::uefi_x64() {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    }
+    let layout = structural_unit_layout(function, source)?;
+    let call = source
+        .call
+        .as_ref()
+        .map(|call| {
+            let callee = plan
+                .structural_unit_functions
+                .iter()
+                .find(|candidate| candidate.machine == call.callee)
+                .ok_or(SelectedInstructionError::UnsupportedSourceShape { function })?;
+            let callee_layout = structural_unit_layout(function, callee)?;
+            if callee.call_plan != source.call_plan
+                || callee_layout != layout
+                || call.arguments.len() != 2
+                || call.arguments.iter().enumerate().any(|(index, argument)| {
+                    argument.semantic.access != StructuralAccess::Owned
+                        || !argument.semantic.path.is_empty()
+                        || argument.target.place != argument.semantic.place
+                        || argument.target.access != argument.semantic.access
+                        || argument.target.path != argument.semantic.path
+                        || argument.target.root_structural_type
+                            != source.parameters[index].semantic.structural_type
+                        || argument.target.structural_type
+                            != callee.parameters[index].semantic.structural_type
+                        || argument.target.source_byte_offset != 0
+                        || argument.target.fixed_array_length.is_some()
+                        || argument.target.element_stride.is_some()
+                        || argument.target.shape != source.parameters[index].target.shape
+                        || argument.target.source != source.parameters[index].target.placement
+                        || argument.target.destination != callee.parameters[index].target.placement
+                })
+            {
+                return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+            }
+            let row = structural_call_row(function, keys, catalog)?;
+            Ok(TerminalSelectedStructuralUnitCallInstruction {
+                id: TerminalSelectedInstructionId(0),
+                operation: call.operation,
+                callee: call.callee,
+                caller_call_plan: source.call_plan.clone(),
+                callee_call_plan: callee.call_plan.clone(),
+                arguments: call
+                    .arguments
+                    .iter()
+                    .map(|argument| TerminalSelectedStructuralUnitCallArgument {
+                        semantic: argument.semantic.clone(),
+                        target: argument.target.clone(),
+                    })
+                    .collect(),
+                claim_transfers: call.claim_transfers.clone(),
+                layout,
+                constraint: row.key,
+                implicit_uses: row.implicit_uses.clone(),
+                implicit_defs: row.implicit_defs.clone(),
+                clobbers: row.clobbers.clone(),
+                provenance: TerminalSelectedInstructionProvenance {
+                    operations: vec![call.operation],
+                    fuel: call.fuel.clone(),
+                    ..Default::default()
+                },
+                effect: call.effect,
+                ownership: call.ownership.clone(),
+            })
+        })
+        .transpose()?;
+    let return_id = TerminalSelectedInstructionId(u32::from(call.is_some()));
+    let return_instruction = instruction(
+        return_id,
+        TerminalSelectedInstructionKind::ReturnUnit,
+        keys.return_unit,
+        &[],
+        TerminalSelectedInstructionProvenance {
+            edges: vec![source.return_edge],
+            fuel: source.return_fuel.clone(),
+            ..Default::default()
+        },
+        catalog,
+    )?;
+    Ok(TerminalSelectedStructuralUnitFunction {
+        machine: source.machine,
+        attachment: source.attachment,
+        provenance: source.provenance.clone(),
+        structural_types: source.structural_types.clone(),
+        abi: TerminalSelectedStructuralUnitAbi {
+            recipe: TerminalSelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1,
+            call_plan: source.call_plan.clone(),
+            parameters: source
+                .parameters
+                .iter()
+                .map(|parameter| TerminalSelectedStructuralUnitParameter {
+                    semantic: parameter.semantic.clone(),
+                    target: parameter.target.clone(),
+                })
+                .collect(),
+            layout,
+        },
+        structural_places: source.structural_places.clone(),
+        entry_claims: source.entry_claims.clone(),
+        published_service_ceiling: source.published_service_ceiling.clone(),
+        entry_block: TerminalSelectedBlockId(0),
+        source_entry_block: source.entry_block,
+        call,
+        terminator: TerminalSelectedStructuralUnitReturn {
+            instruction: return_instruction,
+            psi_return_edge: source.return_edge,
+            effect: source.return_effect,
+            ownership: source.return_ownership.clone(),
+        },
     })
 }
 
@@ -1642,6 +1944,157 @@ fn validate_unit_function(
     }
     validate_block_constraints(function_index, block, function, catalog)?;
     validate_def_use(function_index, function, catalog)
+}
+
+fn validate_structural_unit_function(
+    function_index: usize,
+    source: &SourceStructuralUnitFunction,
+    selected: &TerminalSelectedStructuralUnitFunction,
+    plan: &TerminalLegalizedOperationPlan,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
+    if plan.target != omega_target::NativeTarget::uefi_x64() {
+        return Err(SelectedInstructionError::UnsupportedSourceShape {
+            function: function_index,
+        });
+    }
+    let layout = structural_unit_layout(function_index, source)?;
+    let parameters_match = selected.abi.parameters.len() == source.parameters.len()
+        && selected
+            .abi
+            .parameters
+            .iter()
+            .zip(&source.parameters)
+            .all(|(selected, source)| {
+                selected.semantic == source.semantic && selected.target == source.target
+            });
+    if selected.machine != source.machine
+        || selected.attachment != source.attachment
+        || selected.provenance != source.provenance
+        || selected.structural_types != source.structural_types
+        || selected.abi.recipe
+            != TerminalSelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1
+        || selected.abi.call_plan != source.call_plan
+        || !parameters_match
+        || selected.abi.layout != layout
+        || selected.structural_places != source.structural_places
+        || selected.entry_claims != source.entry_claims
+        || selected.published_service_ceiling != source.published_service_ceiling
+        || selected.entry_block != TerminalSelectedBlockId(0)
+        || selected.source_entry_block != source.entry_block
+    {
+        return Err(SelectedInstructionError::FunctionProjectionMismatch {
+            function: function_index,
+        });
+    }
+
+    match (&source.call, &selected.call) {
+        (None, None) => {}
+        (Some(source_call), Some(selected_call)) => {
+            let Some(callee) = plan
+                .structural_unit_functions
+                .iter()
+                .find(|candidate| candidate.machine == source_call.callee)
+            else {
+                return Err(SelectedInstructionError::SourceCustodyMismatch);
+            };
+            let callee_layout = structural_unit_layout(function_index, callee)?;
+            let row = structural_call_row(function_index, keys, catalog)?;
+            let arguments_match = selected_call.arguments.len() == source_call.arguments.len()
+                && selected_call
+                    .arguments
+                    .iter()
+                    .zip(&source_call.arguments)
+                    .all(|(selected, source)| {
+                        selected.semantic == source.semantic && selected.target == source.target
+                    });
+            let call_shape_valid = source_call.arguments.len() == 2
+                && source_call
+                    .arguments
+                    .iter()
+                    .enumerate()
+                    .all(|(index, argument)| {
+                        argument.semantic.access == StructuralAccess::Owned
+                            && argument.semantic.path.is_empty()
+                            && argument.target.place == argument.semantic.place
+                            && argument.target.access == argument.semantic.access
+                            && argument.target.path == argument.semantic.path
+                            && argument.target.root_structural_type
+                                == source.parameters[index].semantic.structural_type
+                            && argument.target.structural_type
+                                == callee.parameters[index].semantic.structural_type
+                            && argument.target.source_byte_offset == 0
+                            && argument.target.fixed_array_length.is_none()
+                            && argument.target.element_stride.is_none()
+                            && argument.target.shape == source.parameters[index].target.shape
+                            && argument.target.source == source.parameters[index].target.placement
+                            && argument.target.destination
+                                == callee.parameters[index].target.placement
+                    });
+            if callee.call_plan != source.call_plan
+                || callee_layout != layout
+                || !call_shape_valid
+                || selected_call.id != TerminalSelectedInstructionId(0)
+                || selected_call.operation != source_call.operation
+                || selected_call.callee != source_call.callee
+                || selected_call.caller_call_plan != source.call_plan
+                || selected_call.callee_call_plan != callee.call_plan
+                || !arguments_match
+                || selected_call.claim_transfers != source_call.claim_transfers
+                || selected_call.layout != layout
+                || selected_call.constraint != row.key
+                || selected_call.implicit_uses != row.implicit_uses
+                || selected_call.implicit_defs != row.implicit_defs
+                || selected_call.clobbers != row.clobbers
+                || selected_call.provenance
+                    != (TerminalSelectedInstructionProvenance {
+                        operations: vec![source_call.operation],
+                        fuel: source_call.fuel.clone(),
+                        ..Default::default()
+                    })
+                || selected_call.effect != source_call.effect
+                || selected_call.ownership != source_call.ownership
+            {
+                return Err(SelectedInstructionError::InstructionProjectionMismatch {
+                    function: function_index,
+                    instruction: selected_call.id.0,
+                });
+            }
+        }
+        _ => {
+            return Err(SelectedInstructionError::FunctionProjectionMismatch {
+                function: function_index,
+            });
+        }
+    }
+
+    let return_id = TerminalSelectedInstructionId(u32::from(source.call.is_some()));
+    let instruction = &selected.terminator.instruction;
+    let return_row = row(catalog, keys.return_unit)?;
+    if instruction.id != return_id
+        || instruction.kind != TerminalSelectedInstructionKind::ReturnUnit
+        || instruction.constraint != keys.return_unit
+        || !instruction.operands.is_empty()
+        || instruction.implicit_uses != return_row.implicit_uses
+        || instruction.implicit_defs != return_row.implicit_defs
+        || instruction.clobbers != return_row.clobbers
+        || instruction.provenance
+            != (TerminalSelectedInstructionProvenance {
+                edges: vec![source.return_edge],
+                fuel: source.return_fuel.clone(),
+                ..Default::default()
+            })
+        || selected.terminator.psi_return_edge != source.return_edge
+        || selected.terminator.effect != source.return_effect
+        || selected.terminator.ownership != source.return_ownership
+    {
+        return Err(SelectedInstructionError::InstructionProjectionMismatch {
+            function: function_index,
+            instruction: instruction.id.0,
+        });
+    }
+    Ok(())
 }
 
 fn validate_virtual_registers(
@@ -3142,12 +3595,13 @@ fn receipt(
     plan: &TerminalSelectedInstructionPlan,
     legalized: &ValidatedTerminalLegalizedOperations,
 ) -> TerminalSelectedInstructionValidationReceipt {
-    let function_count = plan.functions.len();
+    let function_count = plan.functions.len() + plan.structural_unit_functions.len();
     let block_count = plan
         .functions
         .iter()
         .map(|function| function.blocks.len())
-        .sum();
+        .sum::<usize>()
+        + plan.structural_unit_functions.len();
     let virtual_register_count = plan
         .functions
         .iter()
@@ -3158,7 +3612,12 @@ fn receipt(
         .iter()
         .flat_map(|function| &function.blocks)
         .map(|block| block.instructions.len() + 1)
-        .sum();
+        .sum::<usize>()
+        + plan
+            .structural_unit_functions
+            .iter()
+            .map(|function| 1 + usize::from(function.call.is_some()))
+            .sum::<usize>();
     TerminalSelectedInstructionValidationReceipt {
         identity: terminal_selected_instruction_plan_identity(plan),
         legalized: legalized.receipt().identity(),
@@ -3176,7 +3635,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v8\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v9\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
@@ -3268,7 +3727,165 @@ pub fn terminal_selected_instruction_plan_identity(
             }
         }
     }
+    bytes.extend_from_slice(&selected_structural_legalized_identity(plan).bytes());
+    encode_len(&mut bytes, plan.structural_unit_functions.len());
+    for function in &plan.structural_unit_functions {
+        encode_selected_structural_unit_function(&mut bytes, function);
+    }
     TerminalSelectedInstructionPlanIdentity::from_canonical_bytes(&bytes)
+}
+
+fn selected_structural_legalized_identity(
+    plan: &TerminalSelectedInstructionPlan,
+) -> TerminalLegalizedOperationPlanIdentity {
+    terminal_legalized_operation_plan_identity(&TerminalLegalizedOperationPlan {
+        terminal_psi: plan.terminal_psi,
+        optimization_unit: omega_optimization_core::OptimizationUnitIdentity::from_canonical_bytes(
+            b"omega.selected-structural-legalized-fingerprint.v1",
+        ),
+        fuel_schedule: plan.fuel_schedule,
+        target: plan.target,
+        entry: plan.entry,
+        functions: Vec::new(),
+        unit_functions: Vec::new(),
+        structural_unit_functions: plan
+            .structural_unit_functions
+            .iter()
+            .map(|function| SourceStructuralUnitFunction {
+                machine: function.machine,
+                attachment: function.attachment,
+                provenance: function.provenance.clone(),
+                structural_types: function.structural_types.clone(),
+                call_plan: function.abi.call_plan.clone(),
+                parameters: function
+                    .abi
+                    .parameters
+                    .iter()
+                    .map(|parameter| TerminalLegalizedCallUnitParameter {
+                        semantic: parameter.semantic.clone(),
+                        target: parameter.target.clone(),
+                    })
+                    .collect(),
+                structural_places: function.structural_places.clone(),
+                entry_claims: function.entry_claims.clone(),
+                published_service_ceiling: function.published_service_ceiling.clone(),
+                entry_block: function.source_entry_block,
+                call: function
+                    .call
+                    .as_ref()
+                    .map(|call| TerminalLegalizedCallUnit {
+                        operation: call.operation,
+                        callee: call.callee,
+                        arguments: call
+                            .arguments
+                            .iter()
+                            .map(|argument| TerminalLegalizedCallUnitArgument {
+                                semantic: argument.semantic.clone(),
+                                target: argument.target.clone(),
+                            })
+                            .collect(),
+                        claim_transfers: call.claim_transfers.clone(),
+                        fuel: call.provenance.fuel.clone(),
+                        effect: call.effect,
+                        ownership: call.ownership.clone(),
+                    }),
+                return_edge: function.terminator.psi_return_edge,
+                return_fuel: function.terminator.instruction.provenance.fuel.clone(),
+                return_effect: function.terminator.effect,
+                return_ownership: function.terminator.ownership.clone(),
+            })
+            .collect(),
+    })
+}
+
+fn encode_selected_structural_unit_function(
+    bytes: &mut Vec<u8>,
+    function: &TerminalSelectedStructuralUnitFunction,
+) {
+    bytes.extend_from_slice(&function.entry_block.0.to_le_bytes());
+    bytes.push(match function.abi.recipe {
+        TerminalSelectedStructuralUnitAbiRecipe::MicrosoftX64OwnedIndirectPairV1 => 1,
+    });
+    encode_structural_layout(bytes, function.abi.layout);
+    match &function.call {
+        None => bytes.push(0),
+        Some(call) => {
+            bytes.push(1);
+            bytes.extend_from_slice(&call.id.0.to_le_bytes());
+            encode_structural_layout(bytes, call.layout);
+            encode_constraint_key(bytes, call.constraint);
+            encode_u16s(bytes, call.implicit_uses.iter().map(|unit| unit.0));
+            encode_u16s(bytes, call.implicit_defs.iter().map(|unit| unit.0));
+            encode_u16s(bytes, call.clobbers.iter().map(|unit| unit.0));
+            encode_selected_provenance(bytes, &call.provenance);
+        }
+    }
+    encode_instruction(bytes, &function.terminator.instruction);
+}
+
+fn encode_structural_layout(
+    bytes: &mut Vec<u8>,
+    layout: TerminalSelectedMicrosoftX64OwnedIndirectPairLayout,
+) {
+    bytes.extend_from_slice(&layout.shadow_byte_count.to_le_bytes());
+    bytes.extend_from_slice(&layout.outgoing_frame_byte_count.to_le_bytes());
+    bytes.extend_from_slice(&layout.pre_call_stack_alignment.to_le_bytes());
+    for binding in layout.bindings {
+        bytes.extend_from_slice(&(binding.parameter_index as u64).to_le_bytes());
+        encode_machine_register(bytes, binding.pointer);
+        bytes.extend_from_slice(&binding.copy_stack_byte_offset.to_le_bytes());
+        bytes.extend_from_slice(&binding.byte_count.to_le_bytes());
+        bytes.extend_from_slice(&binding.alignment.to_le_bytes());
+    }
+}
+
+fn encode_selected_provenance(
+    bytes: &mut Vec<u8>,
+    provenance: &TerminalSelectedInstructionProvenance,
+) {
+    encode_ids(
+        bytes,
+        provenance
+            .operations
+            .iter()
+            .map(|operation| operation.get()),
+    );
+    encode_ids(bytes, provenance.values.iter().map(|value| value.get()));
+    encode_ids(bytes, provenance.edges.iter().map(|edge| edge.get()));
+    encode_ids(
+        bytes,
+        provenance
+            .obligations
+            .iter()
+            .map(|obligation| obligation.get()),
+    );
+    encode_fuel(bytes, &provenance.fuel);
+}
+
+fn encode_machine_register(bytes: &mut Vec<u8>, register: MachineRegister) {
+    let (tag, payload) = match register {
+        MachineRegister::X86Rax => (0, 0),
+        MachineRegister::X86Rcx => (1, 0),
+        MachineRegister::X86Rdx => (2, 0),
+        MachineRegister::X86Rbx => (3, 0),
+        MachineRegister::X86Rsp => (4, 0),
+        MachineRegister::X86Rbp => (5, 0),
+        MachineRegister::X86Rsi => (6, 0),
+        MachineRegister::X86Rdi => (7, 0),
+        MachineRegister::X86R8 => (8, 0),
+        MachineRegister::X86R9 => (9, 0),
+        MachineRegister::X86R10 => (10, 0),
+        MachineRegister::X86R11 => (11, 0),
+        MachineRegister::X86R12 => (12, 0),
+        MachineRegister::X86R13 => (13, 0),
+        MachineRegister::X86R14 => (14, 0),
+        MachineRegister::X86R15 => (15, 0),
+        MachineRegister::X86Xmm(index) => (16, index),
+        MachineRegister::Aarch64X(index) => (17, index),
+        MachineRegister::Aarch64V(index) => (18, index),
+    };
+    bytes.push(tag);
+    bytes.push(payload);
 }
 
 fn encode_definition_site(bytes: &mut Vec<u8>, site: ValueDefinitionSite) {
@@ -3521,9 +4138,18 @@ fn encode_u16s(bytes: &mut Vec<u8>, values: impl ExactSizeIterator<Item = u16>) 
 #[cfg(test)]
 mod structural_unit_tests {
     use super::*;
+    use omega_register_model::validate_physical_register_model;
     use omega_terminal_abstract_operations::{
         TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractFunctionResult,
         TerminalAbstractOperation,
+    };
+    use omega_terminal_isa_x86_64::{
+        X86_64_ADD_I64, X86_64_ADD_I64_IMMEDIATE, X86_64_COMPARE_I64_ZERO,
+        X86_64_CONDITIONAL_BRANCH, X86_64_COPY_I64, X86_64_MATERIALIZE_I64,
+        X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR, X86_64_MICROSOFT_RETURN,
+        X86_64_MICROSOFT_RETURN_UNIT, X86_64_SUBTRACT_I64, X86_64_SUBTRACT_I64_IMMEDIATE,
+        validate_x86_64_register_constraint_catalog, x86_64_physical_register_model,
+        x86_64_register_constraint_catalog,
     };
     use psi_core::{
         BlockId, EdgeId, FuelScheduleIdentity, MachineId, OperationId, PlaceId, ScalarType,
@@ -3545,20 +4171,20 @@ mod structural_unit_tests {
         let callee = MachineId::new(2).unwrap();
         let caller_block = BlockId::new(1).unwrap();
         let callee_block = BlockId::new(2).unwrap();
-        let caller_place = PlaceId::new(1).unwrap();
-        let callee_place = PlaceId::new(2).unwrap();
+        let caller_places = [PlaceId::new(1).unwrap(), PlaceId::new(2).unwrap()];
+        let callee_places = [PlaceId::new(3).unwrap(), PlaceId::new(4).unwrap()];
         let structural_type = StructuralTypeId::new(1).unwrap();
         let call = OperationId::new(1).unwrap();
         let caller_return = EdgeId::new(1).unwrap();
         let callee_return = EdgeId::new(2).unwrap();
-        let parameter = |place| StructuralParameterDeclaration {
+        let parameter = |place, position| StructuralParameterDeclaration {
             place,
-            position: 0,
+            position,
             is_self: false,
             structural_type,
             multiplicity: StructuralMultiplicity::Unrestricted,
             access: StructuralAccess::Owned,
-            qualifications: Vec::new(),
+            qualifications: vec![psi_core::StructuralDomainId::new(1).unwrap()],
         };
         let abstract_plan = TerminalAbstractOperationPlan {
             terminal_psi: TerminalPsiIdentity {
@@ -3568,16 +4194,26 @@ mod structural_unit_tests {
             entry: caller,
             structural_types: vec![StructuralTypeDeclaration {
                 id: structural_type,
-                identity: "WholeRoot".into(),
+                identity: "Extent".into(),
                 shape: StructuralTypeShape::Record {
-                    fields: vec![StructuralFieldDeclaration {
-                        id: StructuralFieldId::new(1).unwrap(),
-                        identity: "word".into(),
-                        relevance: BindingRelevance::Relevant,
-                        field_type: StructuralFieldType::Scalar(ScalarType::Integer(
-                            psi_core::IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
-                        )),
-                    }],
+                    fields: vec![
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(1).unwrap(),
+                            identity: "base".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                psi_core::IntegerType::address(64).unwrap(),
+                            )),
+                        },
+                        StructuralFieldDeclaration {
+                            id: StructuralFieldId::new(2).unwrap(),
+                            identity: "length".into(),
+                            relevance: BindingRelevance::Relevant,
+                            field_type: StructuralFieldType::Scalar(ScalarType::Integer(
+                                psi_core::IntegerType::new(IntegerSign::Unsigned, 64).unwrap(),
+                            )),
+                        },
+                    ],
                 },
             }],
             boundary_machines: Vec::new(),
@@ -3588,7 +4224,11 @@ mod structural_unit_tests {
                     attachment: None,
                     entry: caller_block,
                     parameters: Vec::new(),
-                    structural_parameters: vec![parameter(caller_place)],
+                    structural_parameters: caller_places
+                        .into_iter()
+                        .enumerate()
+                        .map(|(position, place)| parameter(place, position as u32))
+                        .collect(),
                     result: TerminalAbstractFunctionResult::Unit,
                     entry_claims: Vec::new(),
                     published_service_ceiling: Vec::new(),
@@ -3601,11 +4241,14 @@ mod structural_unit_tests {
                         TerminalAbstractOperation::CallUnit {
                             psi_operation: call,
                             callee,
-                            structural_arguments: vec![StructuralArgument {
-                                place: caller_place,
-                                access: StructuralAccess::Owned,
-                                path: Vec::new(),
-                            }],
+                            structural_arguments: caller_places
+                                .into_iter()
+                                .map(|place| StructuralArgument {
+                                    place,
+                                    access: StructuralAccess::Owned,
+                                    path: Vec::new(),
+                                })
+                                .collect(),
                             claim_transfers: Vec::new(),
                         },
                         TerminalAbstractOperation::ReturnUnit {
@@ -3619,7 +4262,11 @@ mod structural_unit_tests {
                     attachment: None,
                     entry: callee_block,
                     parameters: Vec::new(),
-                    structural_parameters: vec![parameter(callee_place)],
+                    structural_parameters: callee_places
+                        .into_iter()
+                        .enumerate()
+                        .map(|(position, place)| parameter(place, position as u32))
+                        .collect(),
                     result: TerminalAbstractFunctionResult::Unit,
                     entry_claims: Vec::new(),
                     published_service_ceiling: Vec::new(),
@@ -3638,7 +4285,7 @@ mod structural_unit_tests {
         let target =
             omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations(
                 &abstract_plan,
-                omega_target::NativeTarget::linux_x64(),
+                omega_target::NativeTarget::uefi_x64(),
             )
             .unwrap();
         let unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
@@ -3647,6 +4294,36 @@ mod structural_unit_tests {
         )
         .unwrap();
         (abstract_plan, target, unit)
+    }
+
+    fn microsoft_selection_environment() -> (
+        ValidatedPhysicalRegisterModel,
+        ValidatedRegisterConstraintCatalog,
+        TerminalSelectedSelectionConstraints,
+    ) {
+        let physical = validate_physical_register_model(x86_64_physical_register_model()).unwrap();
+        let catalog = validate_x86_64_register_constraint_catalog(
+            x86_64_register_constraint_catalog(&physical),
+            &physical,
+        )
+        .unwrap();
+        let constraints = TerminalSelectedSelectionConstraints {
+            keys: TerminalSelectedConstraintKeys {
+                structural_unit_call: Some(X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR),
+                materialize_i64: X86_64_MATERIALIZE_I64,
+                copy_i64: X86_64_COPY_I64,
+                add_i64: X86_64_ADD_I64,
+                subtract_i64: X86_64_SUBTRACT_I64,
+                add_i64_immediate: X86_64_ADD_I64_IMMEDIATE,
+                subtract_i64_immediate: X86_64_SUBTRACT_I64_IMMEDIATE,
+                compare_i64_zero: X86_64_COMPARE_I64_ZERO,
+                conditional_branch: X86_64_CONDITIONAL_BRANCH,
+                return_i64: X86_64_MICROSOFT_RETURN,
+                return_unit: X86_64_MICROSOFT_RETURN_UNIT,
+            },
+            fixed_inputs: Vec::new(),
+        };
+        (physical, catalog, constraints)
     }
 
     #[test]
@@ -3659,6 +4336,169 @@ mod structural_unit_tests {
         assert!(legalized.plan().structural_unit_functions[0].call.is_some());
         assert!(legalized.plan().structural_unit_functions[1].call.is_none());
         assert_eq!(legalized.receipt().function_count(), 2);
+
+        let (physical, catalog, constraints) = microsoft_selection_environment();
+        let selected = select_terminal_instructions(&legalized, &constraints, &physical, &catalog)
+            .expect("bounded Microsoft structural Unit calls select atomically");
+        assert!(selected.plan().functions.is_empty());
+        assert_eq!(selected.plan().structural_unit_functions.len(), 2);
+        let caller = &selected.plan().structural_unit_functions[0];
+        let call = caller.call.as_ref().unwrap();
+        assert_eq!(call.id, TerminalSelectedInstructionId(0));
+        assert_eq!(
+            call.constraint,
+            X86_64_MICROSOFT_CALL_UNIT_OWNED_INDIRECT_PAIR
+        );
+        assert!(call.arguments.len() == 2 && !call.implicit_uses.is_empty());
+        assert_eq!(
+            caller.terminator.instruction.id,
+            TerminalSelectedInstructionId(1)
+        );
+        assert!(caller.terminator.instruction.operands.is_empty());
+        assert!(selected.plan().structural_unit_functions[1].call.is_none());
+        assert_eq!(selected.receipt().function_count(), 2);
+        assert_eq!(selected.receipt().block_count(), 2);
+        assert_eq!(selected.receipt().virtual_register_count(), 0);
+        assert_eq!(selected.receipt().instruction_count(), 3);
+    }
+
+    #[test]
+    fn selected_structural_replay_rejects_abi_constraint_and_semantic_custody_mutations() {
+        let (abstract_plan, target, unit) = structural_call_fixture();
+        let legalized =
+            legalize_terminal_target_operations(&target, &abstract_plan, &unit).unwrap();
+        let (physical, catalog, constraints) = microsoft_selection_environment();
+        let selected =
+            select_terminal_instructions(&legalized, &constraints, &physical, &catalog).unwrap();
+        let selected_identity = selected.receipt().identity();
+
+        let mut corrupted = selected.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .abi
+            .layout
+            .outgoing_frame_byte_count -= 8;
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted
+            )
+            .is_err()
+        );
+
+        let mut corrupted = selected.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .implicit_uses
+            .pop();
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted
+            )
+            .is_err()
+        );
+
+        let mut corrupted = selected.plan().clone();
+        corrupted.structural_unit_functions[0].abi.parameters[0]
+            .semantic
+            .qualifications[0] = psi_core::StructuralDomainId::new(2).unwrap();
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted
+            )
+            .is_err()
+        );
+
+        let mut corrupted = selected.plan().clone();
+        corrupted.structural_unit_functions[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .effect
+            .output += 1;
+        assert_ne!(
+            terminal_selected_instruction_plan_identity(&corrupted),
+            selected_identity
+        );
+        assert!(
+            validate_terminal_selected_instructions(
+                &legalized,
+                &constraints,
+                &physical,
+                &catalog,
+                corrupted
+            )
+            .is_err()
+        );
+
+        let mut missing_key = constraints.clone();
+        missing_key.keys.structural_unit_call = None;
+        assert!(
+            select_terminal_instructions(&legalized, &missing_key, &physical, &catalog).is_err()
+        );
+
+        let linux_target =
+            omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations(
+                &abstract_plan,
+                omega_target::NativeTarget::linux_x64(),
+            )
+            .unwrap();
+        let linux_legalized =
+            legalize_terminal_target_operations(&linux_target, &abstract_plan, &unit).unwrap();
+        assert!(
+            select_terminal_instructions(&linux_legalized, &constraints, &physical, &catalog)
+                .is_err()
+        );
+
+        let mut wrong_shape = abstract_plan.clone();
+        let StructuralTypeShape::Record { fields } = &mut wrong_shape.structural_types[0].shape
+        else {
+            unreachable!()
+        };
+        fields[1].field_type = StructuralFieldType::Scalar(ScalarType::Integer(
+            psi_core::IntegerType::new(IntegerSign::Unsigned, 32).unwrap(),
+        ));
+        let wrong_target =
+            omega_terminal_abstract_operations_to_target_operations::lower_to_target_operations(
+                &wrong_shape,
+                omega_target::NativeTarget::uefi_x64(),
+            )
+            .unwrap();
+        let wrong_unit = omega_optimization_unit::reconstruct_psi_optimization_unit_seed(
+            &wrong_shape,
+            FuelScheduleIdentity::new(1).unwrap(),
+        )
+        .unwrap();
+        let wrong_legalized =
+            legalize_terminal_target_operations(&wrong_target, &wrong_shape, &wrong_unit).unwrap();
+        assert!(
+            select_terminal_instructions(&wrong_legalized, &constraints, &physical, &catalog)
+                .is_err()
+        );
     }
 
     #[test]

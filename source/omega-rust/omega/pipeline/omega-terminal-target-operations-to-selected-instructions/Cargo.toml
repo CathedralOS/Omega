@@ -24,3 +24,4 @@ psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 
 [dev-dependencies]
 omega-terminal-abstract-operations-to-target-operations = { path = "../omega-terminal-abstract-operations-to-target-operations" }
+omega-terminal-isa-x86_64 = { path = "../../backend/instruction_set_architectures/omega-terminal-isa-x86_64" }
