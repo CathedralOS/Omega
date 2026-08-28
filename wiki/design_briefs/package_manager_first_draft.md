@@ -820,6 +820,13 @@ fixed-vocabulary upgrade conflicts recognize the row. Unsupported
 lifetime-parameterized target traits, inherited lifetime substitutions, and
 proof-static trait parameters reject closed instead of producing partial
 identity.
+Exact requirement-local `satisfies` edges remain authored selections even
+though they do not mint a whole conformance. Trait edges retain the exact trait
+and result-dispatch-selected requirement; operator edges retain the exact
+signature-selected overload. The realizing machine's interface exposure
+governs both rows. Identity settles before checked, boundary, accepted, or
+external supply policy, and downstream consumers cross-check the retained
+symbol instead of reselecting by spelling.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`

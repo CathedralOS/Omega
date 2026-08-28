@@ -5565,17 +5565,21 @@ pub machine handle() satisfies Hidden::handle { }
 "#,
     );
     hidden.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &hidden.0.join("main.omg"),
         Some(target),
         package_inputs(&hidden.0),
     )
-    .expect("private-trait satisfier fixture should check");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    .expect_err("compiler admission must reject a public satisfier of a private trait");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("private trait `Hidden`") })
+    );
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("realizes non-public trait `Hidden`")
+            .contains("private trait `Hidden::handle`")
     }));
 
     let generic = TempPackage::new();
@@ -6284,17 +6288,30 @@ target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
-    let cases = [
-        (
-            "private",
-            r#"data CheckedMath {}
+    let private = TempPackage::new();
+    private.write(
+        "main.omg",
+        r#"data CheckedMath {}
 operator CheckedMath::identity(value: i32) -> i32;
 pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
 { input }
 "#,
-            "realizes non-public operator",
-        ),
+    );
+    private.write("build.omg", build);
+    let diagnostics = compile_to_checked_with_packages(
+        &private.0.join("main.omg"),
+        Some(target),
+        package_inputs(&private.0),
+    )
+    .expect_err("compiler admission must reject a public satisfier of a private operator");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("private operator `CheckedMath::identity`")
+    }));
+
+    let cases = [
         (
             "external",
             r#"pub data CheckedMath {}
@@ -6382,8 +6399,8 @@ satisfies CheckedMath::negate
     };
 
     let mut visibility_drift = compile_admission_control(
-        r#"data CheckedMath {}
-operator CheckedMath::identity(value: i32) -> i32;
+        r#"pub data CheckedMath {}
+pub operator CheckedMath::identity(value: i32) -> i32;
 pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
 { input }
@@ -6395,7 +6412,7 @@ satisfies CheckedMath::identity
         .tables
         .operators
         .span_mut_or_empty(operator_roots)[0]
-        .is_public = true;
+        .is_public = false;
     let diagnostics = project_checked_package_review(&visibility_drift)
         .expect_err("post-check private-to-public operator drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {

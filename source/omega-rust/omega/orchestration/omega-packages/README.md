@@ -1330,6 +1330,16 @@ declaration's exposure. The selected conformance remains private formation
 custody and stays outside quotient API identity, though ordinary package
 visibility and direct-dependency admission still govern selecting it.
 
+An exact `machine ... satisfies Namespace::requirement` edge retains the
+declarations selected at both parts of the path. Trait edges retain the exact
+trait and result-dispatch-selected requirement; operator edges retain the exact
+signature-selected overload. These rows follow the realizing machine's actual
+interface exposure, including boundary and accepted supply. The compiler
+settles them from the complete typed declaration graph, then validation,
+progress, checked operator facts, provider planning, and review cross-check the
+same symbol. Supply-mode policy is separate: external supply cannot substitute
+a boundary declaration for the ordinary operator the source actually named.
+
 Compiler issuance now retains a separately bounded canonical row sequence.
 Before fresh closure review publishes those rows, it strips explanatory source
 coordinates into separate provenance, forms a source-handle-free

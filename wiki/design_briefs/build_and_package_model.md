@@ -2057,6 +2057,13 @@ traits with unretained lifetime arguments, inherited lifetime substitution,
 and proof-static trait parameters reject rather than producing a partial row.
 The conformance declaration is package-owned; its public subject and trait may
 come from a direct dependency.
+Exact requirement-local `satisfies` edges remain authored selections even
+though they do not mint a whole conformance. Trait edges retain the exact trait
+and result-dispatch-selected requirement; operator edges retain the exact
+signature-selected overload. The realizing machine's interface exposure
+governs both rows. Identity settles before checked, boundary, accepted, or
+external supply policy, so rejecting one association cannot erase or substitute
+the declaration the source selected.
 In particular, true nested machine static applications such as
 `consumer<family<Selected>>()` now reject during compiler validation, before
 checked lowering. Treating the argument as the uninstantiated `family`
