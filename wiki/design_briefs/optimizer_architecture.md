@@ -766,10 +766,13 @@ correspondence. The liveness check mirrors Terminal's one live-claim namespace:
 ordinary and content-entry declarations remain distinct authority, while a
 content-only claim may be transferred or completed exactly like an ordinary
 claim. Focused internal/boundary corruption tests and one source-derived
-content-bearing admission canary cover that union. Full structural
-type/domain/content-projection graph
-validation, path-sensitive availability of operation-result and local roots,
-exact payloadless-callee classification, and the wider crash/requirement/effect
+content-bearing admission canary cover that union. The retained structural-type
+catalog is independently traversed as a whole after unknown-target checks;
+Record, FixedArray, Sum, and both Mixed edge lanes must be acyclic even for
+unused declarations and disconnected graph components. Remaining structural
+declaration semantics and domain/content-projection graph validation,
+path-sensitive availability of operation-result and local roots, exact
+payloadless-callee classification, and the wider crash/requirement/effect
 vocabulary remain explicit unfinished validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
