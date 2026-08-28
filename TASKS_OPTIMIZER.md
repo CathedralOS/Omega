@@ -122,7 +122,14 @@ These facts constrain the work below.
   the toolchain build vocabulary. Package-aware admission permits the exact
   root build selection and proves that dependency build companions cannot
   contribute one. The legacy compiler still rejects every nonempty set before
-  emission. The clean typed terminal-component staging lane now enters verified
+  emission. Native realization now branches on that exact retained set before
+  optimizer input construction: an empty set decodes the ordinary bare
+  `AbstractOperationPlan` and continues through the compatibility assignment
+  route without constructing an optimizer unit, registry, run, or manifest;
+  only a nonempty named set can enter `omega-optimization-pipeline`. A focused
+  boundary test locks the two input variants, while compiler and checked-source
+  canaries retain unchanged default output. The clean typed terminal-component
+  staging lane for nonempty selections now enters verified
   optimization, target-operation lowering, a bounded typed virtual-register
   instruction CFG, independently replayed liveness/ranges/legality, phase-
   routed selected lowering, strict spill-free homes, and the post-allocation

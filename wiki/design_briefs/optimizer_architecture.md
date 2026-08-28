@@ -648,8 +648,12 @@ opaque admitted installation behind a borrowed projection; downstream selected
 and physical carriers retain it transitively rather than copying its facts into
 a detachable side channel. This prevents an optimized consumer from obtaining
 either plan or an installed-provider projection by consuming and discarding its
-evidence. Native compilation always enters this carrier; an empty selection is
-the identity optimization and no longer selects a bare-plan compatibility lane.
+evidence. Only a nonempty named build selection enters this carrier. Empty
+selection is decided before optimizer-input construction, decodes the ordinary
+bare abstract plan, and continues through the compatibility assignment lane;
+it constructs no optimizer unit, registry, run, decision log, or manifest.
+This preserves the default-off build contract while the selected physical
+vocabulary is incomplete.
 
 A third opaque `StagedOptimizedAssignedOperations` carrier retains the complete
 optimized-target carrier beside the output of the current bounded
@@ -664,18 +668,19 @@ synonym for validated allocation: the receipt says nothing about liveness,
 interference, register-unit conflicts, fixed operands, spills, or frame slots,
 and grants no machine-emission or publication authority.
 
-The compiler must never construct an optimizer branch beside native
-realization. Empty selection traverses the canonical optimizer as an identity
-transformation and then continues through the one publishable bounded
-assignment route. Nonempty selection rejects before target production because
+The compiler makes one exact root-build selection decision before native
+realization. Empty selection takes the existing publishable bounded-assignment
+route without entering optimizer orchestration. Nonempty selection enters only
+the verified optimized carrier and rejects before target production because
 `omega-optimization-pipeline` deliberately stops before complete baseline
 frame/exit validation, machine emission, executable-image construction, and
-publication. Its verified target lowering, instruction selection, liveness,
+publication; it never falls back to the empty route after partial optimizer
+execution. Its verified target lowering, instruction selection, liveness,
 ranges, allocation legality, phase dispatch, spill-free homes, and
 post-allocation facts remain experimental stage work. Once that chain covers
 the baseline and rejoins executable-image validation, it replaces bounded
 assignment inside the same realization route; it does not become a second
-compiler lane and never falls back after partial execution.
+compiler lane.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. The verified carrier exposes no consuming operation that detaches its plan from the

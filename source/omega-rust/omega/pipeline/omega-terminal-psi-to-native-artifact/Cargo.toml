@@ -26,6 +26,7 @@ omega-native-artifact = { path = "../../backend/artifacts/omega-native-artifact"
 omega-selected-instructions = { path = "../../representations/omega-selected-instructions" }
 omega-psi-to-abstract-operations = { path = "../omega-psi-to-abstract-operations" }
 omega-target-operations = { path = "../../representations/omega-target-operations" }
+omega-target-operations-to-assigned-target-operations = { path = "../omega-target-operations-to-assigned-target-operations" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-core = { path = "../../../psi/foundation/psi-core" }
 psi-checked-trees-to-terminal = { path = "../../../psi/pipeline/psi-checked-trees-to-terminal" }
