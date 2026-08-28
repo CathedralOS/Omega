@@ -43,12 +43,14 @@ the displayed Omega top-level directories are current and exhaustive.
 > external-language producer under `source/omega-rust/`. Its `psi/`
 > half implements parsing and target-neutral semantics through terminal Psi;
 > its `omega/` half implements provider, ABI, target, artifact, and execution
-> machinery. `source/omega/` owns all Omega-written product source, with its
-> target-neutral half under `source/omega/psi/`; the
+> machinery. The Omega-written product is split across sibling owners:
+> `source/psi/` owns its target-neutral half and `source/omega/` consumes
+> Terminal Psi for target realization and product composition; the
 > live Psi lexical slice has landed while later phases remain open.
-> Lattice runners resolve cross-owner locations through the
-> role manifest in `tools/lattice/paths.sh`; new cross-owner sibling-relative paths
-> are rejected. The tree below documents the current Cargo/product structure;
+> Lattice runners resolve cross-owner locations through the role manifest in
+> `tools/lattice/paths.sh`; lattice scripts may not hard-code sibling-relative
+> paths. Package dependencies are declared by their `build.omg` package graph.
+> The tree below documents the current Cargo/product structure;
 > the canonical compiler-sequence inventory is documented in the
 > [bootstrap repository structure](bootstrap_lattice/repository_structure.md),
 > while active lattice work is tracked in
@@ -168,8 +170,8 @@ Omega/
 |   |   |-- core/                                          # Always-available language package.
 |   |   |-- alloc/                                         # Allocation facilities.
 |   |   `-- std/                                           # Higher-level standard package surface.
-|   |-- omega/                                             # Complete Omega-written product compiler source.
-|   |   |-- psi/                                          # Target-neutral phases through terminal Psi.
+|   |-- psi/                                               # Omega-written target-neutral phases through terminal Psi.
+|   |-- omega/                                             # Omega-written Terminal-Psi consumer and product root.
 |   |   |-- build.omg                                      # Product build/composition entrypoint.
 |   |   |-- main.omg                                       # Product machine entrypoint.
 |   `-- omega-rust/                                        # Current Rust product implementation and comparator.
@@ -200,8 +202,8 @@ steps are complete:
 ```text
 source/{alpha,beta,gamma,delta}/       canonical language rungs
 source/library/                        core, allocation, and standard libraries
-source/omega/                          complete Omega-written product compiler
-source/omega/psi/                      target-neutral phases through terminal Psi
+source/psi/                            Omega-written target-neutral phases through terminal Psi
+source/omega/                          Terminal-Psi consumer and product root
 source/alpha/checker/                  root derivation checking
 source/beta/compiler/                  Beta compiler and its admission evidence
 source/omega-rust/                     current Rust product implementation and comparator

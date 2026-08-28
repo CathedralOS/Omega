@@ -82,7 +82,7 @@ Must not own:
 ## Implementation Map
 
 The Psi product role owns this stage and its hosted source belongs under
-`source/omega/psi/`. The current Rust implementation makes typed semantic
+`source/psi/`. The current Rust implementation makes typed semantic
 surfaces visible by file:
 
 - `source/omega-rust/psi/pipeline/psi-symbol-resolved-trees-to-typed-trees` contains the

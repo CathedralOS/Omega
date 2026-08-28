@@ -8,9 +8,10 @@ validation experiments, or compiler generations.
 
 ## Fixed sequence
 
-Let `C` be the exact production compiler source closure under `source/omega/`.
-It is ordinary Omega deliberately authored with only the language surface
-needed to express a robust compiler.
+Let `C` be the exact production compiler source closure rooted at
+`source/omega/build.omg`, including its sibling `source/psi/` dependency. It is
+ordinary Omega deliberately authored with only the language surface needed to
+express a robust compiler.
 
 ```text
 audited Alpha VM seed
@@ -40,8 +41,8 @@ source/beta/compiler/               bc source, artifact, cold start, admission
 source/gamma/                       canonical evaluator and type checker
 source/delta/compiler/              delta source, artifact, adjacent admission
 source/delta/meaning/               canonical Delta-to-Gamma elaboration
-source/omega/                       the one product compiler source closure C
-source/omega/psi/                   target-neutral phases inside C
+source/psi/                         target-neutral compiler package inside C
+source/omega/                       Terminal-Psi consumer and product root of C
 source/omega-rust/                  optional implementation/comparator
 tests/omega/                        product-language acceptance cases
 tools/lattice/                      replaceable command ordering
@@ -55,7 +56,7 @@ route used to realize Delta.
 
 The artifact being checked owns its validation. Do not recreate generic
 `bootstrap/`, `canaries/`, `assurance/`, `refinement/`, `on-ramp/`,
-`proof-kernel/`, repository-level `psi/`, or private Omega-corpus owners.
+`proof-kernel/` or private Omega-corpus owners.
 Product compiler implementation belongs to **OMEGA-PRODUCT-COMPILER-SOURCE**
 in [`TASKS.md`](TASKS.md), not in this queue.
 

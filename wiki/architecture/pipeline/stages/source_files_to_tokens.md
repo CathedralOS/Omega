@@ -15,7 +15,7 @@ Primary responsibility: preserve source identity and split text into tokens.
 ## Implementation Map
 
 The Psi product role owns this stage; its hosted source belongs under
-`source/omega/psi/`. The current Rust realization is:
+`source/psi/`. The current Rust realization is:
 
 - `source/omega-rust/psi/foundation/psi-source` contains loaded-source records and maps,
   source identities, byte-span coordinates, and source-backed text.

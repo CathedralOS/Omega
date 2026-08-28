@@ -28,8 +28,8 @@ expect_role gamma "$OMEGA_REPO_ROOT/source/gamma"
 expect_role delta "$OMEGA_REPO_ROOT/source/delta"
 expect_role delta-compiler "$OMEGA_REPO_ROOT/source/delta/compiler"
 expect_role delta-validation "$OMEGA_REPO_ROOT/source/delta/compiler/validation"
+expect_role psi "$OMEGA_REPO_ROOT/source/psi"
 expect_role omega "$OMEGA_REPO_ROOT/source/omega"
-expect_role omega-psi "$OMEGA_REPO_ROOT/source/omega/psi"
 expect_role lattice-tools "$OMEGA_REPO_ROOT/tools/lattice"
 
 for required in \
@@ -37,14 +37,13 @@ for required in \
   "$OMEGA_PATH_ALPHA_CHECKER" "$OMEGA_PATH_BETA" "$OMEGA_PATH_GAMMA" \
   "$OMEGA_PATH_DELTA" "$OMEGA_PATH_DELTA_COMPILER" \
   "$OMEGA_PATH_DELTA_VALIDATION" "$OMEGA_PATH_DELTA_MEANING" \
-  "$OMEGA_PATH_OMEGA" "$OMEGA_PATH_OMEGA_PSI" \
+  "$OMEGA_PATH_PSI" "$OMEGA_PATH_OMEGA" \
   "$OMEGA_PATH_BETA_COMPILER" "$OMEGA_PATH_BETA_VALIDATION"
 do
   [ -d "$required" ] || fail "required owner is absent: $required"
 done
 
 [ ! -e "$OMEGA_REPO_ROOT/source/on-ramp" ] || fail "retired source/on-ramp directory remains"
-[ ! -e "$OMEGA_REPO_ROOT/source/psi" ] || fail "orphan product Psi owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/proof-kernel" ] || fail "orphan proof-kernel owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/refinement" ] || fail "generic refinement owner remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/assurance" ] || fail "generic assurance owner remains"
@@ -54,6 +53,7 @@ done
 [ ! -e "$OMEGA_REPO_ROOT/source/omega0" ] || fail "omega0 output incorrectly owns source"
 [ ! -e "$OMEGA_REPO_ROOT/source/omega1" ] || fail "omega1 output incorrectly owns source"
 [ ! -e "$OMEGA_REPO_ROOT/source/omega-boot" ] || fail "standalone omega-boot owner remains"
+[ ! -e "$OMEGA_PATH_OMEGA/psi" ] || fail "Psi remains nested under the Omega product owner"
 [ ! -e "$OMEGA_PATH_OMEGA/bootstrap" ] || fail "Omega product source contains a bootstrap owner"
 [ ! -e "$OMEGA_REPO_ROOT/source/delta/build" ] || fail "unowned Delta build bucket remains"
 [ ! -e "$OMEGA_REPO_ROOT/source/gamma/compatibility" ] || fail "retired Gamma compatibility bucket remains"

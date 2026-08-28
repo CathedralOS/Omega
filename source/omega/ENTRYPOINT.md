@@ -7,7 +7,8 @@ source-to-token phase followed by fail-closed parsing of ordinary
 `[copy]`, bare named field types, and ordered payload-free cases. Later
 implementation extends that same ordinary source closure through richer data
 forms, the remaining declarations, checking, terminal Psi, and Omega artifact
-emission. The target-neutral implementation lives under `source/omega/psi/`;
+emission. The target-neutral implementation lives in the sibling
+`source/psi/` package;
 target realization and these product entrypoints live in the rest of
 `source/omega/`.
 

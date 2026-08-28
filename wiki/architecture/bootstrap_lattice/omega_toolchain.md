@@ -28,8 +28,8 @@ generation.
 
 ## Source ownership
 
-- `source/omega/psi/` owns the target-neutral product compiler half.
-- the rest of `source/omega/` consumes terminal Psi and owns target
+- `source/psi/` owns the target-neutral product compiler half.
+- `source/omega/` consumes terminal Psi and owns target
   realization and the product entrypoint.
 - `source/omega-rust/{psi,omega}/` is the current working Rust implementation
   and comparator. It is useful during migration but grants no authority.

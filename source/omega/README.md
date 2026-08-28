@@ -1,9 +1,9 @@
 # Omega product compiler source
 
-This root owns the complete Omega-written product compiler. Its [`psi/`](psi/)
-subtree owns target-neutral source processing, checking, and Terminal Psi;
-the remainder owns optimization, target realization, artifact emission, and
-the product entrypoint.
+This package is the Omega-written product root and Terminal-Psi consumer. The
+sibling [`../psi/`](../psi/) package owns target-neutral source processing,
+checking, and Terminal Psi; this package owns optimization, target realization,
+artifact emission, and the product entrypoint.
 
 The product compiler is authored once as the exact source closure `C`, using a
 deliberately conservative, compositional subset of ordinary Omega.
@@ -20,8 +20,8 @@ executable; it does not add language functionality or another source owner.
 
 ## Ownership
 
-- [`psi/`](psi/) — target-neutral source, proof, and terminal semantics;
-- the rest of this root — target realization, optimization, artifact emission,
+- [`../psi/`](../psi/) — target-neutral source, proof, and terminal semantics;
+- this root — target realization, optimization, artifact emission,
   and product command source;
 - [`../omega-rust/`](../omega-rust/) — maintained Rust implementation and
   differential comparator, never bootstrap authority;
