@@ -23,6 +23,7 @@ mod layout;
 mod load_layout;
 mod placed_section_headers;
 mod relative_section_layout;
+mod resolved_dynamic_table;
 mod section_header_bytes;
 mod section_name_table;
 mod section_payload_roster;
@@ -81,6 +82,11 @@ pub use placed_section_headers::{
 pub use relative_section_layout::{
     ElfRelativeSectionPayloadLayoutError, ElfRelativeSectionPayloadRegion,
     ValidatedElfRelativeSectionPayloadLayout, plan_elf_relative_section_payload_layout,
+};
+pub use resolved_dynamic_table::{
+    ElfAppliedDynamicAddress, ElfDynamicAddressApplicationError, ElfDynamicAddressApplicationKind,
+    ElfDynamicAddressApplicationTarget, ValidatedElfResolvedDynamicTable,
+    apply_elf_dynamic_address_fixups,
 };
 pub use section_header_bytes::{
     ElfSectionHeaderTableSerializationError, ValidatedElfSectionHeaderTableTemplate,

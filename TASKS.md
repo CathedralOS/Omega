@@ -9200,13 +9200,21 @@ boundary without its corresponding checked law.
   order/coordinate/kind/value, null and file-only `.shstrtab` semantics,
   deterministic content-bound identity, and load-layout custody. It still
   chooses no `e_shoff`, serializes no ELF or program header, mutates no final
-  image, and claims no runnable authority.
+  image, and claims no runnable authority. The internal `.dynamic` application
+  rung now consumes that placed-header owner, copies only indexed roster row
+  ten, and resolves the exact seven `DT_PLTGOT`, `DT_HASH`, `DT_STRTAB`,
+  `DT_SYMTAB`, `DT_JMPREL`, `DT_VERSYM`, and `DT_VERNEED` address obligations
+  from their allocated section virtual addresses. It patches only the typed
+  zero `d_un` fields as little-endian `u64` values. Independent replay rejoins
+  the semantic tag plan, serialized fixups, indexed storage, target section
+  identities, every literal/null and unchanged byte, deterministic identity,
+  and the complete placed-header/load-layout custody chain.
   Runnable ELF emission remains fail closed before image mutation: ELF/program
-  header serialization and final section-header placement, the seven internal
-  `.dynamic` address fixups, optional `.gnu.hash`, procedure/source address-
-  fixup application, image mutation, and independent final-byte replay remain
-  unimplemented. Validated semantic tags, absolute geometry, and applied
-  section-header bytes do not constitute a dynamic image.
+  header serialization and final section-header placement, optional `.gnu.hash`,
+  procedure/source address-fixup application, image mutation, and independent
+  final-byte replay remain unimplemented. Validated semantic tags, absolute
+  geometry, and applied section-header/`.dynamic` bytes do not constitute a
+  dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes
