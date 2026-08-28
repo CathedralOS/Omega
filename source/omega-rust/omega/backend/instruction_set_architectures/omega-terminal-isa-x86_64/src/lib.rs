@@ -28,13 +28,22 @@ pub use register_model::{
     x86_64_preservation_convention_for_target, x86_64_register_constraint_catalog,
 };
 pub use selected_form_encoding::{
-    ValidatedX86_64SelectedFormEncoding, X86_64SelectedFormEncodingError,
-    X86_64SelectedFormFootprint, encode_x86_64_terminal_selected_form,
+    ValidatedX86_64SelectedFormEncoding, ValidatedX86_64SelectedStructuralUnitCallTemplate,
+    X86_64_STRUCTURAL_UNIT_CALL_NEXT_INSTRUCTION_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_OPCODE_OFFSET,
+    X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_OFFSET, X86_64_STRUCTURAL_UNIT_CALL_REL32_FIELD_WIDTH,
+    X86_64_STRUCTURAL_UNIT_CALL_TEMPLATE_BYTE_COUNT, X86_64SelectedFormEncodingError,
+    X86_64SelectedFormFootprint, X86_64SelectedStructuralUnitCallFootprint,
+    X86_64StructuralUnitArgumentPointerWrite, X86_64StructuralUnitCallTemplateError,
+    X86_64StructuralUnitCallerCopyWrite, X86_64StructuralUnitInternalControlFixup,
+    X86_64StructuralUnitInternalControlFixupKind, X86_64StructuralUnitInternalControlFixupState,
+    X86_64StructuralUnitRootRead, encode_x86_64_terminal_selected_form,
     encode_x86_64_terminal_selected_nonzero_branch_form,
     encode_x86_64_terminal_selected_short_nonzero_branch_form,
+    encode_x86_64_terminal_selected_structural_unit_call_template,
     validate_x86_64_terminal_selected_form_encoding,
     validate_x86_64_terminal_selected_nonzero_branch_form,
     validate_x86_64_terminal_selected_short_nonzero_branch_form,
+    validate_x86_64_terminal_selected_structural_unit_call_template,
 };
 
 use omega_calling_conventions::{MachineRegister, RegisterSet};
