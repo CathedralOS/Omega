@@ -134,64 +134,13 @@ pub(super) fn append_retained_generated_sources(
 
 pub(super) struct CheckedProgramSurface {
     pub(super) program: Arc<CheckedProgram>,
-    pub(super) accepted_template_classifications: AcceptedTemplateClassifications,
+    pub(super) accepted_template_classifications:
+        omega_trust_ledger::AcceptedTemplateClassifications,
     pub(super) selected_provider_plans: Arc<omega_effects::SelectedProviderPlanFacts>,
     pub(super) component_progress: Option<Arc<omega_effects::ComponentProgressManifest>>,
     pub(super) task_activations: Arc<omega_task_plans::TaskActivationPlanSet>,
     pub(super) callback_placements: Arc<[omega_backend_plan::BoundNominalCallbackPlacement]>,
     pub(super) external_binding_rows: Arc<[omega_calling_conventions::ExternalBindingRow]>,
-}
-
-#[derive(Clone, Default)]
-pub(super) struct AcceptedTemplateClassifications {
-    rows: Vec<AcceptedTemplateClassification>,
-}
-
-#[derive(Clone)]
-struct AcceptedTemplateClassification {
-    machine: psi_symbols::SymbolHandle,
-    fingerprint: Option<u64>,
-}
-
-impl AcceptedTemplateClassifications {
-    fn capture(typed: &TypedTrees) -> Self {
-        Self {
-            rows: typed
-                .machines()
-                .iter()
-                .filter(|machine| {
-                    machine.supply_mode == psi_language_semantics::MachineSupplyMode::Accepted
-                })
-                .map(|machine| AcceptedTemplateClassification {
-                    machine: machine.symbol,
-                    fingerprint:
-                        psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(
-                            typed,
-                            machine.symbol,
-                        ),
-                })
-                .collect(),
-        }
-    }
-
-    pub(super) fn for_machine(
-        &self,
-        machine: psi_symbols::SymbolHandle,
-        machine_name: &str,
-    ) -> Result<Option<u64>, Diagnostic> {
-        let mut matches = self.rows.iter().filter(|row| row.machine == machine);
-        let row = matches.next().ok_or_else(|| {
-            Diagnostic::error(format!(
-                "accepted machine `{machine_name}` has no pre-lowering template classification"
-            ))
-        })?;
-        if matches.next().is_some() {
-            return Err(Diagnostic::error(format!(
-                "accepted machine `{machine_name}` has duplicate pre-lowering template classifications"
-            )));
-        }
-        Ok(row.fingerprint)
-    }
 }
 
 pub(super) struct BackendPlanningSurface {
@@ -1110,7 +1059,8 @@ pub(super) fn typed_trees_to_checked_trees(
     timings: &mut CompileTimings,
 ) -> Result<CheckedProgramSurface, Vec<Diagnostic>> {
     timings.record(TYPED_TREES_TO_CHECKED_TREES, || {
-        let accepted_template_classifications = AcceptedTemplateClassifications::capture(&typed);
+        let accepted_template_classifications =
+            omega_trust_ledger::AcceptedTemplateClassifications::capture(&typed);
         let program = psi_typed_trees_to_checked_trees::lower_typed_trees(typed)?;
         crate::pipeline::provider_approval::check_boundary_provider_approval(&program)?;
         Ok(CheckedProgramSurface {
@@ -1578,100 +1528,8 @@ mod tests {
     use super::*;
     use omega_calling_conventions::{CallSignature, CallingPolicy};
     use omega_control_flow::StateKey;
-    use psi_language_semantics::MachineSupplyMode;
     use psi_symbols::SymbolHandle;
     use std::sync::Arc;
-
-    #[test]
-    fn accepted_template_classifications_capture_only_accepted_machines_in_typed_order() {
-        let first = SymbolHandle::from_arena_index(1);
-        let checked = SymbolHandle::from_arena_index(2);
-        let second = SymbolHandle::from_arena_index(3);
-        let binder = SymbolHandle::from_arena_index(4);
-        let mut typed = TypedTrees::default();
-        let mut generic_accepted = psi_typed_trees::machine::Machine {
-            symbol: first,
-            supply_mode: MachineSupplyMode::Accepted,
-            ..Default::default()
-        };
-        typed.push_machine_type_parameter(
-            &mut generic_accepted,
-            psi_typed_trees::data::TypeParameter {
-                symbol: binder,
-                name: psi_typed_trees::name::Identifier::generated("T"),
-                ..Default::default()
-            },
-        );
-        typed.push_machine(generic_accepted);
-        for (symbol, supply_mode) in [
-            (checked, MachineSupplyMode::CheckedBody),
-            (second, MachineSupplyMode::Accepted),
-        ] {
-            typed.push_machine(psi_typed_trees::machine::Machine {
-                symbol,
-                supply_mode,
-                ..Default::default()
-            });
-        }
-
-        let classifications = AcceptedTemplateClassifications::capture(&typed);
-        let first_fingerprint =
-            psi_typed_trees_to_checked_trees::generic_machine_template_fingerprint(&typed, first)
-                .expect("authored generic accepted machine must have a template fingerprint");
-
-        assert_eq!(
-            classifications
-                .rows
-                .iter()
-                .map(|row| (row.machine, row.fingerprint))
-                .collect::<Vec<_>>(),
-            [(first, Some(first_fingerprint)), (second, None)]
-        );
-    }
-
-    #[test]
-    fn accepted_template_classification_lookup_retains_fingerprint_and_fails_closed() {
-        let machine = SymbolHandle::from_arena_index(1);
-        let exact = AcceptedTemplateClassifications {
-            rows: vec![AcceptedTemplateClassification {
-                machine,
-                fingerprint: Some(0xfeed),
-            }],
-        };
-        assert_eq!(
-            exact
-                .for_machine(machine, "admitted")
-                .expect("exact classification must resolve"),
-            Some(0xfeed)
-        );
-
-        let missing = AcceptedTemplateClassifications::default()
-            .for_machine(machine, "admitted")
-            .expect_err("missing pre-lowering classification must fail closed");
-        assert_eq!(
-            missing.message,
-            "accepted machine `admitted` has no pre-lowering template classification"
-        );
-
-        let duplicate = AcceptedTemplateClassifications {
-            rows: vec![
-                AcceptedTemplateClassification {
-                    machine,
-                    fingerprint: Some(1),
-                },
-                AcceptedTemplateClassification {
-                    machine,
-                    fingerprint: Some(1),
-                },
-            ],
-        }
-        .for_machine(machine, "admitted")
-        .expect_err("duplicate pre-lowering classifications must fail closed");
-        assert_eq!(
-            duplicate.message,
-            "accepted machine `admitted` has duplicate pre-lowering template classifications"
-        );
-    }
 
     #[test]
     fn build_prelude_owns_canonical_dependency_vocabulary() {

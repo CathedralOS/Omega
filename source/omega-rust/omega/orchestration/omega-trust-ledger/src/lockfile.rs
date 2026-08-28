@@ -16,12 +16,11 @@
 //! complete package-level admission. Re-approval remains legacy standalone
 //! behavior: delete the stale row (or file); the error names it.
 
-use crate::compiler::CompileOptions;
 use psi_diagnostics::Diagnostic;
 use psi_typed_trees::TypedTrees;
 use std::collections::BTreeMap;
 
-pub(super) struct PreparedTrustLock {
+pub struct PreparedTrustLock {
     lock_path: Option<std::path::PathBuf>,
     rows: Vec<PreparedTrustReceipt>,
 }
@@ -146,13 +145,13 @@ fn accepted_machine(
     Ok(*machine)
 }
 
-pub(super) fn reject_package_non_provider_grants(
+pub fn reject_package_non_provider_grants(
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
     selected_provider_plans: &omega_effects::SelectedProviderPlanFacts,
 ) -> Result<(), Vec<Diagnostic>> {
-    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+    let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
@@ -178,8 +177,8 @@ pub(super) fn reject_package_non_provider_grants(
     Ok(())
 }
 
-pub(super) fn prepare_trust_lockfile(
-    options: &CompileOptions,
+pub fn prepare_trust_lockfile(
+    root_path: &std::path::Path,
     typed: &TypedTrees,
     root_grants: &[String],
     provider_plans: &[omega_effects::provider_plan::ProviderPlan],
@@ -194,7 +193,7 @@ pub(super) fn prepare_trust_lockfile(
             selected_provider_plans,
         )?;
     }
-    let Some(project_dir) = options.root_path.parent() else {
+    let Some(project_dir) = root_path.parent() else {
         return Ok(PreparedTrustLock {
             lock_path: None,
             rows: Vec::new(),
@@ -204,7 +203,7 @@ pub(super) fn prepare_trust_lockfile(
 
     // Current receipts.
     let mut rows: Vec<PreparedTrustReceipt> = Vec::new();
-    let provider_grants = crate::pipeline::provider_plans::resolve_selected_provider_grants(
+    let provider_grants = crate::resolve_selected_provider_grants(
         provider_plans,
         selected_provider_plans,
         root_grants,
@@ -267,7 +266,7 @@ pub(super) fn prepare_trust_lockfile(
     })
 }
 
-pub(super) fn enforce_trust_lockfile(
+pub fn enforce_trust_lockfile(
     prepared: PreparedTrustLock,
     checked: &psi_checked_trees::CheckedTrees,
 ) -> Result<(), Vec<Diagnostic>> {
@@ -605,12 +604,7 @@ mod tests {
     fn package_aware_compilation_rejects_individual_accepted_machine_grants() {
         let typed = typed_subjects(&[], &[("proof::claim", 1)]);
         let result = prepare_trust_lockfile(
-            &crate::CompileOptions {
-                root_path: std::path::PathBuf::from("/tmp/omega-package/main.omg"),
-                build_dir: None,
-                target_name: None,
-                write_output: false,
-            },
+            std::path::Path::new("/tmp/omega-package/main.omg"),
             &typed,
             &["proof::claim".to_owned()],
             &[],
