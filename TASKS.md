@@ -9641,10 +9641,18 @@ checked-result arithmetic decision listed below.
 - **FFIVAL:** run the narrow Windows `user32` boundary-coherence slice after
   ENT4, using existing activation, custody, registration, stack, and reach
   machinery.
-- Extend component artifacts with stack needs, mapping cohorts, two-sided
-  import/export checks, service-carrier multiplicity, custody receipts, and
-  enumerable roots. Concrete drain/coexistence algorithms, scheduler/device
-  quiescence, update-cohort policy, rollback, mappings, and provisioning remain
+- The first exact component stack-needs column is live. A Terminal component
+  candidate retains the emitter-derived `TerminalStackDemand` for its canonical
+  object entry, independently rederives the complete target-specific internal
+  call-graph closure during candidate admission, and rejects even a
+  same-architecture demand from another object format. Candidate decomposition
+  and failed deployment paths preserve that exact evidence. It excludes the
+  external entry adapter and grants no provision, stack lease, installed-root
+  admission, or external headroom. Extend component artifacts with mapping
+  cohorts, two-sided import/export checks, service-carrier multiplicity, custody
+  receipts, enumerable roots, and the remaining resource/lifecycle columns.
+  Concrete drain/coexistence algorithms, scheduler/device quiescence,
+  update-cohort policy, rollback, mappings, and provisioning remain
   Cathedral/runtime work.
 - Implement serialized capability attenuation/revocation only after the
   component carrier and custody rules are complete.

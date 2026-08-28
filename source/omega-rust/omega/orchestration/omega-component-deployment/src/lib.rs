@@ -774,6 +774,7 @@ impl ProgressClosedTerminalComponentDeployment {
             entry_machine,
             selected_provider_plans,
             component_progress,
+            stack_demand,
         } = candidate;
         let TerminalNativeArtifactParts {
             target,
@@ -808,6 +809,7 @@ impl ProgressClosedTerminalComponentDeployment {
                                 entry_machine,
                                 selected_provider_plans,
                                 component_progress,
+                                stack_demand,
                             },
                             installed,
                             roots,
@@ -843,6 +845,7 @@ impl ProgressClosedTerminalComponentDeployment {
                                 entry_machine,
                                 selected_provider_plans,
                                 component_progress,
+                                stack_demand,
                             },
                             installed,
                             roots,
