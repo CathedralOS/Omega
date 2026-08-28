@@ -31,7 +31,7 @@ SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
-"$T/bc.exe" < interp.beta > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \
+"$T/bc.exe" < "$OMEGA_PATH_GAMMA/interp.beta" > "$T/g.asm" 2>/dev/null && "$ASM" < "$T/g.asm" > "$T/g.tape" 2>/dev/null \
   && stamp_seed "$T/g.tape" "$SEED" "$T/g.exe" >/dev/null 2>&1 || { echo "gamma diamond (py): interp build failed"; exit 1; }
 G="$T/g.exe"
 
@@ -40,8 +40,7 @@ PASS=0; FAIL=0
 
 # Atom patterns beginning with lowercase are variable/catch-all patterns, not
 # nullary constructors.  Keep this fixed fence alongside the generated corpus:
-# the canonical Beta interpreter has always implemented it and the ledger spike
-# depends on it for fail-closed decoder arms.
+# the canonical Beta interpreter has always implemented it.
 printf '%s' '(match (Cons 1 Nil) (Nil 0) (other 42))' > "$T/catch-all.gamma"
 set +e
 ro=$(python3 gamma_ref.py < "$T/catch-all.gamma" 2>/dev/null); rc=$?

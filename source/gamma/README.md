@@ -48,6 +48,8 @@ Principal artifacts:
 
 - `interp.beta` — canonical Gamma reference interpreter, written in Beta;
 - `typeck.beta` — monomorphic Gamma type checker, written in Beta;
+- `reference/` — optional Python evaluator, fuzz generator, and differential
+  runner;
 - `source/alpha/checker/implementations/gamma/` — independent
   proof-kernel implementations hosted by Gamma and owned by Alpha's checker.
 
@@ -59,6 +61,7 @@ sh source/gamma/test-interp-gc.sh
 sh source/gamma/test-interp-arena.sh
 sh source/gamma/test-typeck.sh
 sh source/alpha/checker/gates/gamma-checker.sh
+sh source/gamma/reference/gamma-diamond-py.sh
 ```
 
 The former terminal-ledger spike was retired after its format-18/vocabulary-20
