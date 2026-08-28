@@ -227,6 +227,12 @@ source code ends a lifetime early through the ordinary consuming
 A package absent from the requester's direct dependency set cannot be selected
 by hiding its name behind a value whose type was inferred.
 
+The carrier in an attached declaration head is itself a declaration selection:
+`machine Data::operation` names the exact `Data` declaration as well as
+declaring the independently visible machine. Qualifying the machine does not
+inherit the carrier's visibility or make a transitively owned carrier directly
+nameable.
+
 Nominal identity may nevertheless flow through another package's API without
 granting that selection authority:
 

@@ -1535,6 +1535,17 @@ complete.
   `satisfies` traits, quotient paths, establishment routes, and nominal
   machine-parameter requirements remain separate exact-symbol audits.
 
+  Follow-up 2026-08-28: every source-backed attached-machine carrier now
+  retains its exact resolved data declaration as a `TypeReference` authored-
+  selection row. The carrier coordinate uses the enclosing machine interface
+  exposure: ordinary `pub` attached declarations and exported boundary supply
+  are public interface, while ordinary private attached declarations remain
+  private implementation. A root-middle-leaf canary rejects a transitive-only
+  carrier, accepts it after direct admission, and verifies all three exposure
+  cases against the exact leaf data symbol. This closes attached carriers;
+  `satisfies` traits, quotient paths, establishment routes, and nominal machine-
+  parameter requirements remain separate exact-symbol audits.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,

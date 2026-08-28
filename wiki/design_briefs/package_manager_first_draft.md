@@ -184,6 +184,11 @@ disposition. A transitive-only parent therefore rejects at the ordinary direct-
 dependency gate. Its separate `trait_parent` source coordinate is review
 provenance, not admission.
 
+An attached declaration head such as `machine Data::operation` also selects the
+exact carrier declaration. Its type-reference row inherits the machine's
+interface disposition, including exported boundary supply without `pub`.
+Qualification does not relabel or implicitly admit a transitive carrier.
+
 Carried nominal types, automatic cleanup, and compiler-derived layout and
 move/copy behavior are collected separately as exact semantic dependencies.
 They enter private artifact identity or public compatibility identity according

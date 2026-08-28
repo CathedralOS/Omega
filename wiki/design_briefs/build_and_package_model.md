@@ -1630,6 +1630,12 @@ enclosing trait's public/private exposure. The direct-dependency gate consumes
 that row; the separate `trait_parent` source coordinate explains where the edge
 was authored but grants no authority by itself.
 
+An attached declaration head such as `machine Data::operation` independently
+selects the exact carrier declaration. The compiler retains that coordinate as
+a type-reference row under the machine's interface exposure, including
+exported boundary supply even without `pub`. Qualification neither relabels
+the carrier nor admits an owner available only transitively.
+
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They

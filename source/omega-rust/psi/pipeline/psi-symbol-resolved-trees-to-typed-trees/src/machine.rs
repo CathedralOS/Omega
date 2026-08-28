@@ -12,6 +12,16 @@ pub(crate) fn lower_machine(
     lowerer: &mut Lowerer,
     machine: &resolved::machine::Machine,
 ) -> Result<typed::machine::Machine, Diagnostic> {
+    if let Some(attached_data) = &machine.attached_data {
+        crate::type_reference::retain_type_reference_selection(
+            lowerer.source_trees,
+            &mut lowerer.typed_trees,
+            attached_data,
+            machine.attached_data_symbol,
+            lowerer.type_reference_exposure,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        )?;
+    }
     let mut typed_machine = typed::machine::Machine {
         symbol: machine.symbol,
         name: crate::name::lower_name(&machine.name),
