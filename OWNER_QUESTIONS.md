@@ -757,7 +757,7 @@ operation requirement identities separate from these value-type identities.
 The bootstrap decisions require Delta to be an independent, robust
 compiler-host language whose nonoptimizing lower-rung meaning elaborates to
 Gamma. The canonical compiler source currently lives in
-`source/delta/samples/lowermachine.alp`, and the Rust-free implementation of the
+`source/delta/compiler/main.alp`, and the Rust-free implementation of the
 meaning route lives in `source/delta/meaning/delta2gamma.beta`. Publication can
 already bind exact source and repeated emitted assembly, but its V1 receipt
 deliberately does not claim that the translator implements all Delta semantics.
