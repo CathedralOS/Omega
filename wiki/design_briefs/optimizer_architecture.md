@@ -2313,24 +2313,27 @@ still omits callable metadata until the opaque callable carrier owns the
 artifact. The final disposition remains
 `ExternalProcessEntryBridgeRequiredV1`.
 
-The real process bridge is an engineering join rather than an unresolved
-language-design decision. Target and program-storage vocabulary already make
-`ProgramEntry` target-owned, retain its selected source signature, have the
-generated ABI shell supply schema-visible root arguments, and currently require
-a Unit source result. The scalar-result conditional fixture above is therefore
-correctly classified as an ordinary callable and intentionally cannot serve as
-a positive ProgramEntry publication fixture. The next bridge must add optimized
-selected vocabulary for the actual Unit entry/source shape and join the
-existing ProgramEntry/root/source-signature/program-storage custody before it
-can construct wrapper bytes or establish native-image/publication authority.
+The entry path separates a design-settled semantic wrapper from an unsettled
+physical bootstrap. Optimizer engineering can add a distinct receiver-free,
+straight-line Unit selected shape, retain the exact target-owned `ProgramEntry`
+source signature and calling plans, join those roots to the clean object, and
+construct the existing semantic `ProgramStorageEntry` wrapper that supplies
+the Image and InitialStorage `Extent in Granted` values to the private Terminal
+symbol. The scalar-result conditional fixture above is therefore correctly an
+ordinary callable and cannot serve as the positive Unit fixture. That semantic
+wrapper is not yet an authoritative firmware/process entry: the UEFI surface is
+explicitly planned and non-invoked, and no target/runtime contract maps
+`(EfiImageHandle, &EfiSystemTable)` into those two semantic extents or maps Unit
+completion and failure into `EfiStatus`. Hosted targets publish no physical
+entry contract yet. `OWNER_QUESTIONS.md` Q17 owns this genuine design decision;
+the semantic-wrapper slice may proceed while physical bridge, image,
+installation, and publication authority remain closed.
 
 The build vocabulary still does not grant native publication authority:
-explicit selection currently fails closed without installing output. The next
-joins must connect the classified ordinary callable to the existing
-target-owned process-entry contract and carry the resulting native image
-through publication;
-the compiler gate can be removed only together with selected-build publication
-tests.
+explicit selection currently fails closed without installing output. The
+compiler gate can be removed only after the Unit semantic wrapper, the Q17
+physical contract, native-image adaptation, independent final-image validation,
+and selected-build publication tests all join the same custody chain.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and
