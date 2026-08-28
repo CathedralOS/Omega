@@ -134,6 +134,17 @@ Remaining:
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
+  The diagnostic v4 source-closure observer now resolves every declared
+  application/package root through package custody even when it has no
+  dependencies. It retains the package system's complete canonical closure
+  subject beside package-qualified, package-relative identities and hashes for
+  the source units actually loaded by compiler discovery. This is reusable
+  scaffolding, not frozen `C`: final closure publication must come from the
+  complete checked product build and additionally bind generated/compile-time
+  source, build inputs and observations, imported build tools, target
+  acceptance, and emitted-artifact custody. Do not promote an earlier
+  discovery snapshot merely because its package graph is exact.
+
   The product build directly selects the complete `ConsoleNativeProvider`
   through the normative
   `Build::select_provider<Console, ConsoleNativeProvider>` surface rather than
