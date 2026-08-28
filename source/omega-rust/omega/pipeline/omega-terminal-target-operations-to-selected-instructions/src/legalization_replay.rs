@@ -127,7 +127,6 @@ fn replay_unit_function(
     if target.machine != abstracted.machine
         || target.machine != optimized.machine
         || target.attachment != abstracted.attachment
-        || target.attachment.is_some()
         || !matches!(
             abstracted.result,
             omega_terminal_abstract_operations::TerminalAbstractFunctionResult::Unit

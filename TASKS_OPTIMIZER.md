@@ -291,8 +291,8 @@ These facts constrain the work below.
   installation, or publication authority.
 
   The current zero-VReg Unit legalization is deliberately narrower than that
-  future wrapper. Producer and independent replay now reject attachments,
-  structural parameters, entry claims, declared places, and published-service
+  future wrapper. Producer and independent replay now reject structural
+  parameters, entry claims, declared places, and published-service
   custody because the closed Unit record cannot represent them. A regression
   test proves a structurally parameterized bare `ReturnUnit` fails at
   legalization instead of silently losing its ABI. The correct semantic

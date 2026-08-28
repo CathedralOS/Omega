@@ -905,6 +905,23 @@ mod tests {
         (psi_terminal_codec::encode_module(&module).unwrap(), proof)
     }
 
+    fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
+        let (semantic, proof) = unit_return_artifact();
+        let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let attachment = StructuralTypeId::new(3_507).unwrap();
+        module.structural_types.push(StructuralTypeDeclaration {
+            id: attachment,
+            identity: "UnitStaticAttachment".into(),
+            shape: StructuralTypeShape::Record { fields: Vec::new() },
+        });
+        module.machines.first_mut().unwrap().attachment = Some(attachment);
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            proof,
+            attachment,
+        )
+    }
+
     fn conditional_forwarded_parameter_artifact() -> (Vec<u8>, Vec<u8>) {
         let machine = MachineId::new(4_001).unwrap();
         let entry = BlockId::new(4_002).unwrap();
@@ -10919,6 +10936,34 @@ mod tests {
                     TerminalLegalizationError::UnsupportedSourceShape { function: 0 }
                 ))
             ));
+        }
+    }
+
+    #[test]
+    fn unit_legalization_retains_a_static_attachment_without_inventing_a_receiver() {
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof, attachment) = statically_attached_unit_return_artifact();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                    .unwrap();
+            let selected = stage_optimized_instruction_selection(target).unwrap();
+
+            assert_eq!(
+                selected.selected().plan().functions[0].attachment,
+                Some(attachment)
+            );
+            assert!(
+                selected.selected().plan().functions[0]
+                    .virtual_registers
+                    .is_empty()
+            );
         }
     }
 
