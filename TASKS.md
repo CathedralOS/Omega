@@ -2114,6 +2114,13 @@ Remaining:
   reporting API. The compiler-owned integration test that reconstructed and
   installed that obsolete bridge was removed with the fields; program-entry
   settlement now belongs to the canonical Terminal-native request and artifact.
+  The data-only ProgramEntry source/target/semantic contract has been split
+  into `omega-program-entry-plan`. Ordinary build evaluation, provider
+  planning, and Terminal-native realization now depend on that small contract
+  crate; the normal compiler graph no longer contains the historical
+  `omega-program-storage` implementation or `omega-backend-pipeline` closure.
+  The legacy storage implementation reuses the same contract identities only
+  for its isolated lower-level tests and must not re-enter production.
 
   Restore the original mechanical split before doing further redesign:
 

@@ -4,10 +4,6 @@
 //! planning, and native bridge construction.
 
 mod artifacts;
-mod optimized_semantic_entry;
-mod optimized_semantic_wrapper;
-#[path = "entry_physical.rs"]
-mod program_entry_physical;
 #[path = "local_storage_custody.rs"]
 mod program_local_storage_custody;
 #[path = "continuation_inbound.rs"]
@@ -38,16 +34,12 @@ mod program_storage_wrapper_body;
 mod program_storage_wrapper_evidence;
 #[path = "wrapper_frame.rs"]
 mod program_storage_wrapper_frame;
-mod root_role;
 mod selected_provider;
-mod source_signature;
 
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
-pub use optimized_semantic_entry::*;
-pub use optimized_semantic_wrapper::*;
-pub use program_entry_physical::*;
+pub use omega_program_entry_plan::*;
 pub use program_local_storage_custody::*;
 pub use program_storage_continuation_inbound::*;
 pub use program_storage_emitted_argument_binding::*;
@@ -63,14 +55,7 @@ pub use program_storage_wrapper_arrival::*;
 pub use program_storage_wrapper_body::*;
 pub use program_storage_wrapper_evidence::*;
 pub use program_storage_wrapper_frame::*;
-pub use root_role::ProgramStorageEntryRootRole;
 pub use selected_provider::ProgramStorageSelectedProviderPlan;
-pub use source_signature::{
-    ProgramEntrySourceExtentFieldLayout, ProgramEntrySourceExtentFieldRole,
-    ProgramEntrySourceExtentValueLayout, ProgramEntrySourceReceiverSignature,
-    ProgramEntrySourceResultSignature, ProgramEntrySourceSignatureIdentity,
-    ProgramEntrySourceVisibleParameterSignature, SelectedProgramEntrySourceSignature,
-};
 
 mod provider_plans {
     pub type SelectedExternalRootProviderPlan = crate::ProgramStorageSelectedProviderPlan;

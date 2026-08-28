@@ -5,7 +5,7 @@
 //! no continuation symbol, resolved call, object, physical bootstrap, image,
 //! installation, or publication authority.
 
-use omega_program_storage::{
+use omega_program_entry_plan::{
     OptimizedProgramStorageSemanticWrapperContinuationDisposition,
     OptimizedProgramStorageSemanticWrapperEncodingDisposition,
     OptimizedProgramStorageSemanticWrapperPlan,
@@ -222,7 +222,7 @@ mod tests {
     use omega_effects::provider_plan::{
         ServiceEntryAuthorityFlow, ServiceEntryClaim, ServiceMethod, ServiceSchema,
     };
-    use omega_program_storage::{
+    use omega_program_entry_plan::{
         ProgramEntryPhysicalContractPlan, ProgramEntrySourceExtentValueLayout,
         ProgramEntrySourceReceiverSignature, ProgramStorageEntryRootRole,
         SelectedProgramEntrySourceSignature, SelectedProgramStorageEntryPlan,
