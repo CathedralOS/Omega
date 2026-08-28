@@ -84,11 +84,7 @@ pub(crate) fn compute_terminal_spill_choices(
         .zip(&ranges.plan().functions)
         .enumerate()
     {
-        if !range_function.tied_pairs.is_empty() {
-            return Err(TerminalSpillChoiceError::UnsupportedTiedOperands {
-                function: function_index,
-            });
-        }
+        reject_constraint_topologies(function_index, range_function)?;
         functions.push(compute_function(
             function_index,
             legality_function,
@@ -114,6 +110,19 @@ pub(crate) fn compute_terminal_spill_choices(
         usage,
         functions,
     })
+}
+
+fn reject_constraint_topologies(
+    function: usize,
+    ranges: &crate::TerminalFunctionLiveRanges,
+) -> Result<(), TerminalSpillChoiceError> {
+    if !ranges.tied_pairs.is_empty() {
+        return Err(TerminalSpillChoiceError::UnsupportedTiedOperands { function });
+    }
+    if !ranges.early_clobbers.is_empty() {
+        return Err(TerminalSpillChoiceError::UnsupportedEarlyClobber { function });
+    }
+    Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -494,14 +503,15 @@ mod tests {
         validate_physical_register_model,
     };
     use omega_terminal_selected_instructions::{
-        TerminalSelectedBlockId, TerminalVirtualRegisterId,
+        TerminalSelectedBlockId, TerminalSelectedInstructionId, TerminalVirtualRegisterId,
     };
     use psi_core::MachineId;
 
     use super::*;
     use crate::{
+        TerminalEarlyClobberConstraint, TerminalEarlyClobberUse,
         TerminalFunctionAllocationLegality, TerminalFunctionLiveRanges, TerminalLiveRangeFragment,
-        TerminalVirtualLiveRange, TerminalVirtualPointLegality,
+        TerminalLivenessPosition, TerminalVirtualLiveRange, TerminalVirtualPointLegality,
         TerminalVirtualRegisterAllocationLegality,
     };
 
@@ -556,6 +566,7 @@ mod tests {
                                 candidates: vec![RegisterViewId(0), RegisterViewId(1)],
                             })
                             .collect(),
+                        early_clobber_points: Vec::new(),
                         entry_transitions: Vec::new(),
                     },
                 )
@@ -584,6 +595,7 @@ mod tests {
                 })
                 .collect(),
             tied_pairs: Vec::new(),
+            early_clobbers: Vec::new(),
             architectural_units: Vec::new(),
             interference: vec![(0, 1), (0, 2), (1, 2)]
                 .into_iter()
@@ -593,6 +605,30 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn spill_choice_rejects_early_clobber_phase_hazards() {
+        let mut ranges = ranges(&[(0, 0), (1, 1)]);
+        ranges.early_clobbers.push(TerminalEarlyClobberConstraint {
+            block: TerminalSelectedBlockId(0),
+            position: TerminalLivenessPosition(0),
+            instruction: TerminalSelectedInstructionId(0),
+            early_point: TerminalLiveRangePoint(0),
+            def_operand: 1,
+            def_virtual_register: TerminalVirtualRegisterId(1),
+            def_class: RegisterClassId(0),
+            def_point: TerminalLiveRangePoint(1),
+            uses: vec![TerminalEarlyClobberUse {
+                operand: 0,
+                virtual_register: TerminalVirtualRegisterId(0),
+                class: RegisterClassId(0),
+            }],
+        });
+        assert_eq!(
+            reject_constraint_topologies(0, &ranges),
+            Err(TerminalSpillChoiceError::UnsupportedEarlyClobber { function: 0 })
+        );
     }
 
     fn computed(intervals: &[(u32, u32)]) -> (TerminalFunctionSpillChoices, OptimizationWorkUsage) {

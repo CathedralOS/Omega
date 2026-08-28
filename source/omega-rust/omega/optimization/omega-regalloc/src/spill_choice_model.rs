@@ -285,6 +285,9 @@ pub enum TerminalSpillChoiceError {
     UnsupportedTiedOperands {
         function: usize,
     },
+    UnsupportedEarlyClobber {
+        function: usize,
+    },
     WorkOverflow,
     BudgetExceeded {
         required: OptimizationWorkUsage,

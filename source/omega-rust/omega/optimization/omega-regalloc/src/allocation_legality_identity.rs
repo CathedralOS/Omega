@@ -9,7 +9,7 @@ pub fn terminal_allocation_legality_identity(
     plan: &TerminalAllocationLegalityPlan,
 ) -> TerminalAllocationLegalityIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-allocation-legality.v4\0");
     bytes.extend_from_slice(&plan.ranges.bytes());
     bytes.extend_from_slice(&plan.register_environment.bytes());
     bytes.extend_from_slice(&plan.allocator_availability.bytes());
@@ -23,6 +23,18 @@ pub fn terminal_allocation_legality_identity(
             length(&mut bytes, register.points.len());
             for point in &register.points {
                 bytes.extend_from_slice(&point.block.0.to_le_bytes());
+                bytes.extend_from_slice(&point.point.0.to_le_bytes());
+                length(&mut bytes, point.candidates.len());
+                for candidate in &point.candidates {
+                    bytes.extend_from_slice(&candidate.0.to_le_bytes());
+                }
+            }
+            length(&mut bytes, register.early_clobber_points.len());
+            for point in &register.early_clobber_points {
+                bytes.extend_from_slice(&point.block.0.to_le_bytes());
+                bytes.extend_from_slice(&point.position.0.to_le_bytes());
+                bytes.extend_from_slice(&point.instruction.0.to_le_bytes());
+                bytes.extend_from_slice(&point.operand.to_le_bytes());
                 bytes.extend_from_slice(&point.point.0.to_le_bytes());
                 length(&mut bytes, point.candidates.len());
                 for candidate in &point.candidates {
@@ -87,8 +99,8 @@ mod tests {
         TerminalAllocationLegalityPlan, TerminalAllocatorAvailabilityIdentity,
         TerminalEntryFixedViewTransition, TerminalFunctionAllocationLegality,
         TerminalLiveRangeIdentity, TerminalLiveRangePoint, TerminalLivenessPosition,
-        TerminalVirtualFixedConstraintSite, TerminalVirtualPointLegality,
-        TerminalVirtualRegisterAllocationLegality,
+        TerminalVirtualEarlyClobberPointLegality, TerminalVirtualFixedConstraintSite,
+        TerminalVirtualPointLegality, TerminalVirtualRegisterAllocationLegality,
     };
 
     type Mutation = fn(&mut TerminalAllocationLegalityPlan);
@@ -106,6 +118,14 @@ mod tests {
                     points: vec![TerminalVirtualPointLegality {
                         block: TerminalSelectedBlockId(0),
                         point: TerminalLiveRangePoint(1),
+                        candidates: vec![RegisterViewId(0), RegisterViewId(1)],
+                    }],
+                    early_clobber_points: vec![TerminalVirtualEarlyClobberPointLegality {
+                        block: TerminalSelectedBlockId(0),
+                        position: TerminalLivenessPosition(0),
+                        instruction: TerminalSelectedInstructionId(2),
+                        operand: 1,
+                        point: TerminalLiveRangePoint(0),
                         candidates: vec![RegisterViewId(0), RegisterViewId(1)],
                     }],
                     entry_transitions: vec![TerminalEntryFixedViewTransition {
@@ -151,6 +171,28 @@ mod tests {
             },
             |plan| {
                 plan.functions[0].virtual_registers[0].points[0]
+                    .candidates
+                    .pop();
+            },
+            |plan| {
+                plan.functions[0].virtual_registers[0].early_clobber_points[0].block =
+                    TerminalSelectedBlockId(1)
+            },
+            |plan| {
+                plan.functions[0].virtual_registers[0].early_clobber_points[0].position =
+                    TerminalLivenessPosition(1)
+            },
+            |plan| {
+                plan.functions[0].virtual_registers[0].early_clobber_points[0].instruction =
+                    TerminalSelectedInstructionId(3)
+            },
+            |plan| plan.functions[0].virtual_registers[0].early_clobber_points[0].operand = 2,
+            |plan| {
+                plan.functions[0].virtual_registers[0].early_clobber_points[0].point =
+                    TerminalLiveRangePoint(2)
+            },
+            |plan| {
+                plan.functions[0].virtual_registers[0].early_clobber_points[0]
                     .candidates
                     .pop();
             },

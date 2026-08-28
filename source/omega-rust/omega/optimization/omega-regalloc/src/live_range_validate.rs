@@ -3,12 +3,13 @@ use std::collections::BTreeSet;
 use crate::{
     TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
     TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalDistinctUseDefTie,
-    TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector, TerminalLiveRangeError,
-    TerminalLiveRangeFragment, TerminalLiveRangePlan, TerminalLiveRangePoint,
-    TerminalLiveRangeValidationReceipt, TerminalVirtualFixedConstraint,
-    TerminalVirtualFixedConstraintSite, TerminalVirtualInterference, TerminalVirtualLiveRange,
-    TerminalVirtualOccurrence, ValidatedTerminalLiveRanges, ValidatedTerminalLiveness,
-    terminal_live_range_identity, validate_terminal_liveness,
+    TerminalEarlyClobberConstraint, TerminalEarlyClobberUse, TerminalFunctionLiveRanges,
+    TerminalLiveRangeEdgeConnector, TerminalLiveRangeError, TerminalLiveRangeFragment,
+    TerminalLiveRangePlan, TerminalLiveRangePoint, TerminalLiveRangeValidationReceipt,
+    TerminalVirtualFixedConstraint, TerminalVirtualFixedConstraintSite,
+    TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
+    ValidatedTerminalLiveRanges, ValidatedTerminalLiveness, terminal_live_range_identity,
+    validate_terminal_liveness,
 };
 use omega_register_model::{RegisterOperandAccess, RegisterUnitId};
 use omega_terminal_selected_instructions::TerminalSelectedBlockId;
@@ -70,6 +71,11 @@ pub fn validate_terminal_live_ranges(
         }
         if actual.tied_pairs != expected.tied_pairs {
             return Err(TerminalLiveRangeError::TiedPairMismatch {
+                function: function_index,
+            });
+        }
+        if actual.early_clobbers != expected.early_clobbers {
+            return Err(TerminalLiveRangeError::EarlyClobberMismatch {
                 function: function_index,
             });
         }
@@ -162,6 +168,17 @@ pub fn validate_terminal_live_ranges(
             .map(|row| row.interference.len())
             .sum(),
         tied_pair_count: plan.functions.iter().map(|row| row.tied_pairs.len()).sum(),
+        early_clobber_count: plan
+            .functions
+            .iter()
+            .map(|row| row.early_clobbers.len())
+            .sum(),
+        early_clobber_use_count: plan
+            .functions
+            .iter()
+            .flat_map(|row| &row.early_clobbers)
+            .map(|row| row.uses.len())
+            .sum(),
     };
     Ok(ValidatedTerminalLiveRanges { plan, receipt })
 }
@@ -185,6 +202,7 @@ fn independently_replay_function(
 ) -> Result<TerminalFunctionLiveRanges, TerminalLiveRangeError> {
     reject_constraints(function, live)?;
     let tied_pairs = independently_derive_ties(function, live)?;
+    let early_clobbers = independently_derive_early_clobbers(function, live)?;
     let mut block_domains = Vec::new();
     for block in &live.blocks {
         let first =
@@ -326,9 +344,113 @@ fn independently_replay_function(
         block_domains,
         virtual_registers,
         tied_pairs,
+        early_clobbers,
         architectural_units,
         interference,
     })
+}
+
+fn independently_derive_early_clobbers(
+    function: usize,
+    live: &crate::TerminalFunctionLiveness,
+) -> Result<Vec<TerminalEarlyClobberConstraint>, TerminalLiveRangeError> {
+    let mut early = Vec::new();
+    for operand in &live.operand_positions {
+        if operand.early_clobber {
+            early.push(operand);
+        }
+    }
+    if early.is_empty() {
+        return Ok(Vec::new());
+    }
+    let definition = early[0];
+    if early.len() != 1 || definition.access != RegisterOperandAccess::Def {
+        return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+            function,
+            instruction: definition.instruction.0,
+            operand: early.get(1).copied().unwrap_or(definition).operand,
+        });
+    }
+    let operands = live
+        .operand_positions
+        .iter()
+        .filter(|operand| operand.instruction == definition.instruction)
+        .collect::<Vec<_>>();
+    let mut seen = Vec::new();
+    for operand in &operands {
+        if seen.contains(&operand.virtual_register)
+            || operand.tied_to.is_some()
+            || (operand.operand != definition.operand
+                && operand.access != RegisterOperandAccess::Use)
+        {
+            return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                function,
+                instruction: definition.instruction.0,
+                operand: operand.operand,
+            });
+        }
+        seen.push(operand.virtual_register);
+    }
+    if operands.len() < 2 {
+        return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+            function,
+            instruction: definition.instruction.0,
+            operand: definition.operand,
+        });
+    }
+    for tied_definition in live
+        .operand_positions
+        .iter()
+        .filter(|operand| operand.tied_to.is_some())
+    {
+        let tied_use = live.operand_positions.iter().find(|operand| {
+            operand.instruction == tied_definition.instruction
+                && Some(operand.operand) == tied_definition.tied_to
+        });
+        if seen.contains(&tied_definition.virtual_register)
+            || tied_use.is_some_and(|operand| seen.contains(&operand.virtual_register))
+        {
+            return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
+                function,
+                instruction: definition.instruction.0,
+                operand: definition.operand,
+            });
+        }
+    }
+    let block = live
+        .blocks
+        .iter()
+        .find(|block| {
+            block
+                .instructions
+                .iter()
+                .any(|instruction| instruction.instruction == definition.instruction)
+        })
+        .ok_or(TerminalLiveRangeError::UnsupportedEarlyClobber {
+            function,
+            instruction: definition.instruction.0,
+            operand: definition.operand,
+        })?;
+    let uses = operands
+        .iter()
+        .filter(|operand| operand.operand != definition.operand)
+        .map(|operand| TerminalEarlyClobberUse {
+            operand: operand.operand,
+            virtual_register: operand.virtual_register,
+            class: operand.class,
+        })
+        .collect();
+    Ok(vec![TerminalEarlyClobberConstraint {
+        block: block.block,
+        position: definition.position,
+        instruction: definition.instruction,
+        early_point: checked_before(function, definition.position.0)?,
+        def_operand: definition.operand,
+        def_virtual_register: definition.virtual_register,
+        def_class: definition.class,
+        def_point: checked_after(function, definition.position.0)?,
+        uses,
+    }])
 }
 
 fn independently_derive_ties(
@@ -494,6 +616,14 @@ fn validate_canonical(
             .any(|rows| rows[0].virtual_register >= rows[1].virtual_register)
         || actual.tied_pairs.windows(2).any(|rows| rows[0] >= rows[1])
         || actual
+            .early_clobbers
+            .windows(2)
+            .any(|rows| rows[0] >= rows[1])
+        || actual
+            .early_clobbers
+            .iter()
+            .any(|row| row.uses.is_empty() || row.uses.windows(2).any(|uses| uses[0] >= uses[1]))
+        || actual
             .architectural_units
             .windows(2)
             .any(|rows| rows[0].unit >= rows[1].unit)
@@ -568,13 +698,6 @@ fn reject_constraints(
     for operand in &live.operand_positions {
         if operand.access == RegisterOperandAccess::UseDef {
             return Err(TerminalLiveRangeError::UnsupportedUseDef {
-                function,
-                instruction: operand.instruction.0,
-                operand: operand.operand,
-            });
-        }
-        if operand.early_clobber {
-            return Err(TerminalLiveRangeError::UnsupportedEarlyClobber {
                 function,
                 instruction: operand.instruction.0,
                 operand: operand.operand,
@@ -697,6 +820,7 @@ mod tests {
                 edge_connectors: Vec::new(),
             }],
             tied_pairs: Vec::new(),
+            early_clobbers: Vec::new(),
             architectural_units: vec![TerminalArchitecturalUnitLiveRange {
                 unit: RegisterUnitId(0),
                 actions: Vec::new(),

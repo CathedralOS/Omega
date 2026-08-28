@@ -923,12 +923,14 @@ pub(crate) mod tests {
                     virtual_register: TerminalVirtualRegisterId(0),
                     class,
                     points: Vec::new(),
+                    early_clobber_points: Vec::new(),
                     entry_transitions: Vec::new(),
                 },
                 TerminalVirtualRegisterAllocationLegality {
                     virtual_register: TerminalVirtualRegisterId(1),
                     class,
                     points: Vec::new(),
+                    early_clobber_points: Vec::new(),
                     entry_transitions: vec![
                         TerminalEntryFixedViewTransition {
                             from_view: from,

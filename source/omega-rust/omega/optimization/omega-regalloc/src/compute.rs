@@ -164,6 +164,8 @@ fn reject_unsupported_constraints(
     function: &TerminalSelectedFunction,
 ) -> Result<(), TerminalLivenessError> {
     let mut tied_registers = BTreeSet::new();
+    let mut early_registers = Vec::new();
+    let mut early_instruction_seen = false;
     for instruction in function.blocks.iter().flat_map(block_instructions) {
         for operand in &instruction.operands {
             if operand.access == RegisterOperandAccess::UseDef {
@@ -173,13 +175,41 @@ fn reject_unsupported_constraints(
                     operand: operand.operand,
                 });
             }
-            if operand.early_clobber {
+        }
+        let early = instruction
+            .operands
+            .iter()
+            .filter(|operand| operand.early_clobber)
+            .collect::<Vec<_>>();
+        if !early.is_empty() {
+            let definition = early[0];
+            let mut participants = BTreeSet::new();
+            let valid = !early_instruction_seen
+                && early.len() == 1
+                && definition.access == RegisterOperandAccess::Def
+                && definition.tied_to.is_none()
+                && instruction.operands.len() > 1
+                && instruction.operands.iter().all(|operand| {
+                    operand.tied_to.is_none()
+                        && (operand.operand == definition.operand
+                            || operand.access == RegisterOperandAccess::Use)
+                        && participants.insert(operand.virtual_register)
+                });
+            if !valid {
+                let operand = early.get(1).copied().unwrap_or(definition).operand;
                 return Err(TerminalLivenessError::UnsupportedEarlyClobber {
                     function: function_index,
                     instruction: instruction.id.0,
-                    operand: operand.operand,
+                    operand,
                 });
             }
+            early_instruction_seen = true;
+            early_registers.extend(
+                instruction
+                    .operands
+                    .iter()
+                    .map(|operand| (operand.virtual_register, instruction.id.0, operand.operand)),
+            );
         }
         let tied = instruction
             .operands
@@ -222,6 +252,16 @@ fn reject_unsupported_constraints(
                 });
             }
         }
+    }
+    if let Some((_, instruction, operand)) = early_registers
+        .into_iter()
+        .find(|(register, _, _)| tied_registers.contains(register))
+    {
+        return Err(TerminalLivenessError::UnsupportedEarlyClobber {
+            function: function_index,
+            instruction,
+            operand,
+        });
     }
     Ok(())
 }
@@ -475,6 +515,22 @@ pub(crate) mod tests {
         function
     }
 
+    pub(crate) fn supported_early_clobber_function() -> TerminalSelectedFunction {
+        let mut function = function_with_operand(RegisterOperandAccess::Use);
+        function.blocks[0].instructions[0]
+            .operands
+            .push(TerminalSelectedOperand {
+                operand: 1,
+                virtual_register: TerminalVirtualRegisterId(1),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: true,
+            });
+        function
+    }
+
     #[test]
     fn admits_only_distinct_use_to_def_ties_and_rejects_other_phase_frontiers() {
         let use_def = function_with_operand(RegisterOperandAccess::UseDef);
@@ -485,6 +541,9 @@ pub(crate) mod tests {
 
         let supported = supported_tied_function();
         assert_eq!(reject_unsupported_constraints(0, &supported), Ok(()));
+
+        let early_supported = supported_early_clobber_function();
+        assert_eq!(reject_unsupported_constraints(0, &early_supported), Ok(()));
 
         let mut tied = function_with_operand(RegisterOperandAccess::Use);
         tied.blocks[0].instructions[0].operands[0].tied_to = Some(0);
@@ -497,6 +556,31 @@ pub(crate) mod tests {
         early.blocks[0].instructions[0].operands[0].early_clobber = true;
         assert!(matches!(
             reject_unsupported_constraints(0, &early),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut duplicate = supported_early_clobber_function();
+        duplicate.blocks[0].instructions[0].operands[1].virtual_register =
+            TerminalVirtualRegisterId(0);
+        assert!(matches!(
+            reject_unsupported_constraints(0, &duplicate),
+            Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
+        ));
+
+        let mut second_definition = supported_early_clobber_function();
+        second_definition.blocks[0].instructions[0]
+            .operands
+            .push(TerminalSelectedOperand {
+                operand: 2,
+                virtual_register: TerminalVirtualRegisterId(2),
+                access: RegisterOperandAccess::Def,
+                class: RegisterClassId(0),
+                fixed_view: None,
+                tied_to: None,
+                early_clobber: false,
+            });
+        assert!(matches!(
+            reject_unsupported_constraints(0, &second_definition),
             Err(TerminalLivenessError::UnsupportedEarlyClobber { .. })
         ));
     }

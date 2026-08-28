@@ -6,7 +6,7 @@ pub fn terminal_register_home_identity(
     plan: &TerminalRegisterHomePlan,
 ) -> TerminalRegisterHomeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-register-homes.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-register-homes.v4\0");
     bytes.extend_from_slice(&encode_terminal_register_home_content(plan));
     TerminalRegisterHomeIdentity(Sha256::digest(bytes).into())
 }
@@ -131,10 +131,10 @@ mod tests {
             Err(TerminalRegisterHomeDecodeError::WrongMagic)
         );
         let mut wrong_version = encoded.clone();
-        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
         assert_eq!(
             TerminalRegisterHomePlan::decode(&wrong_version),
-            Err(TerminalRegisterHomeDecodeError::UnsupportedVersion(2))
+            Err(TerminalRegisterHomeDecodeError::UnsupportedVersion(3))
         );
         let mut invalid_machine = encoded;
         let machine_offset = 8 + 4 + 32 + (4 * 32) + 8;

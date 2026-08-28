@@ -778,6 +778,7 @@ pub(crate) mod tests {
                     edge_connectors: Vec::new(),
                 }],
                 tied_pairs: Vec::new(),
+                early_clobbers: Vec::new(),
                 architectural_units: Vec::new(),
                 interference: Vec::new(),
             }],
@@ -989,6 +990,7 @@ pub(crate) mod tests {
                             candidates: vec![RegisterViewId(0), RegisterViewId(1)],
                         })
                         .collect(),
+                    early_clobber_points: Vec::new(),
                     entry_transitions: Vec::new(),
                 })
                 .collect(),
