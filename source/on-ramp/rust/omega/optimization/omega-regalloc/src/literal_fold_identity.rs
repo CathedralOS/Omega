@@ -6,7 +6,7 @@ pub fn terminal_literal_fold_identity(
     plan: &TerminalLiteralFoldPlan,
 ) -> TerminalLiteralFoldIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-literal-fold.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-literal-fold.v2\0");
     bytes.extend_from_slice(&encode_terminal_literal_fold_content(plan));
     TerminalLiteralFoldIdentity(Sha256::digest(bytes).into())
 }
@@ -24,6 +24,8 @@ pub(crate) fn encode_terminal_literal_fold_content(plan: &TerminalLiteralFoldPla
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());
     bytes.push(match plan.policy {
         TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddImmediateV1 => 0,
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactSubtractImmediateV1 => 1,
+        TerminalLiteralFoldPolicy::SelectedIncomingU12ExactAddAndSubtractImmediateV1 => 2,
     });
     bytes.extend_from_slice(&plan.budget.encode());
     bytes.extend_from_slice(&plan.usage.encode());

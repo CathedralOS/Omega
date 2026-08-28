@@ -213,6 +213,10 @@ fn family_and_operand_count(
         TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
             (TerminalMachineAlternativeFamily::ExactAddI64Immediate, 2)
         }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => (
+            TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
+            2,
+        ),
         TerminalSelectedInstructionKind::ReturnI64 => {
             (TerminalMachineAlternativeFamily::ReturnI64, 1)
         }
@@ -317,6 +321,14 @@ fn encode_unchecked(
                     | u32::from(registers[2]),
             );
         }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+            words.push(
+                0xd100_0000
+                    | (u32::from(u12(immediate)?) << 10)
+                    | (u32::from(registers[0]) << 5)
+                    | u32::from(registers[1]),
+            );
+        }
         TerminalSelectedInstructionKind::ReturnI64 => words.push(0xd65f_03c0),
         TerminalSelectedInstructionKind::ConditionalBranchNonZero => {
             return Err(Aarch64SelectedFormEncodingError::LayoutDependentForm);
@@ -372,6 +384,11 @@ enum DecodedWord {
     Subtract {
         left: u8,
         right: u8,
+        destination: u8,
+    },
+    SubtractImmediate {
+        source: u8,
+        immediate: u16,
         destination: u8,
     },
     Return,
@@ -439,6 +456,13 @@ fn decode_word(word: u32) -> Result<DecodedWord, Aarch64SelectedFormEncodingErro
             destination: register,
         });
     }
+    if word & 0xffc0_0000 == 0xd100_0000 {
+        return Ok(DecodedWord::SubtractImmediate {
+            source: ((word >> 5) & 0x1f) as u8,
+            immediate: ((word >> 10) & 0xfff) as u16,
+            destination: register,
+        });
+    }
     if word == 0xd65f_03c0 {
         return Ok(DecodedWord::Return);
     }
@@ -489,6 +513,14 @@ fn validate_decoded(
                     left: registers[0],
                     right: registers[1],
                     destination: registers[2],
+                }]
+        }
+        TerminalSelectedInstructionKind::ExactSubtractI64Immediate { immediate, .. } => {
+            decoded
+                == [DecodedWord::SubtractImmediate {
+                    source: registers[0],
+                    immediate: u12(immediate)?,
+                    destination: registers[1],
                 }]
         }
         TerminalSelectedInstructionKind::ReturnI64 => decoded == [DecodedWord::Return],
@@ -544,7 +576,8 @@ fn footprint(
         | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => {
             (vec![operands[0], operands[1]], vec![operands[2]], false)
         }
-        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => {
+        TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+        | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => {
             (vec![operands[0]], vec![operands[1]], false)
         }
         TerminalSelectedInstructionKind::ReturnI64 => (vec![], vec![], false),
@@ -591,7 +624,8 @@ fn footprint(
                 TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![],
                 TerminalSelectedInstructionKind::CopyI64
                 | TerminalSelectedInstructionKind::CompareI64Zero
-                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![0],
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![0],
                 TerminalSelectedInstructionKind::ExactAddI64 { .. }
                 | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![0, 1],
                 _ => unreachable!("control forms handled separately"),
@@ -599,7 +633,8 @@ fn footprint(
             match kind {
                 TerminalSelectedInstructionKind::MaterializeI64 { .. } => vec![0],
                 TerminalSelectedInstructionKind::CopyI64
-                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. } => vec![1],
+                | TerminalSelectedInstructionKind::ExactAddI64Immediate { .. }
+                | TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. } => vec![1],
                 TerminalSelectedInstructionKind::ExactAddI64 { .. }
                 | TerminalSelectedInstructionKind::ExactSubtractI64 { .. } => vec![2],
                 TerminalSelectedInstructionKind::CompareI64Zero => vec![],
@@ -706,6 +741,15 @@ mod tests {
                 TerminalMachineAlternativeFamily::ExactSubtractI64,
                 3,
             ),
+            (
+                TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
+                    immediate: IntegerValue::Unsigned(5),
+                    obligation: ObligationId::new(4).unwrap(),
+                    accepted_fact: fact,
+                },
+                TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
+                2,
+            ),
         ];
         for (kind, family, count) in cases {
             let encoded = encode_aarch64_terminal_selected_form(
@@ -716,6 +760,14 @@ mod tests {
             )
             .unwrap();
             assert_eq!(encoded.bytes().len(), 4);
+            if matches!(
+                kind,
+                TerminalSelectedInstructionKind::ExactSubtractI64Immediate { .. }
+            ) {
+                assert_eq!(encoded.bytes(), [0x64, 0x14, 0x00, 0xd1]);
+                assert!(!encoded.footprint().writes_nzcv);
+                assert!(encoded.footprint().encoded.implicit_unit_defs.is_empty());
+            }
         }
     }
 

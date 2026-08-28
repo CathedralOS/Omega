@@ -604,6 +604,7 @@ pub data Optimization {
     case ProofCheckElision;
     case SelectedIncomingU12ExactAddImmediate;
     case X86RelaxConditionalBranchesToRel8V1;
+    case SelectedIncomingU12ExactSubtractImmediate;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -615,6 +616,7 @@ pub data Optimizations {
     proof_check_elision: u8 in Trapping;
     selected_incoming_u12_exact_add_immediate: u8 in Trapping;
     x86_relax_conditional_branches_to_rel8_v1: u8 in Trapping;
+    selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
 }
 pub data Build {
     subsystem: Subsystem;
@@ -645,6 +647,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::ProofCheckElision -> proof_check_elision()
         Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
         Optimization::X86RelaxConditionalBranchesToRel8V1 -> x86_relax_conditional_branches_to_rel8_v1()
+        Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -678,6 +681,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
     state x86_relax_conditional_branches_to_rel8_v1(&mut self) {
         self.x86_relax_conditional_branches_to_rel8_v1 = self.x86_relax_conditional_branches_to_rel8_v1 + 1;
     }
+
+    state selected_incoming_u12_exact_subtract_immediate(&mut self) {
+        self.selected_incoming_u12_exact_subtract_immediate = self.selected_incoming_u12_exact_subtract_immediate + 1;
+    }
 }
 pub machine Optimizations::emit_report(&mut self) {
     self.human_report = self.human_report + 1;
@@ -701,6 +708,7 @@ pub data Optimization {
     case ProofCheckElision;
     case SelectedIncomingU12ExactAddImmediate;
     case X86RelaxConditionalBranchesToRel8V1;
+    case SelectedIncomingU12ExactSubtractImmediate;
 }
 pub data Optimizations {
     human_report: u8 in Trapping;
@@ -712,6 +720,7 @@ pub data Optimizations {
     proof_check_elision: u8 in Trapping;
     selected_incoming_u12_exact_add_immediate: u8 in Trapping;
     x86_relax_conditional_branches_to_rel8_v1: u8 in Trapping;
+    selected_incoming_u12_exact_subtract_immediate: u8 in Trapping;
 }
 pub data BuildSource {
 }
@@ -749,6 +758,7 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
         Optimization::ProofCheckElision -> proof_check_elision()
         Optimization::SelectedIncomingU12ExactAddImmediate -> selected_incoming_u12_exact_add_immediate()
         Optimization::X86RelaxConditionalBranchesToRel8V1 -> x86_relax_conditional_branches_to_rel8_v1()
+        Optimization::SelectedIncomingU12ExactSubtractImmediate -> selected_incoming_u12_exact_subtract_immediate()
     }
 
     state control_flow_cleanup(&mut self) {
@@ -781,6 +791,10 @@ pub machine Optimizations::enable(&mut self, optimization: Optimization) {
 
     state x86_relax_conditional_branches_to_rel8_v1(&mut self) {
         self.x86_relax_conditional_branches_to_rel8_v1 = self.x86_relax_conditional_branches_to_rel8_v1 + 1;
+    }
+
+    state selected_incoming_u12_exact_subtract_immediate(&mut self) {
+        self.selected_incoming_u12_exact_subtract_immediate = self.selected_incoming_u12_exact_subtract_immediate + 1;
     }
 }
 pub machine BuildSource::resolve<'path>(&self, relative: &'path [u8] in Path) -> &'path [u8] in Path {
@@ -1765,6 +1779,7 @@ mod tests {
                     "ProofCheckElision",
                     "SelectedIncomingU12ExactAddImmediate",
                     "X86RelaxConditionalBranchesToRel8V1",
+                    "SelectedIncomingU12ExactSubtractImmediate",
                 ]
             );
             let optimizations = syntax_trees
@@ -1800,6 +1815,7 @@ mod tests {
                     "proof_check_elision",
                     "selected_incoming_u12_exact_add_immediate",
                     "x86_relax_conditional_branches_to_rel8_v1",
+                    "selected_incoming_u12_exact_subtract_immediate",
                 ]
             );
             let build = syntax_trees

@@ -122,13 +122,19 @@ pub const AARCH64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 6,
 };
+/// Flag-transparent `result = left - immediate`, matching the AArch64 SUB
+/// immediate form for the named admitted U12 domain.
+pub const AARCH64_SUBTRACT_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 7,
+};
 
 /// Closed baseline constraint inventory currently owned by the AArch64 target.
 /// The ordinary rows are limited to the baseline operations required by a
 /// register-passed scalar conditional-return CFG plus the first arithmetic row
 /// needed by the pressure vertical. Other ordinary and feature-specific
 /// instruction rows remain intentionally absent.
-pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
+pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 14] = [
     AARCH64_AAPCS64_CALL,
     AARCH64_DARWIN_CALL,
     AARCH64_AAPCS64_RETURN,
@@ -142,6 +148,7 @@ pub const AARCH64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
     AARCH64_ADD_I64,
     AARCH64_ADD_I64_IMMEDIATE,
     AARCH64_SUBTRACT_I64,
+    AARCH64_SUBTRACT_I64_IMMEDIATE,
 ];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -697,6 +704,17 @@ pub fn aarch64_register_constraint_catalog(
                 allocatable(0, RegisterOperandAccess::Use, GPR64),
                 allocatable(1, RegisterOperandAccess::Use, GPR64),
                 allocatable(2, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(13),
+            key: AARCH64_SUBTRACT_I64_IMMEDIATE,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
             ],
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),

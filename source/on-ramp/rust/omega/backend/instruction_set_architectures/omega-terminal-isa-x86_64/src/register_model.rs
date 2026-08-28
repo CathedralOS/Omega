@@ -141,6 +141,12 @@ pub const X86_64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
     family: RegisterConstraintFamily::Instruction,
     variant: 6,
 };
+/// Flag-transparent `result = left - immediate`, realized as an x86-64 LEA
+/// with the negated admitted U12 displacement and no destructive tie.
+pub const X86_64_SUBTRACT_I64_IMMEDIATE: RegisterConstraintKey = RegisterConstraintKey {
+    family: RegisterConstraintFamily::Instruction,
+    variant: 7,
+};
 
 /// Closed v1 inventory owned by the x86-64 target.
 ///
@@ -148,7 +154,7 @@ pub const X86_64_SUBTRACT_I64: RegisterConstraintKey = RegisterConstraintKey {
 /// required by a register-passed scalar conditional-return CFG plus the first
 /// arithmetic row needed by the pressure vertical. This is not a claim that
 /// the target's ordinary instruction inventory is complete.
-pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
+pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 14] = [
     X86_64_SYSTEM_V_CALL,
     X86_64_MICROSOFT_CALL,
     X86_64_SYSTEM_V_RETURN,
@@ -162,6 +168,7 @@ pub const X86_64_REQUIRED_REGISTER_CONSTRAINTS: [RegisterConstraintKey; 13] = [
     X86_64_ADD_I64,
     X86_64_ADD_I64_IMMEDIATE,
     X86_64_SUBTRACT_I64,
+    X86_64_SUBTRACT_I64_IMMEDIATE,
 ];
 
 struct ModelBuilder {
@@ -678,6 +685,17 @@ pub fn x86_64_register_constraint_catalog(
             implicit_uses: Vec::new(),
             implicit_defs: Vec::new(),
             clobbers: view("rflags").units.clone(),
+        },
+        RegisterInstructionConstraint {
+            id: RegisterConstraintId(13),
+            key: X86_64_SUBTRACT_I64_IMMEDIATE,
+            operands: vec![
+                allocatable(0, RegisterOperandAccess::Use, GPR64),
+                allocatable(1, RegisterOperandAccess::Def, GPR64),
+            ],
+            implicit_uses: Vec::new(),
+            implicit_defs: Vec::new(),
+            clobbers: Vec::new(),
         },
     ];
 

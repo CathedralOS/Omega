@@ -27,7 +27,7 @@ use crate::{
 };
 
 const MAGIC: &[u8; 8] = b"OMGMFX\0\0";
-const VERSION: u32 = 3;
+const VERSION: u32 = 4;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalPreAllocationMachineEffectDecodeError {
@@ -191,6 +191,11 @@ fn decode_kind(
         },
         6 => TerminalSelectedInstructionKind::ConditionalBranchNonZero,
         7 => TerminalSelectedInstructionKind::ReturnI64,
+        8 => TerminalSelectedInstructionKind::ExactSubtractI64Immediate {
+            immediate: decode_integer(cursor)?,
+            obligation: decode_obligation(cursor)?,
+            accepted_fact: AcceptedObligationFactIdentity::from_bytes(cursor.array()?),
+        },
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     })
 }
@@ -254,6 +259,7 @@ fn decode_alternative(
         5 => TerminalMachineAlternativeFamily::ExactSubtractI64,
         6 => TerminalMachineAlternativeFamily::ConditionalBranchNonZero,
         7 => TerminalMachineAlternativeFamily::ReturnI64,
+        8 => TerminalMachineAlternativeFamily::ExactSubtractI64Immediate,
         _ => return Err(TerminalPreAllocationMachineEffectDecodeError::InvalidField),
     };
     let key = TerminalMachineAlternativeKey {
