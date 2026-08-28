@@ -178,7 +178,8 @@ pub(in crate::selection::runtime_dispatch::writes) fn select_runtime_atomic_load
             })
         }
         psi_language_core::AtomicOrderingPlan::ReadModifyWrite(_)
-        | psi_language_core::AtomicOrderingPlan::CompareExchange { .. } => None,
+        | psi_language_core::AtomicOrderingPlan::CompareExchange { .. }
+        | psi_language_core::AtomicOrderingPlan::CompareExchangeOnce { .. } => None,
     }
 }
 

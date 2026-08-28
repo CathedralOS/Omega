@@ -892,7 +892,12 @@ layout/access/profile joins, exact-loan admission, opaque field identities, and
 sealed primitive requests. The compiler derives concrete `Placed<P, T>`
 accessors fail-closed: inaccessible or unauthorized operations have no method,
 destructive reads remain distinct from repeatable reads, and atomic accessors
-retain their exact operation family.
+retain their exact operation family. Observing decisive and single-attempt
+compare-exchange additionally remain distinct in the shared ordering carrier
+and permission check. The single-attempt form is not source-admitted or lowered
+yet because its three-arm result carrier is absent; checked interpretation and
+legacy native lowering reject it at their entry boundaries rather than
+collapsing it into decisive compare-exchange.
 
 This section records the implementation boundary, not its history. The P2
 `AccessPlan`/`Placed` and symbolic-materialization entries in

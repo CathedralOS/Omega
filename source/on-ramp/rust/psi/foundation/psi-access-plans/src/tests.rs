@@ -922,6 +922,26 @@ fn atomic_shared_page_exposes_only_atomic_mutation() {
 
 #[test]
 fn compare_exchange_permissions_keep_both_axes_distinct() {
+    let decisive_ordering = AtomicAccessOperation::CompareExchange {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    }
+    .ordering_plan();
+    let once_ordering = AtomicAccessOperation::CompareExchangeOnce {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    }
+    .ordering_plan();
+    assert!(matches!(
+        decisive_ordering,
+        AtomicOrderingPlan::CompareExchange { .. }
+    ));
+    assert!(matches!(
+        once_ordering,
+        AtomicOrderingPlan::CompareExchangeOnce { .. }
+    ));
+    assert_ne!(decisive_ordering, once_ordering);
+
     let permissions = [
         AtomicPermissions {
             compare_exchange: true,

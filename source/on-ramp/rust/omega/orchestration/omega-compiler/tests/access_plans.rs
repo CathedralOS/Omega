@@ -13,12 +13,12 @@ use omega_compiler::{
 use omega_layout::{DataShape, build_layout_plan};
 use omega_target::NativeTarget;
 use psi_access_plans::{
-    AccessExposure, AtomicCapability, AtomicPermissions, AtomicTransferRule, BoundaryReach,
-    EffectiveSupplyKind, ExternalCapability, ExternalRead, ExternalReadBehavior, FieldAccess,
-    ObservationModel, PlacedOccurrenceId, PlacementAdmissionId, ResourceProfile,
-    ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion, SchemaCorrespondenceProviderId,
-    SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant, StableCapability,
-    StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
+    AccessExposure, AccessOperation, AtomicAccessOperation, AtomicCapability, AtomicPermissions,
+    AtomicTransferRule, BoundaryReach, EffectiveSupplyKind, ExternalCapability, ExternalRead,
+    ExternalReadBehavior, FieldAccess, ObservationModel, PlacedOccurrenceId, PlacementAdmissionId,
+    ResourceProfile, ResourceProfileGrant, ResourceProfileReceiptId, ResourceRegion,
+    SchemaCorrespondenceProviderId, SchemaCorrespondenceSourceId, SchemaDeviceCorrespondenceGrant,
+    StableCapability, StableDeviceInstanceId, TransferRule, admit_owned_placement, admit_placement,
     adopt_owned_atomic, adopt_owned_stable, bind_schema_correspondence_to_placement, place,
 };
 use psi_core::PackageKeyIdentity;
@@ -29,6 +29,7 @@ use psi_extents::{
 };
 use psi_language_core::atomic::{
     AtomicObservingCompareExchangeOperation, AtomicObservingCompareExchangeResultShape,
+    AtomicOrderingPlan, MemoryOrdering,
 };
 use psi_language_semantics::Multiplicity;
 
@@ -1406,6 +1407,86 @@ data Main {}
         field.atomic_resident.is_none(),
         "source-formable try-only access retains no observing or selected-encoding authority"
     );
+}
+
+#[test]
+fn compiler_atomic_compare_exchange_axes_retain_distinct_ordering_and_authorization() {
+    let decisive = AtomicAccessOperation::CompareExchange {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    };
+    let once = AtomicAccessOperation::CompareExchangeOnce {
+        success: MemoryOrdering::ReceivePublish,
+        failure: MemoryOrdering::Receive,
+    };
+    assert_eq!(
+        decisive.ordering_plan(),
+        AtomicOrderingPlan::CompareExchange {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        }
+    );
+    assert_eq!(
+        once.ordering_plan(),
+        AtomicOrderingPlan::CompareExchangeOnce {
+            success: MemoryOrdering::ReceivePublish,
+            failure: MemoryOrdering::Receive,
+        }
+    );
+    assert_ne!(decisive.ordering_plan(), once.ordering_plan());
+
+    for (permission, admitted, rejected) in [
+        ("compare_exchange", decisive, once),
+        ("compare_exchange_once", once, decisive),
+    ] {
+        let source = POLICY_SOURCE
+            .replace(
+                &format!("{permission}: false"),
+                &format!("{permission}: true"),
+            )
+            .replace(
+                "data Main {}",
+                "machine retain(view: &Placed<UartPlacement, Registers>) {}\n\ndata Main {}",
+            );
+        let main = write_program(&format!("placed-atomic-ordering-{permission}"), &source);
+        let checked = compile_to_checked(&main, None)
+            .expect("one observing compare-exchange permission should compile");
+        let view = checked
+            .typed
+            .placed_view_plans
+            .iter()
+            .find(|view| view.policy_name == "UartPlacement")
+            .expect("compiler-derived UartPlacement plan");
+        let entry = view
+            .placement
+            .access()
+            .plan()
+            .entries()
+            .iter()
+            .find(|entry| entry.field() == "counter")
+            .expect("compiler-derived Atomic counter entry");
+
+        view.placement
+            .access()
+            .authorize(
+                entry.key(),
+                psi_access_plans::BorrowPolarity::Shared,
+                psi_access_plans::BorrowPolarity::Shared,
+                AccessOperation::Atomic(admitted),
+            )
+            .expect("the exact authored compare-exchange axis should remain authorized");
+        let diagnostic = view
+            .placement
+            .access()
+            .authorize(
+                entry.key(),
+                psi_access_plans::BorrowPolarity::Shared,
+                psi_access_plans::BorrowPolarity::Shared,
+                AccessOperation::Atomic(rejected),
+            )
+            .expect_err("the sibling compare-exchange axis must not substitute");
+        assert!(diagnostic.0.contains("does not permit"), "{diagnostic}");
+    }
 }
 
 #[test]

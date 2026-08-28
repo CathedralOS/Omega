@@ -687,6 +687,8 @@ mod tests {
                 },
                 arguments: HandleSpan::empty(),
                 evidence_arguments: Box::default(),
+                source_span: Default::default(),
+                authored_call_selection: None,
             })
     }
 

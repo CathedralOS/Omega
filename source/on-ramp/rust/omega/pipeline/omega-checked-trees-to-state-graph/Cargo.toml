@@ -17,6 +17,7 @@ omega-effects = { path = "../../representations/omega-effects" }
 psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-language-core = { path = "../../../psi/foundation/psi-language-core" }
 psi-language-semantics = { path = "../../../psi/foundation/psi-language-semantics" }
 psi-numerics = { path = "../../../psi/foundation/psi-numerics" }
 
