@@ -2094,12 +2094,15 @@ Remaining:
   machine-program crates still survive below test fixtures and the historical
   program-storage wrapper implementation. They are not an alternate compiler
   route, but they remain duplicate vocabulary and must be removed or replaced
-  by views derived from Terminal Psi. Separately, the selected-instruction
-  optimizer is deliberately not a production fork: nonempty selections reject
-  before native lowering until that path covers baseline frame/exit, executable
-  image, and publication validation. When it is ready, it replaces the current
-  bounded direct assignment inside the one realization route; it does not
-  become a second route.
+  by views derived from Terminal Psi. Optimization is now a mandatory stage of
+  that route. An empty selected set is the identity transformation: native
+  realization still reconstructs the verified optimizer unit, runs its bounded
+  pass manager, and projects the resulting abstract plan before target
+  lowering. Nonempty selections remain rejected until the selected-instruction
+  continuation covers baseline frame/exit, executable image, and publication
+  validation. Work in progress on that continuation must replace the current
+  bounded direct assignment inside this route; it must not restore its former
+  private production fork.
 
   Restore the original mechanical split before doing further redesign:
 

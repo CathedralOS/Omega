@@ -363,17 +363,21 @@ impl ExplicitOptimizationRequest {
     }
 }
 
-/// Compiler-owned bounded baseline for the experimental optimized lane.
-/// Every value is a per-pass-group ceiling; this is not a source-visible
+/// Compiler-owned bounded request for the canonical optimization stage.
+/// Empty selections are the identity transformation: they still reconstruct,
+/// validate, and project the optimizer unit instead of bypassing the stage.
+/// Every budget value is a per-pass-group ceiling; this is not a source-visible
 /// optimization level or an intensity preset.
 pub fn compiler_baseline_request_v1(
     selections: &OptimizationSelections,
-) -> Result<ExplicitOptimizationRequest, EmptyOptimizationSelections> {
-    ExplicitOptimizationRequest::new(
-        selections.clone(),
-        OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000)
-            .expect("compiler baseline optimizer ceilings are nonzero"),
-    )
+) -> ExplicitOptimizationRequest {
+    ExplicitOptimizationRequest {
+        selections: selections.clone(),
+        budget_per_pass: OptimizationWorkBudget::new(
+            1_000_000, 100_000, 100_000, 100_000, 10_000,
+        )
+        .expect("compiler baseline optimizer ceilings are nonzero"),
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -2629,6 +2633,26 @@ mod tests {
             ExplicitOptimizationRequest::new(OptimizationSelections::default(), budget()),
             Err(EmptyOptimizationSelections)
         );
+    }
+
+    #[test]
+    fn compiler_identity_request_retains_the_canonical_optimizer_stage() {
+        let request = compiler_baseline_request_v1(&OptimizationSelections::default());
+        assert!(request.selections().is_empty());
+        assert_eq!(
+            request.budget_per_pass(),
+            OptimizationWorkBudget::new(1_000_000, 100_000, 100_000, 100_000, 10_000).unwrap()
+        );
+
+        let (semantic, proof) = artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request,
+        )
+        .expect("identity optimization must replay and project the verified unit");
+        assert!(optimized.selections().is_empty());
     }
 
     #[test]

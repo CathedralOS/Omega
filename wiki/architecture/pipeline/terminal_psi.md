@@ -25,7 +25,8 @@ Psi
 
 Omega
     terminal Psi
-    -> abstract operations -> target operations
+    -> verified optimizer unit -> optimized abstract operations
+    -> target operations
     -> bounded physical assignment -> machine code -> object -> executable image
 ```
 
@@ -34,15 +35,17 @@ is a subsequent product operation that stages and replays the retained image
 bytes; installation is a separate authority-bearing operation again. Neither
 publication nor installation is a compiler fork.
 
-The bounded assignment stage is the one acknowledged transitional defect in
-this chain. It cycles scratch homes for the small supported roster. The durable
-replacement is one in-line continuation—target legalization, selected virtual
-instructions, liveness/allocation, physical assignment, then emission—not a
-second backend. The incomplete selected-instruction implementation is excluded
-from production until it can replace that stage while preserving ordinary
-frame/exit, object/image, and publication validation. A request that selects it
-today rejects before native lowering; compilation never falls back or runs an
-alternate route.
+Optimization is not optional control flow. An empty selected set is its identity
+transformation: every native compile still reconstructs and validates the
+verified optimizer unit, runs the bounded pass manager, and projects the result
+before target lowering. The bounded assignment stage after target operations is
+the one acknowledged transitional defect in this chain. It cycles scratch homes
+for the small supported roster. The durable replacement is one in-line
+continuation—target legalization, selected virtual instructions,
+liveness/allocation, physical assignment, then emission—not a second backend.
+Nonempty selections reject until that continuation preserves ordinary
+frame/exit, object/image, and publication validation. Compilation never falls
+back or runs an alternate route.
 
 The Psi reference-interpreter entry and Omega abstract-operation entry accept
 canonical semantic and proof sections plus an explicit admission profile,

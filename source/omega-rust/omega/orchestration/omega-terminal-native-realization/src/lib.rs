@@ -19,10 +19,7 @@ pub use optimized_semantic_wrapper_object::*;
 use std::collections::BTreeSet;
 
 use omega_effects::provider_plan::ProviderBinding;
-use omega_terminal_abstract_operations_to_target_operations::{
-    AdmittedTerminalBoundarySettlement, lower_to_target_operations_with_provider_executions,
-    lower_to_target_operations_with_provider_executions_and_installation,
-};
+use omega_terminal_abstract_operations_to_target_operations::AdmittedTerminalBoundarySettlement;
 use omega_terminal_installation_evidence::TerminalProviderExecutionEvidence;
 pub use omega_terminal_native_artifact::{
     TerminalNativeArtifact, TerminalNativeArtifactParts, TerminalNativeProviderExecution,
@@ -419,12 +416,13 @@ pub fn realize_terminal_native_artifact(
         .map_err(|error| realization_error("canonical artifact replay", error))?;
     let semantic_bytes = terminal_artifact.semantic_bytes();
     let proof_bytes = terminal_artifact.proof_bytes();
-    let abstract_operations = omega_terminal_psi_to_abstract_operations::lower_artifact_sections(
-        semantic_bytes,
-        proof_bytes,
-        request.profile,
-    )
-    .map_err(|error| realization_error("verified artifact lowering", error))?;
+    let optimization_input =
+        omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            semantic_bytes,
+            proof_bytes,
+            request.profile,
+        )
+        .map_err(|error| realization_error("verified artifact lowering", error))?;
 
     let mut seen_requirements = BTreeSet::new();
     let mut admitted = Vec::with_capacity(request.settlements.len());
@@ -456,7 +454,8 @@ pub fn realize_terminal_native_artifact(
                 selected_plan.name
             ))]);
         }
-        let matching_boundaries = abstract_operations
+        let matching_boundaries = optimization_input
+            .plan()
             .boundary_machines
             .iter()
             .filter(|boundary| boundary.identity == requirement)
@@ -491,7 +490,7 @@ pub fn realize_terminal_native_artifact(
             ))
     });
 
-    let installation_plan = &abstract_operations;
+    let installation_plan = optimization_input.plan();
     let provider_installation = if installation_plan.provider_candidates.is_empty() {
         None
     } else {
@@ -518,23 +517,34 @@ pub fn realize_terminal_native_artifact(
         }
     };
 
-    let target_operations = match provider_installation.as_ref() {
-        Some(installation) => lower_to_target_operations_with_provider_executions_and_installation(
-            &abstract_operations,
-            request.target,
-            &admitted,
-            Some(installation),
-        ),
-        None => lower_to_target_operations_with_provider_executions(
-            &abstract_operations,
+    let optimization_request = omega_optimization_pipeline::compiler_baseline_request_v1(
+        request.optimization_selections,
+    );
+    let optimized = omega_optimization_pipeline::optimize_verified_terminal_input(
+        optimization_input,
+        optimization_request,
+    )
+    .map_err(|error| realization_error("canonical optimization", error))?;
+    let target_operations = match provider_installation {
+        Some(installation) => {
+            omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions_and_installation(
+                optimized,
+                request.target,
+                &admitted,
+                installation,
+            )
+        }
+        None => omega_lowering_optimizer::lower_optimized_to_target_operations_with_provider_executions(
+            optimized,
             request.target,
             &admitted,
         ),
     }
     .map_err(|error| realization_error("target operation lowering", error))?;
+    let target_operations = target_operations.target_operations();
     let assigned =
         omega_terminal_target_operations_to_assigned_target_operations::assign_registers(
-            &target_operations,
+            target_operations,
         )
         .map_err(|error| realization_error("register assignment", error))?;
     let machine_code = omega_terminal_machine_emission::emit_machine_code(&assigned)

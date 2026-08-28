@@ -640,8 +640,8 @@ opaque admitted installation behind a borrowed projection; downstream selected
 and physical carriers retain it transitively rather than copying its facts into
 a detachable side channel. This prevents an optimized consumer from obtaining
 either plan or an installed-provider projection by consuming and discarding its
-evidence. The ordinary bare-plan lowering API remains for the empty-selection
-compatibility lane.
+evidence. Native compilation always enters this carrier; an empty selection is
+the identity optimization and no longer selects a bare-plan compatibility lane.
 
 A third opaque `StagedOptimizedAssignedOperations` carrier retains the complete
 optimized-target carrier beside the output of the current bounded
@@ -657,7 +657,8 @@ interference, register-unit conflicts, fixed operands, spills, or frame slots,
 and grants no machine-emission or publication authority.
 
 The compiler must never construct an optimizer branch beside native
-realization. Empty selection currently takes the one publishable bounded
+realization. Empty selection traverses the canonical optimizer as an identity
+transformation and then continues through the one publishable bounded
 assignment route. Nonempty selection rejects before target production because
 `omega-optimization-pipeline` deliberately stops before complete baseline
 frame/exit validation, machine emission, executable-image construction, and
@@ -669,8 +670,7 @@ assignment inside the same realization route; it does not become a second
 compiler lane and never falls back after partial execution.
 
 The verified optimizer input is required, not an optional evidence attachment
-to a bare plan. Compatibility lowering has a separate bare-plan entry; the
-verified carrier exposes no consuming operation that detaches its plan from the
+to a bare plan. The verified carrier exposes no consuming operation that detaches its plan from the
 context, and no optimizer constructor accepts the reduced value. Keeping the
 complete verified Terminal module beside the lowering seed ensures that later
 unit builders can derive call obligations, structural place paths, edge
