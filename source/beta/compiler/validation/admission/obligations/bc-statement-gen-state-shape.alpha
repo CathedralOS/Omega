@@ -1,8 +1,8 @@
 ; Exact source/artifact shape for gen_state (procedure65).
+; The canonical procedure inventory owns its total block span and partition.
 
 statement_gen_state_require_shape:
         call statement_gen_state_require_proc
-        call statement_gen_state_require_blocks
         call statement_gen_state_require_events
         call statement_gen_state_require_data
         call statement_gen_state_require_censuses
@@ -16,17 +16,6 @@ statement_gen_state_require_proc:
         imm r23, 24
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-statement_gen_state_require_blocks:
-        imm r20, 317
-        imm r21, 65
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 317
-        imm r21, 317
-        imm r22, 65
-        call exact_require_proc_blocks
-        ret
 
 ; r21=block,r22=arity,r23=target procedure identity.
 statement_gen_state_require_call:

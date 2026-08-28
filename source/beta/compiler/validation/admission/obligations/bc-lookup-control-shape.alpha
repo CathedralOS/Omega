@@ -7,27 +7,9 @@ lookup_require_shape:
         imm r23, 24                   ; exact proc36 frame bytes
         call exact_require_proc_frame_identity
 
-lookup_shape_blocks:
-        imm r20, 179
-        imm r21, 36
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 180
-        imm r21, 36
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 181
-        imm r21, 36
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 182
-        imm r21, 36
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 179
-        imm r21, 182
-        imm r22, 36
-        call exact_require_proc_blocks
+lookup_shape_graph:
+        ; The canonical procedure inventory owns proc36's total block span and
+        ; entry/state partition. The identities below retain its semantic graph.
         call lookup_require_transitions
         call lookup_require_events
         ret

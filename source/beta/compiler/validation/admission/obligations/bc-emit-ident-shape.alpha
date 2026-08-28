@@ -1,6 +1,7 @@
 ; Exact source/artifact shape for emit_ident_at(off,len).
 ;
-; This module owns procedure 45's three blocks, two transitions, direct output,
+; The canonical procedure inventory owns procedure 45's total block span and
+; entry/state partition. This module owns its two transitions, direct output,
 ; return/epilogues, three-slot frame, local and indexed-source accesses,
 ; expression primitives/pushes, and exhaustive decoded/table censuses. The
 ; adjacent semantic module owns the bounded loop and exact source-slice trace.
@@ -12,23 +13,6 @@ emit_ident_require_shape:
         imm r23, 32
         call exact_require_proc_frame_identity
 
-emit_ident_shape_blocks:
-        imm r20, 214
-        imm r21, 45
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 215
-        imm r21, 45
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 216
-        imm r21, 45
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 214
-        imm r21, 216
-        imm r22, 45
-        call exact_require_proc_blocks
         call emit_ident_require_transitions
         call emit_ident_require_events
         call emit_ident_require_locals

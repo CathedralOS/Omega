@@ -1,9 +1,9 @@
 ; Exact source/artifact shape for emit_epilogue (procedure46).
 ; Callable only: semantic publication is owned by the companion rules module.
+; The canonical procedure inventory owns its total block span and partition.
 
 statement_emit_epilogue_require_shape:
         call statement_emit_epilogue_require_proc
-        call statement_emit_epilogue_require_block
         call statement_emit_epilogue_require_events
         call statement_emit_epilogue_require_censuses
         call statement_emit_epilogue_require_decoded
@@ -16,17 +16,6 @@ statement_emit_epilogue_require_proc:
         imm r23, 8
         call exact_require_proc_frame_identity
         jmp exact_shape_ok
-
-statement_emit_epilogue_require_block:
-        imm r20, 217
-        imm r21, 46
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 217
-        imm r21, 217
-        imm r22, 46
-        call exact_require_proc_blocks
-        ret
 
 ; Pin an emit row by its literal semantic key and rejoin its checked call PC.
 ; r22=literal,r23=length.

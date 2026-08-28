@@ -14,7 +14,7 @@
 ; after 8*len+3 instructions, appends exactly M_entry[p:p+len], returns to the
 ; saved continuation with r0=p+len and r1=r3=0, and preserves r4..r15.
 ;
-; This phase also scans all 613 exact source-event rows and instantiates the
+; This phase also scans every validated live exact source-event row and instantiates the
 ; conditional summary at every kind-four emit macro.  Earlier effect custody
 ; already proves each row's decoded source literal equals its jump-skipped tape
 ; slice; this phase rejoins its p/len/call equations, proves the interval is in
@@ -355,12 +355,13 @@ write_str_instantiate_emits:
         imm r20, 525816
         imm r21, 1465074514
         call write_str_require_cell
+        imm r1, 524456                 ; validated live source-event count
+        load r30, r1
         imm r10, 0
         imm r11, 0                    ; kind-four rows
         imm r12, 0                    ; decoded bytes
 write_str_emit_loop:
-        imm r1, 613
-        jlt r10, r1, write_str_emit_row
+        jlt r10, r30, write_str_emit_row
         imm r1, 113
         jeq r11, r1, write_str_emit_byte_count
         jmp reject

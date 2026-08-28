@@ -95,7 +95,7 @@ The Psi product role owns this stage; its hosted source belongs under
 - The retired `capability { entry ... }` host scaffold, `library { entry ... }`
   import block, explicit machine-member `entry`, and trailing
   `boundary host` / `boundary Name` clauses are not accepted grammar. The
-  migration on-ramps must diagnose them rather than preserve syntax nodes.
+  migration diagnostics must reject them rather than preserve syntax nodes.
 - `parser/diagnostics.rs` owns parse-time grammar diagnostics.
 - `parser/tests.rs` owns broad parser coverage; tests should not live in the entrypoint file.
 

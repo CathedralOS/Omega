@@ -491,7 +491,7 @@ counter_require_selected_rows:
 
 ; Independently count every fixed store to the four protected globals.  The
 ; earlier address-class phase proves that fixed-address cells are meaningful
-; and that all 95 memory rows are classified exactly once.
+; and that every validated live memory row is classified exactly once.
 counter_count_protected_writers:
         imm r10, 0                     ; memory row
         imm r11, 0                     ; NLOC

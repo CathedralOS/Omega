@@ -1,9 +1,10 @@
 ; Exact source/artifact shape for parse_number() procedure33.
 ;
-; This module owns the three blocks, digit-loop split, two cbyte calls,
-; is_digit/adv calls, explicit/synthetic returns, one local slot, exact
-; wrapping arithmetic lowering, stack pushes, and exhaustive decoded/table
-; censuses. The adjacent meaning module owns the digit-slice induction.
+; The canonical procedure inventory owns procedure 33's total block span and
+; entry/state partition. This module owns the digit-loop split, two cbyte calls,
+; is_digit/adv calls, explicit/synthetic returns, one local slot, exact wrapping
+; arithmetic lowering, stack pushes, and exhaustive decoded/table censuses. The
+; adjacent meaning module owns the digit-slice induction.
 
 parse_number_require_shape:
         imm r20, 33
@@ -12,23 +13,7 @@ parse_number_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
-parse_number_shape_blocks:
-        imm r20, 167
-        imm r21, 33
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 168
-        imm r21, 33
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 169
-        imm r21, 33
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 167
-        imm r21, 169
-        imm r22, 33
-        call exact_require_proc_blocks
+parse_number_shape_graph:
         call parse_number_require_transitions
         call parse_number_require_events
         call parse_number_require_locals
