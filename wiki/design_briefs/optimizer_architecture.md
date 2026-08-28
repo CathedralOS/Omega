@@ -1737,17 +1737,19 @@ custody, bytes, displacement, and decoded effects. It still owns only separate
 function-relative fragments—not section placement, symbols, object relocations,
 executable bytes, or publication.
 
-Selected-lowering orchestration seals those products in a structured v2
-realization manifest. The record joins the full named build suite, its exact
-selected-lowering projection and completion identity, the pre-physical and
-post-allocation manifests, final selected CFG, pre- and post-allocation machine
-roots, pre-layout encoding, resolved layout, exact target, named layout policy,
-and a validated whole-function exit-contract identity. It derives function,
-block, instruction, byte, and resolved-conditional-branch counts from the
-validated layout. A strict binary codec recomputes its domain-separated
-identity and rejects old versions, unknown vocabulary, identity changes,
-truncation, and trailing bytes; custody replay reconstructs every joined root
-and both encoded artifacts.
+Function-relative orchestration seals those products in a structured v3
+realization manifest. Separate custody routes admit ordinary homes when only a
+function-relative family is selected and selected-lowering homes when that
+phase also ran. The record joins the full named build suite, both exact phase
+projections, optional selected-lowering completion, pre-physical and post-
+allocation manifests, final selected CFG, pre- and post-allocation machine
+roots, pre-layout encoding, baseline and final layouts, optional layout-
+transformation receipt, exact target, named layout policy, and a validated
+whole-function exit-contract identity. It derives function, block, instruction,
+byte, and resolved-conditional-branch counts from the final validated layout. A
+strict binary codec recomputes its domain-separated identity and rejects old
+versions, unknown vocabulary, identity changes, truncation, and trailing bytes;
+custody replay reconstructs every joined root and both encoded artifacts.
 
 The current exit contract is an exact named frameless-leaf policy, not a broad
 backend mode. Target-owned resolution selects System V AMD64, Microsoft x64,
@@ -1789,12 +1791,22 @@ work accounting, and the terminal fixed point. The rule rejects non-x86 targets
 and never widens a branch.
 
 The exact rule name is present in the v3 build vocabulary under the separate
-function-relative-layout phase and remains default-off. That vocabulary does
-not yet grant execution authority: explicitly selecting it currently fails
-closed without installing output. Physical orchestration must next support a
-branch-only selected suite, retain both baseline and relaxed layout identities,
-and join the relaxation receipt into the realization manifest and independent
-whole-function exit replay before the compiler gate can be removed.
+function-relative-layout phase and remains default-off. Verified physical
+orchestration projects that phase separately from selected lowering. A
+branch-only suite takes frameless legality through ordinary register homes and
+records an absent selected-lowering completion; a combined suite retains both
+positive completion receipts. The strict v3 realization manifest binds the
+full suite, both phase projections, baseline and final layout identities, the
+optional relaxation identity, final statistics, and the final-layout exit
+contract. Whole-function exit identity v2 names either the required near-layout
+custody or the exact independently replayed relaxation receipt. Baseline exit
+validation remains strict and cannot admit short bytes by accident.
+
+The build vocabulary still does not grant native publication authority:
+explicit selection currently fails closed without installing output. The next
+join is at the clean realization consumer/native emission boundary, where the
+compiler gate can be removed only together with selected-build emitted-byte and
+publication tests.
 
 Before the legacy assigned-operation emitter can be bypassed, the clean lane
 still needs general CFG layout/non-fallthrough terminator bundles, framed and
@@ -1973,19 +1985,22 @@ authored `Build` shapes suppress it, duplicate requests reject, and dependency
 build machines cannot set the root request. The optimization pipeline derives
 one cumulative carrier from its opaque staged result, joining the complete
 validated pre-physical and post-allocation records and, for the selected-
-lowering route, the function-relative realization record. Suppression returns
+lowering or function-relative-layout route, the function-relative realization
+record. Suppression returns
 no text from that same carrier after all decisions, so it cannot affect a
 candidate, register home, layout, or emitted byte.
 
 The current Rust slice implements structured/text projections through the
-validated abstract-plan and strict spill-free register-home boundaries, plus a
-selected-lowering-only function-relative/whole-exit realization projection.
+validated abstract-plan and strict spill-free register-home boundaries, plus
+direct-layout and selected-lowering function-relative/whole-exit realization
+projections.
 The pre-physical manifest's versioned standalone codec serializes that whole
 earlier record and strict nested codecs; the post-allocation record adds
 truthful home statistics while marking frame, emission, and publication
-unavailable. The function-relative v2 record then binds suite completion to the
-validated final selected CFG, machine effects, post-allocation machine,
-canonical encoding, named layout policy, resolved fragments, exact code-size
+unavailable. The function-relative v3 record then binds exact phase projections
+and optional completions to the validated final selected CFG, machine effects,
+post-allocation machine, canonical encoding, baseline/final layout roots,
+optional layout-transform receipt, named layout policy, final code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
 unavailable. All three records have strict self-authenticating codecs and are
