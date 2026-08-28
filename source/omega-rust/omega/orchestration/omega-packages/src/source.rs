@@ -2,7 +2,11 @@ use crate::identity::{
     GitObjectIdAlgorithm, GitTransport, IdentityError, SourceContentDigest, SourceLineage,
 };
 use crate::record_file::{RecordFileLimits, RecordFileRoot};
-use cap_std::{ambient_authority, fs::Dir as CapabilityDirectory};
+use cap_fs_ext::{DirExt, FollowSymlinks, OpenOptionsFollowExt};
+use cap_std::{
+    ambient_authority,
+    fs::{Dir as CapabilityDirectory, OpenOptions as CapabilityOpenOptions},
+};
 use command_group::{CommandGroup, GroupChild};
 use sha1_checked::Sha1 as CheckedSha1;
 use sha2::{Digest, Sha256};
@@ -3612,8 +3616,8 @@ struct SourceEntry {
 
 #[derive(Debug)]
 enum SourceEntryKind {
-    Directory { path: PathBuf },
-    File { path: PathBuf },
+    Directory,
+    File { bytes: Vec<u8>, executable: bool },
     Symlink { target_bytes: Vec<u8> },
 }
 
@@ -3664,16 +3668,80 @@ fn capture_local_source(
         return Err(SourceResolveError::NotDirectory { path: root });
     }
 
+    let root_directory = open_canonical_source_root(&root)?;
+    capture_local_source_from_open_root(root, root_directory, limits, policy)
+}
+
+fn open_canonical_source_root(
+    canonical_root: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    use std::path::Component;
+
+    let mut anchor = PathBuf::new();
+    let mut relative_components = Vec::new();
+    for component in canonical_root.components() {
+        match component {
+            Component::Prefix(prefix) => anchor.push(prefix.as_os_str()),
+            Component::RootDir => anchor.push(component.as_os_str()),
+            Component::CurDir => {}
+            Component::Normal(name) => relative_components.push(name.to_os_string()),
+            Component::ParentDir => {
+                return Err(io_error(
+                    canonical_root,
+                    std::io::Error::new(
+                        std::io::ErrorKind::InvalidInput,
+                        "canonical source root contains a parent component",
+                    ),
+                ));
+            }
+        }
+    }
+    if anchor.as_os_str().is_empty() {
+        return Err(io_error(
+            canonical_root,
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "canonical source root is not absolute",
+            ),
+        ));
+    }
+
+    let mut directory = CapabilityDirectory::open_ambient_dir(&anchor, ambient_authority())
+        .map_err(|error| io_error(&anchor, error))?;
+    let mut display_path = anchor;
+    for component in relative_components {
+        display_path.push(&component);
+        directory = open_captured_directory(&directory, &component, &display_path)?;
+    }
+    let metadata = directory
+        .dir_metadata()
+        .map_err(|error| io_error(canonical_root, error))?;
+    if !metadata.is_dir() {
+        return Err(SourceResolveError::NotDirectory {
+            path: canonical_root.to_path_buf(),
+        });
+    }
+    Ok(directory)
+}
+
+fn capture_local_source_from_open_root(
+    root: PathBuf,
+    root_directory: CapabilityDirectory,
+    limits: LocalSourceLimits,
+    policy: SourceTreePolicy,
+) -> Result<CapturedLocalTree, SourceResolveError> {
     let mut source_entries = Vec::new();
-    let mut visited_dirs = BTreeSet::new();
+    let mut captured_file_bytes = 0_u64;
     visit_directory(
+        &root_directory,
+        &root_directory,
         &root,
         PathBuf::new(),
         0,
         &root,
         limits,
         policy,
-        &mut visited_dirs,
+        &mut captured_file_bytes,
         &mut source_entries,
     )?;
     source_entries.sort_by(|left, right| left.relative_bytes.cmp(&right.relative_bytes));
@@ -3688,22 +3756,11 @@ fn capture_local_source(
         })?;
     for entry in source_entries {
         let kind = match entry.kind {
-            SourceEntryKind::Directory { path } => {
-                let metadata =
-                    std::fs::symlink_metadata(&path).map_err(|error| io_error(&path, error))?;
-                if metadata.file_type().is_symlink() || !metadata.is_dir() {
-                    return Err(SourceResolveError::UnsupportedFileType { path });
-                }
+            SourceEntryKind::Directory => {
                 identity.add_directory(&entry.relative_bytes, CANONICAL_DIRECTORY_MODE);
                 CapturedLocalEntryKind::Directory
             }
-            SourceEntryKind::File { path } => {
-                let remaining = limits.max_bytes.checked_sub(identity.byte_count).ok_or(
-                    SourceResolveError::TooManyBytes {
-                        limit: limits.max_bytes,
-                    },
-                )?;
-                let (bytes, executable) = read_file_bounded(&path, remaining, limits.max_bytes)?;
+            SourceEntryKind::File { bytes, executable } => {
                 identity.add_file(&entry.relative_bytes, executable, &bytes)?;
                 file_count += 1;
                 CapturedLocalEntryKind::File { bytes, executable }
@@ -3952,32 +4009,22 @@ fn same_source_identity(left: &ResolvedLocalSource, right: &ResolvedLocalSource)
 }
 
 fn visit_directory(
-    real_dir: &Path,
+    root_directory: &CapabilityDirectory,
+    directory: &CapabilityDirectory,
+    display_dir: &Path,
     logical_dir: PathBuf,
     depth: usize,
     root: &Path,
     limits: LocalSourceLimits,
     policy: SourceTreePolicy,
-    visited_dirs: &mut BTreeSet<PathBuf>,
+    captured_file_bytes: &mut u64,
     entries: &mut Vec<SourceEntry>,
 ) -> Result<(), SourceResolveError> {
     if depth > limits.max_depth {
         return Err(SourceResolveError::TooDeep {
-            path: real_dir.to_path_buf(),
+            path: display_dir.to_path_buf(),
             limit: limits.max_depth,
         });
-    }
-    let canonical_dir = real_dir
-        .canonicalize()
-        .map_err(|error| io_error(real_dir, error))?;
-    if !canonical_dir.starts_with(root) {
-        return Err(SourceResolveError::SymlinkEscapesRoot {
-            link: real_dir.to_path_buf(),
-            target: canonical_dir,
-        });
-    }
-    if !visited_dirs.insert(canonical_dir) {
-        return Ok(());
     }
 
     let remaining_entries = limits.max_files.saturating_sub(entries.len());
@@ -3987,31 +4034,51 @@ fn visit_directory(
         SourceTreePolicy::LocalPackage => 1,
     };
     let directory_listing_limit = remaining_entries.saturating_add(excluded_entry_allowance);
-    let mut directory_entries = Vec::new();
-    for entry in std::fs::read_dir(real_dir).map_err(|error| io_error(real_dir, error))? {
-        if directory_entries.len() >= directory_listing_limit {
+    let mut entry_names = Vec::new();
+    for entry in directory
+        .entries()
+        .map_err(|error| io_error(display_dir, error))?
+    {
+        if entry_names.len() >= directory_listing_limit {
             return Err(SourceResolveError::TooManyFiles {
                 limit: limits.max_files,
             });
         }
-        directory_entries.push(entry.map_err(|error| io_error(real_dir, error))?);
+        entry_names.push(
+            entry
+                .map_err(|error| io_error(display_dir, error))?
+                .file_name(),
+        );
     }
-    directory_entries.sort_by_key(|entry| entry.file_name());
+    entry_names.sort();
 
-    for entry in directory_entries {
-        let name = entry.file_name();
+    for name in entry_names {
         if policy == SourceTreePolicy::LocalPackage
             && (name == ".git"
                 || (logical_dir.as_os_str().is_empty() && name == DEFAULT_BUILD_OUTPUT_DIRECTORY))
         {
             continue;
         }
-        let real_path = entry.path();
+        if entries.len() >= limits.max_files {
+            return Err(SourceResolveError::TooManyFiles {
+                limit: limits.max_files,
+            });
+        }
+        let display_path = display_dir.join(&name);
         let logical_path = logical_dir.join(&name);
-        let metadata =
-            std::fs::symlink_metadata(&real_path).map_err(|error| io_error(&real_path, error))?;
+        let metadata = directory
+            .symlink_metadata(&name)
+            .map_err(|error| io_error(&display_path, error))?;
         if metadata.file_type().is_symlink() {
-            let raw_target = read_and_validate_symlink_target(root, &real_path, policy)?;
+            let raw_target = read_and_validate_symlink_target(
+                root_directory,
+                root,
+                directory,
+                &logical_dir,
+                &name,
+                &display_path,
+                policy,
+            )?;
             push_entry(
                 entries,
                 logical_path,
@@ -4021,40 +4088,62 @@ fn visit_directory(
                 limits,
             )?;
         } else if metadata.is_dir() {
+            let child = open_captured_directory(directory, &name, &display_path)?;
             push_entry(
                 entries,
                 logical_path.clone(),
-                SourceEntryKind::Directory {
-                    path: real_path.clone(),
-                },
+                SourceEntryKind::Directory,
                 limits,
             )?;
             visit_directory(
-                &real_path,
+                root_directory,
+                &child,
+                &display_path,
                 logical_path,
                 depth + 1,
                 root,
                 limits,
                 policy,
-                visited_dirs,
+                captured_file_bytes,
                 entries,
             )?;
         } else if metadata.is_file() {
+            let remaining = limits.max_bytes.checked_sub(*captured_file_bytes).ok_or(
+                SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                },
+            )?;
+            let (bytes, executable) = read_capability_file_bounded(
+                directory,
+                &name,
+                &display_path,
+                remaining,
+                limits.max_bytes,
+            )?;
+            *captured_file_bytes = captured_file_bytes.checked_add(bytes.len() as u64).ok_or(
+                SourceResolveError::TooManyBytes {
+                    limit: limits.max_bytes,
+                },
+            )?;
             push_entry(
                 entries,
                 logical_path,
-                SourceEntryKind::File { path: real_path },
+                SourceEntryKind::File { bytes, executable },
                 limits,
             )?;
         } else {
-            return Err(SourceResolveError::UnsupportedFileType { path: real_path });
+            return Err(SourceResolveError::UnsupportedFileType { path: display_path });
         }
     }
     Ok(())
 }
 
 fn read_and_validate_symlink_target(
+    root_directory: &CapabilityDirectory,
     root: &Path,
+    directory: &CapabilityDirectory,
+    logical_directory: &Path,
+    name: &OsStr,
     link: &Path,
     policy: SourceTreePolicy,
 ) -> Result<PathBuf, SourceResolveError> {
@@ -4062,26 +4151,23 @@ fn read_and_validate_symlink_target(
     // root, and rejects targets under paths excluded from that package view. Exact resolver-owned
     // materializations have no exclusions. Target contents are visited independently through the
     // ordinary tree walk rather than dereferenced through the link.
-    let raw_target = std::fs::read_link(link).map_err(|error| io_error(link, error))?;
-    let absolute_target = if raw_target.is_absolute() {
-        raw_target.clone()
-    } else {
-        link.parent()
-            .unwrap_or_else(|| Path::new("."))
-            .join(&raw_target)
-    };
-    let target = absolute_target
-        .canonicalize()
-        .map_err(|error| io_error(&absolute_target, error))?;
-    if !target.starts_with(root) {
+    let raw_target = directory
+        .read_link_contents(name)
+        .map_err(|error| io_error(link, error))?;
+    if raw_target.is_absolute() {
         return Err(SourceResolveError::SymlinkEscapesRoot {
             link: link.to_path_buf(),
-            target,
+            target: raw_target,
         });
     }
-    let relative_target = target
-        .strip_prefix(root)
-        .expect("root containment was checked above");
+    let target_request = logical_directory.join(&raw_target);
+    let target_display = root.join(&target_request);
+    let relative_target = root_directory.canonicalize(&target_request).map_err(|_| {
+        SourceResolveError::SymlinkEscapesRoot {
+            link: link.to_path_buf(),
+            target: target_display,
+        }
+    })?;
     if policy == SourceTreePolicy::LocalPackage
         && relative_target
             .components()
@@ -4089,7 +4175,7 @@ fn read_and_validate_symlink_target(
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedMetadata {
             link: link.to_path_buf(),
-            target,
+            target: root.join(&relative_target),
         });
     }
     if policy == SourceTreePolicy::LocalPackage
@@ -4100,7 +4186,7 @@ fn read_and_validate_symlink_target(
     {
         return Err(SourceResolveError::SymlinkTargetsExcludedBuildOutput {
             link: link.to_path_buf(),
-            target,
+            target: root.join(&relative_target),
         });
     }
     Ok(raw_target)
@@ -4125,16 +4211,43 @@ fn push_entry(
     Ok(())
 }
 
-fn read_file_bounded(
-    path: &Path,
+fn open_captured_directory(
+    directory: &CapabilityDirectory,
+    name: &OsStr,
+    display_path: &Path,
+) -> Result<CapabilityDirectory, SourceResolveError> {
+    let child = directory
+        .open_dir_nofollow(name)
+        .map_err(|error| io_error(display_path, error))?;
+    let metadata = child
+        .dir_metadata()
+        .map_err(|error| io_error(display_path, error))?;
+    if !metadata.is_dir() {
+        return Err(SourceResolveError::UnsupportedFileType {
+            path: display_path.to_path_buf(),
+        });
+    }
+    Ok(child)
+}
+
+fn read_capability_file_bounded(
+    directory: &CapabilityDirectory,
+    name: &OsStr,
+    display_path: &Path,
     remaining: u64,
     limit: u64,
 ) -> Result<(Vec<u8>, bool), SourceResolveError> {
-    let mut file = std::fs::File::open(path).map_err(|error| io_error(path, error))?;
-    let metadata = file.metadata().map_err(|error| io_error(path, error))?;
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let mut file = directory
+        .open_with(name, &options)
+        .map_err(|error| io_error(display_path, error))?;
+    let metadata = file
+        .metadata()
+        .map_err(|error| io_error(display_path, error))?;
     if !metadata.is_file() {
         return Err(SourceResolveError::UnsupportedFileType {
-            path: path.to_path_buf(),
+            path: display_path.to_path_buf(),
         });
     }
     if metadata.len() > remaining {
@@ -4151,7 +4264,7 @@ fn read_file_bounded(
     loop {
         let count = file
             .read(&mut chunk)
-            .map_err(|error| io_error(path, error))?;
+            .map_err(|error| io_error(display_path, error))?;
         if count == 0 {
             break;
         }
@@ -4164,7 +4277,19 @@ fn read_file_bounded(
         bytes.extend_from_slice(&chunk[..count]);
     }
 
-    Ok((bytes, is_executable(&metadata)))
+    Ok((bytes, capability_metadata_is_executable(&metadata)))
+}
+
+#[cfg(unix)]
+fn capability_metadata_is_executable(metadata: &cap_std::fs::Metadata) -> bool {
+    use cap_fs_ext::OsMetadataExt;
+
+    metadata.mode() & 0o111 != 0
+}
+
+#[cfg(not(unix))]
+fn capability_metadata_is_executable(_metadata: &cap_std::fs::Metadata) -> bool {
+    false
 }
 
 #[cfg(unix)]
@@ -6409,6 +6534,129 @@ mod tests {
         let _ = std::fs::remove_dir_all(&root);
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_regular_leaf() {
+        let root = temp_root("nofollow-replaced-file");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("source.omg"), "classified bytes")
+            .expect("write classified source");
+        std::fs::write(root.join("replacement.omg"), "replacement bytes")
+            .expect("write replacement source");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+        assert!(
+            directory
+                .symlink_metadata("source.omg")
+                .expect("classify source leaf")
+                .is_file()
+        );
+
+        std::fs::remove_file(root.join("source.omg")).expect("remove classified source");
+        std::os::unix::fs::symlink("replacement.omg", root.join("source.omg"))
+            .expect("replace source with symlink");
+        let _error = read_capability_file_bounded(
+            &directory,
+            OsStr::new("source.omg"),
+            &canonical_root.join("source.omg"),
+            LocalSourceLimits::default().max_bytes,
+            LocalSourceLimits::default().max_bytes,
+        )
+        .expect_err("capture must not follow a replacement symlink");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_directory_leaf() {
+        let root = temp_root("nofollow-replaced-directory");
+        std::fs::create_dir_all(root.join("source")).expect("create classified directory");
+        std::fs::create_dir_all(root.join("replacement")).expect("create replacement directory");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+        assert!(
+            directory
+                .symlink_metadata("source")
+                .expect("classify source directory")
+                .is_dir()
+        );
+
+        std::fs::remove_dir(root.join("source")).expect("remove classified directory");
+        std::os::unix::fs::symlink("replacement", root.join("source"))
+            .expect("replace directory with symlink");
+        let _error = open_captured_directory(
+            &directory,
+            OsStr::new("source"),
+            &canonical_root.join("source"),
+        )
+        .expect_err("capture must not follow a replacement directory symlink");
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_does_not_follow_replaced_root_leaf() {
+        let root = temp_root("nofollow-replaced-root");
+        let retained = root.with_extension("retained");
+        let replacement = root.with_extension("replacement");
+        std::fs::create_dir_all(&root).expect("create classified source root");
+        std::fs::create_dir_all(&replacement).expect("create replacement source root");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+
+        std::fs::rename(&root, &retained).expect("relocate classified source root");
+        std::os::unix::fs::symlink(&replacement, &root).expect("replace source root with symlink");
+        let _error = open_canonical_source_root(&canonical_root)
+            .expect_err("root acquisition must not follow a replacement symlink");
+
+        std::fs::remove_file(&root).expect("remove replacement root symlink");
+        let _ = std::fs::remove_dir_all(&retained);
+        let _ = std::fs::remove_dir_all(&replacement);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_capture_remains_bound_to_open_root_after_path_replacement() {
+        let root = temp_root("open-root-replacement");
+        let retained = root.with_extension("retained");
+        std::fs::create_dir_all(&root).expect("create source root");
+        std::fs::write(root.join("main.omg"), "retained bytes").expect("write retained source");
+        let canonical_root = root.canonicalize().expect("canonicalize source root");
+        let directory = CapabilityDirectory::open_ambient_dir(&canonical_root, ambient_authority())
+            .expect("open source root capability");
+
+        std::fs::rename(&root, &retained).expect("relocate opened source root");
+        std::fs::create_dir_all(&root).expect("create replacement root");
+        std::fs::write(root.join("main.omg"), "replacement bytes")
+            .expect("write replacement source");
+
+        let captured = capture_local_source_from_open_root(
+            canonical_root,
+            directory,
+            LocalSourceLimits::default(),
+            SourceTreePolicy::LocalPackage,
+        )
+        .expect("capture through retained root capability");
+        let retained_identity = resolve_local_source(&retained, LocalSourceLimits::default())
+            .expect("resolve retained source");
+        let replacement_identity = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect("resolve replacement source");
+        assert_eq!(
+            captured.normalized.content_identity,
+            retained_identity.content_identity
+        );
+        assert_ne!(
+            captured.normalized.content_identity,
+            replacement_identity.content_identity
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
     #[test]
     fn local_source_identity_includes_empty_directory_paths() {
         let root = temp_root("empty-directory-identity");
@@ -6539,6 +6787,26 @@ mod tests {
 
     #[cfg(unix)]
     #[test]
+    fn local_source_rejects_absolute_symlink_targets_inside_the_live_root() {
+        let root = temp_root("absolute-symlink-target");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        let target = root.join("target.omg");
+        std::fs::write(&target, "target bytes").expect("write target");
+        std::os::unix::fs::symlink(&target, root.join("linked.omg"))
+            .expect("create absolute source symlink");
+
+        let error = resolve_local_source(&root, LocalSourceLimits::default())
+            .expect_err("absolute spelling cannot remain snapshot-rooted after publication");
+        assert!(matches!(
+            error,
+            SourceResolveError::SymlinkEscapesRoot { .. }
+        ));
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
     fn local_source_identity_hashes_internal_symlink_spelling_and_reachable_target() {
         let root = temp_root("symlink-identity");
         std::fs::create_dir_all(&root).expect("create source tree");
@@ -6640,6 +6908,28 @@ mod tests {
         .expect_err("file limit should reject");
 
         assert_eq!(error, SourceResolveError::TooManyFiles { limit: 0 });
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn local_entry_limit_rejects_excess_before_classification_or_read() {
+        let root = temp_root("entry-limit-before-read");
+        std::fs::create_dir_all(&root).expect("create source tree");
+        std::fs::write(root.join("a.omg"), "accepted entry").expect("write accepted source");
+        std::os::unix::fs::symlink("/outside-source-root", root.join("b.omg"))
+            .expect("create excess escaping link");
+
+        let error = resolve_local_source(
+            &root,
+            LocalSourceLimits {
+                max_files: 1,
+                ..LocalSourceLimits::default()
+            },
+        )
+        .expect_err("entry limit must reject before classifying the excess leaf");
+        assert_eq!(error, SourceResolveError::TooManyFiles { limit: 1 });
 
         let _ = std::fs::remove_dir_all(&root);
     }
