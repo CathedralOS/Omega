@@ -2096,13 +2096,29 @@ dependency.
   rejects. The baseline log remains the identity-bundle authority, proving that
   merely recording this surface changes no choice or executable output. This
   closes the schema for current Psi choices; allocation, layout, and machine
-  policy schemas remain open. External action replay is the separate next task.
+  policy schemas remain open.
 
 - **OPT-DECISION-REPLAY.** Replay a canonical external decision log.
 
   Acceptance: mismatched source/selection/target/rule/cost-model identity,
   missing decisions, duplicate decisions, or illegal actions reject. Replayed
   candidates still pass every normal validator.
+
+  Current slice: public Psi pipeline and exact-registry replay APIs accept only
+  strict v1 encoded bytes, so decoding and framing rejection occur inside the
+  policy-input boundary. Preflight exactly matches schema, source, complete and
+  Psi-phase selections, target context, ordered rule set, and cost model before
+  rule execution. One cursor spans every selected Psi pass and rejects semantic
+  duplicate loci, missing points, input/rule/candidate-roster mismatches, and
+  leftovers. Rules propose and every ordinary candidate validator runs before
+  a decision can be consumed. A legal external choose or explicit skip is then
+  recorded in the existing baseline log and follows the unchanged manifest,
+  commit, convergence, analysis, and ledger paths. The finished run independently
+  reconstructs the external log from those baseline records and manifests and
+  requires exact equality with the supplied log; optimized Terminal projection
+  performs its existing second reconstruction. Existing baseline APIs and
+  outputs are unchanged. Build-file custody, non-Psi schemas, workload inputs,
+  and offline search remain open.
 
 - **OPT-COST-MODEL-INTERFACE.** Define non-authoritative size, latency,
   throughput, pressure, and target-resource estimates.

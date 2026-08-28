@@ -2037,8 +2037,26 @@ The strict codec recomputes every point and log identity. Optimized-plan
 projection independently derives the expected trace from the ordinary baseline
 log and pass manifests and rejects a detached valid trace. The baseline log,
 not this recording, remains in the optimization identity bundle, so recording
-does not change policy or output. Other compiler phases need their own schemas,
-and consuming an external action log remains a separate replay boundary.
+does not change policy or output.
+
+Psi now also exposes a strict byte-boundary replay API without changing its
+ordinary model-free entry points. Replay first decodes the v1 log and exactly
+matches every context root before dispatching a rule. One ordered cursor spans
+all selected Psi pass groups. For each nonempty decision point, the ordinary
+rule proposes candidates and all normal candidate validators finish before the
+cursor is consulted; only then may the supplied action select one member of the
+exact canonical roster or the explicit skip. Missing, duplicate, foreign,
+reordered, roster-mismatched, and leftover points fail closed. The chosen action
+is recorded in the existing baseline decision-log format and follows the same
+manifest, commit, fixed-point, analysis, and transformation-ledger path as an
+ordinary choice. At completion the compiler independently reconstructs the
+external log from the resulting baseline records and validated manifests and
+requires exact equality with the supplied bytes; optimized-plan projection
+performs a second reconstruction. Thus the replay mechanism can change
+profitability policy but cannot bypass legality or acquire a separate artifact
+identity. Other compiler phases still need their own schemas, and build-file
+custody, workload inputs, training export, and offline search remain later
+boundaries.
 
 Training/evaluation records use a clear functional shape:
 
