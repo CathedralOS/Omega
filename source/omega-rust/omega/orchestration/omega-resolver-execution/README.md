@@ -16,11 +16,11 @@ text or containment claims.
 ## Current enforcement
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
-  profile imports. Initialization, discovery, and fetch admit broad reads.
-  Inspection instead admits broad metadata reads but confines file-content
-  reads to the exact retained bare repository, the selected executable set,
-  `/dev/null`, and the literal filesystem-root directory entry required by the
-  native process runtime. Every phase admits the exact compiler-selected
+  profile imports. Discovery and fetch admit broad reads. Initialization and
+  inspection instead admit broad metadata reads but confine file-content reads
+  to their exact mutable quarantine or retained bare repository, the selected
+  executable set, `/dev/null`, and the literal filesystem-root directory entry
+  required by the native process runtime. Every phase admits the exact compiler-selected
   executable set and write-data to the fixed `/dev/null` sink. Initialization
   and fetch additionally admit writes only beneath the exact mutable quarantine
   root. Discovery and fetch require one explicit closed HTTPS or SSH authority
@@ -67,9 +67,9 @@ compiler-authored environment fields carry the broker and target authorities,
 so package locator text never becomes shell syntax.
 
 This is engineering enforcement and one input to a future package-source
-receipt, not that accepted receipt. macOS still permits broad reads outside
-inspection and broad metadata reads during inspection, so complete filesystem-
-read confinement remains unavailable. Aggregate resource quotas and
+receipt, not that accepted receipt. macOS still permits broad reads during
+network phases and broad metadata reads during nonnetwork phases, so complete
+filesystem-read confinement remains unavailable. Aggregate resource quotas and
 Linux/Windows endpoint confinement and strict backends remain package-manager
 tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).

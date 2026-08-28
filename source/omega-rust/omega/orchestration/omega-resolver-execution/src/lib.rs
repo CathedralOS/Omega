@@ -814,12 +814,19 @@ impl ResolverExecutionBackend {
             profile.push_str("(allow process-fork) ");
         }
         profile.push_str("(allow signal) ");
-        if phase == ResolverExecutionPhase::RepositoryInspection {
-            profile.push_str(
-                "(allow file-read-metadata) \
-                 (allow file-read-data (subpath (param \"INSPECTION_READ_ROOT\")) \
-                  (literal (param \"EXECUTABLE_0\"))",
-            );
+        if matches!(
+            phase,
+            ResolverExecutionPhase::RepositoryInitialization
+                | ResolverExecutionPhase::RepositoryInspection
+        ) {
+            let read_root_parameter = if phase == ResolverExecutionPhase::RepositoryInspection {
+                "INSPECTION_READ_ROOT"
+            } else {
+                "MUTABLE_ROOT"
+            };
+            profile.push_str("(allow file-read-metadata) (allow file-read-data (subpath (param \"");
+            profile.push_str(read_root_parameter);
+            profile.push_str("\")) (literal (param \"EXECUTABLE_0\"))");
             for index in 0..additional_executables.len() {
                 profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
             }
@@ -1716,6 +1723,12 @@ mod tests {
         assert!(!initialization_profile.contains("(import"));
         assert!(!initialization_profile.contains("network-outbound"));
         assert!(!initialization_profile.contains("process-fork"));
+        assert!(!initialization_profile.contains("(allow file-read*)"));
+        assert!(initialization_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            initialization_profile
+                .contains("(allow file-read-data (subpath (param \"MUTABLE_ROOT\"))")
+        );
         assert!(
             initialization_profile
                 .contains("(allow file-write* (subpath (param \"MUTABLE_ROOT\")))")
@@ -1990,6 +2003,7 @@ mod tests {
                 Some(&root),
             )
             .expect("build writable sandbox");
+        allowed.current_dir(&root);
         let status = allowed
             .args(["-c", "printf allowed > \"$1\"", "resolver-test"])
             .arg(&inside)
@@ -2005,6 +2019,7 @@ mod tests {
                 Some(&root),
             )
             .expect("build confined sandbox");
+        denied.current_dir(&root);
         let status = denied
             .args(["-c", "printf denied > \"$1\"", "resolver-test"])
             .arg(&outside)
@@ -2014,6 +2029,73 @@ mod tests {
         assert!(!outside.exists());
         std::fs::remove_file(inside).expect("remove sandbox output");
         std::fs::remove_dir(root).expect("remove sandbox root");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_initialization_confines_file_content_to_the_mutable_root() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-initialization-read-{}-{sequence}",
+            std::process::id()
+        ));
+        let mutable_root = parent.join("mutable");
+        std::fs::create_dir_all(&mutable_root).expect("create initialization mutable root");
+        let mutable_root = mutable_root
+            .canonicalize()
+            .expect("canonicalize initialization mutable root");
+        let inside = mutable_root.join("inside");
+        let sibling = parent.join("sibling");
+        let escaped_link = mutable_root.join("escaped-link");
+        std::fs::write(&inside, b"inside").expect("write inside canary");
+        std::fs::write(&sibling, b"sibling").expect("write sibling canary");
+        symlink(&sibling, &escaped_link).expect("create escaping symlink");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let mut allowed = backend
+            .command(
+                Path::new("/bin/cat"),
+                &[],
+                ResolverExecutionPhase::RepositoryInitialization,
+                Some(&mutable_root),
+            )
+            .expect("build initialization-content sandbox");
+        allowed.current_dir(&mutable_root);
+        let output = allowed.arg(&inside).output().expect("read inside content");
+        assert!(
+            output.status.success(),
+            "inside read failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout, b"inside");
+
+        for denied_path in [&sibling, &escaped_link] {
+            let mut denied = backend
+                .command(
+                    Path::new("/bin/cat"),
+                    &[],
+                    ResolverExecutionPhase::RepositoryInitialization,
+                    Some(&mutable_root),
+                )
+                .expect("build initialization-content sandbox");
+            denied.current_dir(&mutable_root);
+            let output = denied
+                .arg(denied_path)
+                .output()
+                .expect("attempt escaped content read");
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+        }
+
+        std::fs::remove_file(escaped_link).expect("remove escaping symlink");
+        std::fs::remove_file(inside).expect("remove inside canary");
+        std::fs::remove_file(sibling).expect("remove sibling canary");
+        std::fs::remove_dir(mutable_root).expect("remove initialization mutable root");
+        std::fs::remove_dir(parent).expect("remove initialization parent");
     }
 
     #[cfg(target_os = "macos")]
@@ -2217,6 +2299,7 @@ mod tests {
                 Some(&mutable_root),
             )
             .expect("build initialization network-denied sandbox");
+        denied.current_dir(&mutable_root);
         let status = denied
             .args(["127.0.0.1", &port.to_string()])
             .stdin(Stdio::null())
