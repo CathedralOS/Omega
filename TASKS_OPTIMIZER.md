@@ -624,10 +624,19 @@ These facts constrain the work below.
   This row is current-revision derived state: constant-conditional folding
   refreshes it atomically when a rejected region contained a boundary or
   concrete service effect, while a stale or forged row fails closed.
-  `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
-  proof/range evidence, full ownership/custody replay, and the crash/requirement
-  and remaining effect vocabulary also remain across the Terminal-Psi lowering
-  boundary.
+  The verified builder now also projects the complete ordered Terminal proof
+  question into immutable, self-authenticating unit rows. Exact operation,
+  call-requirement, nominal-cleanup-requirement, and contract-ensure owners;
+  obligation identity/class/proposition; ordered requirements and semantic
+  axioms; certificate policy; Terminal identity; and proof-bundle fingerprint
+  survive every rewrite and pruned machine. Independent validation reprojects
+  the catalog one-for-one and rejects omission, duplication, reordering, or
+  self-consistently re-identified forgery. Unit content identity is v16. These
+  rows remain exact source-site authority, not function-wide range facts.
+  `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until proof-derived
+  current-region range evidence, full ownership/custody replay, and the crash/
+  requirement and remaining effect vocabulary also remain across the
+  Terminal-Psi lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
   division, and remainder now retain their exact obligation identities through
   Terminal abstract, target, and assigned-target operations. Exact add,
@@ -638,8 +647,11 @@ These facts constrain the work below.
   operation owner and admitted proposition, canonically encodes the proposition,
   binds the Terminal-Psi and proof-bundle fingerprints, and attaches a sorted
   accepted-obligation fact index to the unit identity. Bare seeds still contain
-  no accepted facts. The unit tasks remain open for the broader proof/range and
-  region-indexed fact vocabulary.
+  no accepted facts. The complete proof-question catalog now preserves every
+  verifier question, including call, cleanup, and contract owners plus ordered
+  premises and axioms, independently of this narrower operation-rule index.
+  The unit tasks remain open for proof-derived current-region range facts and
+  their rule-facing indices.
 - The clean artifact boundary now exposes a required
   `VerifiedTerminalOptimizationInput` for optimizer consumers. It retains the
   lowered plan beside the complete immutable Terminal module, exact proof
@@ -938,7 +950,7 @@ These facts constrain the work below.
   replay two successive merges to a three-block fixed point and lower on both
   x64 and arm64. Candidate v20, `ControlFlowCleanup` v11, prephysical manifest
   v14, and optimized-plan projection validator v15 bind this admission;
-  optimization-unit identity v15 and ledger v4 already encode the output and
+  optimization-unit identity v16 and ledger v4 already encode the output and
   occurrence relation.
 - The first closed rewrite candidate is exact integer constant evaluation for
   proof-bearing add/subtract/multiply. The immutable candidate binds its input
@@ -1317,7 +1329,7 @@ dependency.
   independent replay; focused corruptions and the real nominal-Boolean source
   canary cover that rung. The bounded retained-ownership rung is complete:
   Jump and Conditional successor rows preserve exact ordered trivial-affine
-  discards, identity v15 binds both operation and projected-edge copies, and
+  discards, identity v16 binds both operation and projected-edge copies, and
   independent replay checks Terminal's eligible ordered-subsequence rule plus
   the exact immutable edge-entry/edge-exit ownership delta. Compressed
   structural-return nodes now retain their hidden local establishments in
@@ -1337,7 +1349,7 @@ dependency.
   boundary ceilings, internal/boundary call reach, `PortWrite` membership, and
   provider refinement; verified-input custody plus the real Console source
   canary cover projection. The current root-reach rung is complete as well:
-  unit identity v15 binds the canonical concrete row and ordered installation
+  unit identity v16 binds the canonical concrete row and ordered installation
   dependencies, while an independent entry-rooted traversal follows all four
   internal-call lanes, separates matching boundary requirements from concrete
   boundary ceilings, expands `PortWrite` parents, and rejects unused or
@@ -1518,7 +1530,7 @@ dependency.
   non-adjacent unique-predecessor block merging in either roster direction,
   with explicit dominance/use-definition evidence, global typed substitution,
   moved-definition reconstruction, dense-effect accounting, and independent
-  replay. Candidate v20, optimization-unit identity v15, ledger v4,
+  replay. Candidate v20, optimization-unit identity v16, ledger v4,
   prephysical manifest v14, and projection validator v15 bind the current
   occurrence and function-roster replay.
 
@@ -1610,7 +1622,7 @@ dependency.
   custody accounting. Redundant provenance/fuel moves forward to the next
   co-executed node, never backward to the leader; its active obligation
   reference disappears with the node. Candidate encoding v24,
-  optimization-unit identity v15, the named v7 pass, prephysical manifest v23,
+  optimization-unit identity v16, the named v7 pass, prephysical manifest v23,
   and projection v24 bind this meaning; ledger v4 already represents the
   relocation and substitution.
 

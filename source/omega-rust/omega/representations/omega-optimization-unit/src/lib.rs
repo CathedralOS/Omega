@@ -12,14 +12,16 @@ use std::{collections::BTreeSet, sync::Arc};
 
 use omega_optimization_core::{
     AcceptedObligationFactIdentity, OptimizationUnitIdentity, OwnershipFrontierFactIdentity,
+    ProofQuestionIdentity,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunction, TerminalAbstractFunctionResult, TerminalAbstractOperation,
     TerminalAbstractOperationPlan, TerminalAbstractSuccessor, TerminalValueBinding,
 };
 use psi_core::{
-    BlockId, ClaimId, EdgeId, FuelScheduleIdentity, IntegerValue, MachineId, ObligationId,
-    OperationId, PlaceId, ScalarType, ServiceId, StructuralPlaceKind, StructuralTypeId, ValueId,
+    AdmissionSiteId, BlockId, ClaimId, ContractId, EdgeId, EvidenceIdentity, FuelScheduleIdentity,
+    IntegerValue, MachineId, ObligationId, OperationId, PlaceId, ScalarType, ServiceId,
+    StructuralPlaceKind, StructuralTypeId, ValueId,
 };
 use psi_terminal::{
     BoundaryMachineDeclaration, ContentEntryClaim, EntryClaim, EvidenceContractLane,
@@ -230,6 +232,81 @@ pub struct AcceptedObligationFact {
     pub operation: OperationId,
     pub obligation: ObligationId,
     pub proposition: Vec<u8>,
+}
+
+/// Exact verifier owner of one retained proof question. Positional coordinates
+/// are semantic: they prevent equal propositions at distinct source sites from
+/// becoming interchangeable optimizer authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofQuestionOwner {
+    Operation {
+        machine: MachineId,
+        operation: OperationId,
+    },
+    CallRequires {
+        machine: MachineId,
+        operation: OperationId,
+        requirement_position: u32,
+    },
+    NominalCleanupRequires {
+        machine: MachineId,
+        edge: EdgeId,
+        cleanup_position: u32,
+        requirement_position: u32,
+    },
+    ContractEnsures {
+        machine: MachineId,
+        contract: ContractId,
+        clause_position: u32,
+    },
+}
+
+impl ProofQuestionOwner {
+    pub const fn machine(self) -> MachineId {
+        match self {
+            Self::Operation { machine, .. }
+            | Self::CallRequires { machine, .. }
+            | Self::NominalCleanupRequires { machine, .. }
+            | Self::ContractEnsures { machine, .. } => machine,
+        }
+    }
+}
+
+/// Source-independent mirror of the proof-admission classification retained
+/// at optimizer admission.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofQuestionAdmissionKind {
+    ForeignBoundaryGuarantee,
+    ProviderFact,
+    CheckedAssemblyClaim,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProofQuestionClass {
+    Derivable,
+    AdmissionAuthorized {
+        site: AdmissionSiteId,
+        kind: ProofQuestionAdmissionKind,
+        authority_identity: EvidenceIdentity,
+    },
+}
+
+/// Immutable, complete proof question projected one-for-one from Terminal
+/// verification. Canonical proposition bytes retain exact ordered premises and
+/// axioms without coupling this target-neutral representation to a prover.
+/// Rewrites preserve the entire catalog, including rows owned by pruned code.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ProofQuestion {
+    pub identity: ProofQuestionIdentity,
+    pub terminal_psi: TerminalPsiIdentity,
+    pub proof_bundle_fingerprint: [u8; 32],
+    pub owner: ProofQuestionOwner,
+    pub obligation: ObligationId,
+    pub class: ProofQuestionClass,
+    pub proposition: Vec<u8>,
+    pub requirements: Vec<Vec<u8>>,
+    pub semantic_axioms: Vec<Vec<u8>>,
+    pub canonical_certificate: bool,
 }
 
 /// Exact verifier-owned source site whose path-sensitive ownership state is
@@ -470,6 +547,169 @@ pub fn accepted_obligation_fact_identity(
     AcceptedObligationFactIdentity::from_canonical_bytes(&canonical)
 }
 
+impl ProofQuestion {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        terminal_psi: TerminalPsiIdentity,
+        proof_bundle_fingerprint: [u8; 32],
+        owner: ProofQuestionOwner,
+        obligation: ObligationId,
+        class: ProofQuestionClass,
+        proposition: Vec<u8>,
+        requirements: Vec<Vec<u8>>,
+        semantic_axioms: Vec<Vec<u8>>,
+        canonical_certificate: bool,
+    ) -> Self {
+        let identity = proof_question_identity(
+            terminal_psi,
+            proof_bundle_fingerprint,
+            owner,
+            obligation,
+            class,
+            &proposition,
+            &requirements,
+            &semantic_axioms,
+            canonical_certificate,
+        );
+        Self {
+            identity,
+            terminal_psi,
+            proof_bundle_fingerprint,
+            owner,
+            obligation,
+            class,
+            proposition,
+            requirements,
+            semantic_axioms,
+            canonical_certificate,
+        }
+    }
+
+    pub fn has_canonical_identity(&self) -> bool {
+        self.identity
+            == proof_question_identity(
+                self.terminal_psi,
+                self.proof_bundle_fingerprint,
+                self.owner,
+                self.obligation,
+                self.class,
+                &self.proposition,
+                &self.requirements,
+                &self.semantic_axioms,
+                self.canonical_certificate,
+            )
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+pub fn proof_question_identity(
+    terminal_psi: TerminalPsiIdentity,
+    proof_bundle_fingerprint: [u8; 32],
+    owner: ProofQuestionOwner,
+    obligation: ObligationId,
+    class: ProofQuestionClass,
+    proposition: &[u8],
+    requirements: &[Vec<u8>],
+    semantic_axioms: &[Vec<u8>],
+    canonical_certificate: bool,
+) -> ProofQuestionIdentity {
+    let mut canonical = Vec::new();
+    canonical.extend_from_slice(b"omega.psi-proof-question.v1\0");
+    canonical.extend_from_slice(terminal_psi.program_fingerprint.as_bytes());
+    canonical.extend_from_slice(&terminal_psi.vocabulary_marker.get().to_le_bytes());
+    canonical.extend_from_slice(&proof_bundle_fingerprint);
+    encode_proof_question_owner(&mut canonical, owner);
+    canonical.extend_from_slice(&obligation.get().to_le_bytes());
+    encode_proof_question_class(&mut canonical, class);
+    encode_proof_question_bytes(&mut canonical, proposition);
+    encode_proof_question_byte_rows(&mut canonical, requirements);
+    encode_proof_question_byte_rows(&mut canonical, semantic_axioms);
+    canonical.push(u8::from(canonical_certificate));
+    ProofQuestionIdentity::from_canonical_bytes(&canonical)
+}
+
+fn encode_proof_question_owner(bytes: &mut Vec<u8>, owner: ProofQuestionOwner) {
+    match owner {
+        ProofQuestionOwner::Operation { machine, operation } => {
+            bytes.push(1);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+        }
+        ProofQuestionOwner::CallRequires {
+            machine,
+            operation,
+            requirement_position,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&operation.get().to_le_bytes());
+            bytes.extend_from_slice(&requirement_position.to_le_bytes());
+        }
+        ProofQuestionOwner::NominalCleanupRequires {
+            machine,
+            edge,
+            cleanup_position,
+            requirement_position,
+        } => {
+            bytes.push(3);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&edge.get().to_le_bytes());
+            bytes.extend_from_slice(&cleanup_position.to_le_bytes());
+            bytes.extend_from_slice(&requirement_position.to_le_bytes());
+        }
+        ProofQuestionOwner::ContractEnsures {
+            machine,
+            contract,
+            clause_position,
+        } => {
+            bytes.push(4);
+            bytes.extend_from_slice(&machine.get().to_le_bytes());
+            bytes.extend_from_slice(&contract.get().to_le_bytes());
+            bytes.extend_from_slice(&clause_position.to_le_bytes());
+        }
+    }
+}
+
+fn encode_proof_question_class(bytes: &mut Vec<u8>, class: ProofQuestionClass) {
+    match class {
+        ProofQuestionClass::Derivable => bytes.push(1),
+        ProofQuestionClass::AdmissionAuthorized {
+            site,
+            kind,
+            authority_identity,
+        } => {
+            bytes.push(2);
+            bytes.extend_from_slice(&site.get().to_le_bytes());
+            bytes.push(match kind {
+                ProofQuestionAdmissionKind::ForeignBoundaryGuarantee => 1,
+                ProofQuestionAdmissionKind::ProviderFact => 2,
+                ProofQuestionAdmissionKind::CheckedAssemblyClaim => 3,
+            });
+            bytes.extend_from_slice(&authority_identity.get().to_le_bytes());
+        }
+    }
+}
+
+fn encode_proof_question_byte_rows(bytes: &mut Vec<u8>, rows: &[Vec<u8>]) {
+    bytes.extend_from_slice(
+        &u64::try_from(rows.len())
+            .expect("canonical proof-question row count fits u64")
+            .to_le_bytes(),
+    );
+    for row in rows {
+        encode_proof_question_bytes(bytes, row);
+    }
+}
+
+fn encode_proof_question_bytes(bytes: &mut Vec<u8>, value: &[u8]) {
+    bytes.extend_from_slice(
+        &u64::try_from(value.len())
+            .expect("canonical proof-question byte length fits u64")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(value);
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PsiOptimizationUnit {
     pub identity: OptimizationUnitIdentity,
@@ -493,6 +733,9 @@ pub struct PsiOptimizationUnit {
     pub boundary_machines: Vec<BoundaryMachineDeclaration>,
     pub provider_candidates: Vec<ProviderCandidateConformance>,
     pub accepted_obligation_facts: Vec<AcceptedObligationFact>,
+    /// Complete immutable verifier proof-question roster in reconstruction
+    /// order. This is source-site authority, not a function-wide range index.
+    pub proof_questions: Vec<ProofQuestion>,
     /// Immutable verifier projection, absent only on low-level bare seeds that
     /// are not authorized optimizer inputs.
     pub ownership_frontier_facts: Vec<OwnershipFrontierFact>,
@@ -624,6 +867,56 @@ pub fn attach_accepted_obligation_facts(
     Ok(unit)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ProofQuestionIndexError {
+    AlreadyAttached,
+    TerminalIdentityMismatch,
+    InvalidQuestionIdentity,
+    DuplicateQuestion,
+}
+
+impl std::fmt::Display for ProofQuestionIndexError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(formatter, "invalid proof-question index: {self:?}")
+    }
+}
+
+impl std::error::Error for ProofQuestionIndexError {}
+
+/// Attach the verifier's complete ordered proof-question projection exactly
+/// once. The input order is retained rather than reconstructed or sorted.
+pub fn attach_proof_questions(
+    mut unit: PsiOptimizationUnit,
+    questions: Vec<ProofQuestion>,
+) -> Result<PsiOptimizationUnit, ProofQuestionIndexError> {
+    if !unit.proof_questions.is_empty() {
+        return Err(ProofQuestionIndexError::AlreadyAttached);
+    }
+    if questions
+        .iter()
+        .any(|question| question.terminal_psi != unit.terminal_psi)
+    {
+        return Err(ProofQuestionIndexError::TerminalIdentityMismatch);
+    }
+    if questions
+        .iter()
+        .any(|question| !question.has_canonical_identity())
+    {
+        return Err(ProofQuestionIndexError::InvalidQuestionIdentity);
+    }
+    let mut identities = BTreeSet::new();
+    let mut owners = BTreeSet::new();
+    if questions.iter().any(|question| {
+        !identities.insert(question.identity)
+            || !owners.insert((question.owner, question.obligation))
+    }) {
+        return Err(ProofQuestionIndexError::DuplicateQuestion);
+    }
+    unit.proof_questions = questions;
+    unit.identity = recompute_psi_optimization_unit_identity(&unit);
+    Ok(unit)
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum OptimizationUnitBuildError {
     MissingBlocks(MachineId),
@@ -671,6 +964,7 @@ pub fn reconstruct_psi_optimization_unit_seed(
         boundary_machines: plan.boundary_machines.clone(),
         provider_candidates: plan.provider_candidates.clone(),
         accepted_obligation_facts: Vec::new(),
+        proof_questions: Vec::new(),
         ownership_frontier_facts: Vec::new(),
         pruned_machines: Vec::new(),
         functions,
@@ -1458,6 +1752,7 @@ mod tests {
         assert_eq!(first.boundary_machines, source.boundary_machines);
         assert_eq!(first.provider_candidates, source.provider_candidates);
         assert!(first.accepted_obligation_facts.is_empty());
+        assert!(first.proof_questions.is_empty());
         assert!(first.ownership_frontier_facts.is_empty());
         assert_eq!(
             first.functions[0].attachment,
@@ -1585,6 +1880,22 @@ mod tests {
                 vec![1, 2, 3],
             ));
         mutations.push(("accepted fact", unit));
+        let mut unit = baseline.clone();
+        unit.proof_questions.push(ProofQuestion::new(
+            unit.terminal_psi,
+            [5; 32],
+            ProofQuestionOwner::Operation {
+                machine,
+                operation: id(5, OperationId::new),
+            },
+            id(118, ObligationId::new),
+            ProofQuestionClass::Derivable,
+            vec![1, 2],
+            vec![vec![3]],
+            vec![vec![4]],
+            true,
+        ));
+        mutations.push(("proof question", unit));
         let mut unit = baseline.clone();
         unit.ownership_frontier_facts
             .push(OwnershipFrontierFact::new(
@@ -1733,6 +2044,69 @@ mod tests {
                 "{field_class} must contribute to canonical content identity"
             );
         }
+    }
+
+    #[test]
+    fn proof_question_attachment_preserves_order_and_rejects_forgery_or_duplicates() {
+        let seed = reconstruct_psi_optimization_unit_seed(
+            &plan(),
+            FuelScheduleIdentity::new(1).expect("nonzero schedule"),
+        )
+        .unwrap();
+        let machine = seed.functions[0].machine;
+        let first = ProofQuestion::new(
+            seed.terminal_psi,
+            [5; 32],
+            ProofQuestionOwner::Operation {
+                machine,
+                operation: id(5, OperationId::new),
+            },
+            id(118, ObligationId::new),
+            ProofQuestionClass::Derivable,
+            vec![1],
+            vec![vec![2]],
+            vec![vec![3]],
+            true,
+        );
+        let second = ProofQuestion::new(
+            seed.terminal_psi,
+            [5; 32],
+            ProofQuestionOwner::ContractEnsures {
+                machine,
+                contract: id(119, ContractId::new),
+                clause_position: 0,
+            },
+            id(120, ObligationId::new),
+            ProofQuestionClass::AdmissionAuthorized {
+                site: id(121, AdmissionSiteId::new),
+                kind: ProofQuestionAdmissionKind::ProviderFact,
+                authority_identity: id(122, EvidenceIdentity::new),
+            },
+            vec![4],
+            vec![vec![5], vec![6]],
+            vec![vec![7]],
+            false,
+        );
+        let attached = attach_proof_questions(seed.clone(), vec![second.clone(), first.clone()])
+            .expect("verifier order is retained, not sorted");
+        assert_eq!(
+            attached.proof_questions,
+            vec![second.clone(), first.clone()]
+        );
+        assert_eq!(
+            attach_proof_questions(attached, Vec::new()),
+            Err(ProofQuestionIndexError::AlreadyAttached)
+        );
+        assert_eq!(
+            attach_proof_questions(seed.clone(), vec![first.clone(), first]),
+            Err(ProofQuestionIndexError::DuplicateQuestion)
+        );
+        let mut forged = second;
+        forged.semantic_axioms.push(vec![8]);
+        assert_eq!(
+            attach_proof_questions(seed, vec![forged]),
+            Err(ProofQuestionIndexError::InvalidQuestionIdentity)
+        );
     }
 
     #[test]

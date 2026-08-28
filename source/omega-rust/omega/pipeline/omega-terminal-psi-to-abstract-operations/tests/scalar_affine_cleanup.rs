@@ -1,4 +1,6 @@
-use omega_optimization_unit::{OwnershipFrontierOwnedPlace, OwnershipFrontierSite};
+use omega_optimization_unit::{
+    OwnershipFrontierOwnedPlace, OwnershipFrontierSite, ProofQuestionOwner,
+};
 use omega_terminal_abstract_operations::{
     TerminalAbstractFunctionResult, TerminalAbstractOperation,
 };
@@ -458,6 +460,51 @@ fn omega_projects_verified_scalar_cleanup_proofs_without_regrouping_actions() {
     )
     .expect("verified optimizer unit reconstruction");
     assert_eq!(verified_unit.unit().terminal_psi, plan.terminal_psi);
+    let [proof_question] = verified_unit.unit().proof_questions.as_slice() else {
+        panic!("complete cleanup proof question is retained exactly once")
+    };
+    assert_eq!(
+        proof_question.owner,
+        ProofQuestionOwner::NominalCleanupRequires {
+            machine: caller.id,
+            edge: edge_id(1),
+            cleanup_position: 1,
+            requirement_position: 0,
+        }
+    );
+    assert_eq!(proof_question.obligation, obligation_id(1));
+    assert_eq!(
+        proof_question.proof_bundle_fingerprint,
+        *verified_unit
+            .input()
+            .context()
+            .proof_bundle_fingerprint()
+            .as_bytes()
+    );
+    let reconstructed = &verified_unit
+        .input()
+        .context()
+        .reconstructed_obligations()
+        .obligations()[0];
+    assert_eq!(
+        proof_question.requirements,
+        reconstructed
+            .requirements
+            .iter()
+            .map(psi_terminal_codec::canonical_proposition_order_key)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("canonical retained requirements")
+    );
+    assert_eq!(
+        proof_question.semantic_axioms,
+        reconstructed
+            .semantic_axioms
+            .iter()
+            .map(psi_terminal_codec::canonical_proposition_order_key)
+            .collect::<Result<Vec<_>, _>>()
+            .expect("canonical retained semantic axioms")
+    );
+    assert!(!proof_question.canonical_certificate);
     let unit_frontiers = &verified_unit.unit().ownership_frontier_facts;
     assert!(!unit_frontiers.is_empty());
     assert!(

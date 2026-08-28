@@ -21,7 +21,8 @@ use omega_optimization_unit::{
     OwnershipEvent, OwnershipFrontierFact, OwnershipFrontierLiveClaim, OwnershipFrontierOwnedPlace,
     OwnershipFrontierPartialCustody, OwnershipFrontierSite, OwnershipFrontierSnapshot,
     PhiTranslatedScalarGvnRewrite, PhiTranslatedScalarIncoming, ProofCertifiedScalarIdentityKind,
-    ProofCertifiedScalarIdentityRewrite, ProvenanceDisposition, ProvenanceRewrite,
+    ProofCertifiedScalarIdentityRewrite, ProofQuestion, ProofQuestionAdmissionKind,
+    ProofQuestionClass, ProofQuestionOwner, ProvenanceDisposition, ProvenanceRewrite,
     PsiNodeObservation, PsiOptimizationFunction, PsiOptimizationUnit, PsiProvenance,
     PsiRealizationSite, PsiRewriteCandidate, PsiRewritePatch, RedundantBlockParameterRewrite,
     ScalarConstantValue, ScalarSubstitution, SccpBlockRow, SccpEdgeRow, SccpEdgeState,
@@ -310,6 +311,7 @@ pub enum OptimizationUnitValidationError {
         obligation: psi_core::ObligationId,
     },
     AcceptedObligationFactIndexMismatch,
+    ProofQuestionIndexMismatch,
     OwnershipFrontierFactIndexMismatch,
     CandidateAcceptedObligationFactMismatch,
     MissingStructuralFrontierMachine(MachineId),
@@ -1271,6 +1273,16 @@ pub fn validate_psi_optimization_unit(
     {
         return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
     }
+    let mut proof_question_identities = BTreeSet::new();
+    let mut proof_question_owners = BTreeSet::new();
+    if unit.proof_questions.iter().any(|question| {
+        question.terminal_psi != unit.terminal_psi
+            || !question.has_canonical_identity()
+            || !proof_question_identities.insert(question.identity)
+            || !proof_question_owners.insert((question.owner, question.obligation))
+    }) {
+        return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
+    }
     if unit.ownership_frontier_facts.iter().any(|fact| {
         fact.terminal_psi != unit.terminal_psi
             || !fact.has_canonical_identity()
@@ -1335,6 +1347,12 @@ pub fn validate_psi_optimization_unit(
         .any(|fact| !machines.contains_key(&fact.machine) && !pruned.contains(&fact.machine))
     {
         return Err(OptimizationUnitValidationError::AcceptedObligationFactIndexMismatch);
+    }
+    if unit.proof_questions.iter().any(|question| {
+        let machine = question.owner.machine();
+        !machines.contains_key(&machine) && !pruned.contains(&machine)
+    }) {
+        return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
     }
     let mut boundary_machines = BTreeMap::new();
     for boundary in &unit.boundary_machines {
@@ -10003,6 +10021,11 @@ fn validate_psi_optimization_unit_with_context(
     if proof_fingerprint != context.proof_bundle_fingerprint() {
         return Err(OptimizationUnitValidationError::ProofFingerprintMismatch);
     }
+    let proof_questions = independently_project_proof_questions(input)
+        .map_err(OptimizationUnitValidationError::ContextIdentity)?;
+    if proof_questions != unit.proof_questions {
+        return Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch);
+    }
     let ownership_frontiers = independently_project_ownership_frontiers(input)
         .ok_or(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)?;
     if ownership_frontiers != unit.ownership_frontier_facts {
@@ -10096,6 +10119,8 @@ fn validate_psi_optimization_unit_with_context(
         omega_optimization_unit::attach_accepted_obligation_facts(seed, projected_facts).map_err(
             |_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch,
         )?;
+    let projected = omega_optimization_unit::attach_proof_questions(projected, proof_questions)
+        .map_err(|_| OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch)?;
     let projected =
         omega_optimization_unit::attach_ownership_frontier_facts(projected, ownership_frontiers)
             .map_err(|_| {
@@ -10103,6 +10128,7 @@ fn validate_psi_optimization_unit_with_context(
             })?;
     if (require_initial_revision && projected.identity != unit.identity)
         || projected.accepted_obligation_facts != unit.accepted_obligation_facts
+        || projected.proof_questions != unit.proof_questions
     {
         return Err(OptimizationUnitValidationError::VerifiedOptimizationUnitProjectionMismatch);
     }
@@ -10196,6 +10222,99 @@ fn attach_verified_structural_context(
     }
     unit.identity = recompute_psi_optimization_unit_identity(unit);
     Ok(())
+}
+
+fn independently_project_proof_questions(
+    input: &omega_terminal_psi_to_abstract_operations::VerifiedTerminalOptimizationInput,
+) -> Result<Vec<ProofQuestion>, psi_terminal_codec::CodecError> {
+    let context = input.context();
+    let proof_fingerprint = *context.proof_bundle_fingerprint().as_bytes();
+    context
+        .reconstructed_obligations()
+        .obligations()
+        .iter()
+        .map(|row| {
+            let owner = match row.owner {
+                psi_terminal_verifier::ReconstructedTerminalObligationOwner::Operation {
+                    machine,
+                    operation,
+                } => ProofQuestionOwner::Operation { machine, operation },
+                psi_terminal_verifier::ReconstructedTerminalObligationOwner::CallRequires {
+                    machine,
+                    operation,
+                    requirement_position,
+                } => ProofQuestionOwner::CallRequires {
+                    machine,
+                    operation,
+                    requirement_position,
+                },
+                psi_terminal_verifier::ReconstructedTerminalObligationOwner::NominalCleanupRequires {
+                    machine,
+                    edge,
+                    cleanup_position,
+                    requirement_position,
+                } => ProofQuestionOwner::NominalCleanupRequires {
+                    machine,
+                    edge,
+                    cleanup_position,
+                    requirement_position,
+                },
+                psi_terminal_verifier::ReconstructedTerminalObligationOwner::ContractEnsures {
+                    machine,
+                    contract,
+                    clause_position,
+                } => ProofQuestionOwner::ContractEnsures {
+                    machine,
+                    contract,
+                    clause_position,
+                },
+            };
+            let class = match row.obligation.class {
+                psi_proof_admission::ObligationClass::Derivable => ProofQuestionClass::Derivable,
+                psi_proof_admission::ObligationClass::AdmissionAuthorized(admission) => {
+                    let kind = match admission.kind {
+                        psi_proof_admission::AdmissionKind::ForeignBoundaryGuarantee => {
+                            ProofQuestionAdmissionKind::ForeignBoundaryGuarantee
+                        }
+                        psi_proof_admission::AdmissionKind::ProviderFact => {
+                            ProofQuestionAdmissionKind::ProviderFact
+                        }
+                        psi_proof_admission::AdmissionKind::CheckedAssemblyClaim => {
+                            ProofQuestionAdmissionKind::CheckedAssemblyClaim
+                        }
+                    };
+                    ProofQuestionClass::AdmissionAuthorized {
+                        site: admission.site,
+                        kind,
+                        authority_identity: admission.authority_identity,
+                    }
+                }
+            };
+            let proposition =
+                psi_terminal_codec::canonical_proposition_order_key(&row.obligation.proposition)?;
+            let requirements = row
+                .requirements
+                .iter()
+                .map(psi_terminal_codec::canonical_proposition_order_key)
+                .collect::<Result<Vec<_>, _>>()?;
+            let semantic_axioms = row
+                .semantic_axioms
+                .iter()
+                .map(psi_terminal_codec::canonical_proposition_order_key)
+                .collect::<Result<Vec<_>, _>>()?;
+            Ok(ProofQuestion::new(
+                input.plan().terminal_psi,
+                proof_fingerprint,
+                owner,
+                row.obligation.id,
+                class,
+                proposition,
+                requirements,
+                semantic_axioms,
+                row.canonical_certificate,
+            ))
+        })
+        .collect()
 }
 
 fn independently_project_ownership_frontiers(
@@ -14554,6 +14673,20 @@ mod tests {
         unit.identity = recompute_psi_optimization_unit_identity(unit);
     }
 
+    fn refresh_proof_question_identity(question: &mut ProofQuestion) {
+        question.identity = omega_optimization_unit::proof_question_identity(
+            question.terminal_psi,
+            question.proof_bundle_fingerprint,
+            question.owner,
+            question.obligation,
+            question.class,
+            &question.proposition,
+            &question.requirements,
+            &question.semantic_axioms,
+            question.canonical_certificate,
+        );
+    }
+
     fn refresh_node_derivatives(
         unit: &mut PsiOptimizationUnit,
         function_index: usize,
@@ -14580,8 +14713,8 @@ mod tests {
 
     fn verified_unit() -> omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit {
         use psi_terminal::{
-            Block, MachineContract, TerminalMachine, TerminalMachineResult, TerminalModule,
-            Terminator,
+            Block, ContractClause, MachineContract, TerminalMachine, TerminalMachineResult,
+            TerminalModule, Terminator,
         };
 
         let module = TerminalModule {
@@ -14629,12 +14762,32 @@ mod tests {
                     id: id(104, psi_core::ContractId::new),
                     crash_routes: Vec::new(),
                     requires: Vec::new(),
-                    ensures: Vec::new(),
+                    ensures: vec![
+                        ContractClause {
+                            obligation: id(105, psi_core::ObligationId::new),
+                            proposition: Proposition::Truth,
+                        },
+                        ContractClause {
+                            obligation: id(106, psi_core::ObligationId::new),
+                            proposition: Proposition::Truth,
+                        },
+                    ],
                     outcome_specific_ensures: Vec::new(),
                 },
             }],
         };
-        let proof = psi_terminal_verifier::ProofBundle::default();
+        let proof = psi_terminal_verifier::ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: [105, 106]
+                .into_iter()
+                .map(|obligation| psi_terminal_verifier::ObligationEvidence {
+                    obligation: id(obligation, psi_core::ObligationId::new),
+                    route: psi_proof_admission::EvidenceRoute::KernelDerived(
+                        psi_proof_admission::PrimitiveJudgment::Truth,
+                    ),
+                })
+                .collect(),
+        };
         let semantic = psi_terminal_codec::encode_module(&module).expect("encode unit module");
         let proof = psi_terminal_codec::encode_proof_bundle(&proof).expect("encode empty proof");
         let input =
@@ -20303,6 +20456,89 @@ mod tests {
             validate_transformed_psi_optimization_unit(verified.input(), &forged),
             Err(OptimizationUnitValidationError::OwnershipFrontierFactIndexMismatch)
         );
+    }
+
+    #[test]
+    fn proof_question_catalog_rejects_missing_reordered_duplicate_and_forged_rows() {
+        let verified = verified_unit();
+        let original = verified.unit();
+        assert_eq!(original.proof_questions.len(), 2);
+        assert!(
+            original.proof_questions.iter().all(|question| matches!(
+                question.owner,
+                ProofQuestionOwner::ContractEnsures { .. }
+            ))
+        );
+
+        let mut reordered = original.clone();
+        reordered.proof_questions.swap(0, 1);
+        refresh_identity(&mut reordered);
+        assert_eq!(
+            validate_transformed_psi_optimization_unit(verified.input(), &reordered),
+            Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch)
+        );
+
+        let mut duplicated = original.clone();
+        duplicated
+            .proof_questions
+            .insert(1, duplicated.proof_questions[0].clone());
+        refresh_identity(&mut duplicated);
+        assert_eq!(
+            validate_psi_optimization_unit(&duplicated),
+            Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch)
+        );
+
+        let mut missing = original.clone();
+        missing.proof_questions.pop();
+        refresh_identity(&mut missing);
+        assert_eq!(
+            validate_transformed_psi_optimization_unit(verified.input(), &missing),
+            Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch)
+        );
+
+        let mut corruptions = Vec::new();
+        let mut owner = original.clone();
+        owner.proof_questions[0].owner = ProofQuestionOwner::ContractEnsures {
+            machine: owner.functions[0].machine,
+            contract: id(104, psi_core::ContractId::new),
+            clause_position: 7,
+        };
+        corruptions.push(owner);
+        let mut obligation = original.clone();
+        obligation.proof_questions[0].obligation = id(107, psi_core::ObligationId::new);
+        corruptions.push(obligation);
+        let mut class = original.clone();
+        class.proof_questions[0].class = ProofQuestionClass::AdmissionAuthorized {
+            site: id(108, psi_core::AdmissionSiteId::new),
+            kind: ProofQuestionAdmissionKind::CheckedAssemblyClaim,
+            authority_identity: id(109, psi_core::EvidenceIdentity::new),
+        };
+        corruptions.push(class);
+        let mut proposition = original.clone();
+        proposition.proof_questions[0].proposition.push(1);
+        corruptions.push(proposition);
+        let mut requirements = original.clone();
+        requirements.proof_questions[0].requirements.push(vec![2]);
+        corruptions.push(requirements);
+        let mut axioms = original.clone();
+        axioms.proof_questions[0].semantic_axioms.push(vec![3]);
+        corruptions.push(axioms);
+        let mut certificate = original.clone();
+        certificate.proof_questions[0].canonical_certificate = true;
+        corruptions.push(certificate);
+        let mut fingerprint = original.clone();
+        fingerprint.proof_questions[0].proof_bundle_fingerprint[0] ^= 1;
+        corruptions.push(fingerprint);
+
+        for (index, mut corruption) in corruptions.into_iter().enumerate() {
+            refresh_proof_question_identity(&mut corruption.proof_questions[0]);
+            refresh_identity(&mut corruption);
+            assert_eq!(
+                validate_transformed_psi_optimization_unit(verified.input(), &corruption),
+                Err(OptimizationUnitValidationError::ProofQuestionIndexMismatch),
+                "self-consistent proof-question forgery {index}"
+            );
+        }
     }
 
     #[test]

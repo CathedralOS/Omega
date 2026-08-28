@@ -3975,6 +3975,11 @@ mod tests {
             1
         );
         assert_eq!(run.session.unit().accepted_obligation_facts.len(), 1);
+        assert_eq!(run.session.unit().proof_questions.len(), 1);
+        assert!(matches!(
+            run.session.unit().proof_questions[0].owner,
+            omega_optimization_unit::ProofQuestionOwner::Operation { .. }
+        ));
         assert_eq!(run.session.input().context().accepted_facts().len(), 1);
         assert_eq!(
             run.session.input().context().accepted_facts()[0].obligation,

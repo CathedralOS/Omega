@@ -135,7 +135,7 @@ canonical Terminal Psi semantic + proof sections
        { TerminalAbstractOperationPlan,
          immutable TerminalModule,
          proof bundle + fingerprint,
-         reconstructed obligations,
+         reconstructed obligations and their complete ordered proof questions,
          accepted facts,
          verifier-owned structural frontier snapshots }
     -> build PsiOptimizationUnit (private SSA/CFG + semantic side tables)
@@ -730,7 +730,7 @@ including nominal attachment, ordered scalar and structural parameters,
 Unit/scalar/structural result shape, the complete structural-place catalog,
 ordinary and content entry claims, and the normalized published service
 ceiling, exact verified machine contract, and per-machine evidence-contract
-lane roster. These are not optimizer summaries. Unit content identity v15
+lane roster. These are not optimizer summaries. Unit content identity v16
 encodes every field, transformed-revision validation compares them with an independent
 projection of the immutable verified input, and abstract-plan projection reads
 them from the unit before an independent round-trip check. Passes may inspect
@@ -744,6 +744,21 @@ is bound by unit content identity, and validation compares it to an independent
 projection from `VerifiedTerminalOptimizationInput`. A later analysis may use a
 row only at its exact source site unless it proves a new current-region
 relationship.
+
+The unit separately retains the verifier's complete ordered proof-question
+catalog. Every self-authenticating row binds the Terminal-Psi identity and
+proof-bundle fingerprint; exact `Operation`, `CallRequires`,
+`NominalCleanupRequires`, or `ContractEnsures` owner coordinates; obligation
+identity and admission class; canonical proposition bytes; ordered machine
+requirements and verifier-derived semantic axioms; and canonical-certificate
+policy. The verified builder projects rows one-for-one in reconstruction order,
+and the independent validator reprojects the complete catalog for both initial
+and transformed revisions. Rewrites retain rows for removed and pruned source
+sites as historical proof custody. This does not make a premise a function-wide
+range fact: a future proof-derived range analysis must establish an exact
+current-revision site or region before consuming it. The existing narrower
+accepted-operation fact index remains the rule-facing capability for current
+proof-certified scalar rewrites.
 
 The unit must not contain syntax nodes, `ExpressionHandle`, authored names as
 identity, native byte offsets, physical registers, or target instruction
@@ -886,8 +901,9 @@ terminal fusion currently decline nonempty removed-edge cleanup until
 composition has an admitted proof. Target lowering names the already verified
 ownership-only erasure explicitly and emits no runtime instruction. This is
 exact source-site retention and replay, not yet a current-CFG ownership solver.
-Remaining current-CFG ownership/claim/cleanup replay and the wider crash/
-requirement and remaining effect vocabulary remain explicit unfinished
+Remaining current-CFG ownership/claim/cleanup replay, proof-derived
+current-region range facts, and the wider crash/requirement and remaining
+effect vocabulary remain explicit unfinished
 validator layers. It
 also rechecks the complete current
 Terminal-Psi CFG contract—parameter-free entry, closed edges, total
@@ -967,6 +983,14 @@ The decision-manifest vocabulary has a separate typed ownership-frontier fact
 reference, allowing a future rule to retain the exact consumed capability and
 its domain-separated identity. This representational support does not itself
 make any ownership rewrite applicable.
+
+Complete proof-question custody is likewise immutable source authority rather
+than an analysis conclusion. It preserves call and nominal-cleanup requirements,
+contract guarantees, assumptions, semantic axioms, and certificate policy even
+where the current abstract-operation vocabulary erases those proof-site fields.
+Analyses may derive nonzero, interval, congruence, or case facts only by joining
+these rows to an independently proven current site or region; catalog presence
+alone never broadens their scope.
 
 Literal-derived constants and ranges name the exact supporting Psi operation
 and are valid only for their `(unit revision, machine, value)` region.
@@ -1256,7 +1280,7 @@ unit antichain check rejects any sequentially executable duplicate. Later nodes
 whose dense effects shift are also accounted for. Corruption tests reject
 forged node and fanout realization sites, and full artifact tests replay the
 ledger to exact one-block and three-block prephysical projections. Candidate
-v20, optimization-unit content identity v15, `ControlFlowCleanup` v11,
+v20, optimization-unit content identity v16, `ControlFlowCleanup` v11,
 prephysical manifest v14, and optimized-plan projection validation v15 bind this
 admission meaning; ledger v4 expresses both the many-to-one move and one-to-many
 fanout. Direct terminal fusion retains the terminal edge and removed jump edge
@@ -1498,7 +1522,7 @@ edge custody, definitions/uses, dense effects, facts/places, and provenance
 relocation before acceptance. Corruption tests cover reordered incoming rows
 and detached leaders; a verified Terminal diamond exercises publication
 projection with both appended bindings. Candidate encoding v24,
-optimization-unit content identity v15, the named v7 pass, prephysical
+optimization-unit content identity v16, the named v7 pass, prephysical
 manifest v23, and optimized-plan projection validation v24 bind the current
 meaning; ledger v4 already represents both node relocation and edge custody.
 The proof-certified phi rule uses the same closed proof-bearing scalar
@@ -1625,7 +1649,7 @@ keeps ownership of `-1 % -1`. Independent replay reconstructs the type,
 operator policy, operands, facts, observation/liveness boundary, provenance,
 fuel, accounting, and output. Verified projection and x86-64/AArch64 lowering
 retain the typed-zero realization.
-Candidate schema remains v24. Optimization-unit identity v15 intentionally
+Candidate schema remains v24. Optimization-unit identity v16 intentionally
 rekeys revision-bound candidate identities because ordered edge cleanup and
 compressed hidden-operation custody now join the already retained root service
 reach, payloadless-call surface, verified machine contracts, and evidence-
