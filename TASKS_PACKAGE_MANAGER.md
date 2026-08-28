@@ -944,9 +944,24 @@ complete.
   `FilesystemReadsConfined` is now `Enforced` only for macOS inspection. Native
   policy schema 9 records the stronger guarantee and Git cache policy v22
   prevents reuse of state inspected under broad metadata authority. Other
-  phases are unchanged: initialization/HTTPS network phases retain broad
-  metadata, SSH discovery/fetch retain broad content and metadata, and strict
-  resolver-wide read confinement remains open.
+  At that checkpoint, other phases were unchanged: initialization/HTTPS network
+  phases retained broad metadata, SSH discovery/fetch retained broad content
+  and metadata, and strict resolver-wide read confinement remained open.
+
+  Follow-up 2026-08-28: macOS repository initialization now applies that same
+  bounded metadata policy to its exact mutable root. Metadata and content reads
+  are confined beneath that root plus only compiler-derived exact executable/
+  runtime paths and literal ancestors; writes remain confined beneath the
+  mutable root, and network and descendant processes remain denied. Native
+  canaries prove in-root metadata and the in-root symlink entry succeed while an
+  adjacent path and following the symlink outside both fail. All 158 source-
+  resolver tests exercise real bare Git initialization under the narrowed
+  profile. `FilesystemReadsConfined` is therefore now `Enforced` for macOS
+  initialization and inspection. Native policy schema 10 records the stronger
+  guarantee and Git cache policy v23 prevents reuse of state initialized under
+  broad metadata authority. HTTPS discovery/fetch still retain broad metadata,
+  SSH retains broad content and metadata, and resolver-wide read confinement
+  remains open.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

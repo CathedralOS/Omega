@@ -16,12 +16,12 @@ text or containment claims.
 ## Current enforcement
 
 - macOS uses compiler-fixed, self-contained Seatbelt profiles with no host-
-  profile imports. SSH discovery and fetch admit broad reads. Initialization,
-  and HTTPS discovery/fetch admit broad metadata reads but confine file-content
-  reads to their exact working or mutable-quarantine root, the selected
-  executable set, `/dev/null`, and the literal filesystem-root directory entry
-  required by the native process runtime. Repository inspection confines both
-  metadata and content reads to the retained bare repository plus the exact
+  profile imports. SSH discovery and fetch admit broad reads. HTTPS discovery/
+  fetch admit broad metadata reads but confine file-content reads to their exact
+  working or mutable-quarantine root, the selected executable set, `/dev/null`,
+  and the literal filesystem-root directory entry required by the native process
+  runtime. Repository initialization and inspection confine both metadata and
+  content reads to their mutable or retained-bare-repository root plus the exact
   executable/runtime paths and literal ancestors needed to reach them. HTTPS
   discovery/fetch additionally admit the fixed system TLS
   configuration root `/private/etc/ssl`. Every phase admits the exact compiler-selected
@@ -77,8 +77,8 @@ so package locator text never becomes shell syntax.
 This is engineering enforcement and one input to a future package-source
 receipt, not that accepted receipt. macOS inspection now marks
 `FilesystemReadsConfined` enforced, but SSH discovery/fetch still permit broad
-reads and initialization/HTTPS network phases retain broad metadata, so complete
-resolver-wide filesystem-read confinement remains unavailable. The fixed TLS root
+reads and HTTPS network phases retain broad metadata, so complete resolver-wide
+filesystem-read confinement remains unavailable. The fixed TLS root
 is not a TLS trust receipt or credential-custody claim. Aggregate CPU, memory,
 process-count, and object-store quotas, plus Linux/Windows endpoint confinement
 and strict backends, remain package-manager tasks. See
