@@ -78,6 +78,7 @@ pub fn lower_symbol_resolved_trees(
                 symbol: declaration.symbol,
                 is_public: declaration.is_public,
                 declared_type,
+                initializer_source_span: declaration.initializer_source_span,
                 canonical_value_encoding: declaration.canonical_value_encoding.clone(),
             });
     }

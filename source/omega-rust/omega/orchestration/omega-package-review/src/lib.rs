@@ -2407,6 +2407,9 @@ pub enum PackageReviewSourceLocationRole {
     ServiceReach,
     SynchronousInvocation,
     ExternalBinding,
+    /// Exact initializer expression of one public const. This remains
+    /// distinct from the declaration-name anchor after value substitution.
+    ConstInitializer,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -4407,7 +4410,10 @@ fn project_public_consts(
                 canonical_value_encoding,
             },
             declaration: declaration.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: vec![ProjectedNestedSourceLocation {
+                source_span: declaration.initializer_source_span,
+                role: PackageReviewSourceLocationRole::ConstInitializer,
+            }],
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));

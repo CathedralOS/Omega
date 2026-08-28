@@ -2585,8 +2585,8 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v74/canonical row v32, conflict fingerprint v11, renderer V10, and
-  canonical-row recovery envelope v8 bind the appended roles; stale envelopes
+  review v75/canonical row v33, conflict fingerprint v12, renderer V11, and
+  canonical-row recovery envelope v9 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Remaining per-fact spans are
   incremental engineering work and require deliberate retention before typed
   lowering, not later source-text reconstruction.
@@ -2601,6 +2601,17 @@ complete.
   unchanged. Canonical-row recovery envelope v8, conflict fingerprint v11,
   and renderer V10 bind the appended explanatory role; stale recovery records
   reject.
+  Milestone 2026-08-27: public const declarations now retain the exact parsed
+  initializer-expression span before const substitution erases the value tree.
+  Symbol-resolved and typed const declarations carry that occurrence, and the
+  `PublicConst` row emits it under the closed `const_initializer` role beside
+  the independent declaration-name anchor. Recovery envelope v9, conflict
+  fingerprint v12, and renderer V11 bind the new role and exact coordinates;
+  semantic package-review bytes remain v75/canonical row v33 because source
+  locations are explanatory sidecars. Canaries require the two source slices
+  to be exactly `LIMIT` and `4`, preserve the role through recovery and conflict
+  rendering, and prove that relocating identical semantics changes coordinates
+  without changing canonical review identity.
   Canonical recovery and root-project file custody are recorded below; none of
   these concerns requires nominal Chi or a new owner decision.
 

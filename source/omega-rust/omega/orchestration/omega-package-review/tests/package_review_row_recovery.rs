@@ -117,6 +117,14 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst),
         "the public const row kind must survive canonical recovery"
     );
+    assert!(rows.iter().any(|row| {
+        row.kind() == PackageReviewCanonicalRowKind::PublicConst
+            && row.source().authored_locations().is_some_and(|locations| {
+                locations.iter().any(|location| {
+                    location.role() == PackageReviewSourceLocationRole::ConstInitializer
+                })
+            })
+    }));
     assert!(
         rows.iter()
             .any(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConformance),
@@ -135,7 +143,7 @@ fn canonical_rows_round_trip_with_validated_package_target_and_exact_source() {
                 })
             })
     }));
-    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 8);
+    assert_eq!(PACKAGE_REVIEW_CANONICAL_ROW_RECOVERY_VERSION, 9);
 
     for row in rows {
         let envelope = encode_package_review_canonical_row(&row).expect("encode recovery row");

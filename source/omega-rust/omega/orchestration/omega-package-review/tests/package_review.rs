@@ -3418,9 +3418,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         project_checked_package_review(&checked).expect("public const review")
     };
 
-    let original = project("pub const LIMIT: u64 = 4;\nconst HIDDEN_LIMIT: u64 = 2;\n");
+    let original_source = "pub const LIMIT: u64 = 4;\nconst HIDDEN_LIMIT: u64 = 2;\n";
+    let original = project(original_source);
     let changed_value = project("pub const LIMIT: u64 = 5;\n");
     let changed_type = project("pub const LIMIT: u32 = 4;\n");
+    let relocated = project("\n\npub const LIMIT: u64 = 4;\n");
 
     let [limit] = original.public_consts() else {
         panic!("private consts must stay out of public compatibility rows");
@@ -3440,7 +3442,33 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         const_rows[0].risk(),
         PackageReviewCanonicalRowRisk::Blocking
     );
-    assert!(const_rows[0].source().authored_locations().is_some());
+    let locations = const_rows[0]
+        .source()
+        .authored_locations()
+        .expect("public const source locations");
+    assert_eq!(locations.len(), 2);
+    let source_for_role = |role| {
+        let location = locations
+            .iter()
+            .find(|location| location.role() == role)
+            .expect("exact public const source role");
+        let start = usize::try_from(location.start_byte()).unwrap();
+        let end = usize::try_from(location.end_byte()).unwrap();
+        &original_source[start..end]
+    };
+    assert_eq!(
+        source_for_role(PackageReviewSourceLocationRole::Declaration),
+        "LIMIT"
+    );
+    assert_eq!(
+        source_for_role(PackageReviewSourceLocationRole::ConstInitializer),
+        "4"
+    );
+    let original_initializer_start = locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ConstInitializer)
+        .unwrap()
+        .start_byte();
     assert_ne!(
         original.canonical_review_bytes().unwrap(),
         changed_value.canonical_review_bytes().unwrap(),
@@ -3450,6 +3478,28 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         original.canonical_review_bytes().unwrap(),
         changed_type.canonical_review_bytes().unwrap(),
         "changing a public const declared type must change package compatibility",
+    );
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        relocated.canonical_review_bytes().unwrap(),
+        "relocating identical const semantics must not change canonical review identity",
+    );
+    let relocated_row = relocated
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+        .expect("relocated public const row");
+    let relocated_initializer = relocated_row
+        .source()
+        .authored_locations()
+        .unwrap()
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ConstInitializer)
+        .expect("relocated initializer location");
+    assert_eq!(
+        relocated_initializer.start_byte(),
+        original_initializer_start + 2
     );
 }
 
