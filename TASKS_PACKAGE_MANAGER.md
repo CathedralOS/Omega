@@ -648,18 +648,35 @@ complete.
   only in the test adapter. Every Unix child also inherits zero core dumps,
   at most 120 CPU seconds, a 1 GiB single-file ceiling, and at most 256 open
   files; Linux and Android additionally inherit an 8 GiB address-space ceiling.
-  Native canaries
-  prove write denial outside quarantine, descendant-exec denial outside the
-  closed tool set, network denial during inspection, and network availability
-  during discovery. Hermetic loopback canaries additionally prove the selected
+  Native canaries prove ordinary-path write denial outside quarantine,
+  descendant-exec denial outside the closed path set, remote TCP denial during
+  inspection, and network availability during discovery. Hermetic loopback canaries additionally prove the selected
   production HTTPS helper and fixed shell/SSH executable chains can launch
   through that allowlist. All 153 source-resolver tests pass through the new
   backend.
   This is a real macOS enforcement floor, not completion of strict isolation:
   Seatbelt still permits broad reads, network destinations are not brokered,
   the launcher is deprecated, rlimits are per-process/inherited rather than
-  aggregate, Linux and Windows strict backends remain, and no opaque receipt
-  carries these facts yet.
+  aggregate, and Linux and Windows strict backends remain.
+
+  Milestone 2026-08-28: native command construction now returns one bounded
+  opaque canonical policy observation binding the verified backend, closed
+  phase, generated policy hash, numeric resource ceilings, primary executable,
+  normalized bounded descendant-executable path set, mutable root, and every
+  fixed native guarantee as enforced, unavailable, or not required. No public
+  constructor or decoder exists; persisted bytes cannot mint a containment
+  fact, and strict checking rejects the first unavailable required row.
+  Successful Git resolution retains one observation per configured command
+  rather than collapsing different roots or executable sets into a phase
+  summary. Adversarial review found that Apple's imported `system.sb` grants
+  special-file writes and local socket access and is not transitively identity-
+  bound. The filesystem, network, and executable-path guarantee rows therefore
+  remain unavailable despite narrower canaries; only exact inherited rlimit
+  rows are currently enforced on macOS. This observation is configuration
+  provenance, not proof of execution or the future source receipt. Exact
+  executable content, environment/protocol sealing, command outcome,
+  endpoint/credential trust, object authentication, snapshot publication, and
+  final verdict still require a package-layer canonical join.
 
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build

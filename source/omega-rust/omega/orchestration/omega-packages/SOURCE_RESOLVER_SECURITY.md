@@ -97,6 +97,30 @@ parent, but
 does not claim hostile same-user handle-relative custody or give the record
 authority.
 
+The native execution crate now returns a narrower opaque policy observation
+with each command it constructs. It binds the verified backend, closed phase,
+generated policy hash, numeric compiler ceilings, primary executable path,
+normalized bounded descendant-executable path set, mutable root, and a complete
+ordered guarantee vocabulary. Required guarantees are either `Enforced` or
+`Unavailable`; phase-inapplicable rows are `NotRequired`. There is no public
+constructor or decoder, path and helper counts are bounded, and
+`require_strict` rejects any unavailable row. Git resolution retains one value
+for every configured command only inside a resolution that ultimately
+succeeds. This prevents a phase-only summary from hiding different executable
+or filesystem scopes, but it is configuration provenance—not proof the command
+ran and not a `SourceResolutionReceiptV1`. The complete receipt must join the
+package layer's exact executable content observations, environment/protocol
+sealing, endpoint and credential trust, bounded command result, object
+authentication, snapshot identity, and final publication verdict.
+
+The macOS profile imports Apple's mutable `system.sb`, which itself imports
+`dyld-support.sb` and currently grants special-file writes plus local syslog
+socket access. The ordinary write, remote-network, and descendant-exec canaries
+remain useful enforcement tests, but the observation conservatively marks all
+filesystem, network, and executable-path strict guarantees unavailable because
+the imported policy closure is not identity-bound and semantically audited.
+Only the exact compiler-owned rlimit rows are presently `Enforced` on macOS.
+
 Resolved package custody now also projects a bounded
 `CanonicalSourceClosureSubject`: the exact root request and every authored
 dependency request occurrence joined to its alias, selected package key, and
@@ -352,17 +376,18 @@ transport discovery, repository initialization, fetch, or repository
 inspection. On macOS it verifies `/usr/bin/sandbox-exec` as a root-owned,
 non-writable, non-set-id executable beneath root-owned ancestry, rejects native
 extended-ACL allow entries, binds its content hash and file identity, and
-rechecks that identity before constructing each command. Compiler-fixed
-Seatbelt policy permits outbound network only during discovery and fetch;
-filesystem mutation only beneath the selected quarantine during initialization
-and fetch; and process execution only for the already verified Git, selected
-transport helper, and fixed platform chain. Inspection has neither network nor
-write authority. The profile currently permits `file-read*`, so it does not yet
-confine reads to quarantine plus trusted tool/runtime inputs. It also permits
-all outbound destinations in network phases rather than brokering the requested
-endpoint. `/usr/bin/sandbox-exec` is a deprecated host interface, so this is a
-concrete current-host enforcement floor rather than a durable macOS backend
-promise. Failure to establish or revalidate it rejects on macOS.
+rechecks that identity before constructing each command. Compiler-fixed policy
+adds outbound network only during discovery and fetch, quarantine mutation
+during initialization and fetch, and exact process-exec paths for the verified
+Git/helper chain. Canaries prove the corresponding ordinary-path behavior on
+the tested host. The imported `system.sb` policy also permits broad reads,
+special-file writes, and local syslog socket access; its transitive content is
+not yet bound. Therefore strict observations do not claim complete filesystem,
+network, or executable confinement. Network phases also permit all outbound
+destinations rather than brokering the requested endpoint.
+`/usr/bin/sandbox-exec` is deprecated, so this is a concrete current-host floor,
+not a durable macOS backend promise. Failure to establish or revalidate the
+launcher rejects on macOS.
 
 Every Unix resolver child inherits at most 120 CPU seconds, a zero core-file
 limit, a 1 GiB file-size ceiling, and at most 256 descriptors. Linux/Android
