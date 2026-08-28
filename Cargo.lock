@@ -1182,6 +1182,7 @@ dependencies = [
  "omega-terminal-isa-aarch64",
  "omega-terminal-isa-x86_64",
  "omega-terminal-legalized-operations",
+ "omega-terminal-machine-code",
  "omega-terminal-psi-to-abstract-operations",
  "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
@@ -1740,11 +1741,17 @@ name = "omega-terminal-machine-code"
 version = "0.1.0"
 dependencies = [
  "omega-calling-conventions",
+ "omega-optimization-core",
+ "omega-optimization-unit",
+ "omega-register-model",
  "omega-target",
+ "omega-terminal-abstract-operations",
  "omega-terminal-installation-evidence",
+ "omega-terminal-selected-instructions",
  "omega-terminal-target-operations",
  "psi-core",
  "psi-terminal",
+ "sha2",
 ]
 
 [[package]]

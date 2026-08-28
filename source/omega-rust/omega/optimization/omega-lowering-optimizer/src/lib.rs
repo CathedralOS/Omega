@@ -12,7 +12,7 @@ use omega_optimization_core::{
     OptimizationIdentityBundle, OptimizationPassManifestRecord, OptimizationRuleSetIdentity,
     OptimizationSelections, OptimizationWorkUsage,
 };
-use omega_optimization_policy::BaselineDecisionLog;
+use omega_optimization_policy::{BaselineDecisionLog, ExternalDecisionLog};
 use omega_optimization_unit::{
     PsiOptimizationUnit, PsiTransformationLedger, PsiTransformationRecord, ValueDefinition,
     ValueDefinitionSite,
@@ -26,6 +26,7 @@ use omega_optimization_validation::{
 use omega_psi_optimizer::{
     OptimizationRun, OptimizationRunUsage, PsiOptimizationCommit, RuleRegistryError,
     baseline_psi_cost_model_identity, built_in_psi_registries,
+    validate_external_decision_recording,
 };
 use omega_terminal_abstract_operations::{
     TerminalAbstractBlockEntry, TerminalAbstractFunction, TerminalAbstractOperationPlan,
@@ -140,6 +141,10 @@ impl ValidatedOptimizedAbstractPlan {
         self.run.decisions()
     }
 
+    pub const fn external_decisions(&self) -> &ExternalDecisionLog {
+        self.run.external_decisions()
+    }
+
     pub fn pass_manifests(&self) -> &[OptimizationPassManifestRecord] {
         self.run.pass_manifests()
     }
@@ -174,6 +179,7 @@ pub enum OptimizedAbstractProjectionError {
     FinalUnitReplayMismatch,
     LedgerCommitMismatch,
     ManifestUsageMismatch,
+    ExternalDecisionRecordingMismatch,
     PsiSelectionProjectionMismatch,
     IndependentValidation(OptimizedAbstractPlanProjectionError),
     PrePhysicalManifest(PrePhysicalOptimizationManifestError),
@@ -211,6 +217,8 @@ pub fn project_optimization_run(
         .map_err(|_| OptimizedAbstractProjectionError::CommitReplayMismatch)?;
     replay_commits(&run)?;
     validate_run_records(&run, ordered_rule_set)?;
+    validate_external_decision_recording(&run)
+        .map_err(|_| OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)?;
     let plan = project_plan(run.session().input().plan(), run.session().unit())?;
     let validation = validate_optimized_abstract_plan_projection(
         run.session().input(),
@@ -485,7 +493,7 @@ mod tests {
         PrePhysicalOptimizationManifestDecodeError, PrePhysicalOptimizationManifestError,
         validate_pre_physical_optimization_manifest,
     };
-    use omega_psi_optimizer::{built_in_psi_registry, run_psi_pipeline};
+    use omega_psi_optimizer::{built_in_psi_registry, replay_psi_pipeline, run_psi_pipeline};
     use omega_target::NativeTarget;
     use omega_terminal_abstract_operations::TerminalAbstractOperation;
     use omega_terminal_psi_to_abstract_operations::VerifiedPsiOptimizationUnit;
@@ -1421,6 +1429,61 @@ mod tests {
         )
     }
 
+    fn live_exact_multiply_by_zero_verified() -> VerifiedPsiOptimizationUnit {
+        let machine = MachineId::new(1_101).unwrap();
+        let block = BlockId::new(1_102).unwrap();
+        let value = ValueId::new(1_103).unwrap();
+        let zero = ValueId::new(1_104).unwrap();
+        let product = ValueId::new(1_105).unwrap();
+        let result = ValueId::new(1_106).unwrap();
+        let obligation = ObligationId::new(1_107).unwrap();
+        let scalar_type = ScalarType::Integer(IntegerType::new(IntegerSign::Unsigned, 8).unwrap());
+        let declaration = |id| ValueDeclaration { id, scalar_type };
+        let mut module = module_with_blocks(
+            machine,
+            block,
+            TerminalMachineResult::Scalar(declaration(result)),
+            vec![Block {
+                id: block,
+                parameters: Vec::new(),
+                operations: vec![
+                    Operation {
+                        id: OperationId::new(1_108).unwrap(),
+                        result: OperationResult::Scalar(declaration(zero)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(0),
+                        },
+                    },
+                    Operation {
+                        id: OperationId::new(1_109).unwrap(),
+                        result: OperationResult::Scalar(declaration(product)),
+                        kind: OperationKind::ExactIntegerMultiply {
+                            left: value,
+                            right: zero,
+                            obligation,
+                        },
+                    },
+                ],
+                terminator: Terminator::Return {
+                    cleanup_actions: Vec::new(),
+                    edge: EdgeId::new(1_110).unwrap(),
+                    value: product,
+                },
+            }],
+        );
+        module.machines[0].parameters.push(declaration(value));
+        verified(
+            module,
+            ProofBundle {
+                evidence_producers: Vec::new(),
+                evidence: vec![ObligationEvidence {
+                    obligation,
+                    route: EvidenceRoute::KernelDerived(PrimitiveJudgment::Truth),
+                }],
+            },
+        )
+    }
+
     fn exact_add_verified_with_result(return_result: bool) -> VerifiedPsiOptimizationUnit {
         let machine = MachineId::new(1_011).unwrap();
         let block = BlockId::new(1_012).unwrap();
@@ -1662,6 +1725,48 @@ mod tests {
     }
 
     #[test]
+    fn projection_rejects_detached_external_decision_recording() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let mut optimized = run(exact_add_verified(), selections);
+        let empty = run(empty_verified(), OptimizationSelections::default());
+        optimized.external_decisions = empty.external_decisions;
+
+        assert!(matches!(
+            project_optimization_run(optimized),
+            Err(OptimizedAbstractProjectionError::ExternalDecisionRecordingMismatch)
+        ));
+    }
+
+    #[test]
+    fn externally_replayed_psi_decisions_reach_verified_terminal_projection() {
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .unwrap();
+        let baseline = run_pipeline(exact_add_verified(), selections.clone());
+        let external = baseline.external_decisions().clone();
+        let replayed = replay_psi_pipeline(
+            exact_add_verified(),
+            &selections,
+            work_budget(),
+            &external.encode(),
+        )
+        .unwrap();
+        let optimized = project_optimization_run(replayed).unwrap();
+
+        assert_eq!(optimized.external_decisions(), &external);
+        assert_eq!(optimized.commits().len(), 1);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[2],
+            TerminalAbstractOperation::IntegerConstant {
+                value: IntegerValue::Unsigned(15),
+                ..
+            }
+        ));
+    }
+
+    #[test]
     fn private_machine_pruning_projects_exact_roster_and_ledger_custody() {
         let selections = OptimizationSelections::new([Optimization::ControlFlowCleanup]).unwrap();
         let optimized =
@@ -1735,7 +1840,7 @@ mod tests {
                 .iter()
                 .map(|record| record.provenance.len())
                 .collect::<Vec<_>>(),
-            [5, 6]
+            [6, 6]
         );
         assert!(
             optimized
@@ -2192,7 +2297,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 3);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
         assert_eq!(optimized.plan().functions[0].operations.len(), 2);
         assert!(matches!(
             optimized.plan().functions[0].operations[1],
@@ -2226,7 +2331,7 @@ mod tests {
         assert_eq!(optimized.commits().len(), 1);
         assert_eq!(optimized.transformation_ledger().records().len(), 1);
         assert_eq!(optimized.pass_manifests().len(), 1);
-        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 3);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
         assert_eq!(
             optimized.pass_manifests()[0].ordered_rules()[2],
             omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
@@ -2258,6 +2363,52 @@ mod tests {
 
         let lowered = lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64())
             .expect("the independently projected divide-free plan remains target lowerable");
+        assert_eq!(lowered.target_operations().functions.len(), 1);
+        assert_eq!(lowered.optimized().commits().len(), 1);
+    }
+
+    #[test]
+    fn proof_check_elision_projects_and_lowers_live_exact_multiply_by_zero() {
+        let selections = OptimizationSelections::new([Optimization::ProofCheckElision]).unwrap();
+        let optimized =
+            project_optimization_run(run(live_exact_multiply_by_zero_verified(), selections))
+                .unwrap();
+
+        assert_eq!(optimized.commits().len(), 1);
+        assert_eq!(optimized.transformation_ledger().records().len(), 1);
+        assert_eq!(optimized.pass_manifests().len(), 1);
+        assert_eq!(optimized.pass_manifests()[0].ordered_rules().len(), 4);
+        assert_eq!(
+            optimized.pass_manifests()[0].ordered_rules()[3],
+            omega_optimization_core::OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.live-proof-certified-exact-integer-multiply-by-zero-elimination.v1"
+            )
+        );
+        assert_eq!(optimized.plan().functions[0].operations.len(), 2);
+        assert!(matches!(
+            optimized.plan().functions[0].operations[1],
+            TerminalAbstractOperation::Return { value, .. }
+                if value == ValueId::new(1_104).unwrap()
+        ));
+        assert_eq!(optimized.unit().accepted_obligation_facts.len(), 1);
+        assert!(optimized.unit().functions[0].facts.iter().all(|fact| {
+            !matches!(
+                fact,
+                omega_optimization_unit::OptimizationFact::OperationObligationReference { .. }
+            )
+        }));
+        assert_eq!(
+            optimized.pass_manifests()[0].decisions()[0]
+                .consumed_facts()
+                .len(),
+            2
+        );
+        let terminal = &optimized.unit().functions[0].blocks[0].nodes[1];
+        assert_eq!(terminal.provenance.len(), 2);
+        assert_eq!(terminal.fuel.len(), 2);
+
+        let lowered = lower_optimized_to_target_operations(optimized, NativeTarget::linux_x64())
+            .expect("the independently projected zero-product-free plan remains target lowerable");
         assert_eq!(lowered.target_operations().functions.len(), 1);
         assert_eq!(lowered.optimized().commits().len(), 1);
     }

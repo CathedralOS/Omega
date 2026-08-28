@@ -3,6 +3,10 @@
 //! Owned target machine code emitted from the clean terminal-Psi realization
 //! lane.
 
+mod function_fragments;
+
+pub use function_fragments::*;
+
 use omega_calling_conventions::{ValuePlacement, ValueShape};
 use omega_target::NativeTarget;
 use omega_terminal_installation_evidence::NativeFuelTargetPlanProjection;

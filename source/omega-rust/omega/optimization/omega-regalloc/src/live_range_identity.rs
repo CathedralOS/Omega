@@ -9,7 +9,7 @@ use crate::{
 
 pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiveRangeIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v1\0");
+    bytes.extend_from_slice(b"omega.terminal-live-range-fragments.v2\0");
     bytes.extend_from_slice(&plan.selected.bytes());
     bytes.extend_from_slice(&plan.liveness.bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -70,6 +70,19 @@ pub fn terminal_live_range_identity(plan: &TerminalLiveRangePlan) -> TerminalLiv
             }
             encode_fragments(&mut bytes, &register.fragments);
             encode_connectors(&mut bytes, &register.edge_connectors);
+        }
+        encode_len(&mut bytes, function.tied_pairs.len());
+        for tie in &function.tied_pairs {
+            bytes.extend_from_slice(&tie.block.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.position.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.instruction.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.use_operand.to_le_bytes());
+            bytes.extend_from_slice(&tie.use_virtual_register.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.use_point.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.def_operand.to_le_bytes());
+            bytes.extend_from_slice(&tie.def_virtual_register.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.def_point.0.to_le_bytes());
+            bytes.extend_from_slice(&tie.class.0.to_le_bytes());
         }
         encode_len(&mut bytes, function.architectural_units.len());
         for unit in &function.architectural_units {
@@ -150,11 +163,12 @@ mod tests {
     use super::terminal_live_range_identity;
     use crate::{
         TerminalArchitecturalUnitAction, TerminalArchitecturalUnitActionKind,
-        TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalFunctionLiveRanges,
-        TerminalLiveRangeEdgeConnector, TerminalLiveRangeFragment, TerminalLiveRangePlan,
-        TerminalLiveRangePoint, TerminalLivenessIdentity, TerminalLivenessPosition,
-        TerminalVirtualFixedConstraint, TerminalVirtualFixedConstraintSite,
-        TerminalVirtualInterference, TerminalVirtualLiveRange, TerminalVirtualOccurrence,
+        TerminalArchitecturalUnitLiveRange, TerminalBlockPointDomain, TerminalDistinctUseDefTie,
+        TerminalFunctionLiveRanges, TerminalLiveRangeEdgeConnector, TerminalLiveRangeFragment,
+        TerminalLiveRangePlan, TerminalLiveRangePoint, TerminalLivenessIdentity,
+        TerminalLivenessPosition, TerminalVirtualFixedConstraint,
+        TerminalVirtualFixedConstraintSite, TerminalVirtualInterference, TerminalVirtualLiveRange,
+        TerminalVirtualOccurrence,
     };
 
     fn plan() -> TerminalLiveRangePlan {
@@ -200,6 +214,18 @@ mod tests {
                     }],
                     fragments: vec![fragment],
                     edge_connectors: vec![connector],
+                }],
+                tied_pairs: vec![TerminalDistinctUseDefTie {
+                    block: TerminalSelectedBlockId(0),
+                    position: TerminalLivenessPosition(0),
+                    instruction: TerminalSelectedInstructionId(0),
+                    use_operand: 0,
+                    use_virtual_register: TerminalVirtualRegisterId(0),
+                    use_point: TerminalLiveRangePoint(0),
+                    def_operand: 1,
+                    def_virtual_register: TerminalVirtualRegisterId(1),
+                    def_point: TerminalLiveRangePoint(1),
+                    class: RegisterClassId(1),
                 }],
                 architectural_units: vec![TerminalArchitecturalUnitLiveRange {
                     unit: RegisterUnitId(1),
@@ -264,6 +290,23 @@ mod tests {
         let mut changed = original.clone();
         changed.functions[0].virtual_registers[0].class.0 += 1;
         mutations.push(changed);
+        let tie_mutations: Vec<fn(&mut TerminalDistinctUseDefTie)> = vec![
+            |tie| tie.block.0 += 1,
+            |tie| tie.position.0 += 1,
+            |tie| tie.instruction.0 += 1,
+            |tie| tie.use_operand += 1,
+            |tie| tie.use_virtual_register.0 += 1,
+            |tie| tie.use_point.0 += 1,
+            |tie| tie.def_operand += 1,
+            |tie| tie.def_virtual_register.0 += 1,
+            |tie| tie.def_point.0 += 1,
+            |tie| tie.class.0 += 1,
+        ];
+        for mutate in tie_mutations {
+            let mut changed = original.clone();
+            mutate(&mut changed.functions[0].tied_pairs[0]);
+            mutations.push(changed);
+        }
         let mut changed = original.clone();
         changed.functions[0].virtual_registers[0].occurrences[0]
             .position

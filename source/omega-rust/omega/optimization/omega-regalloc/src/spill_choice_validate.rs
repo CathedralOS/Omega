@@ -90,6 +90,14 @@ pub fn validate_terminal_spill_choices(
     }
     let mut work = ReplayWork::default();
     for function_index in 0..plan.functions.len() {
+        if !ranges.plan().functions[function_index]
+            .tied_pairs
+            .is_empty()
+        {
+            return Err(TerminalSpillChoiceError::UnsupportedTiedOperands {
+                function: function_index,
+            });
+        }
         let expected = replay_function(
             function_index,
             &legality.plan().functions[function_index],

@@ -22,6 +22,7 @@ use psi_proof_admission::AdmissionProfile;
 mod allocation_legality;
 mod assignment;
 mod fixed_view_copies;
+mod function_fragment_emission;
 mod function_relative_realization;
 mod literal_fold_homes;
 mod literal_folds;
@@ -58,6 +59,15 @@ pub use fixed_view_copies::{
     OptimizedFixedViewCopyCustodyError, StagedOptimizedFixedViewCopies,
     StagedOptimizedFixedViewCopyCustodyReceipt, stage_optimized_fixed_view_copies,
     validate_optimized_fixed_view_copy_custody,
+};
+pub use function_fragment_emission::{
+    FunctionFragmentEmissionError, FunctionFragmentEmissionManifest,
+    FunctionFragmentEmissionManifestDecodeError, FunctionFragmentEmissionSourceKind,
+    FunctionFragmentEmissionStage, FunctionFragmentEmissionStatistics,
+    FunctionFragmentEmissionUnavailableData, StagedFunctionFragmentEmissionCustodyReceipt,
+    StagedOptimizedFunctionFragmentEmission, StagedOptimizedFunctionFragmentEmissionSource,
+    ValidatedFunctionFragmentEmissionManifest, stage_optimized_function_fragment_emission,
+    validate_optimized_function_fragment_emission,
 };
 pub use function_relative_realization::{
     FunctionRelativeOptimizationRealizationError, FunctionRelativeOptimizationRealizationManifest,
@@ -7233,6 +7243,345 @@ mod tests {
             manifest.baseline_resolved_layout,
             realization.baseline_layout().identity()
         );
+    }
+
+    #[test]
+    fn relocation_free_rel8_fragment_emission_retains_bytes_fuel_and_manifest_custody() {
+        let target = NativeTarget::linux_x64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
+            physical
+        else {
+            panic!("rel8 must complete its direct function-relative realization")
+        };
+        let mut emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8Direct(Box::new(realization)),
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted).unwrap(),
+            emitted.custody()
+        );
+        let fragments = emitted.fragments();
+        assert_eq!(fragments.functions.len(), 1);
+        let function = &fragments.functions[0];
+        let flattened = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .flat_map(|row| row.bytes.iter().copied())
+            .collect::<Vec<_>>();
+        assert_eq!(flattened, function.bytes);
+        let branch = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|row| row.branch.is_some())
+            .unwrap();
+        assert_eq!(branch.bytes[0], 0x75);
+        let omega_terminal_machine_code::TerminalFunctionFragmentControlProvenance::ConditionalBranch {
+            when_nonzero,
+            when_zero,
+        } = &branch.control else {
+            panic!("resolved rel8 branch must retain both semantic successors")
+        };
+        assert!(!when_nonzero.fuel.is_empty());
+        assert!(!when_zero.fuel.is_empty());
+        let record = emitted.manifest().record();
+        assert_eq!(
+            record.source_kind,
+            FunctionFragmentEmissionSourceKind::X86Rel8V1
+        );
+        assert_eq!(record.fragments, fragments.identity);
+        assert_eq!(record.statistics.zero_byte_instruction_spans, 0);
+        assert!(record.statistics.logical_fuel_settlements > 0);
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&record.encode()),
+            Ok(record.clone())
+        );
+        let mut trailing = record.encode();
+        trailing.push(0);
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&trailing),
+            Err(FunctionFragmentEmissionManifestDecodeError::TrailingBytes)
+        );
+        let mut stale_identity = record.encode();
+        stale_identity[12] ^= 1;
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&stale_identity),
+            Err(FunctionFragmentEmissionManifestDecodeError::IdentityMismatch)
+        );
+        let mut wrong_version = record.encode();
+        wrong_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&wrong_version),
+            Err(FunctionFragmentEmissionManifestDecodeError::UnsupportedVersion(2))
+        );
+        assert_eq!(
+            FunctionFragmentEmissionManifest::decode(&record.encode()[..20]),
+            Err(FunctionFragmentEmissionManifestDecodeError::Truncated)
+        );
+
+        let original_control = emitted.fragments().functions[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .find(|row| row.branch.is_some())
+            .unwrap()
+            .control
+            .clone();
+        let branch = emitted.fragments_mut().functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| row.branch.is_some())
+            .unwrap();
+        let omega_terminal_machine_code::TerminalFunctionFragmentControlProvenance::ConditionalBranch {
+            when_nonzero,
+            ..
+        } = &mut branch.control else {
+            unreachable!()
+        };
+        when_nonzero.fuel.clear();
+        let fuel_corruption_identity = emitted.fragments().recomputed_identity();
+        assert_ne!(fuel_corruption_identity, emitted.custody().fragments());
+        emitted.fragments_mut().identity = fuel_corruption_identity;
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted),
+            Err(FunctionFragmentEmissionError::ArtifactMismatch)
+        );
+        let branch = emitted.fragments_mut().functions[0]
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+            .find(|row| row.branch.is_some())
+            .unwrap();
+        branch.control = original_control;
+        let restored_identity = emitted.fragments().recomputed_identity();
+        emitted.fragments_mut().identity = restored_identity;
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted).unwrap(),
+            emitted.custody()
+        );
+
+        let row = emitted.fragments_mut().functions[0].blocks[0]
+            .instructions
+            .iter_mut()
+            .find(|row| !row.bytes.is_empty())
+            .unwrap();
+        row.bytes[0] ^= 1;
+        let corrupted_identity = emitted.fragments().recomputed_identity();
+        emitted.fragments_mut().identity = corrupted_identity;
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted),
+            Err(FunctionFragmentEmissionError::ArtifactMismatch)
+        );
+    }
+
+    #[test]
+    fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
+        let target = NativeTarget::linux_arm64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachine { realization } =
+            physical
+        else {
+            panic!("CBNZ must complete its direct function-relative realization")
+        };
+        let mut emitted = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzDirect(Box::new(realization)),
+        )
+        .unwrap();
+        let function = &emitted.fragments().functions[0];
+        let rows = function
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .collect::<Vec<_>>();
+        let compare = rows
+            .iter()
+            .find(|row| {
+                row.alternative.family
+                    == omega_terminal_selected_instructions::TerminalMachineAlternativeFamily::CompareI64Zero
+            })
+            .unwrap();
+        let branch = rows.iter().find(|row| row.branch.is_some()).unwrap();
+        assert!(compare.bytes.is_empty());
+        assert!(compare.provenance.fuel.is_empty());
+        assert_eq!(compare.offset, branch.offset);
+        assert_eq!(branch.bytes.len(), 4);
+        assert_eq!(
+            u32::from_le_bytes(branch.bytes.as_slice().try_into().unwrap()) & 0xff00_0000,
+            0xb500_0000
+        );
+        assert_eq!(
+            emitted
+                .manifest()
+                .record()
+                .statistics
+                .zero_byte_instruction_spans,
+            1
+        );
+        assert_eq!(
+            emitted.manifest().record().source_kind,
+            FunctionFragmentEmissionSourceKind::Aarch64CbnzV1
+        );
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted).unwrap(),
+            emitted.custody()
+        );
+
+        let block = emitted.fragments_mut().functions[0]
+            .blocks
+            .iter_mut()
+            .find(|block| block.instructions.iter().any(|row| row.bytes.is_empty()))
+            .unwrap();
+        block.instructions.retain(|row| !row.bytes.is_empty());
+        let corrupted_identity = emitted.fragments().recomputed_identity();
+        emitted.fragments_mut().identity = corrupted_identity;
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&emitted),
+            Err(FunctionFragmentEmissionError::ArtifactMismatch)
+        );
+    }
+
+    #[test]
+    fn relocation_free_fragment_emission_accepts_both_selected_lowering_compositions() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let x86_selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .unwrap();
+        let x86_optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(x86_selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let x86_physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            x86_optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } =
+            x86_physical
+        else {
+            panic!("combined x86 suite must retain selected-lowering custody")
+        };
+        let x86 = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(Box::new(
+                realization,
+            )),
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&x86).unwrap(),
+            x86.custody()
+        );
+
+        let arm_selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::Aarch64FuseCompareI64ZeroBranchNonZeroToCbnzV1,
+        ])
+        .unwrap();
+        let arm_optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(arm_selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let arm_physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            arm_optimized,
+            NativeTarget::linux_arm64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachine {
+            realization,
+        } = arm_physical
+        else {
+            panic!("combined AArch64 suite must retain both phase completions")
+        };
+        let arm = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::Aarch64CbnzAfterSelectedLowering(
+                Box::new(realization),
+            ),
+        )
+        .unwrap();
+        assert_eq!(
+            validate_optimized_function_fragment_emission(&arm).unwrap(),
+            arm.custody()
+        );
+    }
+
+    #[test]
+    fn rel8_fragment_emission_rejects_selected_lowering_without_the_named_layout_rule() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections =
+            OptimizationSelections::new([Optimization::SelectedIncomingU12ExactAddImmediate])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::linux_x64(),
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = physical
+        else {
+            panic!("selected lowering must retain its completed realization")
+        };
+        assert!(realization.relaxation().is_none());
+        assert!(matches!(
+            stage_optimized_function_fragment_emission(
+                StagedOptimizedFunctionFragmentEmissionSource::X86Rel8AfterSelectedLowering(
+                    Box::new(realization),
+                ),
+            ),
+            Err(FunctionFragmentEmissionError::MissingX86Rel8Realization)
+        ));
     }
 
     #[test]

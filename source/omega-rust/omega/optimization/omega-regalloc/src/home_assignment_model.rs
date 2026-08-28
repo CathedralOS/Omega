@@ -9,7 +9,7 @@ use crate::{
 };
 
 const REGISTER_HOME_MAGIC: &[u8; 8] = b"OMGRAH\0\0";
-const REGISTER_HOME_VERSION: u32 = 2;
+const REGISTER_HOME_VERSION: u32 = 3;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalRegisterHomeIdentity(pub(crate) [u8; 32]);
@@ -128,6 +128,7 @@ pub struct TerminalRegisterHomeValidationReceipt {
     pub(crate) allocator_availability: TerminalAllocatorAvailabilityIdentity,
     pub(crate) function_count: usize,
     pub(crate) assignment_count: usize,
+    pub(crate) tied_pair_count: usize,
 }
 
 impl TerminalRegisterHomeValidationReceipt {
@@ -151,6 +152,9 @@ impl TerminalRegisterHomeValidationReceipt {
     }
     pub const fn assignment_count(self) -> usize {
         self.assignment_count
+    }
+    pub const fn tied_pair_count(self) -> usize {
+        self.tied_pair_count
     }
 }
 
@@ -204,6 +208,20 @@ pub enum TerminalRegisterHomeError {
     NoCompatibleHome {
         function: usize,
         register: u32,
+    },
+    UnsupportedTiedTopology {
+        function: usize,
+        instruction: u32,
+    },
+    TiedRegistersInterfere {
+        function: usize,
+        lower: u32,
+        higher: u32,
+    },
+    NoCommonTiedCandidate {
+        function: usize,
+        lower: u32,
+        higher: u32,
     },
     NonCanonicalAssignments {
         function: usize,

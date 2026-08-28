@@ -43,8 +43,9 @@ These facts constrain the work below.
   register and instruction-constraint vocabularies with total structural
   validators. `omega-regalloc` now consumes the opaque validated selected CFG
   for bounded liveness, ranges, candidate legality, the first strict
-  transition-free physical-home assignment, and a separately validated local
-  pressure-victim decision. It is not yet a general allocator: the latter is
+  transition-free physical-home assignment, one exact distinct Use-to-later-
+  Def tied-home form, and a separately validated local pressure-victim
+  decision. It is not yet a general allocator: the latter is
   evidence about which value could leave the current homes, not authority to
   spill, reload, rematerialize, allocate a frame, or emit instructions.
   A separate validated allocator-availability artifact now narrows only
@@ -175,7 +176,11 @@ These facts constrain the work below.
   retains a zero-byte roster row, the target encoder realizes the fused branch,
   and the resolved function shrinks by exactly four bytes while decoded effects
   prove the physical X-register/PC footprint and absence of NZCV use. Compiler
-  emission and publication remain closed and install no output.
+  orchestration can now turn this route, or the x86 rel8 route, into validated
+  relocation-free per-function byte fragments while retaining the zero-byte
+  row, provenance, successor bindings, and path fuel. Section placement,
+  symbols, relocations, executable-image construction, installation, and
+  publication remain closed and install no output.
 
   A separate
   `StagedOptimizedAssignedOperations` carrier
@@ -646,7 +651,7 @@ These facts constrain the work below.
   zero-change result transformed the CFG. The v4 canonical codec round-trips
   direct and transformed forms, reconstructs typed target and stage fields,
   and rejects identity tampering, unknown tags, truncation, and trailing bytes.
-  Decoding remains non-authoritative. The function-relative v3 realization
+  Decoding remains non-authoritative. The function-relative v4 realization
   manifest joins the exact full suite and both phase subsets, optional
   selected-lowering completion, pre-physical/post-allocation manifests, final
   selected CFG, pre-/post-allocation machine roots, pre-layout encoding,
@@ -655,17 +660,19 @@ These facts constrain the work below.
   statistics. Its strict codec recomputes identity, closed-vocabulary
   corruption fails, and custody replay reconstructs every joined artifact. It
   also binds an independently replayed frameless whole-function exit contract,
-  whose v2 identity names its exact baseline or transformed layout custody. The
+  whose v2 baseline/rel8 or v3 CBNZ identity names its exact layout custody. The
   contract selects the exact
   System V AMD64, Microsoft x64, AAPCS64, or Darwin AAPCS64 convention; proves
   canonical RSP-pop or X30 return behavior for every Psi exit; retains RAX/X0
   result custody separately from encoded return reads; and rejects stack/frame
   effects, X30 damage, or any unpreserved callee-saved write. Compiler-selected
   lowering derives a caller-saved-only unconstrained availability set for this
-  policy, while an unrestricted x86 plan that chooses RBX fails closed. Frame,
-  emission, sections, symbols, relocations, image, installation, and publication
-  remain unavailable. Final physical/publication and artifact metadata remain
-  open.
+  policy, while an unrestricted x86 plan that chooses RBX fails closed. A
+  separate strict v1 manifest now binds completed rel8/CBNZ realizations to
+  validated relocation-free per-function fragments with exact byte, span,
+  provenance, successor, and fuel custody. Frame construction, global section
+  placement, symbols, relocations, image, installation, and publication remain
+  unavailable. Final physical/publication and artifact metadata remain open.
 - `omega-lowering-optimizer` now owns a custody-preserving bridge from a
   completed `OptimizationRun` to a clean `TerminalAbstractOperationPlan`.
   Projection replays every retained candidate declaration through the
@@ -813,8 +820,11 @@ dependency.
   Current closure boundary: pre-physical, post-allocation, and selected-
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
-  code-size statistics and the v2 record binds a validated frameless leaf exit
-  contract while declaring every later authority unavailable. This task
+  code-size statistics; its v4 form binds the v3 validated frameless-leaf exit
+  contract. A separate strict v1 function-fragment manifest now joins either
+  the completed x86 rel8 or AArch64 CBNZ realization to relocation-free bytes
+  while declaring section placement, symbols, relocations, image, installation,
+  and publication unavailable. This task
   now also includes an explicit suppressible root-build human-report request
   and a pipeline-owned cumulative carrier over all currently available
   records. This task remains open for general frame/call/save-restore data,
@@ -1191,10 +1201,17 @@ dependency.
   saturating integer division. It requires a direct typed literal-one fact and
   the exact verifier-accepted obligation; a missing fact declines the rewrite
   while a mismatched or corrupted fact rejects during independent replay.
-  Candidate v23, optimization-unit identity v10, the named v3 pass, prephysical
-  manifest v16, and projection validator v17 bind the current meaning; ledger
-  v4 already represents the relocations. Runtime policy events, other live
-  proof-bearing identities, and physical check recognition remain open.
+  The fourth rule,
+  `live-proof-certified-exact-integer-multiply-by-zero-elimination.v1`, rewrites
+  `0 * x` or `x * 0` to the existing direct typed zero operand for exact fixed-
+  width signed/unsigned multiplication only; `0 * 0` canonically chooses the
+  left operand. It requires the matching accepted obligation, excludes
+  obligation-free wrapping/saturating multiplication and floats, and uses the
+  same independent substitution and custody replay. Candidate v24,
+  optimization-unit identity v10, the named v4 pass, prephysical manifest v17,
+  and projection validator v18 bind the current meaning; ledger v4 already
+  represents the relocations. Runtime policy events, other live proof-bearing
+  identities, and physical check recognition remain open.
 
 - **OPT-INITIAL-PIPELINE — complete for the current verified Psi vocabulary.**
   Define the canonical target-neutral schedule for
@@ -1472,8 +1489,11 @@ dependency.
   validator reconstructs CFG order, effects, transfers, canonical sets, and a
   domain-separated content identity. Opt-in orchestration retains this result
   only in a nested custody carrier that grants no interval, allocation,
-  emission, or publication authority. The v1 analysis rejects use-def, tied,
-  and early-clobber operands rather than pretending their later interference
+  emission, or publication authority. The v2 analysis admits only the named
+  `DistinctUseToDefTiedHomesV1` topology: at most one distinct earlier Use and
+  later Def tie per VReg pair and instruction, with each VReg participating in
+  at most one pair per function. It rejects UseDef, early-clobber, overlapping,
+  repeated, and other tied topologies rather than pretending their interference
   semantics are complete. A second independently validated artifact converts
   the facts into maximal half-open fragments within each block, exact
   polarity/edge connectors across blocks, ordered occurrence and fixed-view
@@ -1499,8 +1519,12 @@ dependency.
   A subsequent bounded home artifact accepts only transition-free plans,
   chooses the lowest stable shared legal view in first-live-point/VReg order,
   checks exact interference and complete write footprints, and is independently
-  replayed. It rejects unresolved transitions, empty intersections, and pressure
-  requiring a spill; it does not authorize physical emission.
+  replayed. A supported tied pair becomes one canonical bundle over the union
+  envelope; production and replay intersect both members' point candidates and
+  assign the same lowest view. Tied-member interference, disjoint candidates,
+  unresolved transitions, and pressure requiring a spill reject. Spill-choice
+  also fails closed while a tied bundle is present. This does not authorize
+  physical emission.
   The register-home plan now also has a versioned self-authenticating codec
   binding its legality, live-range, register-environment, machine, VReg, class,
   and physical-view fields. Its strict decoder rejects malformed framing,
@@ -1533,8 +1557,8 @@ dependency.
   analysis/allocation/machine replay boundary.
 
   Remaining to close: live-interval construction, loop weights, calls and call
-  crossings, crashes, cleanup and suspension frontiers, and dedicated
-  tied/use-def/early-clobber handling. General
+  crossings, crashes, cleanup and suspension frontiers, and general tied,
+  UseDef, and early-clobber handling beyond the exact admitted tie form. General
   liveness remains dependent on completing
   `OPT-VIRTUAL-REGISTERS` for calls, cleanup, suspension, memory, loops, and the
   rest of the legalized instruction vocabulary.
@@ -1859,7 +1883,7 @@ dependency.
   Function-relative realization now has distinct custody routes for ordinary
   homes and selected-lowering completion. Both own the validated required
   layout together with strict homes, post-allocation machine, and pre-layout
-  encoding. The immutable v3 manifest binds the complete named suite, exact
+  encoding. The immutable v4 manifest binds the complete named suite, exact
   selected-lowering and function-relative-layout projections, optional
   selected-lowering completion, pre-physical and post-allocation manifests,
   final selected CFG, pre-/post-allocation machine roots, baseline and final
@@ -1896,7 +1920,7 @@ dependency.
   Physical orchestration now routes that exact phase independently of selected
   lowering. A branch-only suite uses frameless legality and ordinary homes and
   truthfully records no selected-lowering completion; a combined suite retains
-  both completions. The strict v3 realization manifest binds the full suite,
+  both completions. The strict v4 realization manifest binds the full suite,
   both exact phase projections, optional selected-lowering completion,
   required near-layout root, final layout root, optional rel8 receipt, final-
   byte statistics, and final-layout exit contract. Whole-function exit custody
@@ -1905,10 +1929,22 @@ dependency.
   branch-only and combined routing, detached final-layout corruption, and
   non-x86 rejection.
 
+  A subsequent relocation-free emission boundary consumes only those completed
+  x86 rel8 or AArch64 CBNZ realization carriers. Its immutable function-fragment
+  plan concatenates dense bytes independently per function, retains every
+  block/instruction span (including a zero-byte elided CBNZ compare), complete
+  provenance, successor bindings, branch evidence, and path-specific fuel. A
+  separate strict `OMGFFE` v1 manifest binds the source realization, selections,
+  selected/post-allocation/layout/exit roots, target, fragment identity, and
+  exact statistics. Independent replay reconstructs source custody, offsets,
+  rows, aggregate bytes, statistics, receipt, and manifest. This boundary owns
+  no global section placement, symbols, object relocations, executable image,
+  installation, or publication authority.
+
   Remaining for the named rel8 rule: replace the current compiler execution
-  gate with an end-to-end selected-build path once the clean function-relative
-  realization is consumed by the native emission/publication boundary. Until
-  that downstream authority exists, a build that explicitly selects the rule
+  gate with an end-to-end selected-build path that carries the new per-function
+  bytes through section/relocation, artifact, and publication custody. Until
+  those downstream authorities exist, a build that explicitly selects the rule
   is parsed and identified but still fails without installing output.
 
   Remaining to close: complete memory/trap/call/cleanup vocabularies as
@@ -2047,11 +2083,42 @@ dependency.
   raw paths, authored names, pointer addresses, arena order, and debug strings
   are absent from features.
 
+  Current slice: every nonempty validated Psi choice is now projected after
+  ordinary policy selection into a strict v1 external decision point. The log
+  roots the source unit, complete and Psi-phase selection identities, explicit
+  target-neutral context, ordered rule set, and structural cost-model identity.
+  Each point binds its input revision, rule, canonical candidate-identity/cost
+  feature rows, and the finite action set consisting of those candidates plus
+  explicit skip. The codec recomputes point/log identities and rejects framing,
+  ordering, duplicate, illegal-action, context, and trailing-data corruption.
+  Projection independently reconstructs the trace from the unchanged baseline
+  decision log and pass manifests; a detached but internally valid trace
+  rejects. The baseline log remains the identity-bundle authority, proving that
+  merely recording this surface changes no choice or executable output. This
+  closes the schema for current Psi choices; allocation, layout, and machine
+  policy schemas remain open.
+
 - **OPT-DECISION-REPLAY.** Replay a canonical external decision log.
 
   Acceptance: mismatched source/selection/target/rule/cost-model identity,
   missing decisions, duplicate decisions, or illegal actions reject. Replayed
   candidates still pass every normal validator.
+
+  Current slice: public Psi pipeline and exact-registry replay APIs accept only
+  strict v1 encoded bytes, so decoding and framing rejection occur inside the
+  policy-input boundary. Preflight exactly matches schema, source, complete and
+  Psi-phase selections, target context, ordered rule set, and cost model before
+  rule execution. One cursor spans every selected Psi pass and rejects semantic
+  duplicate loci, missing points, input/rule/candidate-roster mismatches, and
+  leftovers. Rules propose and every ordinary candidate validator runs before
+  a decision can be consumed. A legal external choose or explicit skip is then
+  recorded in the existing baseline log and follows the unchanged manifest,
+  commit, convergence, analysis, and ledger paths. The finished run independently
+  reconstructs the external log from those baseline records and manifests and
+  requires exact equality with the supplied log; optimized Terminal projection
+  performs its existing second reconstruction. Existing baseline APIs and
+  outputs are unchanged. Build-file custody, non-Psi schemas, workload inputs,
+  and offline search remain open.
 
 - **OPT-COST-MODEL-INTERFACE.** Define non-authoritative size, latency,
   throughput, pressure, and target-resource estimates.
