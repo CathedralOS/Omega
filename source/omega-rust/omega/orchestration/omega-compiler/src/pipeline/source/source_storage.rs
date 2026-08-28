@@ -118,10 +118,9 @@ impl SourceStorage {
         if let Some(toolchain_root) = &self.toolchain_root
             && path.starts_with(toolchain_root)
         {
-            let language = toolchain_root.join("language");
             let package_root = ["core", "std"]
                 .into_iter()
-                .map(|name| language.join(name))
+                .map(|name| toolchain_root.join(name))
                 .find(|root| path.starts_with(root))
                 .unwrap_or_else(|| toolchain_root.clone());
             return (package_root, None, SourceOrigin::Toolchain);

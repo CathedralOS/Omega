@@ -1281,6 +1281,7 @@ pub machine terminate(console: Console, return_code: i32)
             [
                 PackageTriageReason::CapabilityOrApiChanged,
                 PackageTriageReason::SourceChanged,
+                PackageTriageReason::BuildObservationChanged,
                 PackageTriageReason::RetainedDangerousAuthority(
                     PackageReviewDangerousAuthorityClass::Process,
                 ),
