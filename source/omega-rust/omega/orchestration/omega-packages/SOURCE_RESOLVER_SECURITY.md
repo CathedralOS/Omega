@@ -203,8 +203,9 @@ executable bits are compared with the captured tree rather than ambient
 metadata. Native Git mutation remains pathname-visible to the unconfined
 helper. On macOS, retained cache directories, regular files, and locks are
 queried for extended ACL allow entries through their descriptors. Concrete
-selected executables and their ancestry are descriptor-queried as well;
-pre-open cache root/ancestry and symlink ACL observations remain path-based.
+selected executables and their ancestry are descriptor-queried as well. Cache
+root/ancestry ACL facts likewise follow no-follow directory acquisition and
+identity reconciliation; only symlink ACL observations remain path-based.
 Destination exclusion is cooperative rather than an atomic hostile-same-user
 no-replace primitive, so this still does not claim exclusion of an actively
 hostile same-user process.
@@ -375,10 +376,11 @@ cache, publication, staging, and lock node. Each already-open cache directory,
 regular file, and lock is queried through its descriptor; regular files first
 open no-follow beneath their retained parent and preserve classified identity.
 Any allow entry rejects even when mode bits appear private; deny-only ACLs do
-not broaden custody, and an unreadable ACL fails closed. Pre-open root and
-ancestry observations remain path-based. Symlinks are inspected as links
-rather than following their targets because the native link ACL interface is
-path-oriented.
+not broaden custody, and an unreadable ACL fails closed. Root and ancestry
+owner/mode classification remains path-based, but each ACL fact follows a
+no-follow directory open and identity reconciliation. Symlinks are inspected
+as links rather than following their targets because the native link ACL
+interface is path-oriented.
 This closes ordinary cross-user
 ownership/configuration substitution on Unix. It does not prevent the owning
 user from replacing a path after an observation, establish Windows

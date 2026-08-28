@@ -558,6 +558,18 @@ complete.
   launch remains path-based and therefore does not prove loaded-image identity
   or exclude a hostile same-user launch race.
 
+  Milestone 2026-08-27: macOS cache-root and ancestry ACL facts are now
+  descriptor-bound as well. After the existing Unix owner/mode and concrete-
+  directory classification, each ancestor opens component-by-component
+  no-follow, must retain the classified device/inode identity, and contributes
+  its ACL fact only through that directory descriptor. Root-only custody calls
+  receive the same check, so they do not depend on a later full-tree walk. A
+  canary replaces a classified ancestry directory and confirms that the
+  different inode rejects before its allow ACL can contribute. Ordinary Unix
+  owner/mode classification and symlink ACL inspection remain path-based;
+  Darwin provides no descriptor form for a symlink itself, and hostile
+  same-user mutation remains outside this cooperative floor.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the
@@ -603,8 +615,8 @@ complete.
   ceilings. The local-repository route is explicitly test-only. Remaining P0
   work is native fetch/materialization confinement, effective endpoint and SSH
   credential custody, during-operation resource quotas, remaining
-  native-Git mutation confinement, remaining path-based cache-ancestry and
-  symlink ACL observations, and a locally reconstructed opaque strict
+  native-Git mutation confinement, remaining path-based symlink ACL
+  observations, and a locally reconstructed opaque strict
   receipt. Public requests now admit only HTTPS and
   SSH transports; the sealed executor grants only the request's selected
   `https` or `ssh` protocol, disables HTTP, unauthenticated `git://`, every
