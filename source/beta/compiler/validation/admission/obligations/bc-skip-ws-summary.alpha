@@ -53,7 +53,8 @@ skip_step_require_shape:
         call transfer_require_cell
 
         imm r20, 35
-        imm r21, 4459
+        imm r21, 11                   ; skip_ws_step procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 36
         imm r21, 4519
@@ -77,7 +78,8 @@ skip_step_require_shape:
         imm r21, 5167
         call exact_require_block_pc
         imm r20, 43
-        imm r21, 5217
+        imm r21, 12                   ; read_ident procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 35
         imm r21, 42
@@ -143,16 +145,12 @@ skip_step_require_shape:
         imm r22, 1
         imm r23, 4692
         call exact_require_event
-        imm r20, 26
+        imm r20, 11                   ; skip_ws_step procedure identity
         imm r21, 37
-        imm r22, 5
-        imm r23, 4730
-        call exact_require_event
-        imm r20, 27
+        call exact_require_event_epilogue
+        imm r20, 11
         imm r21, 38
-        imm r22, 5
-        imm r23, 4883
-        call exact_require_event
+        call exact_require_event_epilogue
         imm r20, 28
         imm r21, 40
         imm r22, 1
@@ -168,16 +166,12 @@ skip_step_require_shape:
         imm r22, 1
         imm r23, 5119
         call exact_require_event
-        imm r20, 31
+        imm r20, 11
         imm r21, 41
-        imm r22, 5
-        imm r23, 5166
-        call exact_require_event
-        imm r20, 32
+        call exact_require_event_epilogue
+        imm r20, 11
         imm r21, 42
-        imm r22, 5
-        imm r23, 5196
-        call exact_require_event
+        call exact_require_event_epilogue
 
         imm r20, 23
         imm r21, 0
@@ -199,27 +193,33 @@ skip_step_require_shape:
         call exact_require_event_arity
 
         imm r20, 4491
-        imm r21, 1609
+        imm r21, 4                    ; cbyte procedure identity
+        call exact_proc_entry_r21
         imm r22, 4500
         call exact_require_call
         imm r20, 4570
-        imm r21, 3627
+        imm r21, 9                    ; is_space procedure identity
+        call exact_proc_entry_r21
         imm r22, 4579
         call exact_require_call
         imm r20, 4692
-        imm r21, 1939
+        imm r21, 5                    ; adv procedure identity
+        call exact_proc_entry_r21
         imm r22, 4701
         call exact_require_call
         imm r20, 4893
-        imm r21, 1609
+        imm r21, 4                    ; cbyte procedure identity
+        call exact_proc_entry_r21
         imm r22, 4902
         call exact_require_call
         imm r20, 5006
-        imm r21, 1609
+        imm r21, 4                    ; cbyte procedure identity
+        call exact_proc_entry_r21
         imm r22, 5015
         call exact_require_call
         imm r20, 5119
-        imm r21, 1939
+        imm r21, 5                    ; adv procedure identity
+        call exact_proc_entry_r21
         imm r22, 5128
         call exact_require_call
 
@@ -337,24 +337,14 @@ skip_step_require_shape:
         imm r23, 4538
         call exact_require_argument_push
 
-        imm r20, 4711
-        imm r21, 4730
-        call exact_require_epilogue
-        imm r20, 4864
-        imm r21, 4883
-        call exact_require_epilogue
-        imm r20, 5147
-        imm r21, 5166
-        call exact_require_epilogue
-        imm r20, 5177
-        imm r21, 5196
-        call exact_require_epilogue
-        imm r20, 5197
-        imm r21, 5216
-        call exact_require_epilogue
+        ; Explicit return epilogues are owned with their event identities.
+        imm r20, 12                   ; read_ident identifies synthetic return
+        call exact_require_preentry_epilogue
 
-        imm r20, 4459
-        imm r21, 5217
+        imm r20, 11                   ; skip_ws_step identity / region start
+        call exact_proc_entry_r20
+        imm r21, 12                   ; read_ident identity / region end
+        call exact_proc_entry_r21
         imm r22, 6
         imm r23, 5
         call skip_scan_call_region
@@ -383,13 +373,15 @@ skip_require_shape:
         imm r22, 0
         call transfer_require_cell
         imm r20, 33
-        imm r21, 4277
+        imm r21, 10                   ; skip_ws procedure identity
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 34
         imm r21, 4296
         call exact_require_block_pc
         imm r20, 35
-        imm r21, 4459
+        imm r21, 11                   ; skip_ws_step procedure identity / end
+        call exact_proc_entry_r21
         call exact_require_block_pc
         imm r20, 33
         imm r21, 34
@@ -406,16 +398,15 @@ skip_require_shape:
         imm r22, 1
         imm r23, 4296
         call exact_require_event
-        imm r20, 22
+        imm r20, 10                   ; skip_ws procedure identity
         imm r21, 34
-        imm r22, 5
-        imm r23, 4438
-        call exact_require_event
+        call exact_require_event_epilogue
         imm r20, 21
         imm r21, 0
         call exact_require_event_arity
         imm r20, 4296
-        imm r21, 4459
+        imm r21, 11                   ; skip_ws_step procedure identity
+        call exact_proc_entry_r21
         imm r22, 4305                 ; checked skip call continuation
         call exact_require_call
         imm r20, 71
@@ -440,14 +431,13 @@ skip_require_shape:
         imm r21, 34
         imm r23, 4305
         call exact_require_binary_push
-        imm r20, 4419
-        imm r21, 4438
-        call exact_require_epilogue
-        imm r20, 4439
-        imm r21, 4458
-        call exact_require_epilogue
-        imm r20, 4277
-        imm r21, 4459
+        ; The explicit return is owned above; the fallthrough is relative.
+        imm r20, 11                   ; skip_ws_step identifies synthetic return
+        call exact_require_preentry_epilogue
+        imm r20, 10                   ; skip_ws identity / region start
+        call exact_proc_entry_r20
+        imm r21, 11                   ; skip_ws_step identity / region end
+        call exact_proc_entry_r21
         imm r22, 1
         imm r23, 2
         call skip_scan_call_region
