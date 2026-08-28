@@ -2,9 +2,11 @@
 
 This contract joins an already verified Delta assembly-publication receipt to
 one exact unsigned Darwin ARM64 Mach-O executable. It closes **byte custody,
-container identity, and exact-command realization replay**. It is not
-source-to-artifact refinement, compiler authority, or an admission of Apple
-clang, the Apple linker, an SDK, libSystem, or the compiler runtime.
+container identity, exact-command realization replay, and terminal receipt
+binding**. It is not source-to-artifact refinement or compiler authority. The
+receipt discloses exact lower-rung, realization-host, and target admissions,
+but does not claim correctness for Apple clang, the Apple linker, an SDK,
+libSystem, or the compiler runtime.
 
 The schema is `omega.delta-lower-rooted-artifact-custody.v1`, the publication
 ID is `delta.compiler.darwin-arm64-executable.candidate.v1`, and the claim is
@@ -79,6 +81,58 @@ replay input, output, empty streams, command profile, and target summary. A
 handcrafted Mach-O can exercise `observe` and the container validator, but it
 cannot receive this reconstruction-bearing receipt without being reproduced by
 the declared command.
+
+The same member binds the checked reconstruction profile
+`delta.lower-rooted-executable-reconstruction.v1`. Its closed obligation list
+states exactly what this verifier reconstructs:
+
+1. the complete assembly publication;
+2. its source and lower-rung inputs;
+3. the published-assembly cross-pair;
+4. the realization observation;
+5. one execution of the literal realization command;
+6. byte equality of the replayed and candidate executables; and
+7. stability of every realization input across replay.
+
+`status: checked` applies only to those custody/replay obligations. It does not
+apply to Delta semantics or source-to-artifact refinement.
+
+## Terminal receipt subjects and admissions
+
+The terminal receipt surfaces, rather than merely leaving implicit behind the
+parent receipt digest, the exact identities needed by later refinement:
+
+- `assembly_publication` retains the rederived parent receipt ID and digest,
+  canonical source snapshot and image, emitted assembly, and assembly target;
+- `assembly` retains the exact realization input;
+- `artifact` retains the observed candidate executable;
+- `reconstruction.artifact` retains the independently replayed executable; and
+- `target` plus the executable target summary retain the selected ABI,
+  configuration, bounded container facts, deployment target, SDK version, and
+  dynamic dependency closure.
+
+The parent digest still binds the complete elaboration, packed Gamma program,
+two executions, raw results, diagnostics, and lower-rung inputs. `generate` and
+`verify` rederive that complete parent from its evidence; copying the selected
+subjects into this receipt does not replace or abbreviate that check.
+
+`admissions` then makes the remaining trust scopes explicit and binds their
+exact identities:
+
+- `hosts.lower_rung` copies the rederived assembly receipt's complete toolchain
+  and authority-role disclosures. Its scope is assembly-publication
+  reconstruction only.
+- `hosts.realization` copies the exact clang, linker, SDK-settings, libSystem,
+  and compiler-runtime identities observed around replay. Its scope is exact
+  identity and replay only, not tool correctness.
+- `target` copies both the strict assembly target and validated executable
+  target summary. Its scope is closed dialect/container validation only, not
+  Delta semantic refinement.
+
+Every copied identity is reconstructed from supplied evidence and compared as
+part of the domain-separated receipt. A self-consistent digest with a source,
+assembly, replayed executable, obligation, host admission, or target admission
+from another evidence set rejects.
 
 The Mach-O validator requires a 64-bit ARM64 `MH_EXECUTE` image with macOS 11.0
 minimum deployment, exactly the `NOUNDEFS`, `DYLDLINK`, `TWOLEVEL`, and `PIE`
