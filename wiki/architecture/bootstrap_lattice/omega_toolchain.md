@@ -99,7 +99,8 @@ The distinction is architectural:
 
 - `source/on-ramp/rust/{psi,omega}/` is the current working Rust
   compiler and executable reference producer;
-  `source/on-ramp/rust/apps/omega-cli/` is its user-facing executable.
+  `source/on-ramp/rust/omega/` is its user-facing `omega` product package and
+  executable.
 - `source/{psi,omega}/` owns the Omega-written product source. The complete Psi
   source-to-token spelling phase lives under `source/psi/`; later Psi phases
   and `source/omega/` remain open. Hosted product entrypoints live under

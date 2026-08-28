@@ -7,8 +7,11 @@
 //! Keeping the type distinct prevents an incomplete checked summary from being
 //! persisted as an accepted lock baseline.
 
+#[path = "review/encoding.rs"]
 mod encoding;
+#[path = "review/obligation_ledger.rs"]
 mod obligation_ledger;
+#[path = "review/recovery.rs"]
 mod recovery;
 
 pub use encoding::{

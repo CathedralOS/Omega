@@ -43,7 +43,8 @@ from two things it is easy to confuse it with:
   [design briefs](../../design_briefs/). The lattice must *preserve* that
   meaning; it does not define it.
 - **How Omega compiles today** — the current Rust implementation under
-  `source/on-ramp/rust/psi/` and `source/on-ramp/rust/omega/`, exposed by `source/on-ramp/rust/apps/omega-cli/`. Owned by
+  `source/on-ramp/rust/psi/` and the product package rooted at
+  `source/on-ramp/rust/omega/`. Owned by
   [Repository Layout](../repository_layout.md) and
   [Pipeline Architecture](../pipeline/pipeline.md). In this architecture
   the product compiler is a *role*, not a rival (see

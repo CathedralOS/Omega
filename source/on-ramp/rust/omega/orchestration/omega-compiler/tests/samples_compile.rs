@@ -744,7 +744,7 @@ fn all_samples_reach_checked_trees() {
     assert!(
         failures.is_empty(),
         "{} of {} samples failed to reach checked trees (run the sample's main.omg through \
-         omega-cli for the full diagnostic):\n{}",
+         omega for the full diagnostic):\n{}",
         failures.len(),
         sample_mains.len(),
         failures.join("\n")

@@ -1,9 +1,14 @@
+#[path = "dispatch/adapter.rs"]
 mod adapter_dispatch;
 mod artifacts;
 mod boundary_report;
+#[path = "build/config.rs"]
 mod build_config;
+#[path = "build/replay_record.rs"]
 mod build_replay_record;
+#[path = "build/staged_output.rs"]
 mod build_staged_output;
+#[path = "provider/calling_policy_plans.rs"]
 mod calling_policy_plans;
 mod checked_entry;
 pub mod compile_options;
@@ -11,49 +16,83 @@ mod compile_policy;
 pub mod compile_report;
 pub mod compiler;
 mod compiler_executable_commitment;
+#[path = "provider/component_progress.rs"]
 mod component_progress;
+#[path = "dispatch/float_intrinsic.rs"]
 mod float_intrinsic_dispatch;
 pub mod frontend;
+#[path = "dispatch/operator_adapter.rs"]
 mod operator_adapter_dispatch;
 mod optimization_gate;
 mod output;
+#[path = "package/compilation.rs"]
 mod package_compilation;
+#[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
+#[path = "package/review.rs"]
 mod package_review;
+#[path = "package/source_consumption.rs"]
 mod package_source_consumption;
+#[path = "program_storage/entry_physical.rs"]
 mod program_entry_physical;
+#[path = "program_storage/entry_source_signature.rs"]
 mod program_entry_source_signature;
+#[path = "program_storage/local_storage_custody.rs"]
 mod program_local_storage_custody;
+#[path = "program_storage/continuation_inbound.rs"]
 mod program_storage_continuation_inbound;
+#[path = "program_storage/emitted_argument_binding.rs"]
 mod program_storage_emitted_argument_binding;
+#[path = "program_storage/entry.rs"]
 mod program_storage_entry;
+#[path = "program_storage/extent_operand.rs"]
 mod program_storage_extent_operand;
+#[path = "program_storage/extent_value.rs"]
 mod program_storage_extent_value;
+#[path = "program_storage/reserved_outgoing_frame.rs"]
 mod program_storage_reserved_outgoing_frame;
+#[path = "program_storage/root_argument_binding.rs"]
 mod program_storage_root_argument_binding;
+#[path = "program_storage/root_authority.rs"]
 mod program_storage_root_authority;
+#[path = "program_storage/source_call.rs"]
 mod program_storage_source_call;
+#[path = "program_storage/wrapper.rs"]
 mod program_storage_wrapper;
+#[path = "program_storage/wrapper_arrival.rs"]
 mod program_storage_wrapper_arrival;
+#[path = "program_storage/wrapper_body.rs"]
 mod program_storage_wrapper_body;
+#[path = "program_storage/wrapper_evidence.rs"]
 mod program_storage_wrapper_evidence;
+#[path = "program_storage/wrapper_frame.rs"]
 mod program_storage_wrapper_frame;
 mod project;
+#[path = "provider/approval.rs"]
 mod provider_approval;
+#[path = "provider/plans.rs"]
 mod provider_plans;
 pub mod source;
 mod source_inspection;
 mod source_profile;
 mod stage;
 mod stages;
+#[path = "provider/target_machines.rs"]
 mod target_machines;
+#[path = "provider/task_plans.rs"]
 mod task_plans;
+#[path = "terminal/compile_driver.rs"]
 mod terminal_compile_driver;
+#[path = "terminal/component_candidate.rs"]
 mod terminal_component_candidate;
+#[path = "terminal/component_driver.rs"]
 mod terminal_component_driver;
+#[path = "terminal/native_artifact.rs"]
 mod terminal_native_artifact;
 mod timing;
+#[path = "trust/lockfile.rs"]
 mod trust_lockfile;
+#[path = "trust/report.rs"]
 mod trust_report;
 mod wire_report;
 

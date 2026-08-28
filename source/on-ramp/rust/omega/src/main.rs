@@ -137,7 +137,7 @@ fn reconcile_declared_local_dependencies(
     let cache_root = local_source_cache_root();
     let closure = omega_packages::resolve_external_local_project_closure(
         &project_root,
-        omega_packages::ExternalSourceContext::derive(b"omega-cli-local-project-v1"),
+        omega_packages::ExternalSourceContext::derive(b"omega-local-project-v1"),
         cache_root,
         omega_packages::LocalSourceLimits::default(),
         omega_packages::PackageSourceClosureLimits::default(),

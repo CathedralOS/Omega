@@ -40,9 +40,8 @@ source/
 
   on-ramp/
     rust/
-      apps/omega-cli/       current Rust development command
       psi/                  current Rust source/semantic producer
-      omega/                current Rust target/backend producer
+      omega/                current Rust product command and target/backend producer
     omega-bootstrap/        Delta-built bridge compiler owner
     meaning/                Rust-free lower-rung meaning for Delta/bridge slices
     compiler/               Delta source, profiles, and source-bundle format

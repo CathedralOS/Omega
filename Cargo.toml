@@ -1,6 +1,6 @@
 [workspace]
 members = [
-    "source/on-ramp/rust/apps/omega-cli",
+    "source/on-ramp/rust/omega",
     "source/on-ramp/rust/psi/foundation/psi-arena",
     "source/on-ramp/rust/psi/foundation/psi-access-plans",
     "source/on-ramp/rust/psi/foundation/psi-diagnostics",

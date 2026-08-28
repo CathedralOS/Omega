@@ -9,6 +9,7 @@ use omega_effects::provider_plan::{ProviderBinding, ProviderPlan, ProviderPlanRo
 use psi_typed_trees::TypedTrees;
 use std::sync::Arc;
 
+#[path = "plans/external_binding_rows.rs"]
 mod external_binding_rows;
 pub(super) use external_binding_rows::settle_compiler_external_binding_rows;
 
@@ -4275,4 +4276,5 @@ pub(crate) fn resolve_selected_provider_grants(
 }
 
 #[cfg(test)]
+#[path = "plans/tests.rs"]
 mod tests;
