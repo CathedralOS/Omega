@@ -129,15 +129,15 @@ portable format.
 
 See [wiki/architecture/architecture.md](wiki/architecture/architecture.md) for a complete breakdown of the compiler architecture and pipeline.
 
-The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Omega. The published Delta-produced compiler compiles the exact production source closure `C`, written in ordinary Omega constrained to `Ωself`, into a conservative first binary `omega₀`; `omega₀` then recompiles the same `C` into production `omega`. `Ωself` is a source profile, not another language or compiler artifact. Its active queue lives in
+The bootstrap architecture has the language-capability progression Alpha → Beta → Gamma → Delta → Omega. The published Delta-produced compiler compiles the exact production source closure `C`, deliberately written with a conservative subset of ordinary Omega, into a first binary `omega₀`; `omega₀` then recompiles the same `C` into production `omega`. The subset is an incidental property of the source, not another language or compiler artifact. Its active queue lives in
 [`TASKS_BOOTSTRAP.md`](TASKS_BOOTSTRAP.md), while the canonical ownership map
 lives in
 [`repository_structure.md`](wiki/architecture/bootstrap_lattice/repository_structure.md).
-The two source contracts—literal Delta v1 and the ordinary-Omega `Ωself`
-compiler-source profile—are defined and kept distinct in
+The literal Delta v1 contract and the incidental ordinary-Omega surface used by
+the compiler source are defined and kept distinct in
 [`compiler_source_profile.md`](wiki/architecture/bootstrap_lattice/compiler_source_profile.md).
 [`source/omega/README.md`](source/omega/README.md) describes the product-source side;
-the proof kernel is cross-cutting assurance, not another language rung.
+the proof kernel is Alpha-owned checker infrastructure, not another language rung.
 
 ## Samples And Canaries
 

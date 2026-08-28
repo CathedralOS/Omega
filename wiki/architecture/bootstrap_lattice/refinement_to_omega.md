@@ -11,7 +11,7 @@ against an independently fixed semantic subject.
 Delta compiler source
   └─ lower-rung publication/refinement ─▶ Delta compiler artifact
 
-exact Omega compiler source C under Ωself
+exact ordinary-Omega compiler source C
   └─ checked Delta-produced compilation ─▶ omega₀
 
 the same C

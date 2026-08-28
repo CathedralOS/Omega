@@ -13,7 +13,7 @@ while [ ! -f "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" ]; do
 done
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-. "$OMEGA_PATH_BETA/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 
 case "$(uname -sm)" in
   "Darwin arm64") ;;
@@ -29,7 +29,7 @@ trap 'rm -rf "$T"' EXIT
 SEED="$OMEGA_PATH_ALPHA/$ALPHA_SEED"
 ASM="$OMEGA_PATH_ALPHA_ASSEMBLER/$BETA_SEED"
 stamp_beta_compiler "$T/bc.persisted" >/dev/null
-"$T/bc.persisted" < "$OMEGA_PATH_BETA/bc.beta" > "$T/bc.self.alpha"
+"$T/bc.persisted" < "$OMEGA_PATH_BETA_COMPILER/bc.beta" > "$T/bc.self.alpha"
 "$ASM" < "$T/bc.self.alpha" > "$T/bc.self.tape"
 stamp_seed "$T/bc.self.tape" "$SEED" "$T/bc.self" >/dev/null 2>&1
 

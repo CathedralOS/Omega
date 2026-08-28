@@ -12,7 +12,7 @@ done
 export OMEGA_REPO_ROOT
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh"
 . "$OMEGA_PATH_ALPHA/seed_env.sh"
-. "$OMEGA_PATH_BETA/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 cd "$GATE_DIR"
 
 case "$(uname -sm)" in

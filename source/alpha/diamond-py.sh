@@ -28,7 +28,7 @@ fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 command -v python3 >/dev/null 2>&1 || { echo "diamond-py SKIP — no python3"; exit 0; }
-. "${OMEGA_PATH_BETA}/artifact_env.sh"
+. "${OMEGA_PATH_BETA_COMPILER}/artifact_env.sh"
 SEED="$ALPHA_SEED"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 PASS=0; FAIL=0

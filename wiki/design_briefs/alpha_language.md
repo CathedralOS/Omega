@@ -70,7 +70,7 @@ The language spine and hosted build are:
 
 ```text
 Alpha → Beta → Gamma → Delta
-lattice-built Delta compiler + exact Ωself source C ──▶ omega₀
+lattice-built Delta compiler + exact ordinary-Omega source C ──▶ omega₀
 omega₀ + the same C ──────────────────────────────────▶ omega
 ```
 

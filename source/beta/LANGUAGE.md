@@ -78,6 +78,6 @@ assembly mnemonics) without spelling every byte. `"..."` escapes: `\n \t \r \0 \
 - String literals exist only inside `emit`; there is no string value type.
 
 These are rung boundaries, not unfinished Gamma or Delta features. The
-self-hosting compiler is [`bc.beta`](bc.beta); its
+self-hosting compiler is [`bc.beta`](compiler/bc.beta); its
 fixed-point and language corpus are gated by `source/beta/selfhost.sh`
 and `source/beta/test.sh`.

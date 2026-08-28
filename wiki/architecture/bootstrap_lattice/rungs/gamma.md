@@ -47,8 +47,8 @@ and auditable.
   fixed memory;
 - `source/gamma/typeck.beta` — static checker for `Int`, declared ADTs,
   functions, constructors, and matches;
-- `source/proof-kernel/implementations/gamma/` — independent
-  proof-kernel implementations hosted by Gamma, owned by assurance rather than
+- `source/alpha/checker/implementations/gamma/` — independent
+  proof-kernel implementations hosted by Gamma, owned by Alpha's checker rather than
   the language rung;
 - `source/gamma/canonical-bytes/` and
   `terminal-codec-primitives/` — reusable typed byte and terminal-grammar
@@ -69,7 +69,7 @@ The parked implementation remains co-located only so existing compatibility
 entry points keep working. That transitional proximity grants no semantic
 authority. The old format-specific terminal-ledger prototype was retired after
 its feasibility result was absorbed into the production closed-row design; any
-future low-rung generator belongs to cross-cutting assurance, not this rung.
+future low-rung generator belongs beside the artifact it admits, not this rung.
 
 ## Implementation frontiers
 

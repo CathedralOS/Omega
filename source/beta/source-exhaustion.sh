@@ -20,7 +20,7 @@ fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 cd "$OMEGA_GATE_DIR"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
-. "$OMEGA_PATH_BETA/artifact_env.sh"
+. "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh"
 BC="$T/bc.exe"
 stamp_beta_compiler "$BC" >/dev/null || { echo "bc source exhaustion FAIL — artifact stamp"; exit 1; }
 LIMIT=1048576

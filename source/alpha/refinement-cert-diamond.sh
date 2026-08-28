@@ -1,1 +1,0 @@
-../refinement/alpha-beta/refinement-cert-diamond.sh

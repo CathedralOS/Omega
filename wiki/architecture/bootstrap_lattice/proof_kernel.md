@@ -2,16 +2,17 @@
 
 [Lattice overview](bootstrap_lattice.md) | [Psi/Omega toolchain](omega_toolchain.md) | [Terminal Psi](../pipeline/terminal_psi.md)
 
-> **Status: WORKING CROSS-CUTTING SERVICE.** Independent Beta and Gamma
+> **Status: WORKING CHECKER IMPLEMENTATIONS; ROOTING OPEN.** Beta and Gamma
 > implementations accept valid certificates, reject invalid ones, and are
 > exercised by logical, equality, operational-seam, fuzz, and
-> cross-implementation gates.
+> cross-implementation gates. The current Beta checker is compiled by `bc`, so
+> it cannot be the non-circular authority that admits `bc`.
 
 The proof kernel is deliberately not a language rung. Programs do not elaborate
-through it, and it adds no stage between Gamma and Delta. It is an assurance
+through it, and it adds no stage between Gamma and Delta. It is an Alpha-owned
 service used by producers and artifact verifiers throughout the build lattice.
 
-Its canonical owner is `source/proof-kernel/`. Beta, Gamma, and
+Its canonical owner is `source/alpha/checker/`. Beta, Gamma, and
 executable reference implementations live under `implementations/`; untrusted automation,
 fixtures, and executable policy live under `tools/`, `corpus/`, and `gates/`.
 The product-local Rust crate `psi-proof-admission` remains under Psi semantics;
@@ -22,8 +23,7 @@ owner.
 ```text
 Alpha → Beta → Gamma → Delta → omega₀ → omega  compiler spine
               ↘       ↙       ↓       ↓
-                proof kernel   checked compiler edges
-                assurance
+                proof checker  checked compiler edges
 ```
 
 ## Judgment
@@ -43,17 +43,19 @@ they gain no authority by producing a candidate certificate.
 
 The principal low-rung implementations are:
 
-- `source/proof-kernel/implementations/beta/check.beta` — logical proof checking in Beta;
-- `source/proof-kernel/implementations/beta/eq.beta` — fuel-bounded definitional equality;
-- `source/proof-kernel/implementations/gamma/checker.gamma` — independently written Gamma checker;
-- `source/proof-kernel/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
+- `source/alpha/checker/implementations/beta/check.beta` — logical proof checking in Beta;
+- `source/alpha/checker/implementations/beta/eq.beta` — fuel-bounded definitional equality;
+- `source/alpha/checker/implementations/gamma/checker.gamma` — independently written Gamma checker;
+- `source/alpha/checker/implementations/gamma/checker_typed.gamma` — typed Gamma form checked by Gamma's
   static type checker.
 
 They are separately written implementations of a shared calculus. Shared
 positive and negative corpora, cross-checks, fuzzers, and operational seams test
 that they decide the same judgments. Agreement is evidence while the formal
 soundness bridge matures; it does not grant either implementation
-authority over artifact-specific obligation reconstruction.
+authority over artifact-specific obligation reconstruction. Before checker
+acceptance can authorize the Beta compiler, one accepted checker artifact must
+be constructed or audited independently below that compiler.
 
 ## Proof checking is not artifact verification
 
