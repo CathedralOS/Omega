@@ -1401,11 +1401,46 @@ ensures a == c
     );
 
     TempTree::write(leaf.join("leaf.omg"), &leaf_source("pub "));
-    compile_to_checked_with_packages(&root.join("main.omg"), None, inputs()).unwrap_or_else(
-        |diagnostics| {
+    let checked = compile_to_checked_with_packages(&root.join("main.omg"), None, inputs())
+        .unwrap_or_else(|diagnostics| {
             panic!("public quotient proof evidence should be selectable: {diagnostics:#?}")
-        },
+        });
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure as Exposure, AuthoredDeclarationSelectionKind as Kind,
+        AuthoredDeclarationSelectionTarget as Target,
+    };
+    let root_selections = checked
+        .authored_declaration_selections()
+        .iter()
+        .filter(|selection| {
+            checked
+                .symbols
+                .source_file(selection.source_span())
+                .is_some_and(|source| source.package_identity == Some(identity(1)))
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(
+        root_selections
+            .iter()
+            .filter(|selection| {
+                selection.kind() == Kind::StaticPathSegment
+                    && selection.exposure() == Exposure::PublicInterface
+                    && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("equivalent"))
+            })
+            .count(),
+        2,
+        "the quotient relation and repeated equivalence subject need exact public path rows",
     );
+    assert!(root_selections.iter().any(|selection| {
+        selection.kind() == Kind::TypeReference
+            && selection.exposure() == Exposure::PublicInterface
+            && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("Equivalence"))
+    }));
+    assert!(root_selections.iter().any(|selection| {
+        selection.kind() == Kind::Conformance
+            && selection.exposure() == Exposure::PrivateImplementation
+            && matches!(selection.target(), Target::Resolved(target) if checked.symbols.display_path(target.selected_symbol(), "::").contains("Evidence"))
+    }));
 }
 
 #[test]

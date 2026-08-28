@@ -1546,6 +1546,19 @@ complete.
   `satisfies` traits, quotient paths, establishment routes, and nominal machine-
   parameter requirements remain separate exact-symbol audits.
 
+  Follow-up 2026-08-28: quotient declarations now retain exact authored rows
+  for the right-hand relation path, the repeated static-`where` relation
+  subject, and the selected sealed `Equivalence` trait. Carrier and trait-
+  argument type references were already retained, and the named equivalence
+  conformance remains separately retained as private formation custody. The
+  relation/trait rows inherit the quotient data declaration's public/private
+  exposure; changing valid proof implementations still does not change
+  quotient API identity. The existing package canary now verifies two exact
+  public relation-path rows, the public sealed-trait row, and the private exact
+  conformance row. This closes quotient declaration paths. `satisfies` traits,
+  establishment routes, and nominal machine-parameter requirements remain
+  separate exact-symbol audits.
+
   This is deliberately not yet total admission. Toolchain-authored bodies are
   outside package admission. Capture now covers private state-body expression
   forms, nominal type references on public/private declaration surfaces,

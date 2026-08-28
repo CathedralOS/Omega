@@ -814,6 +814,13 @@ where
 Here `as CauchyEquivalence` references an existing named conformance; it does
 not declare one and does not enter quotient identity.
 
+Every path in this formation surface remains an authored declaration
+selection. The carrier, quotient relation, repeated `where` relation, sealed
+`Equivalence` trait, and trait arguments follow the quotient data declaration's
+visibility. The selected conformance is private formation custody rather than
+quotient API identity, but selecting it across a package boundary still
+requires an ordinary direct dependency and a public conformance declaration.
+
 Equivalence licenses the quotient type, not operations on it. A lifted
 operation explicitly selects the representative machine and one ordinary
 checked theorem machine. The theorem's parameters state its universal

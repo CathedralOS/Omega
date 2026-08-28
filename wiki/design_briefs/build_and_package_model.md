@@ -1636,6 +1636,13 @@ a type-reference row under the machine's interface exposure, including
 exported boundary supply even without `pub`. Qualification neither relabels
 the carrier nor admits an owner available only transitively.
 
+Quotient declarations retain every authored formation coordinate: carrier,
+right-hand relation path, repeated static-`where` relation subject, sealed
+`Equivalence` trait and arguments, and named proof conformance. Relation and
+trait rows inherit the data declaration's exposure. Only the selected proof
+conformance is private formation custody and absent from quotient API identity;
+it remains subject to ordinary visibility and direct-dependency admission.
+
 The direct-dependency gate consumes only finalized authored-selection rows.
 Checked carried nominals, automatic cleanup, layout, and move/copy facts feed a
 separate exact semantic-dependency set with private/public disposition. They
