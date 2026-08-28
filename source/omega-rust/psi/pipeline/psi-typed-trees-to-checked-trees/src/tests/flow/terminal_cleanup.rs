@@ -312,6 +312,104 @@ fn structural_unit_jump_composes_signatures_transfers_and_cleanup() {
 }
 
 #[test]
+fn structural_unit_countdown_retains_exact_ranked_scc_plan() {
+    let source = r#"
+        data Token { value: i32; }
+        data Root {}
+
+        machine Root::countdown(token: Token, remaining: u32)
+        terminates by remaining -> Nat::Descending;
+        {
+            transition remaining > 0 {
+                true -> countdown(token, remaining - 1)
+                _ -> done(token)
+            }
+            state done(token: Token) {}
+        }
+        "#;
+    let admitted = checked(source);
+    let machine = admitted
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("countdown"))
+        .expect("countdown machine")
+        .symbol;
+    let plan = admitted
+        .facts
+        .flow
+        .terminal_structural_unit_controls
+        .for_machine(machine)
+        .expect("the ranked structural Unit countdown should compose");
+    let ranked = plan.ranked_scc.as_ref().expect("retained ranked SCC");
+    assert_eq!(ranked.header_state, plan.states[0].state);
+    assert_eq!(ranked.rank_scalar_parameter_index, 0);
+    assert_eq!(
+        ranked.rank_primitive_type,
+        psi_typed_trees::types::PrimitiveType::U32
+    );
+    assert_eq!(ranked.rank_lower_bound, 0);
+    assert_eq!(ranked.rank_upper_bound, u128::from(u32::MAX));
+    let [edge] = ranked.covered_cyclic_edges.as_slice() else {
+        panic!("one ranked backedge")
+    };
+    assert_eq!(edge.source_state, ranked.header_state);
+    assert_eq!(edge.target_state, ranked.header_state);
+    assert_eq!(edge.statement_ordinal, 0);
+    assert_eq!(
+        edge.guard,
+        psi_checked_trees::CheckedStructuralRankedGuardPlan::UnsignedParameterPositive {
+            scalar_parameter_index: 0,
+            primitive_type: psi_typed_trees::types::PrimitiveType::U32,
+        }
+    );
+    assert_eq!(
+        edge.successor_argument,
+        psi_checked_trees::CheckedStructuralRankedArgumentPlan::UnsignedParameterMinusOne {
+            argument_ordinal: 1,
+            source_scalar_parameter_index: 0,
+            target_scalar_parameter_index: 0,
+            primitive_type: psi_typed_trees::types::PrimitiveType::U32,
+        }
+    );
+    let psi_checked_trees::CheckedStructuralUnitControlTerminatorPlan::Conditional {
+        guard_scalar_parameter_index,
+        when_true,
+        ..
+    } = &plan.states[0].terminator
+    else {
+        panic!("countdown header should retain its conditional")
+    };
+    assert_eq!(*guard_scalar_parameter_index, 0);
+    assert_eq!(when_true.target_state, ranked.header_state);
+    assert_eq!(
+        when_true.scalar_arguments[0].source_scalar_parameter_index,
+        0
+    );
+    assert_eq!(
+        when_true.scalar_arguments[0].target_scalar_parameter_index,
+        0
+    );
+
+    let without_witness =
+        checked(&source.replace("terminates by remaining -> Nat::Descending;", ""));
+    let machine = without_witness
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str().ends_with("countdown"))
+        .expect("unranked countdown machine")
+        .symbol;
+    assert!(
+        without_witness
+            .facts
+            .flow
+            .terminal_structural_unit_controls
+            .for_machine(machine)
+            .is_none(),
+        "a cyclic structural plan without checker-owned rank evidence must be omitted"
+    );
+}
+
+#[test]
 fn structural_unit_conditional_composes_independent_transfer_cleanup_frontiers() {
     let supported = checked(
         r#"

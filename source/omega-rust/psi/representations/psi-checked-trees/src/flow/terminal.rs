@@ -213,6 +213,51 @@ pub struct CheckedStructuralUnitControlMachinePlan {
     pub machine: SymbolHandle,
     pub attachment_type_identity: String,
     pub states: Vec<CheckedStructuralUnitControlStatePlan>,
+    /// The first retained cyclic-control proof. `None` preserves the acyclic
+    /// structural-Unit slice; a cyclic plan is published only when the
+    /// termination checker supplied this exact source-handle-free component.
+    pub ranked_scc: Option<CheckedStructuralRankedSccPlan>,
+}
+
+/// One canonical Nat-descending component admitted by the first cyclic
+/// structural-Unit slice. Bounds are the exact unsigned carrier bounds, not
+/// authored text, and every retained edge names the checked transition
+/// coordinate whose positive guard and decrement the ranking checker proved.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CheckedStructuralRankedSccPlan {
+    pub header_state: SymbolHandle,
+    pub rank_scalar_parameter_index: u32,
+    pub rank_primitive_type: PrimitiveType,
+    pub rank_lower_bound: u128,
+    pub rank_upper_bound: u128,
+    pub covered_cyclic_edges: Vec<CheckedStructuralRankedSccEdgePlan>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CheckedStructuralRankedSccEdgePlan {
+    pub source_state: SymbolHandle,
+    pub target_state: SymbolHandle,
+    pub statement_ordinal: u32,
+    pub guard: CheckedStructuralRankedGuardPlan,
+    pub successor_argument: CheckedStructuralRankedArgumentPlan,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralRankedGuardPlan {
+    UnsignedParameterPositive {
+        scalar_parameter_index: u32,
+        primitive_type: PrimitiveType,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckedStructuralRankedArgumentPlan {
+    UnsignedParameterMinusOne {
+        argument_ordinal: u32,
+        source_scalar_parameter_index: u32,
+        target_scalar_parameter_index: u32,
+        primitive_type: PrimitiveType,
+    },
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

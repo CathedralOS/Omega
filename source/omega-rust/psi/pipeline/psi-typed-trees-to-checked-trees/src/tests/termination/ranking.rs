@@ -85,6 +85,75 @@ fn accepts_terminating_countdown_machine_with_decreases() {
 }
 
 #[test]
+fn direct_unsigned_countdown_exports_exact_ranked_scc_evidence() {
+    let source = r#"
+    data Main {}
+
+    machine Main::countdown(&mut self, remaining: u32)
+    terminates by remaining -> Nat::Descending;
+    {
+        transition remaining > 0 {
+            true -> self.countdown(remaining - 1)
+            false -> 0
+        }
+    }
+    "#;
+
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize should succeed");
+    let syntax = parse_syntax_trees(&tokens).expect("parse should succeed");
+    let resolved = lower_syntax_trees(&syntax).expect("symbol resolution should succeed");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("typing should succeed");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::countdown")
+        .expect("countdown machine");
+    let components = crate::checks::termination::proven_nat_countdown_sccs(&typed, machine)
+        .expect("the existing ranking proof should export its direct countdown");
+    let [component] = components.as_slice() else {
+        panic!("one ranked SCC")
+    };
+    assert_eq!(
+        component.header_state,
+        typed.machine_states(machine)[0].symbol
+    );
+    assert_eq!(component.header_rank_parameter_position, 1);
+    assert_eq!(
+        component.rank_primitive_type,
+        psi_typed_trees::types::PrimitiveType::U32
+    );
+    assert_eq!(component.rank_lower_bound, 0);
+    assert_eq!(component.rank_upper_bound, u128::from(u32::MAX));
+    let [edge] = component.covered_cyclic_edges.as_slice() else {
+        panic!("one covered backedge")
+    };
+    assert_eq!(edge.source_state, component.header_state);
+    assert_eq!(edge.target_state, component.header_state);
+    assert_eq!(edge.statement_ordinal, 0);
+    assert_eq!(edge.source_rank_parameter_position, 1);
+    assert_eq!(edge.target_rank_parameter_position, 1);
+
+    let stalled = source.replace("remaining - 1", "remaining");
+    let tokens = Lexer::new(&stalled)
+        .tokenize()
+        .expect("stalled source should tokenize");
+    let syntax = parse_syntax_trees(&tokens).expect("stalled source should parse");
+    let resolved = lower_syntax_trees(&syntax).expect("stalled source should resolve");
+    let typed = lower_symbol_resolved_trees(&resolved).expect("stalled source should type");
+    let machine = typed
+        .machines()
+        .iter()
+        .find(|machine| machine.name.as_str() == "Main::countdown")
+        .expect("stalled countdown machine");
+    assert!(
+        crate::checks::termination::proven_nat_countdown_sccs(&typed, machine).is_none(),
+        "forwarding the original rank must not export ranked-SCC evidence"
+    );
+}
+
+#[test]
 fn accepts_terminating_distance_machine_with_decreases() {
     let source = r#"
     data Main {}

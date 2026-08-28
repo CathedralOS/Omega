@@ -160,6 +160,13 @@ Remaining:
   must reject as a non-decreasing ranked edge; removing rank evidence must
   retain the existing unranked-cycle rejection. Do not broaden this first slice
   to the product `Main` receiver, mixed operations, or boundary calls.
+  The checked-plan substep is complete: the existing Nat-ranking owner now
+  exports the exact direct unsigned-countdown component, and checked structural
+  control retains its header, rank carrier/bounds, covered edge coordinate,
+  positive guard, and parameter-minus-one successor form without a second
+  syntax recognizer. The next substep is the source-handle-free Terminal
+  identity/codec and fail-closed representation policy; execution authority,
+  invariant reconstruction, fuel, and native lowering remain open after it.
   Later product-required slices must then add persistent mutable receiver and
   subplace custody, mixed operations in multi-state blocks, structural-result
   boundary calls and payload cases, nested field/index reads and writes, and
