@@ -619,10 +619,18 @@ fn reconstruct(
             .ok_or(OptimizedTerminalOrdinaryCallableEntryError::MissingReturn(
                 edge,
             ))?;
+        let crate::whole_function_exit_contract::TerminalWholeFunctionReturnValueEvidence::ScalarI64V1 {
+            virtual_register,
+            view,
+            units,
+        } = &evidence.value
+        else {
+            return Err(OptimizedTerminalOrdinaryCallableEntryError::RootMismatch);
+        };
         if evidence.instruction != selected_return.id
-            || evidence.result_virtual_register != vreg.id
-            || evidence.result_view != result_view
-            || evidence.result_units != result_model_view.units
+            || *virtual_register != vreg.id
+            || *view != result_view
+            || *units != result_model_view.units
         {
             return Err(OptimizedTerminalOrdinaryCallableEntryError::RootMismatch);
         }
@@ -631,8 +639,8 @@ fn reconstruct(
             value,
             selected_instruction: selected_return.id,
             virtual_register: vreg.id,
-            view: evidence.result_view,
-            storage_units: evidence.result_units.clone(),
+            view: *view,
+            storage_units: units.clone(),
         });
     }
     if returns.is_empty() || returns.len() != exit_function.returns.len() {
