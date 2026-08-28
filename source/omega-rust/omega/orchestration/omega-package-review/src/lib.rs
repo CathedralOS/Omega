@@ -9532,10 +9532,20 @@ fn project_contract_expression_with_substitutions(
             left: Box::new(child(binary.left)?),
             right: Box::new(child(binary.right)?),
         }),
-        ExpressionNode::Unary(unary) => Ok(PackageReviewContractExpression::Unary {
-            operator: project_contract_unary_operator(unary.operator),
-            operand: Box::new(child(unary.operand)?),
-        }),
+        ExpressionNode::Unary(unary) => {
+            if exact_checked_contract_operator_meaning(compilation, context, expression)?
+                != PackageReviewContractOperatorMeaning::Builtin
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` unary contract operator is not one closed compiler-owned meaning",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            Ok(PackageReviewContractExpression::Unary {
+                operator: project_contract_unary_operator(unary.operator),
+                operand: Box::new(child(unary.operand)?),
+            })
+        }
         ExpressionNode::Call(call) => {
             let target =
                 exact_checked_contract_call_target(compilation, context, expression, call)?;

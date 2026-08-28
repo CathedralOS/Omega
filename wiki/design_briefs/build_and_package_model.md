@@ -1923,6 +1923,12 @@ on a fixed array or slice. Projection requires that exact public-interface
 selection occurrence and encodes the structural receiver without inventing a
 package owner. A package field named `len` remains nominal. Other compiler
 intrinsics remain fail-closed.
+Authored `!` and `~` likewise retain the exact operator token through checked
+selection custody, including when nested in a public contract expression.
+Review requires that public-interface occurrence to finalize as the closed
+builtin-operator meaning before projecting the existing structural unary
+operator. The canonical bytes remain v76/row v34; this closes a source-custody
+join rather than adding a semantic discriminant.
 Review v61 and canonical row v19 admit exact raw byte-sequence literals in
 public contract expressions. The projector uses typed Psi's decoded octets
 directly and assigns them no text encoding. Escape-equivalent source spellings

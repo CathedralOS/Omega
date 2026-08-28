@@ -1416,6 +1416,15 @@ complete.
   ordinary package-qualified nominal member. Other unrepresented compiler
   intrinsics remain fail-closed.
 
+  Follow-up 2026-08-28: authored `!` and `~` expressions now retain their
+  exact operator-token spans, including when nested under another public
+  contract expression. Checked lowering finalizes each as the closed compiler-
+  owned builtin-operator selection, and package review requires that exact
+  public-interface occurrence before projecting the already-structural unary
+  operator. Package review remains v76/canonical row v34 because the operator
+  discriminant was already canonical evidence; this closes its missing source-
+  custody join rather than changing row bytes.
+
   Milestone 2026-08-25: source-backed static conformance arguments on generic
   calls now retain the exact package-scoped conformance selected by each
   authored argument, including nested static applications. Checked trait-backed
