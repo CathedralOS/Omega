@@ -254,11 +254,11 @@ These facts constrain the work below.
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
   selected-form encoding v5, resolved-layout v5,
-  whole-function exit v5, function-relative manifest v7, fragment manifest
-  v4, text manifest v4, fragment vocabulary v3, text-section vocabulary v3, and x86
+  whole-function exit v6, function-relative manifest v7, fragment manifest
+  v5, text manifest v5, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
   reject older detached vocabulary. The ordinary-callable record/manifest
-  codec is v2 because it closes over the expanded exit-policy vocabulary while
+  codec is v3 because it closes over the expanded exit-policy vocabulary while
   still rejecting structural custody during callable replay. A dedicated
   baseline carrier now proves
   the exact one-function Unit shape through zero-VReg liveness, ranges,
@@ -349,22 +349,25 @@ These facts constrain the work below.
   replayed ordinary/structural counts. It grants no layout or relocation
   authority. Resolved-layout v5 now retains exact caller spans `[0, 89)` and
   `[89, 90)`, the leaf `[0, 1)` return, and the still-unresolved typed fixup.
-  Whole-function-exit v5 validates the distinct balanced Microsoft-x64 caller
-  policy without misclassifying it as a frameless leaf. A separate owning
+  Whole-function-exit v6 validates both the distinct balanced Microsoft-x64
+  caller policy and a separately named frameless structural Unit leaf policy.
+  It admits exactly either the two-function entry-caller-to-leaf topology or
+  one call-free entry leaf without weakening roster, return, preservation, or
+  byte replay. A separate owning
   structural function-relative carrier and `OMGFRM` v7 manifest retain ordinary
   counts `0/0/0/0/0`, structural counts `2/2/3/91`, and one unresolved internal-
   Machine fixup under independent replay. Machine-code fragment schema v3 and
-  `OMGFFE` v4 now carry a parallel two-function structural roster, exact
-  90/1-byte aggregate spans, call and return provenance, and an architecture-
-  neutral unresolved internal-Machine fixup. This stage is explicitly distinct
-  from relocation-free fragments, and the existing text API rejects it instead
-  of silently dropping the structural roster. Target-owned x86 resolution now
+  `OMGFFE` v5 now carry a generalized structural Unit roster. The two-function
+  call fixture retains exact 90/1-byte aggregate spans, call and return
+  provenance, and an architecture-neutral unresolved internal-Machine fixup;
+  the one-function leaf truthfully enters the relocation-free stage with one
+  `C3` span and zero fixups. Target-owned x86 resolution now
   computes and independently replays checked signed rel32 fields, including the
   canonical caller-at-zero/callee-at-90 displacement of `+5`. The next backend
   milestone has now landed: two-pass dense placement constructs the complete
   `MachineId` offset map, independently reconstructs the target template,
   resolves the caller to the canonical `+5` displacement, and publishes
-  `OMGTSP` v4 with one source fixup, one resolution, and zero remaining fixups.
+  `OMGTSP` v5 with one source fixup, one resolution, and zero remaining fixups.
   Text-section schema v3 identity-binds the patched bytes and complete
   resolution coordinates. The unchanged zero-relocation object path then emits
   exact caller/callee private symbols at `0/90` and `90/1` with no fabricated
@@ -389,12 +392,12 @@ These facts constrain the work below.
   independently projects every step into that named policy. The older
   full-frame wrapper remains a distinct 143-byte compatibility encoding with
   offsets `113/114/118`. This engineering boundary does not require Q17. The
-  immediate prerequisite for the object join is an honest one-function
-  structural two-Extent `ReturnUnit` continuation: selection through layout
-  already admits it, but whole-function exit currently hardcodes the
-  two-function caller/leaf topology. It must gain a separately named and
-  replayed structural Unit leaf policy before fragments, text, object, and
-  canonical artifact custody can represent the settled continuation. The
+  immediate prerequisite for the object join has now landed: an honest
+  one-function structural two-Extent `ReturnUnit` continuation carries its
+  separately named frameless structural Unit leaf policy through replayed
+  function-relative custody, generalized structural fragments, one-byte text,
+  a single semantic-entry private symbol, a zero-relocation object, and the
+  canonical semantic/proof-bound terminal object artifact. The
   compiler-private wrapper itself receives no fabricated Terminal `MachineId`.
   The checked-source ProgramStorage fixture currently lowers its generic two-root
   handoff as `BoundaryCall`, not this compiler-private `CallUnit`, and therefore
@@ -2422,9 +2425,9 @@ dependency.
   fuel. The architecture-neutral rematerialization source kind replays its
   complete owning carrier and requires the exact singleton allocation-recovery
   projection. It retains baseline `JNE rel32` or `B.NE imm19` branch evidence;
-  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v4 manifest binds
-  the closed five-kind source vocabulary, including Unit baseline and
-  structural-Unit-call custody, source
+  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v5 manifest binds
+  the generalized five-kind source vocabulary, including Unit baseline and
+  structural-Unit custody, source
   realization, selections,
   selected/post-allocation/layout/exit roots, target, fragment identity, and
   exact statistics. Independent replay reconstructs source custody, offsets,
@@ -2441,8 +2444,8 @@ dependency.
   without inventing an object/process entry symbol. An exhaustive current-
   alternative check proves that fallthrough/scalar/return forms embed no target
   and every relative conditional branch is already resolved within its owned
-  function. The strict `OMGTSP` v4 manifest includes rematerialization,
-  Unit-baseline, and structural-Unit-call source-kind tags, and independent replay binds every source,
+  function. The strict `OMGTSP` v5 manifest includes rematerialization,
+  Unit-baseline, and structural-Unit source-kind tags, and independent replay binds every source,
   layout, exit, and fragment root, aggregate byte, statistic, placement
   coordinate, and the closed no-relocation conclusion. Symbols, object
   container/serialization, external entry bridge, executable image,
@@ -2533,7 +2536,7 @@ dependency.
   and post-allocation machine replay. The target-owned encoder produces an
   independently decoded canonical 89-byte template with one typed unresolved
   internal-Machine rel32 fixup; selected-form encoding v5, resolved-layout v5,
-  whole-function-exit v5, and function-relative manifest v7 now retain it, its
+  whole-function-exit v6, and function-relative manifest v7 now retain it, its
   full footprint, exact 90/1-byte function spans, separate returns, balanced
   caller policy, and structural statistics without misclassifying the zero
   field as a resolved call. Machine-code fragments, two-pass whole-section
@@ -2545,9 +2548,9 @@ dependency.
   encoding contract is now explicit: the coordinate-free semantic plan selects
   a target-owned compact 90-byte policy with exact `80/81/85` rel32 coordinates
   and retained physical footprint, while the legacy 143-byte full-frame route
-  remains `113/114/118`. The next backend prerequisite is a separately named
-  whole-function-exit policy for the one-function structural two-Extent Unit
-  continuation, followed by fragment/text/object/artifact custody and the
+  remains `113/114/118`. The one-function structural two-Extent Unit
+  continuation now has a separately named frameless exit policy and complete
+  fragment/text/object/artifact custody. The next backend boundary is the
   distinct compiler-owned semantic `ProgramStorageEntry` wrapper object in
   `omega-terminal-native-realization`. The scalar-
   result conditional fixture used by the callable classifier remains

@@ -1086,6 +1086,22 @@ mod tests {
         )
     }
 
+    fn structural_extent_unit_leaf_artifact() -> (Vec<u8>, Vec<u8>) {
+        let (semantic, _) = structural_extent_call_unit_artifact();
+        let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
+        let leaf = module
+            .machines
+            .pop()
+            .expect("the structural call fixture has one exact Unit leaf");
+        module.entry = leaf.id;
+        module.machines = vec![leaf];
+        let proof = ProofBundle::default();
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
     fn statically_attached_unit_return_artifact() -> (Vec<u8>, Vec<u8>, StructuralTypeId) {
         let (semantic, proof) = unit_return_artifact();
         let mut module = psi_terminal_codec::decode_module(&semantic).unwrap();
@@ -9334,7 +9350,7 @@ mod tests {
 
             let record = emitted.manifest().record();
             let encoded = record.encode();
-            assert_eq!(&encoded[8..12], &4_u32.to_le_bytes());
+            assert_eq!(&encoded[8..12], &5_u32.to_le_bytes());
             assert_eq!(encoded[45], 3);
             assert_eq!(
                 FunctionFragmentEmissionManifest::decode(&encoded),
@@ -9401,7 +9417,7 @@ mod tests {
                 FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
             );
             let text_encoded = placed.manifest().record().encode();
-            assert_eq!(&text_encoded[8..12], &4_u32.to_le_bytes());
+            assert_eq!(&text_encoded[8..12], &5_u32.to_le_bytes());
             assert_eq!(text_encoded[45], 3);
             assert_eq!(
                 FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -11739,9 +11755,7 @@ mod tests {
         validate_optimized_structural_unit_function_relative_realization(&realization).unwrap();
 
         let mut fragments = stage_optimized_function_fragment_emission(
-            StagedOptimizedFunctionFragmentEmissionSource::StructuralUnitCall(Box::new(
-                realization,
-            )),
+            StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(realization)),
         )
         .expect("structural Unit calls must retain typed unresolved fragment custody");
         assert!(fragments.fragments().functions.is_empty());
@@ -11774,7 +11788,7 @@ mod tests {
         );
         assert_eq!(
             fragment_manifest.source_kind,
-            FunctionFragmentEmissionSourceKind::StructuralUnitCallV1
+            FunctionFragmentEmissionSourceKind::StructuralUnitV1
         );
         assert_eq!(fragment_manifest.statistics.functions, 0);
         assert_eq!(fragment_manifest.statistics.structural_unit_functions, 2);
@@ -11796,7 +11810,7 @@ mod tests {
             FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
             Ok(fragment_manifest.clone())
         );
-        for unsupported in [3_u32, 5_u32] {
+        for unsupported in [4_u32, 6_u32] {
             let mut encoded = fragment_manifest.encode();
             encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
             assert_eq!(
@@ -11929,7 +11943,7 @@ mod tests {
             FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
             Ok(text_manifest.clone())
         );
-        for unsupported in [3_u32, 5_u32] {
+        for unsupported in [4_u32, 6_u32] {
             let mut encoded = text_manifest.encode();
             encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
             assert_eq!(
@@ -11972,6 +11986,144 @@ mod tests {
         assert_eq!(object.object().symbols[1].byte_count, 1);
         assert_eq!(object.object().relocation_record_count, 0);
         validate_optimized_relocation_free_terminal_object_container(&object).unwrap();
+    }
+
+    #[test]
+    fn structural_extent_unit_leaf_reaches_canonical_object_artifact() {
+        let (semantic, proof) = structural_extent_unit_leaf_artifact();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+        )
+        .expect("the honest two-Extent Unit leaf must pass PSI optimization custody");
+        let physical = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            NativeTarget::uefi_x64(),
+            &[],
+        )
+        .expect("the structural Unit leaf must reach physical custody");
+        let StagedOptimizedVerifiedPhysicalPipeline::PsiOnly { homes, .. } = physical else {
+            panic!("the PSI-only request must retain baseline structural physical custody")
+        };
+
+        let realization = stage_optimized_structural_unit_function_relative_realization(homes)
+            .expect("the call-free structural Unit leaf must own function-relative custody");
+        let exit = realization.exit_contract().contract();
+        assert_eq!(
+            exit.policy,
+            TerminalWholeFunctionExitPolicy::MicrosoftX64FramelessStructuralUnitLeafV1
+        );
+        assert!(exit.functions.is_empty());
+        assert_eq!(exit.structural_unit_functions.len(), 1);
+        assert_eq!(
+            exit.structural_unit_functions[0].machine,
+            MachineId::new(3_602).unwrap()
+        );
+        assert!(exit.structural_unit_functions[0].call.is_none());
+        assert_eq!(exit.structural_unit_functions[0].body_stack_delta, 0);
+        assert!(
+            exit.structural_unit_functions[0]
+                .modified_callee_saved_units
+                .is_empty()
+        );
+        assert_eq!(
+            exit.structural_unit_functions[0].returned.value,
+            TerminalWholeFunctionReturnValueEvidence::UnitV1
+        );
+        let realization_manifest = realization.manifest().record();
+        assert_eq!(realization_manifest.statistics.structural_unit_functions, 1);
+        assert_eq!(realization_manifest.statistics.structural_unit_blocks, 1);
+        assert_eq!(
+            realization_manifest.statistics.structural_unit_instructions,
+            1
+        );
+        assert_eq!(realization_manifest.statistics.structural_unit_bytes, 1);
+        assert_eq!(
+            realization_manifest
+                .statistics
+                .unresolved_internal_machine_fixups,
+            0
+        );
+
+        let fragments = stage_optimized_function_fragment_emission(
+            StagedOptimizedFunctionFragmentEmissionSource::StructuralUnit(Box::new(realization)),
+        )
+        .expect("the leaf must emit one relocation-free structural fragment");
+        let fragment_manifest = fragments.manifest().record();
+        assert_eq!(
+            fragment_manifest.stage,
+            FunctionFragmentEmissionStage::ValidatedRelocationFreeFunctionFragmentsV1
+        );
+        assert_eq!(
+            fragment_manifest.source_kind,
+            FunctionFragmentEmissionSourceKind::StructuralUnitV1
+        );
+        assert_eq!(fragment_manifest.statistics.structural_unit_functions, 1);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .structural_unit_instruction_spans,
+            1
+        );
+        assert_eq!(fragment_manifest.statistics.structural_unit_bytes, 1);
+        assert_eq!(
+            fragment_manifest
+                .statistics
+                .unresolved_internal_machine_fixups,
+            0
+        );
+        assert_eq!(fragments.fragments().structural_unit_functions.len(), 1);
+        let leaf = &fragments.fragments().structural_unit_functions[0];
+        assert_eq!(leaf.bytes, [0xc3]);
+        assert!(leaf.block.call.is_none());
+        assert_eq!(leaf.block.return_instruction.offset, 0);
+
+        let text = stage_optimized_relocation_free_text_section(fragments)
+            .expect("the call-free structural leaf must place without fixup resolution");
+        assert_eq!(text.text_section().bytes, [0xc3]);
+        assert_eq!(text.text_section().functions.len(), 1);
+        assert!(
+            text.text_section()
+                .resolved_internal_machine_calls
+                .is_empty()
+        );
+        let text_manifest = text.manifest().record();
+        assert_eq!(
+            text_manifest.source_kind,
+            FunctionFragmentEmissionSourceKind::StructuralUnitV1
+        );
+        assert_eq!(text_manifest.statistics.structural_unit_functions, 1);
+        assert_eq!(text_manifest.statistics.structural_unit_bytes, 1);
+        assert_eq!(text_manifest.statistics.source_internal_machine_fixups, 0);
+        assert_eq!(text_manifest.statistics.resolved_internal_machine_fixups, 0);
+        assert_eq!(
+            text_manifest.statistics.remaining_internal_machine_fixups,
+            0
+        );
+
+        let object = stage_optimized_relocation_free_terminal_object_container(text)
+            .expect("the leaf text must enter a relocation-free object container");
+        assert_eq!(object.object().text_section.bytes, [0xc3]);
+        assert_eq!(object.object().symbols.len(), 1);
+        assert_eq!(object.object().symbols[0].section_offset, 0);
+        assert_eq!(object.object().symbols[0].byte_count, 1);
+        assert_eq!(object.object().relocation_record_count, 0);
+
+        let artifact = stage_validated_optimized_terminal_object_artifact(
+            canonical_terminal_artifact(&semantic, &proof),
+            object,
+        )
+        .expect("the leaf object must retain the exact canonical semantic/proof join");
+        assert_eq!(
+            artifact.artifact().semantic_entry,
+            MachineId::new(3_602).unwrap()
+        );
+        assert_eq!(artifact.artifact().statistics.text_bytes, 1);
+        assert_eq!(artifact.artifact().statistics.function_symbols, 1);
+        assert_eq!(artifact.artifact().statistics.relocation_records, 0);
+        validate_optimized_terminal_object_artifact(&artifact).unwrap();
     }
 
     #[test]
@@ -14203,10 +14355,10 @@ mod tests {
             Err(OptimizedTerminalOrdinaryCallableEntryDecodeError::WrongMagic)
         );
         let mut wrong_version = staged.manifest().record().encode();
-        wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+        wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
         assert_eq!(
             OptimizedTerminalOrdinaryCallableEntryManifest::decode(&wrong_version),
-            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(3))
+            Err(OptimizedTerminalOrdinaryCallableEntryManifestDecodeError::UnsupportedVersion(4))
         );
         let mut legacy_version = staged.manifest().record().encode();
         legacy_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
