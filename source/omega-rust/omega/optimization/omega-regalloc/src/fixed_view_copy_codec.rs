@@ -275,6 +275,7 @@ fn decode_selected_plan(
         target,
         entry,
         functions,
+        structural_unit_functions: Vec::new(),
     })
 }
 
@@ -1058,6 +1059,7 @@ mod tests {
                 target: omega_target::NativeTarget::linux_x64(),
                 entry: function.machine,
                 functions: vec![function],
+                structural_unit_functions: Vec::new(),
             },
         }
     }

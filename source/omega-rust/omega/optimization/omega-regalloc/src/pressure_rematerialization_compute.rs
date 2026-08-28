@@ -784,6 +784,7 @@ pub(crate) mod tests {
                     },
                 }],
             }],
+            structural_unit_functions: Vec::new(),
         };
         let ranges = TerminalLiveRangePlan {
             selected: TerminalSelectedInstructionPlanIdentity::from_bytes([2; 32]),
