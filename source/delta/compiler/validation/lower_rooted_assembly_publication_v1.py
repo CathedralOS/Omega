@@ -46,6 +46,8 @@ MAX_TEMPLATE = 1_048_576
 MAX_CLOSED_GAMMA = 4 * 1024 * 1024
 MAX_TAPE = 262_140
 MAX_GAMMA_OBSERVATION = 256 * 1024 * 1024
+MAX_ALPHA_HOST_ARTIFACT = 1024 * 1024
+MAX_SOURCE_IMAGE = closure.MAX_SOURCE
 EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
 
 RESOURCE_PROFILE = {
@@ -149,7 +151,10 @@ def toolchain_identity(
     validate_interpreter_profile()
     return {
         "alpha_vm": {
-            "artifact": file_identity(ALPHA_VM_SEED, "alpha_vm_committed_host_seed", 1024 * 1024),
+            "artifact": file_identity(
+                ALPHA_VM_SEED, "alpha_vm_committed_host_seed",
+                MAX_ALPHA_HOST_ARTIFACT,
+            ),
             "authority_role": "audited_alpha_macos_arm64_host_seed",
             "host": "macos_arm64",
             "semantics": file_identity(ALPHA_VM_SEMANTICS, "alpha_vm_written_semantics"),
@@ -160,7 +165,7 @@ def toolchain_identity(
             "artifact": file_identity(
                 ALPHA_ASSEMBLER_HOST_ARTIFACT,
                 "alpha_assembler_committed_host_artifact",
-                1024 * 1024,
+                MAX_ALPHA_HOST_ARTIFACT,
             ),
             "authority_role": "canonical_alpha_written_assembler_artifact",
             "source": file_identity(ALPHA_ASSEMBLER_SOURCE, "alpha_assembler_source"),

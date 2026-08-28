@@ -144,6 +144,17 @@ runner scripts. It does not elaborate the compiler or start either long Gamma
 execution. Ad-hoc-signed executable hashes are attempt-local mutation guards;
 they are never publication identities.
 
+Attempt-plan and stage-input identity reads reuse already-declared owner
+ceilings: 524,288 bytes for the canonical LF source image, 262,140 bytes for
+each Alpha tape, 1 MiB for committed or seed-stamped Alpha host executables,
+1 MiB for the generated template, 4 MiB for closed Gamma, and 65,536 bytes for
+the source-closure manifest, location sidecar, attempt plan, and stage markers.
+These limits apply at plan construction/replay and stage start/replay through
+the same bounded one-descriptor read used for stage outputs. Compiler,
+interpreter, and verifier source files have exact digest custody but no
+independently declared byte ceiling; their plan map therefore retains explicit
+unbounded entries instead of assigning an orchestration policy.
+
 The four scripts are `run-elaboration.sh`, `run-packing.sh`,
 `run-execution-0.sh`, and `run-execution-1.sh`. Each states its actual
 executable arguments and file redirections literally: the translator reads the

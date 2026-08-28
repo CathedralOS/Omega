@@ -34,7 +34,9 @@ def write_marker(root: Path, stage: str, *, token: str | None = None,
     attempt = token if token is not None else plan["attempt_id"]
     started = {
         "attempt_id": attempt,
-        "inputs": driver.marker_identity(inputs, f"{stage}_input"),
+        "inputs": driver.marker_identity(
+            inputs, f"{stage}_input", driver.STAGE_INPUT_CEILINGS[stage]
+        ),
         "prepared_epoch_ns": plan["prepared_epoch_ns"],
         "schema": driver.MARKER_SCHEMA,
         "stage": stage,
@@ -130,6 +132,14 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(duplicate.returncode, 2)
         self.assertEqual(duplicate.stdout, b"")
 
+    def test_plan_tape_input_ceiling_rejects_before_status(self) -> None:
+        tape = self.root / "artifacts/delta2gamma.tape"
+        with tape.open("r+b") as stream:
+            stream.truncate(publication.MAX_TAPE + 1)
+        result = self.run_cli("status")
+        self.assertEqual(result.returncode, 252, result.stderr)
+        self.assertEqual(result.stdout, b"")
+
     def test_complete_status_and_finalize_exact_receipt(self) -> None:
         self.materialize_completed_outputs()
         state = self.run_cli("status")
@@ -200,7 +210,9 @@ class DriverTests(unittest.TestCase):
         inputs, _ = driver.stage_paths(self.root, stage)
         started = {
             "attempt_id": plan["attempt_id"],
-            "inputs": driver.marker_identity(inputs, f"{stage}_input"),
+            "inputs": driver.marker_identity(
+                inputs, f"{stage}_input", driver.STAGE_INPUT_CEILINGS[stage]
+            ),
             "prepared_epoch_ns": plan["prepared_epoch_ns"],
             "schema": driver.MARKER_SCHEMA,
             "stage": stage,
@@ -323,6 +335,25 @@ class DriverTests(unittest.TestCase):
 
 
 class UsageTests(unittest.TestCase):
+    def test_plan_tape_identity_ceiling_is_inclusive(self) -> None:
+        with tempfile.TemporaryDirectory() as spelling:
+            path = Path(spelling) / "translator.tape"
+            with path.open("wb") as stream:
+                stream.truncate(publication.MAX_TAPE)
+            admitted = driver.identity(
+                path, "delta_to_gamma_tape",
+                driver.PLAN_INPUT_CEILINGS["translator_tape"],
+            )
+            self.assertEqual(admitted["byte_length"], publication.MAX_TAPE)
+            with path.open("r+b") as stream:
+                stream.truncate(publication.MAX_TAPE + 1)
+            with self.assertRaises(driver.DriverResourceError):
+                driver.identity(
+                    path, "delta_to_gamma_tape",
+                    driver.PLAN_INPUT_CEILINGS["translator_tape"],
+                )
+            self.assertIsNone(driver.PLAN_INPUT_CEILINGS["translator_source"])
+
     def test_limited_identity_bounds_growth_during_read(self) -> None:
         class GrowingStream:
             def __init__(self, path: Path, requested: list[int]) -> None:

@@ -62,6 +62,54 @@ STAGE_OUTPUT_CEILINGS = {
     "execution-0": (publication.MAX_GAMMA_OBSERVATION, publication.MAX_DOCUMENT),
     "execution-1": (publication.MAX_GAMMA_OBSERVATION, publication.MAX_DOCUMENT),
 }
+STAGE_INPUT_CEILINGS = {
+    "elaboration": (
+        publication.MAX_ALPHA_HOST_ARTIFACT,
+        publication.MAX_SOURCE_IMAGE,
+    ),
+    "packing": (
+        publication.MAX_TEMPLATE,
+        publication.MAX_SOURCE_IMAGE,
+        None,
+    ),
+    "execution-0": (
+        publication.MAX_ALPHA_HOST_ARTIFACT,
+        publication.MAX_CLOSED_GAMMA,
+    ),
+    "execution-1": (
+        publication.MAX_ALPHA_HOST_ARTIFACT,
+        publication.MAX_CLOSED_GAMMA,
+    ),
+}
+
+# None is deliberate: these source files have exact identity custody but no
+# independently declared byte ceiling. Do not manufacture one in orchestration.
+PLAN_INPUT_CEILINGS = {
+    "alpha_vm_semantics": None,
+    "alpha_vm_source": None,
+    "alpha_vm_seed": publication.MAX_ALPHA_HOST_ARTIFACT,
+    "alpha_stamping_source": None,
+    "assembler_source": None,
+    "assembler_artifact": publication.MAX_ALPHA_HOST_ARTIFACT,
+    "assembler_tape": publication.MAX_TAPE,
+    "beta_compiler_source": None,
+    "beta_compiler_tape": publication.MAX_TAPE,
+    "decoder_source": None,
+    "driver_source": None,
+    "interpreter_source": None,
+    "translator_tape": publication.MAX_TAPE,
+    "interpreter_tape": publication.MAX_TAPE,
+    "manifest": publication.MAX_DOCUMENT,
+    "locations": publication.MAX_DOCUMENT,
+    "packer_source": None,
+    "publication_support_source": None,
+    "receipt_verifier_source": None,
+    "source_closure_verifier_source": None,
+    "translator_source": None,
+    "translator_executable": publication.MAX_ALPHA_HOST_ARTIFACT,
+    "interpreter_executable": publication.MAX_ALPHA_HOST_ARTIFACT,
+    "source_image": publication.MAX_SOURCE_IMAGE,
+}
 
 
 class DriverError(Exception):
@@ -92,6 +140,37 @@ def canonical_json(value: object) -> bytes:
     return publication.canonical_json(value, pretty=True)
 
 
+def bounded_read(path: Path, role: str, limit: int) -> bytes:
+    extent = path.stat().st_size
+    if extent > limit:
+        raise DriverResourceError(f"{role} byte ceiling")
+    with path.open("rb") as stream:
+        before = os.fstat(stream.fileno())
+        if before.st_size > limit:
+            raise DriverResourceError(f"{role} byte ceiling")
+        raw = stream.read(limit + 1)
+        after = os.fstat(stream.fileno())
+    if len(raw) > limit or after.st_size > limit:
+        raise DriverResourceError(f"{role} byte ceiling")
+    if (
+        before.st_dev != after.st_dev
+        or before.st_ino != after.st_ino
+        or before.st_size != after.st_size
+        or len(raw) != after.st_size
+    ):
+        fail(f"{role} changed while reading")
+    current = path.stat()
+    if current.st_size > limit:
+        raise DriverResourceError(f"{role} byte ceiling")
+    if (
+        current.st_dev != after.st_dev
+        or current.st_ino != after.st_ino
+        or current.st_size != after.st_size
+    ):
+        fail(f"{role} path changed while reading")
+    return raw
+
+
 def identity(path: Path, role: str, limit: int | None = None) -> dict:
     extent = path.stat().st_size
     if limit is None:
@@ -99,32 +178,7 @@ def identity(path: Path, role: str, limit: int | None = None) -> dict:
         if len(raw) != extent:
             fail(f"{role} changed while reading")
     else:
-        if extent > limit:
-            raise DriverResourceError(f"{role} byte ceiling")
-        with path.open("rb") as stream:
-            before = os.fstat(stream.fileno())
-            if before.st_size > limit:
-                raise DriverResourceError(f"{role} byte ceiling")
-            raw = stream.read(limit + 1)
-            after = os.fstat(stream.fileno())
-        if len(raw) > limit or after.st_size > limit:
-            raise DriverResourceError(f"{role} byte ceiling")
-        if (
-            before.st_dev != after.st_dev
-            or before.st_ino != after.st_ino
-            or before.st_size != after.st_size
-            or len(raw) != after.st_size
-        ):
-            fail(f"{role} changed while reading")
-        current = path.stat()
-        if current.st_size > limit:
-            raise DriverResourceError(f"{role} byte ceiling")
-        if (
-            current.st_dev != after.st_dev
-            or current.st_ino != after.st_ino
-            or current.st_size != after.st_size
-        ):
-            fail(f"{role} path changed while reading")
+        raw = bounded_read(path, role, limit)
     return {
         "byte_length": len(raw),
         "role": role,
@@ -150,9 +204,7 @@ def atomic_write(path: Path, raw: bytes, mode: int = 0o600) -> None:
 
 
 def load_canonical(path: Path, context: str) -> dict:
-    raw = path.read_bytes()
-    if len(raw) > MAX_PLAN_BYTES:
-        raise DriverResourceError(f"{context} byte ceiling")
+    raw = bounded_read(path, context, MAX_PLAN_BYTES)
     try:
         value = json.loads(raw)
     except (UnicodeDecodeError, json.JSONDecodeError) as error:
@@ -214,7 +266,9 @@ def stamp(tape: Path, output: Path) -> None:
 
 
 def embedded_tape(executable: Path) -> bytes:
-    raw = executable.read_bytes()
+    raw = bounded_read(
+        executable, "Alpha host artifact", publication.MAX_ALPHA_HOST_ARTIFACT
+    )
     offset = 32_768
     if len(raw) < offset + 4:
         fail("Alpha artifact tape extent")
@@ -256,34 +310,39 @@ def build_tools(root: Path) -> None:
 
 def plan_inputs(root: Path) -> dict:
     artifacts = root / "artifacts"
+    def retained(name: str, path: Path, role: str) -> dict:
+        return identity(path, role, PLAN_INPUT_CEILINGS[name])
+
     values = {
-        "alpha_vm_semantics": identity(ALPHA / "SEMANTICS.md", "alpha_vm_written_semantics"),
-        "alpha_vm_source": identity(ALPHA / "alpha_arm64_macos.s", "alpha_vm_host_source"),
-        "alpha_vm_seed": identity(ALPHA_SEED, "alpha_vm_committed_host_seed"),
-        "alpha_stamping_source": identity(ALPHA / "seed_env.sh", "alpha_vm_tape_stamping_source"),
-        "assembler_source": identity(ALPHA / "assembler/assembler.alpha", "alpha_assembler_source"),
-        "assembler_artifact": identity(ASSEMBLER, "alpha_assembler_committed_host_artifact"),
-        "assembler_tape": identity(artifacts / "assembler.tape", "alpha_assembler_tape"),
-        "beta_compiler_source": identity(REPOSITORY / "source/beta/compiler/bc.beta", "beta_compiler_source"),
-        "beta_compiler_tape": identity(BC_TAPE, "beta_compiler_persisted_fixed_point_tape"),
-        "decoder_source": identity(publication.DECODER_SOURCE, "gamma_output_decoder_source"),
-        "driver_source": identity(Path(__file__).resolve(), "attempt_driver_source"),
-        "interpreter_source": identity(INTERPRETER_SOURCE, "gamma_interpreter_beta_source"),
-        "translator_tape": identity(artifacts / "delta2gamma.tape", "delta_to_gamma_tape"),
-        "interpreter_tape": identity(artifacts / "interp.tape", "gamma_interpreter_tape"),
-        "manifest": identity(MANIFEST, "delta_source_closure_manifest"),
-        "locations": identity(LOCATIONS, "delta_source_closure_locations"),
-        "packer_source": identity(PACKER, "gamma_input_packer_source"),
-        "publication_support_source": identity(Path(support.__file__).resolve(), "assembly_validator_source"),
-        "receipt_verifier_source": identity(Path(publication.__file__).resolve(), "receipt_verifier_source"),
-        "source_closure_verifier_source": identity(HERE / "source_closure_snapshot_v1.py", "source_closure_verifier_source"),
-        "translator_source": identity(TRANSLATOR_SOURCE, "delta_to_gamma_beta_source"),
+        "alpha_vm_semantics": retained("alpha_vm_semantics", ALPHA / "SEMANTICS.md", "alpha_vm_written_semantics"),
+        "alpha_vm_source": retained("alpha_vm_source", ALPHA / "alpha_arm64_macos.s", "alpha_vm_host_source"),
+        "alpha_vm_seed": retained("alpha_vm_seed", ALPHA_SEED, "alpha_vm_committed_host_seed"),
+        "alpha_stamping_source": retained("alpha_stamping_source", ALPHA / "seed_env.sh", "alpha_vm_tape_stamping_source"),
+        "assembler_source": retained("assembler_source", ALPHA / "assembler/assembler.alpha", "alpha_assembler_source"),
+        "assembler_artifact": retained("assembler_artifact", ASSEMBLER, "alpha_assembler_committed_host_artifact"),
+        "assembler_tape": retained("assembler_tape", artifacts / "assembler.tape", "alpha_assembler_tape"),
+        "beta_compiler_source": retained("beta_compiler_source", REPOSITORY / "source/beta/compiler/bc.beta", "beta_compiler_source"),
+        "beta_compiler_tape": retained("beta_compiler_tape", BC_TAPE, "beta_compiler_persisted_fixed_point_tape"),
+        "decoder_source": retained("decoder_source", publication.DECODER_SOURCE, "gamma_output_decoder_source"),
+        "driver_source": retained("driver_source", Path(__file__).resolve(), "attempt_driver_source"),
+        "interpreter_source": retained("interpreter_source", INTERPRETER_SOURCE, "gamma_interpreter_beta_source"),
+        "translator_tape": retained("translator_tape", artifacts / "delta2gamma.tape", "delta_to_gamma_tape"),
+        "interpreter_tape": retained("interpreter_tape", artifacts / "interp.tape", "gamma_interpreter_tape"),
+        "manifest": retained("manifest", MANIFEST, "delta_source_closure_manifest"),
+        "locations": retained("locations", LOCATIONS, "delta_source_closure_locations"),
+        "packer_source": retained("packer_source", PACKER, "gamma_input_packer_source"),
+        "publication_support_source": retained("publication_support_source", Path(support.__file__).resolve(), "assembly_validator_source"),
+        "receipt_verifier_source": retained("receipt_verifier_source", Path(publication.__file__).resolve(), "receipt_verifier_source"),
+        "source_closure_verifier_source": retained("source_closure_verifier_source", HERE / "source_closure_snapshot_v1.py", "source_closure_verifier_source"),
+        "translator_source": retained("translator_source", TRANSLATOR_SOURCE, "delta_to_gamma_beta_source"),
         # Signed executable hashes are attempt-local mutation guards only.  They
         # are deliberately absent from the publication receipt.
-        "translator_executable": identity(artifacts / "delta2gamma.exe", "attempt_local_translator"),
-        "interpreter_executable": identity(artifacts / "interp.exe", "attempt_local_interpreter"),
-        "source_image": identity(root / "canonical-source.lf", "delta_compiler_canonical_lf_image"),
+        "translator_executable": retained("translator_executable", artifacts / "delta2gamma.exe", "attempt_local_translator"),
+        "interpreter_executable": retained("interpreter_executable", artifacts / "interp.exe", "attempt_local_interpreter"),
+        "source_image": retained("source_image", root / "canonical-source.lf", "delta_compiler_canonical_lf_image"),
     }
+    if set(values) != set(PLAN_INPUT_CEILINGS):
+        fail("attempt input ceiling map")
     return values
 
 
@@ -476,7 +535,9 @@ def start_stage(root: Path, stage: str, token: str) -> None:
     start_epoch = time.time_ns()
     started = {
         "attempt_id": token,
-        "inputs": marker_identity(inputs, f"{stage}_input"),
+        "inputs": marker_identity(
+            inputs, f"{stage}_input", STAGE_INPUT_CEILINGS[stage]
+        ),
         "prepared_epoch_ns": plan["prepared_epoch_ns"],
         "schema": MARKER_SCHEMA,
         "stage": stage,
@@ -623,7 +684,9 @@ def validate_stage(root: Path, plan: dict, stage: str) -> dict:
     started = load_canonical(started_path, f"{stage} start")
     strict(started, STARTED_KEYS, f"{stage} start")
     inputs, outputs = stage_paths(root, stage)
-    expected_inputs = marker_identity(inputs, f"{stage}_input")
+    expected_inputs = marker_identity(
+        inputs, f"{stage}_input", STAGE_INPUT_CEILINGS[stage]
+    )
     now = time.time_ns()
     if (
         started["schema"] != MARKER_SCHEMA
