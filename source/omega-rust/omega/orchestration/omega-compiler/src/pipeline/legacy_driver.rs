@@ -242,14 +242,6 @@ impl LegacyDriver {
                 selected_provider_plans.clone(),
             )
             .map_err(|reason| vec![Diagnostic::error(reason)])?;
-        let prepared_trust_lock = omega_trust_ledger::prepare_trust_lockfile(
-            &self.options.root_path,
-            &typed,
-            &build_config.grants,
-            &provider_plans,
-            &selected_provider_plan_facts,
-            self.package_inputs.is_some(),
-        )?;
         crate::pipeline::wire_report::write_wire_protocol_report(
             &self.options,
             &typed,
@@ -284,6 +276,15 @@ impl LegacyDriver {
                 &boundary_calling_plan_realizations,
             )?,
         );
+        let prepared_trust_lock = omega_trust_ledger::prepare_trust_lockfile(
+            &self.options.root_path,
+            &checked.program.typed,
+            &build_config.grants,
+            &provider_plans,
+            &selected_provider_plan_facts,
+            &checked.accepted_template_classifications,
+            self.package_inputs.is_some(),
+        )?;
         omega_trust_ledger::enforce_trust_lockfile(prepared_trust_lock, checked.program.as_ref())?;
         let executable_tcb_installation_authorization =
             settle_compiler_executable_tcb_installation(

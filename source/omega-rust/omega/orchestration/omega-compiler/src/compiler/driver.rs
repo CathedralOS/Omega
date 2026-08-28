@@ -16,12 +16,49 @@ pub(super) fn compile(request: CompileRequest) -> Result<CompileReport, Vec<Diag
         &request.options,
         request.package_inputs.as_ref(),
     )?;
+    settle_checked_trust(&request, &checked)?;
     match request.requested_product {
         RequestedCompileProduct::Check => checked_report(request, &checked),
         RequestedCompileProduct::TerminalArtifact => terminal_report(request, checked),
         RequestedCompileProduct::NativeArtifact => native_report(request, checked),
         RequestedCompileProduct::InstalledOutput => unreachable!("handled before Psi checking"),
     }
+}
+
+fn settle_checked_trust(
+    request: &CompileRequest,
+    checked: &crate::pipeline::CheckedCompilation,
+) -> Result<(), Vec<Diagnostic>> {
+    let prepared = omega_trust_ledger::prepare_trust_lockfile(
+        &request.options.root_path,
+        &checked.typed,
+        checked.root_grants(),
+        checked.provider_plans(),
+        checked.selected_provider_plans(),
+        checked.accepted_template_classifications(),
+        checked.package_identity().is_some(),
+    )?;
+    omega_trust_ledger::enforce_trust_lockfile(prepared, checked)?;
+    omega_trust_ledger::write_trust_report(
+        &request.options.build_dir(),
+        checked,
+        checked.root_grants(),
+        checked.provider_plans(),
+        checked.selected_provider_plans(),
+        checked.accepted_template_classifications(),
+        request.artifact_policy.emits_auxiliary_artifacts(),
+    )?;
+    if request.artifact_policy.emits_auxiliary_artifacts() {
+        crate::pipeline::write_checked_snapshot(
+            &request.options,
+            checked,
+            checked.selected_program_entry_machine(),
+            checked.selected_provider_plans(),
+            checked.task_activations(),
+            checked.component_progress(),
+        )?;
+    }
+    Ok(())
 }
 
 fn checked_report(

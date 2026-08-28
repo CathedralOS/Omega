@@ -86,6 +86,7 @@ pub(crate) use crate::compiler::{
     ExecutablePublicationReceipt,
 };
 
+pub(crate) use artifacts::write_checked_snapshot;
 pub use artifacts::{
     PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };

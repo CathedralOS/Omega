@@ -34,6 +34,9 @@ pub struct CheckedCompilation {
     optimization_selection_identity: omega_optimization_core::OptimizationSelectionIdentity,
     optimization_report: omega_optimization_pipeline::OptimizationReportRequest,
     selected_provider_plans: omega_effects::SelectedProviderPlanFacts,
+    provider_plans: Vec<omega_effects::provider_plan::ProviderPlan>,
+    root_grants: Vec<String>,
+    accepted_template_classifications: omega_trust_ledger::AcceptedTemplateClassifications,
     selected_provider_provenance: Vec<super::provider_plans::SelectedProviderReviewProvenance>,
     component_progress: Option<omega_effects::ComponentProgressManifest>,
     task_activations: omega_task_plans::TaskActivationPlanSet,
@@ -176,6 +179,23 @@ impl CheckedCompilation {
 
     pub const fn selected_provider_plans(&self) -> &omega_effects::SelectedProviderPlanFacts {
         &self.selected_provider_plans
+    }
+
+    #[doc(hidden)]
+    pub fn provider_plans(&self) -> &[omega_effects::provider_plan::ProviderPlan] {
+        &self.provider_plans
+    }
+
+    #[doc(hidden)]
+    pub fn root_grants(&self) -> &[String] {
+        &self.root_grants
+    }
+
+    #[doc(hidden)]
+    pub const fn accepted_template_classifications(
+        &self,
+    ) -> &omega_trust_ledger::AcceptedTemplateClassifications {
+        &self.accepted_template_classifications
     }
 
     #[doc(hidden)]
@@ -804,6 +824,9 @@ fn compile_to_checked_inner_with_replay(
         optimization_selection_identity,
         optimization_report,
         selected_provider_plans: selected_provider_plan_facts,
+        provider_plans,
+        root_grants: build_config.grants,
+        accepted_template_classifications: checked.accepted_template_classifications,
         selected_provider_provenance,
         component_progress,
         task_activations,
