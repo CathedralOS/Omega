@@ -6,9 +6,10 @@ use omega_terminal_abstract_operations::{
 };
 use omega_terminal_legalized_operations::{
     TerminalLegalizationRecipe, TerminalLegalizationTheorem,
-    TerminalLegalizedFunction as SourceFunction, TerminalLegalizedImmediate as SourceImmediate,
-    TerminalLegalizedLeaf as SourceLeaf, TerminalLegalizedLeafValue as SourceLeafValue,
-    TerminalLegalizedTemporaryId,
+    TerminalLegalizedActiveResidentExactAddChain as SourceActiveResidentExactAddChain,
+    TerminalLegalizedExactAdd as SourceExactAdd, TerminalLegalizedFunction as SourceFunction,
+    TerminalLegalizedImmediate as SourceImmediate, TerminalLegalizedLeaf as SourceLeaf,
+    TerminalLegalizedLeafValue as SourceLeafValue, TerminalLegalizedTemporaryId,
 };
 use omega_terminal_target_operations::{
     TerminalPsiProvenance, TerminalScalarParameterLocation, TerminalTargetIntegerControl,
@@ -284,6 +285,16 @@ fn derive_source_function(
                 )
             )
     );
+    let active_resident_chain = matches!(
+        (when_true.control.as_ref(), when_false.control.as_ref()),
+        (
+            TerminalTargetIntegerControl::Return { expression, .. },
+            TerminalTargetIntegerControl::Return {
+                expression: TerminalTargetIntegerExpression::Immediate { .. },
+                ..
+            }
+        ) if is_active_resident_exact_add_chain(expression)
+    );
     let expected_offsets = if constant_leaves {
         [0, 1, 3]
     } else if parameter_leaves {
@@ -292,17 +303,21 @@ fn derive_source_function(
         [0, 1, 5]
     } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
         [0, 1, 6]
+    } else if active_resident_chain {
+        [0, 1, 8]
     } else {
         return Err(Error::UnsupportedSourceShape { function });
     };
-    let (expected_operation_count, expected_leaf_node_count) = if constant_leaves {
-        (5, 2)
+    let (expected_operation_count, expected_leaf_node_counts) = if constant_leaves {
+        (5, [2, 2])
     } else if parameter_leaves {
-        (3, 1)
+        (3, [1, 1])
     } else if widened_u8_exact_add_leaves || widened_u8_exact_subtract_leaves {
-        (11, 5)
+        (11, [5, 5])
+    } else if active_resident_chain {
+        (10, [7, 2])
     } else {
-        (9, 4)
+        (9, [4, 4])
     };
     let expected_parameter_count = if parameter_leaves { 2 } else { 1 };
     if abstracted.operations.len() != expected_operation_count
@@ -313,8 +328,8 @@ fn derive_source_function(
             .iter()
             .zip(expected_offsets)
             .any(|(entry, offset)| entry.operation_offset != offset)
-        || optimized.blocks[1].nodes.len() != expected_leaf_node_count
-        || optimized.blocks[2].nodes.len() != expected_leaf_node_count
+        || optimized.blocks[1].nodes.len() != expected_leaf_node_counts[0]
+        || optimized.blocks[2].nodes.len() != expected_leaf_node_counts[1]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
@@ -450,6 +465,8 @@ fn derive_source_function(
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
         } else if widened_u8_exact_subtract_leaves {
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1
+        } else if active_resident_chain {
+            TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1
         } else {
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1
         },
@@ -754,12 +771,12 @@ fn derive_leaf(
             };
             (&nodes[4], value)
         }
-        TerminalTargetIntegerExpression::ExactAdd {
+        expression @ TerminalTargetIntegerExpression::ExactAdd {
             psi_operation,
             obligation,
             left,
             right,
-        } => {
+        } if !is_active_resident_exact_add_chain(expression) => {
             if nodes.len() != 4 {
                 return Err(Error::UnsupportedSourceShape { function });
             }
@@ -818,6 +835,95 @@ fn derive_leaf(
                     left,
                     right,
                 },
+            )
+        }
+        expression if is_active_resident_exact_add_chain(expression) => {
+            if nodes.len() != 7 {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: result_operation,
+                obligation: result_obligation,
+                left: result_left,
+                right: result_right,
+            } = expression
+            else {
+                unreachable!("shape predicate admitted only exact addition")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: middle_operation,
+                obligation: middle_obligation,
+                left: middle_left,
+                right: middle_right,
+            } = result_right.as_ref()
+            else {
+                unreachable!("shape predicate admitted the middle addition")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: inner_operation,
+                obligation: inner_obligation,
+                left: inner_left,
+                right: inner_right,
+            } = middle_right.as_ref()
+            else {
+                unreachable!("shape predicate admitted the inner addition")
+            };
+            let resident = derive_immediate(function, arm_edge, result_left, &nodes[0], u64_type)?;
+            let second_resident =
+                derive_immediate(function, arm_edge, middle_left, &nodes[0], u64_type)?;
+            if resident != second_resident {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let left = derive_immediate(function, arm_edge, inner_left, &nodes[1], u64_type)?;
+            let right = derive_immediate(function, arm_edge, inner_right, &nodes[2], u64_type)?;
+            let inner = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[3],
+                *inner_operation,
+                *inner_obligation,
+                left.source_value,
+                right.source_value,
+                u64_integer_type,
+            )?;
+            let middle = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[4],
+                *middle_operation,
+                *middle_obligation,
+                resident.source_value,
+                inner.source_value,
+                u64_integer_type,
+            )?;
+            let result = derive_exact_add(
+                function,
+                optimized,
+                accepted_obligation_facts,
+                &nodes[5],
+                *result_operation,
+                *result_obligation,
+                resident.source_value,
+                middle.source_value,
+                u64_integer_type,
+            )?;
+            if result.source_value != *source_value {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            (
+                &nodes[6],
+                SourceLeafValue::ActiveResidentExactAddChain(Box::new(
+                    SourceActiveResidentExactAddChain {
+                        resident,
+                        left,
+                        right,
+                        inner,
+                        middle,
+                        result,
+                    },
+                )),
             )
         }
         TerminalTargetIntegerExpression::ExactSubtract {
@@ -968,7 +1074,117 @@ fn source_operations(value: &SourceLeafValue) -> Vec<OperationId> {
             *subtract_operation,
             *widen_operation,
         ],
+        SourceLeafValue::ActiveResidentExactAddChain(chain) => vec![
+            chain.resident.constant_operation,
+            chain.left.constant_operation,
+            chain.right.constant_operation,
+            chain.inner.operation,
+            chain.middle.operation,
+            chain.result.operation,
+        ],
     }
+}
+
+fn is_active_resident_exact_add_chain(expression: &TerminalTargetIntegerExpression) -> bool {
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: result_left,
+        right: result_right,
+        ..
+    } = expression
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: result_resident,
+        ..
+    } = result_left.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: middle_left,
+        right: middle_right,
+        ..
+    } = result_right.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: middle_resident,
+        ..
+    } = middle_left.as_ref()
+    else {
+        return false;
+    };
+    matches!(
+        middle_right.as_ref(),
+        TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
+            if matches!(left.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && result_resident == middle_resident
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn derive_exact_add(
+    function: usize,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_obligation_facts: &[AcceptedObligationFact],
+    node: &omega_optimization_unit::OptimizationNode,
+    operation: OperationId,
+    obligation: psi_core::ObligationId,
+    left: psi_core::ValueId,
+    right: psi_core::ValueId,
+    scalar_type: psi_core::IntegerType,
+) -> Result<SourceExactAdd, TerminalLegalizationError> {
+    let TerminalAbstractOperation::ExactIntegerAdd {
+        psi_operation,
+        obligation: abstract_obligation,
+        result,
+        scalar_type: abstract_type,
+        left: abstract_left,
+        right: abstract_right,
+    } = &node.operation
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    if *psi_operation != operation
+        || *abstract_obligation != obligation
+        || *abstract_type != scalar_type
+        || *abstract_left != left
+        || *abstract_right != right
+        || node.definitions.len() != 1
+        || node.definitions[0].value != *result
+        || node.provenance != vec![PsiProvenance::Operation(operation)]
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let Some(accepted_fact) = accepted_obligation_facts.iter().find(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == operation
+            && fact.obligation == obligation
+    }) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    if !optimized.facts.iter().any(|fact| {
+        matches!(
+            fact,
+            OptimizationFact::OperationObligationReference {
+                obligation: referenced_obligation,
+                support,
+            } if *referenced_obligation == obligation && *support == operation
+        )
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    Ok(SourceExactAdd {
+        source_value: *result,
+        obligation,
+        accepted_fact: accepted_fact.identity,
+        operation,
+        definition_site: node.definitions[0].site,
+        fuel: exact_operation_fuel(node, operation, function)?,
+    })
 }
 
 fn derive_immediate(

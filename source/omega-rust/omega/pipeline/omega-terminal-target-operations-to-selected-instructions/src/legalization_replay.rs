@@ -15,7 +15,7 @@ use psi_core::{EdgeId, IntegerSign, OperationId, ScalarType};
 
 use crate::{TerminalLegalizationError, TerminalLegalizationError as Error};
 
-/// Independently replay a proposed V3 legal projection against all three raw
+/// Independently replay a proposed V4 legal projection against all three raw
 /// custody inputs. This module deliberately compares fields in place instead
 /// of constructing a second plan with the producer's derivation strategy.
 pub(crate) fn replay_terminal_legalized_plan(
@@ -229,21 +229,38 @@ fn replay_function(
                     )
             )
         }),
+        TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => {
+            matches!(
+                (when_true.control.as_ref(), when_false.control.as_ref()),
+                (
+                    TerminalTargetIntegerControl::Return { expression, .. },
+                    TerminalTargetIntegerControl::Return {
+                        expression: TerminalTargetIntegerExpression::Immediate { .. },
+                        ..
+                    }
+                ) if replay_active_resident_chain_shape(expression)
+            )
+        }
     };
     if !recipe_matches_target {
         return Err(Error::NonCanonicalLegalizedPlan);
     }
 
-    let (offsets, operation_count, leaf_node_count, parameter_count) = match proposed.recipe {
-        TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1 => ([0, 1, 3], 5, 2, 1),
-        TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1 => ([0, 1, 2], 3, 1, 2),
+    let (offsets, operation_count, leaf_node_counts, parameter_count) = match proposed.recipe {
+        TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1 => ([0, 1, 3], 5, [2, 2], 1),
+        TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1 => {
+            ([0, 1, 2], 3, [1, 1], 2)
+        }
         TerminalLegalizationRecipe::ReturnU64ExactAddImmediateConditionalV1
         | TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => {
-            ([0, 1, 5], 9, 4, 1)
+            ([0, 1, 5], 9, [4, 4], 1)
         }
         TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1
         | TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => {
-            ([0, 1, 6], 11, 5, 1)
+            ([0, 1, 6], 11, [5, 5], 1)
+        }
+        TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => {
+            ([0, 1, 8], 10, [7, 2], 1)
         }
     };
     if abstracted.operations.len() != operation_count
@@ -254,8 +271,8 @@ fn replay_function(
             .iter()
             .zip(offsets)
             .any(|(entry, offset)| entry.operation_offset != offset)
-        || optimized.blocks[1].nodes.len() != leaf_node_count
-        || optimized.blocks[2].nodes.len() != leaf_node_count
+        || optimized.blocks[1].nodes.len() != leaf_node_counts[0]
+        || optimized.blocks[2].nodes.len() != leaf_node_counts[1]
     {
         return Err(Error::UnsupportedSourceShape { function });
     }
@@ -446,7 +463,8 @@ fn replay_leaf(
     let u64_type = ScalarType::Integer(u64_integer);
     let (return_node, operations) = match (recipe, expression, &proposed.value) {
         (
-            TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1,
+            TerminalLegalizationRecipe::ReturnU64ImmediateConditionalV1
+            | TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
             TerminalTargetIntegerExpression::Immediate {
                 source_value: expression_source,
                 value: target_value,
@@ -476,6 +494,113 @@ fn replay_leaf(
                 return Err(Error::NonCanonicalLegalizedPlan);
             }
             (&nodes[1], vec![operation])
+        }
+        (
+            TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1,
+            expression,
+            TerminalLegalizedLeafValue::ActiveResidentExactAddChain(chain),
+        ) if replay_active_resident_chain_shape(expression) => {
+            if nodes.len() != 7 {
+                return Err(Error::UnsupportedSourceShape { function });
+            }
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: result_operation,
+                obligation: result_obligation,
+                left: result_left,
+                right: result_right,
+            } = expression
+            else {
+                unreachable!("shape replay admitted exact add")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: middle_operation,
+                obligation: middle_obligation,
+                left: middle_left,
+                right: middle_right,
+            } = result_right.as_ref()
+            else {
+                unreachable!("shape replay admitted middle exact add")
+            };
+            let TerminalTargetIntegerExpression::ExactAdd {
+                psi_operation: inner_operation,
+                obligation: inner_obligation,
+                left: inner_left,
+                right: inner_right,
+            } = middle_right.as_ref()
+            else {
+                unreachable!("shape replay admitted inner exact add")
+            };
+            let resident = &chain.resident;
+            let left = &chain.left;
+            let right = &chain.right;
+            let inner = &chain.inner;
+            let middle = &chain.middle;
+            let result = &chain.result;
+            replay_immediate(
+                function,
+                arm_edge,
+                result_left,
+                &nodes[0],
+                resident,
+                u64_type,
+            )?;
+            replay_immediate(
+                function,
+                arm_edge,
+                middle_left,
+                &nodes[0],
+                resident,
+                u64_type,
+            )?;
+            replay_immediate(function, arm_edge, inner_left, &nodes[1], left, u64_type)?;
+            replay_immediate(function, arm_edge, inner_right, &nodes[2], right, u64_type)?;
+            replay_exact_add_node(
+                function,
+                optimized,
+                accepted_facts,
+                &nodes[3],
+                *inner_operation,
+                *inner_obligation,
+                left.source_value,
+                right.source_value,
+                inner,
+            )?;
+            replay_exact_add_node(
+                function,
+                optimized,
+                accepted_facts,
+                &nodes[4],
+                *middle_operation,
+                *middle_obligation,
+                resident.source_value,
+                inner.source_value,
+                middle,
+            )?;
+            replay_exact_add_node(
+                function,
+                optimized,
+                accepted_facts,
+                &nodes[5],
+                *result_operation,
+                *result_obligation,
+                resident.source_value,
+                middle.source_value,
+                result,
+            )?;
+            if result.source_value != *source_value {
+                return Err(Error::NonCanonicalLegalizedPlan);
+            }
+            (
+                &nodes[6],
+                vec![
+                    resident.constant_operation,
+                    left.constant_operation,
+                    right.constant_operation,
+                    inner.operation,
+                    middle.operation,
+                    result.operation,
+                ],
+            )
         }
         (
             TerminalLegalizationRecipe::ReturnU64EntryParameterConditionalV1,
@@ -799,6 +924,110 @@ fn replay_leaf(
         &proposed.return_fuel,
     )?;
     Ok(operations)
+}
+
+fn replay_active_resident_chain_shape(expression: &TerminalTargetIntegerExpression) -> bool {
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: result_left,
+        right: result_right,
+        ..
+    } = expression
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: result_resident,
+        ..
+    } = result_left.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::ExactAdd {
+        left: middle_left,
+        right: middle_right,
+        ..
+    } = result_right.as_ref()
+    else {
+        return false;
+    };
+    let TerminalTargetIntegerExpression::Immediate {
+        source_value: middle_resident,
+        ..
+    } = middle_left.as_ref()
+    else {
+        return false;
+    };
+    matches!(
+        middle_right.as_ref(),
+        TerminalTargetIntegerExpression::ExactAdd { left, right, .. }
+            if matches!(left.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && matches!(right.as_ref(), TerminalTargetIntegerExpression::Immediate { .. })
+                && result_resident == middle_resident
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn replay_exact_add_node(
+    function: usize,
+    optimized: &omega_optimization_unit::PsiOptimizationFunction,
+    accepted_facts: &[omega_optimization_unit::AcceptedObligationFact],
+    node: &omega_optimization_unit::OptimizationNode,
+    operation: OperationId,
+    obligation: psi_core::ObligationId,
+    left: psi_core::ValueId,
+    right: psi_core::ValueId,
+    proposed: &omega_terminal_legalized_operations::TerminalLegalizedExactAdd,
+) -> Result<(), TerminalLegalizationError> {
+    let TerminalAbstractOperation::ExactIntegerAdd {
+        psi_operation,
+        obligation: abstract_obligation,
+        result,
+        scalar_type,
+        left: abstract_left,
+        right: abstract_right,
+    } = &node.operation
+    else {
+        return Err(Error::UnsupportedSourceShape { function });
+    };
+    let u64_type = psi_core::IntegerType::new(IntegerSign::Unsigned, 64).expect("u64");
+    if *psi_operation != operation
+        || *abstract_obligation != obligation
+        || *scalar_type != u64_type
+        || *abstract_left != left
+        || *abstract_right != right
+        || node.definitions.len() != 1
+        || node.definitions[0].value != *result
+        || node.provenance != vec![PsiProvenance::Operation(operation)]
+    {
+        return Err(Error::UnsupportedSourceShape { function });
+    }
+    let Some(fact) = accepted_facts.iter().find(|fact| {
+        fact.machine == optimized.machine
+            && fact.operation == operation
+            && fact.obligation == obligation
+    }) else {
+        return Err(Error::SourceCustodyMismatch);
+    };
+    if !optimized.facts.iter().any(|fact| {
+        matches!(
+            fact,
+            OptimizationFact::OperationObligationReference {
+                obligation: referenced,
+                support,
+            } if *referenced == obligation && *support == operation
+        )
+    }) {
+        return Err(Error::SourceCustodyMismatch);
+    }
+    if proposed.source_value != *result
+        || proposed.obligation != obligation
+        || proposed.accepted_fact != fact.identity
+        || proposed.operation != operation
+        || proposed.definition_site != node.definitions[0].site
+    {
+        return Err(Error::NonCanonicalLegalizedPlan);
+    }
+    replay_operation_fuel(function, operation, &node.fuel, &proposed.fuel)
 }
 
 #[allow(clippy::too_many_arguments)]

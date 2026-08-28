@@ -44,11 +44,11 @@ use source::derive_source_functions;
 
 pub fn terminal_legalization_validator_identity() -> OptimizationValidatorIdentity {
     OptimizationValidatorIdentity::from_canonical_bytes(
-        b"omega.terminal-target-legalization-independent-replay.v3",
+        b"omega.terminal-target-legalization-independent-replay.v4",
     )
 }
 
-/// Opaque custody of the canonical V3 target-legal projection.
+/// Opaque custody of the canonical V4 target-legal projection.
 ///
 /// This carrier grants no instruction-selection, liveness, allocation,
 /// emission, or publication authority.
@@ -289,7 +289,7 @@ impl std::fmt::Display for SelectedInstructionError {
 
 impl std::error::Error for SelectedInstructionError {}
 
-/// Canonicalize the bounded target-operation input into the mandatory V3
+/// Canonicalize the bounded target-operation input into the mandatory V4
 /// legal-operation carrier, then replay its complete source projection.
 pub fn legalize_terminal_target_operations(
     target: &TerminalTargetOperationPlan,
@@ -307,7 +307,7 @@ pub fn legalize_terminal_target_operations(
     validate_terminal_legalized_operations(target, abstract_plan, unit, plan)
 }
 
-/// Independently replay the exact admitted V3 projection from the raw target,
+/// Independently replay the exact admitted V4 projection from the raw target,
 /// abstract, and verified optimization-unit custody against every proposed
 /// field.
 pub fn validate_terminal_legalized_operations(
@@ -464,6 +464,9 @@ fn build_function(
         SourceLeafValue::ExactAdd { .. } | SourceLeafValue::WidenedExactAdd { .. } => {
             row(catalog, keys.add_i64)?.operands[2].class
         }
+        SourceLeafValue::ActiveResidentExactAddChain(..) => {
+            row(catalog, keys.add_i64)?.operands[2].class
+        }
         SourceLeafValue::ExactSubtract { .. } | SourceLeafValue::WidenedExactSubtract { .. } => {
             row(catalog, keys.subtract_i64)?.operands[2].class
         }
@@ -488,6 +491,50 @@ fn build_function(
                 entry_fixed_view: Some(input_view.id),
             }];
             match (&source.when_true.value, &source.when_false.value) {
+                (
+                    SourceLeafValue::ActiveResidentExactAddChain(chain),
+                    SourceLeafValue::Immediate {
+                        definition_site: false_site,
+                        ..
+                    },
+                ) => {
+                    for (id, instruction, source_value, definition_site) in [
+                        (
+                            1,
+                            2,
+                            chain.resident.source_value,
+                            chain.resident.definition_site,
+                        ),
+                        (2, 3, chain.left.source_value, chain.left.definition_site),
+                        (3, 4, chain.right.source_value, chain.right.definition_site),
+                        (4, 5, chain.inner.source_value, chain.inner.definition_site),
+                        (
+                            5,
+                            6,
+                            chain.middle.source_value,
+                            chain.middle.definition_site,
+                        ),
+                        (
+                            6,
+                            7,
+                            chain.result.source_value,
+                            chain.result.definition_site,
+                        ),
+                        (7, 9, source.when_false.source_value, *false_site),
+                    ] {
+                        registers.push(TerminalVirtualRegister {
+                            id: TerminalVirtualRegisterId(id),
+                            scalar_type: u64_type,
+                            class: result_class,
+                            origin: TerminalVirtualRegisterOrigin::InstructionResult {
+                                instruction: TerminalSelectedInstructionId(instruction),
+                                source_value,
+                            },
+                            definition_site,
+                            entry_fixed_view: None,
+                        });
+                    }
+                }
                 (
                     SourceLeafValue::Immediate {
                         definition_site: true_site,
@@ -689,6 +736,31 @@ fn build_function(
             registers
         },
         blocks: match (&source.when_true.value, &source.when_false.value) {
+            (
+                SourceLeafValue::ActiveResidentExactAddChain(..),
+                SourceLeafValue::Immediate { .. },
+            ) => vec![
+                build_entry_block(source, keys, catalog)?,
+                build_active_resident_exact_add_chain_block(
+                    function,
+                    TerminalSelectedBlockId(1),
+                    source.true_block,
+                    &source.when_true,
+                    keys,
+                    catalog,
+                )?,
+                build_constant_return_block(
+                    function,
+                    TerminalSelectedBlockId(2),
+                    source.false_block,
+                    9,
+                    10,
+                    TerminalVirtualRegisterId(7),
+                    &source.when_false,
+                    keys,
+                    catalog,
+                )?,
+            ],
             (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => vec![
                 build_entry_block(source, keys, catalog)?,
                 build_constant_return_block(
@@ -1187,6 +1259,125 @@ fn build_exact_binary_return_block(
     })
 }
 
+fn build_active_resident_exact_add_chain_block(
+    function: usize,
+    id: TerminalSelectedBlockId,
+    source_block: psi_core::BlockId,
+    source: &SourceLeaf,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<TerminalSelectedBlock, SelectedInstructionError> {
+    let SourceLeafValue::ActiveResidentExactAddChain(chain) = &source.value else {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    };
+    let materialize = |id, register, immediate: &SourceImmediate| {
+        instruction(
+            TerminalSelectedInstructionId(id),
+            TerminalSelectedInstructionKind::MaterializeI64 {
+                value: immediate.value,
+            },
+            keys.materialize_i64,
+            &[register],
+            TerminalSelectedInstructionProvenance {
+                operations: vec![immediate.constant_operation],
+                values: vec![immediate.source_value],
+                fuel: immediate.fuel.clone(),
+                ..Default::default()
+            },
+            catalog,
+        )
+    };
+    let exact_add = |id,
+                     operands: [TerminalVirtualRegisterId; 3],
+                     add: &omega_terminal_legalized_operations::TerminalLegalizedExactAdd,
+                     values: Vec<psi_core::ValueId>| {
+        instruction(
+            TerminalSelectedInstructionId(id),
+            TerminalSelectedInstructionKind::ExactAddI64 {
+                obligation: add.obligation,
+                accepted_fact: add.accepted_fact,
+            },
+            keys.add_i64,
+            &operands,
+            TerminalSelectedInstructionProvenance {
+                operations: vec![add.operation],
+                values,
+                obligations: vec![add.obligation],
+                fuel: add.fuel.clone(),
+                ..Default::default()
+            },
+            catalog,
+        )
+    };
+    Ok(TerminalSelectedBlock {
+        id,
+        source_block,
+        instructions: vec![
+            materialize(2, TerminalVirtualRegisterId(1), &chain.resident)?,
+            materialize(3, TerminalVirtualRegisterId(2), &chain.left)?,
+            materialize(4, TerminalVirtualRegisterId(3), &chain.right)?,
+            exact_add(
+                5,
+                [
+                    TerminalVirtualRegisterId(2),
+                    TerminalVirtualRegisterId(3),
+                    TerminalVirtualRegisterId(4),
+                ],
+                &chain.inner,
+                vec![
+                    chain.left.source_value,
+                    chain.right.source_value,
+                    chain.inner.source_value,
+                ],
+            )?,
+            exact_add(
+                6,
+                [
+                    TerminalVirtualRegisterId(1),
+                    TerminalVirtualRegisterId(4),
+                    TerminalVirtualRegisterId(5),
+                ],
+                &chain.middle,
+                vec![
+                    chain.resident.source_value,
+                    chain.inner.source_value,
+                    chain.middle.source_value,
+                ],
+            )?,
+            exact_add(
+                7,
+                [
+                    TerminalVirtualRegisterId(1),
+                    TerminalVirtualRegisterId(5),
+                    TerminalVirtualRegisterId(6),
+                ],
+                &chain.result,
+                vec![
+                    chain.resident.source_value,
+                    chain.middle.source_value,
+                    chain.result.source_value,
+                ],
+            )?,
+        ],
+        terminator: TerminalSelectedTerminator::Return {
+            instruction: instruction(
+                TerminalSelectedInstructionId(8),
+                TerminalSelectedInstructionKind::ReturnI64,
+                keys.return_i64,
+                &[TerminalVirtualRegisterId(6)],
+                TerminalSelectedInstructionProvenance {
+                    values: vec![source.source_value],
+                    edges: vec![source.return_edge],
+                    fuel: source.return_fuel.clone(),
+                    ..Default::default()
+                },
+                catalog,
+            )?,
+            psi_return_edge: source.return_edge,
+        },
+    })
+}
+
 fn instruction(
     id: TerminalSelectedInstructionId,
     kind: TerminalSelectedInstructionKind,
@@ -1347,6 +1538,53 @@ fn validate_virtual_registers(
         Some(input.fixed_view),
     )];
     match (&source.when_true.value, &source.when_false.value) {
+        (
+            SourceLeafValue::ActiveResidentExactAddChain(chain),
+            SourceLeafValue::Immediate {
+                definition_site: false_site,
+                ..
+            },
+        ) => {
+            let binary = row(catalog, constraints.keys.add_i64)?;
+            let materialize = row(catalog, constraints.keys.materialize_i64)?;
+            if binary.operands.len() != 3
+                || materialize.operands.len() != 1
+                || binary
+                    .operands
+                    .iter()
+                    .any(|operand| operand.class != binary.operands[2].class)
+                || materialize.operands[0].class != binary.operands[2].class
+            {
+                return Err(SelectedInstructionError::ConstraintOperandMismatch {
+                    function: function_index,
+                    instruction: 5,
+                });
+            }
+            for (instruction, source_value, definition_site) in [
+                (
+                    2,
+                    chain.resident.source_value,
+                    chain.resident.definition_site,
+                ),
+                (3, chain.left.source_value, chain.left.definition_site),
+                (4, chain.right.source_value, chain.right.definition_site),
+                (5, chain.inner.source_value, chain.inner.definition_site),
+                (6, chain.middle.source_value, chain.middle.definition_site),
+                (7, chain.result.source_value, chain.result.definition_site),
+                (9, source.when_false.source_value, *false_site),
+            ] {
+                expected.push((
+                    u64_type,
+                    binary.operands[2].class,
+                    TerminalVirtualRegisterOrigin::InstructionResult {
+                        instruction: TerminalSelectedInstructionId(instruction),
+                        source_value,
+                    },
+                    definition_site,
+                    None,
+                ));
+            }
+        }
         (
             SourceLeafValue::Immediate {
                 definition_site: true_site,
@@ -1700,6 +1938,25 @@ fn validate_selected_blocks(
         });
     }
     match (&source.when_true.value, &source.when_false.value) {
+        (SourceLeafValue::ActiveResidentExactAddChain(..), SourceLeafValue::Immediate { .. }) => {
+            validate_active_resident_exact_add_chain_block_projection(
+                function_index,
+                &function.blocks[1],
+                &source.when_true,
+                keys,
+                catalog,
+            )?;
+            validate_constant_return_block_projection(
+                function_index,
+                &function.blocks[2],
+                9,
+                10,
+                TerminalVirtualRegisterId(7),
+                &source.when_false,
+                keys,
+                catalog,
+            )
+        }
         (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => {
             validate_constant_return_block_projection(
                 function_index,
@@ -2182,6 +2439,148 @@ fn validate_exact_binary_return_block_projection(
     )
 }
 
+fn validate_active_resident_exact_add_chain_block_projection(
+    function: usize,
+    block: &TerminalSelectedBlock,
+    source: &SourceLeaf,
+    keys: TerminalSelectedConstraintKeys,
+    catalog: &ValidatedRegisterConstraintCatalog,
+) -> Result<(), SelectedInstructionError> {
+    let SourceLeafValue::ActiveResidentExactAddChain(chain) = &source.value else {
+        return Err(SelectedInstructionError::UnsupportedSourceShape { function });
+    };
+    if block.instructions.len() != 6 {
+        return Err(SelectedInstructionError::BlockProjectionMismatch {
+            function,
+            block: block.id.0,
+        });
+    }
+    for (position, (id, register, immediate)) in [
+        (2, TerminalVirtualRegisterId(1), &chain.resident),
+        (3, TerminalVirtualRegisterId(2), &chain.left),
+        (4, TerminalVirtualRegisterId(3), &chain.right),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        validate_instruction_projection(
+            function,
+            &block.instructions[position],
+            TerminalSelectedInstructionId(id),
+            TerminalSelectedInstructionKind::MaterializeI64 {
+                value: immediate.value,
+            },
+            keys.materialize_i64,
+            &[register],
+            &TerminalSelectedInstructionProvenance {
+                operations: vec![immediate.constant_operation],
+                values: vec![immediate.source_value],
+                fuel: immediate.fuel.clone(),
+                ..Default::default()
+            },
+            catalog,
+        )?;
+    }
+    for (position, (id, registers, add, values)) in [
+        (
+            5,
+            [
+                TerminalVirtualRegisterId(2),
+                TerminalVirtualRegisterId(3),
+                TerminalVirtualRegisterId(4),
+            ],
+            &chain.inner,
+            vec![
+                chain.left.source_value,
+                chain.right.source_value,
+                chain.inner.source_value,
+            ],
+        ),
+        (
+            6,
+            [
+                TerminalVirtualRegisterId(1),
+                TerminalVirtualRegisterId(4),
+                TerminalVirtualRegisterId(5),
+            ],
+            &chain.middle,
+            vec![
+                chain.resident.source_value,
+                chain.inner.source_value,
+                chain.middle.source_value,
+            ],
+        ),
+        (
+            7,
+            [
+                TerminalVirtualRegisterId(1),
+                TerminalVirtualRegisterId(5),
+                TerminalVirtualRegisterId(6),
+            ],
+            &chain.result,
+            vec![
+                chain.resident.source_value,
+                chain.middle.source_value,
+                chain.result.source_value,
+            ],
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        validate_instruction_projection(
+            function,
+            &block.instructions[position + 3],
+            TerminalSelectedInstructionId(id),
+            TerminalSelectedInstructionKind::ExactAddI64 {
+                obligation: add.obligation,
+                accepted_fact: add.accepted_fact,
+            },
+            keys.add_i64,
+            &registers,
+            &TerminalSelectedInstructionProvenance {
+                operations: vec![add.operation],
+                values,
+                obligations: vec![add.obligation],
+                fuel: add.fuel.clone(),
+                ..Default::default()
+            },
+            catalog,
+        )?;
+    }
+    let TerminalSelectedTerminator::Return {
+        instruction,
+        psi_return_edge,
+    } = &block.terminator
+    else {
+        return Err(SelectedInstructionError::BlockProjectionMismatch {
+            function,
+            block: block.id.0,
+        });
+    };
+    if *psi_return_edge != source.return_edge {
+        return Err(SelectedInstructionError::SuccessorProjectionMismatch {
+            function,
+            block: block.id.0,
+        });
+    }
+    validate_instruction_projection(
+        function,
+        instruction,
+        TerminalSelectedInstructionId(8),
+        TerminalSelectedInstructionKind::ReturnI64,
+        keys.return_i64,
+        &[TerminalVirtualRegisterId(6)],
+        &TerminalSelectedInstructionProvenance {
+            values: vec![source.source_value],
+            edges: vec![source.return_edge],
+            fuel: source.return_fuel.clone(),
+            ..Default::default()
+        },
+        catalog,
+    )
+}
+
 #[allow(clippy::too_many_arguments)]
 fn validate_instruction_projection(
     function: usize,
@@ -2239,6 +2638,10 @@ fn validate_dense(
     let (expected_register_count, expected_instruction_count) =
         match (&source.when_true.value, &source.when_false.value) {
             (SourceLeafValue::Immediate { .. }, SourceLeafValue::Immediate { .. }) => (3, 6),
+            (
+                SourceLeafValue::ActiveResidentExactAddChain(..),
+                SourceLeafValue::Immediate { .. },
+            ) => (8, 11),
             (SourceLeafValue::EntryParameter { .. }, SourceLeafValue::EntryParameter { .. }) => {
                 (2, 4)
             }
@@ -2561,6 +2964,21 @@ fn validate_provenance_partition(
                     });
                 }
             }
+            SourceLeafValue::ActiveResidentExactAddChain(chain) => {
+                if block.instructions.len() != 6
+                    || block.instructions[0].provenance.fuel != chain.resident.fuel
+                    || block.instructions[1].provenance.fuel != chain.left.fuel
+                    || block.instructions[2].provenance.fuel != chain.right.fuel
+                    || block.instructions[3].provenance.fuel != chain.inner.fuel
+                    || block.instructions[4].provenance.fuel != chain.middle.fuel
+                    || block.instructions[5].provenance.fuel != chain.result.fuel
+                    || instruction.provenance.fuel != leaf.return_fuel
+                {
+                    return Err(SelectedInstructionError::ProvenancePartitionMismatch {
+                        function: function_index,
+                    });
+                }
+            }
         }
     }
     Ok(())
@@ -2611,7 +3029,7 @@ pub fn terminal_selected_instruction_plan_identity(
     plan: &TerminalSelectedInstructionPlan,
 ) -> TerminalSelectedInstructionPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v6\0");
+    bytes.extend_from_slice(b"omega.terminal-selected-instructions.v7\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.fuel_schedule.marker().to_le_bytes());

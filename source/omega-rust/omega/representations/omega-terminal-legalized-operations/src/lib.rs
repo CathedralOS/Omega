@@ -54,7 +54,7 @@ pub enum TerminalLegalizationTheorem {
     UnsignedExactSubtractCommutesWithWidenV1,
 }
 
-/// The closed V3 legality recipe admitted for one function.
+/// The closed V4 legality recipe admitted for one function.
 ///
 /// The original recipes are identity legalizations. The widened-u8 recipes
 /// are closed non-identity transformations with explicit theorem, temporary,
@@ -67,6 +67,9 @@ pub enum TerminalLegalizationRecipe {
     ReturnU64ExactSubtractImmediateConditionalV1,
     ReturnU64WidenedU8ExactAddImmediateConditionalV1,
     ReturnU64WidenedU8ExactSubtractImmediateConditionalV1,
+    /// The true leaf materializes `r`, `a`, and `b`, then computes the exact
+    /// chain `(r + (r + (a + b)))`; the false leaf returns one immediate.
+    ReturnU64ActiveResidentExactAddChainConditionalV1,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -177,6 +180,27 @@ pub enum TerminalLegalizedLeafValue {
         left: TerminalLegalizedImmediate,
         right: TerminalLegalizedImmediate,
     },
+    ActiveResidentExactAddChain(Box<TerminalLegalizedActiveResidentExactAddChain>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalLegalizedActiveResidentExactAddChain {
+    pub resident: TerminalLegalizedImmediate,
+    pub left: TerminalLegalizedImmediate,
+    pub right: TerminalLegalizedImmediate,
+    pub inner: TerminalLegalizedExactAdd,
+    pub middle: TerminalLegalizedExactAdd,
+    pub result: TerminalLegalizedExactAdd,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TerminalLegalizedExactAdd {
+    pub source_value: ValueId,
+    pub obligation: ObligationId,
+    pub accepted_fact: AcceptedObligationFactIdentity,
+    pub operation: OperationId,
+    pub definition_site: ValueDefinitionSite,
+    pub fuel: Vec<FuelSettlement>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -192,7 +216,7 @@ pub fn terminal_legalized_operation_plan_identity(
     plan: &TerminalLegalizedOperationPlan,
 ) -> TerminalLegalizedOperationPlanIdentity {
     let mut bytes = Vec::new();
-    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v3\0");
+    bytes.extend_from_slice(b"omega.terminal-legalized-operations.v4\0");
     bytes.extend_from_slice(plan.terminal_psi.program_fingerprint.as_bytes());
     bytes.extend_from_slice(&plan.terminal_psi.vocabulary_marker.get().to_le_bytes());
     bytes.extend_from_slice(&plan.optimization_unit.bytes());
@@ -225,6 +249,7 @@ pub fn terminal_legalized_operation_plan_identity(
             TerminalLegalizationRecipe::ReturnU64ExactSubtractImmediateConditionalV1 => 3,
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactAddImmediateConditionalV1 => 4,
             TerminalLegalizationRecipe::ReturnU64WidenedU8ExactSubtractImmediateConditionalV1 => 5,
+            TerminalLegalizationRecipe::ReturnU64ActiveResidentExactAddChainConditionalV1 => 6,
         });
         bytes.extend_from_slice(&function.condition_source.get().to_le_bytes());
         bytes.extend_from_slice(&(function.condition_parameter_index as u64).to_le_bytes());
@@ -386,7 +411,25 @@ fn encode_leaf(bytes: &mut Vec<u8>, leaf: &TerminalLegalizedLeaf) {
             encode_immediate(bytes, left);
             encode_immediate(bytes, right);
         }
+        TerminalLegalizedLeafValue::ActiveResidentExactAddChain(chain) => {
+            bytes.push(6);
+            encode_immediate(bytes, &chain.resident);
+            encode_immediate(bytes, &chain.left);
+            encode_immediate(bytes, &chain.right);
+            encode_exact_add(bytes, &chain.inner);
+            encode_exact_add(bytes, &chain.middle);
+            encode_exact_add(bytes, &chain.result);
+        }
     }
+}
+
+fn encode_exact_add(bytes: &mut Vec<u8>, add: &TerminalLegalizedExactAdd) {
+    bytes.extend_from_slice(&add.source_value.get().to_le_bytes());
+    bytes.extend_from_slice(&add.obligation.get().to_le_bytes());
+    bytes.extend_from_slice(&add.accepted_fact.bytes());
+    bytes.extend_from_slice(&add.operation.get().to_le_bytes());
+    encode_definition_site(bytes, add.definition_site);
+    encode_fuel(bytes, &add.fuel);
 }
 
 fn encode_immediate(bytes: &mut Vec<u8>, immediate: &TerminalLegalizedImmediate) {
