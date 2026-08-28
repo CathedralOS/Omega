@@ -8947,9 +8947,9 @@ pub fn validate_boolean_evaluation_candidate(
         sources: node.provenance.clone(),
         fuel: node.fuel.clone(),
     }];
-    let (source_operation, result, evaluated) =
-        evaluate_boolean_operation(function, node, candidate)?;
-    if candidate.safety_class() != OptimizationSafetyClass::ExactOperationSemantics {
+    let (source_operation, result, evaluated, safety_class) =
+        evaluate_boolean_operation(input, function, node, candidate, patch.location)?;
+    if candidate.safety_class() != safety_class {
         return Err(OptimizationUnitValidationError::CandidateSafetyClassMismatch);
     }
     if patch
@@ -9013,17 +9013,27 @@ pub fn validate_boolean_evaluation_candidate(
         unit: output,
         candidate: candidate.identity(),
         validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.boolean-evaluation.v1",
+            b"omega.validator.boolean-evaluation.v2",
         ),
         provenance: accepted_provenance,
     })
 }
 
 fn evaluate_boolean_operation(
+    input: &PsiOptimizationUnit,
     function: &PsiOptimizationFunction,
     node: &omega_optimization_unit::OptimizationNode,
     candidate: &PsiRewriteCandidate,
-) -> Result<(psi_core::OperationId, ValueId, bool), OptimizationUnitValidationError> {
+    location: NodeLocation,
+) -> Result<
+    (
+        psi_core::OperationId,
+        ValueId,
+        bool,
+        OptimizationSafetyClass,
+    ),
+    OptimizationUnitValidationError,
+> {
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
     match node.operation {
         O::BooleanNot {
@@ -9039,7 +9049,12 @@ fn evaluate_boolean_operation(
             };
             let operand = literal_boolean_fact(function, candidate.input(), operand, operand_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-            Ok((psi_operation, result, !operand))
+            Ok((
+                psi_operation,
+                result,
+                !operand,
+                OptimizationSafetyClass::ExactOperationSemantics,
+            ))
         }
         O::BooleanEqual {
             psi_operation,
@@ -9057,7 +9072,12 @@ fn evaluate_boolean_operation(
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
             let right = literal_boolean_fact(function, candidate.input(), right, right_fact)
                 .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
-            Ok((psi_operation, result, left == right))
+            Ok((
+                psi_operation,
+                result,
+                left == right,
+                OptimizationSafetyClass::ExactOperationSemantics,
+            ))
         }
         O::IntegerEqual {
             psi_operation,
@@ -9077,6 +9097,54 @@ fn evaluate_boolean_operation(
             left,
             right,
         } => {
+            if let O::IntegerLessThan { .. } = node.operation
+                && let Some((range_fact, constant_fact)) = candidate
+                    .scalar_evaluation_witness()
+                    .and_then(IntegerEvaluationWitness::range_against_constant)
+            {
+                if !candidate
+                    .required_analyses()
+                    .contains(AnalysisKind::ValueRanges)
+                {
+                    return Err(OptimizationUnitValidationError::CandidateAnalysisContractMismatch);
+                }
+                let right_value =
+                    direct_literal_integer_fact(function, candidate.input(), right, constant_fact)
+                        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
+                let range = current_value_ranges::independently_reconstruct_value_range_fact_at(
+                    input,
+                    range_fact,
+                    function.machine,
+                    left,
+                    location.block,
+                    location.node,
+                )
+                .ok_or(OptimizationUnitValidationError::CurrentValueRangeFactMismatch)?;
+                if validator_integer_value_type(function, right) != Some(range.scalar_type) {
+                    return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
+                }
+                let constant = if range
+                    .scalar_type
+                    .compare(range.maximum, right_value)
+                    .is_some_and(|ordering| ordering.is_lt())
+                {
+                    true
+                } else if range
+                    .scalar_type
+                    .compare(range.minimum, right_value)
+                    .is_some_and(|ordering| !ordering.is_lt())
+                {
+                    false
+                } else {
+                    return Err(OptimizationUnitValidationError::CandidateEvaluationMismatch);
+                };
+                return Ok((
+                    psi_operation,
+                    result,
+                    constant,
+                    OptimizationSafetyClass::ProofCertified,
+                ));
+            }
             let Some((left_fact, right_fact)) = candidate
                 .scalar_evaluation_witness()
                 .and_then(IntegerEvaluationWitness::binary_operands)
@@ -9101,7 +9169,12 @@ fn evaluate_boolean_operation(
                 O::IntegerLessOrEqual { .. } => !ordering.is_gt(),
                 _ => unreachable!(),
             };
-            Ok((psi_operation, result, constant))
+            Ok((
+                psi_operation,
+                result,
+                constant,
+                OptimizationSafetyClass::ExactOperationSemantics,
+            ))
         }
         _ => Err(OptimizationUnitValidationError::CandidatePatchMismatch),
     }
@@ -9696,6 +9769,45 @@ fn literal_integer_fact(
                     ScalarConstantValue::Boolean(_) => None,
                 })
         })
+}
+
+fn direct_literal_integer_fact(
+    function: &PsiOptimizationFunction,
+    input: omega_optimization_core::OptimizationUnitIdentity,
+    value: ValueId,
+    identity: omega_optimization_core::ScalarConstantFactIdentity,
+) -> Option<psi_core::IntegerValue> {
+    let definition = scalar_value_definition(function, value)?;
+    let ValueDefinitionSite::Node { block, node } = definition.site else {
+        return None;
+    };
+    let operation = &function
+        .blocks
+        .iter()
+        .find(|candidate| candidate.id == block)?
+        .nodes
+        .get(usize::try_from(node).ok()?)?
+        .operation;
+    let O::IntegerConstant {
+        psi_operation,
+        result,
+        scalar_type,
+        value: constant,
+    } = operation
+    else {
+        return None;
+    };
+    if *result != value || *scalar_type != definition.scalar_type {
+        return None;
+    }
+    let expected = literal_scalar_constant_fact_identity(
+        input,
+        function.machine,
+        definition,
+        ScalarConstantValue::Integer(*constant),
+        *psi_operation,
+    )?;
+    (identity == expected).then_some(*constant)
 }
 
 fn literal_boolean_fact(

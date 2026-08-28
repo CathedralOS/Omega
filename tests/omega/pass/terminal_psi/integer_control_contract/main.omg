@@ -1129,6 +1129,63 @@ ensures 0u64 == 0u64
     }
 }
 
+machine terminal_exact_shift_range_fold(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> prove_range(value, count)
+        _ -> finish_range(false)
+    }
+
+    state prove_range(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        count < 64u64
+    }
+
+    state finish_range(value: bool) -> bool {
+        value
+    }
+}
+
+machine terminal_exact_shift_range_false_fold(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> disprove_range(value, count)
+        _ -> finish_false_range(false)
+    }
+
+    state disprove_range(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        count < 0u64
+    }
+
+    state finish_false_range(value: bool) -> bool {
+        value
+    }
+}
+
+machine terminal_exact_shift_range_overlap(value: u64, count: u64) -> bool
+requires true == true
+ensures true == true
+{
+    transition count <= 63u64 {
+        true -> retain_range_compare(value, count)
+        _ -> finish_overlap_range(false)
+    }
+
+    state retain_range_compare(value: u64, count: u64) -> bool {
+        let shifted: u64 = value >> count;
+        count < 32u64
+    }
+
+    state finish_overlap_range(value: bool) -> bool {
+        value
+    }
+}
+
 machine terminal_exact_shift_left_runtime(value: u32, count: u32) -> u32
 requires 0u32 == 0u32
 ensures 0u32 == 0u32
