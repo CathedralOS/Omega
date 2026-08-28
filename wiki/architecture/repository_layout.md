@@ -28,7 +28,8 @@ Legend:
 - `[CRATE]` means a Cargo workspace package.
 - Unprefixed folders are ordinary source/module boundaries inside a crate.
 
-This tree is a conceptual placement map anchored in the current Rust on-ramp;
+This tree is a conceptual placement map anchored in the current Rust product
+implementation;
 it is not an exhaustive generated inventory of Cargo workspace members. Some
 sub-areas named in the placement prose are not yet separate crates, while small
 implementation crates may appear in the workspace before this map names them.
