@@ -22,13 +22,15 @@ use psi_core::{EdgeId, MachineId};
 use sha2::{Digest, Sha256};
 
 use crate::{
-    OptimizedResolvedSelectedFormLayoutError, StagedOptimizedPostAllocationMachinePlan,
-    StagedOptimizedResolvedSelectedFormLayout, StagedOptimizedSelectedFormEncoding,
+    OptimizedResolvedSelectedFormLayoutError, OptimizedX86BranchRelaxationError,
+    StagedOptimizedPostAllocationMachinePlan, StagedOptimizedResolvedSelectedFormLayout,
+    StagedOptimizedSelectedFormEncoding, StagedOptimizedX86BranchRelaxation,
     TerminalResolvedSelectedFormLayoutIdentity, TerminalSelectedFormEncodingIdentity,
-    TerminalSelectedFormEncodingState, validate_optimized_resolved_selected_form_layout,
+    TerminalSelectedFormEncodingState, TerminalX86BranchRelaxationIdentity,
+    validate_optimized_resolved_selected_form_layout, validate_optimized_x86_branch_relaxation,
 };
 
-const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v1\0";
+const CONTRACT_SCHEMA: &[u8] = b"omega.terminal.whole-function-exit-contract.v2\0";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct TerminalWholeFunctionExitContractIdentity([u8; 32]);
@@ -54,6 +56,18 @@ pub enum TerminalWholeFunctionExitPolicy {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum TerminalWholeFunctionHardeningPolicy {
     NoAdditionalEntryExitHardeningV1,
+}
+
+/// Exact authority under which the final function-relative layout entered
+/// whole-function exit validation. The baseline variant never admits a
+/// transformed layout; the relaxation variant is available only through the
+/// dedicated independently replayed x86 relaxation API.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TerminalWholeFunctionExitLayoutCustody {
+    BaselineNearLayoutV1,
+    X86RelaxConditionalBranchesToRel8V1 {
+        relaxation: TerminalX86BranchRelaxationIdentity,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -109,6 +123,7 @@ pub struct TerminalWholeFunctionExitContract {
     pub physical_register_model: omega_register_model::PhysicalRegisterModelIdentity,
     pub pre_layout: TerminalSelectedFormEncodingIdentity,
     pub resolved_layout: TerminalResolvedSelectedFormLayoutIdentity,
+    pub layout_custody: TerminalWholeFunctionExitLayoutCustody,
     pub target: NativeTarget,
     pub policy: TerminalWholeFunctionExitPolicy,
     pub hardening: TerminalWholeFunctionHardeningPolicy,
@@ -144,6 +159,7 @@ impl ValidatedTerminalWholeFunctionExitContract {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TerminalWholeFunctionExitContractError {
     Layout(OptimizedResolvedSelectedFormLayoutError),
+    Relaxation(OptimizedX86BranchRelaxationError),
     RootMismatch,
     UnsupportedTargetPolicy,
     MissingArchitecturalView(&'static str),
@@ -188,7 +204,14 @@ pub fn stage_terminal_whole_function_exit_contract<S: ValidatedTerminalSelectedA
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
 ) -> Result<ValidatedTerminalWholeFunctionExitContract, TerminalWholeFunctionExitContractError> {
-    let contract = compute(selected, machine, physical, encoding, layout)?;
+    let contract = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
+        TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+    )?;
     let validated = ValidatedTerminalWholeFunctionExitContract { contract };
     validate_terminal_whole_function_exit_contract(
         selected, machine, physical, encoding, layout, &validated,
@@ -206,7 +229,92 @@ pub fn validate_terminal_whole_function_exit_contract<S: ValidatedTerminalSelect
 ) -> Result<(), TerminalWholeFunctionExitContractError> {
     validate_optimized_resolved_selected_form_layout(selected, machine, physical, encoding, layout)
         .map_err(TerminalWholeFunctionExitContractError::Layout)?;
-    let replayed = compute(selected, machine, physical, encoding, layout)?;
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        layout,
+        TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1,
+    )?;
+    if replayed != contract.contract {
+        return Err(TerminalWholeFunctionExitContractError::ArtifactMismatch);
+    }
+    Ok(())
+}
+
+/// Stage an exit contract over an independently validated x86 branch-relaxed
+/// layout. This path retains the relaxation receipt in the contract rather
+/// than treating the transformed layout as baseline layout authority.
+pub fn stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    source_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: &StagedOptimizedX86BranchRelaxation,
+) -> Result<ValidatedTerminalWholeFunctionExitContract, TerminalWholeFunctionExitContractError> {
+    let layout_custody =
+        TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+            relaxation: relaxation.identity(),
+        };
+    let contract = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        relaxation.layout(),
+        layout_custody,
+    )?;
+    let validated = ValidatedTerminalWholeFunctionExitContract { contract };
+    validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation(
+        selected,
+        machine,
+        physical,
+        encoding,
+        source_layout,
+        relaxation,
+        &validated,
+    )?;
+    Ok(validated)
+}
+
+/// Independently validate the source near layout and replay the x86 branch
+/// relaxation before admitting its transformed layout to exit validation.
+pub fn validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation<
+    S: ValidatedTerminalSelectedAnalysis,
+>(
+    selected: &S,
+    machine: &StagedOptimizedPostAllocationMachinePlan,
+    physical: &ValidatedPhysicalRegisterModel,
+    encoding: &StagedOptimizedSelectedFormEncoding,
+    source_layout: &StagedOptimizedResolvedSelectedFormLayout,
+    relaxation: &StagedOptimizedX86BranchRelaxation,
+    contract: &ValidatedTerminalWholeFunctionExitContract,
+) -> Result<(), TerminalWholeFunctionExitContractError> {
+    validate_optimized_x86_branch_relaxation(
+        selected,
+        machine,
+        physical,
+        encoding,
+        source_layout,
+        relaxation,
+    )
+    .map_err(TerminalWholeFunctionExitContractError::Relaxation)?;
+    let layout_custody =
+        TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+            relaxation: relaxation.identity(),
+        };
+    let replayed = compute(
+        selected,
+        machine,
+        physical,
+        encoding,
+        relaxation.layout(),
+        layout_custody,
+    )?;
     if replayed != contract.contract {
         return Err(TerminalWholeFunctionExitContractError::ArtifactMismatch);
     }
@@ -219,6 +327,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
     physical: &ValidatedPhysicalRegisterModel,
     encoding: &StagedOptimizedSelectedFormEncoding,
     layout: &StagedOptimizedResolvedSelectedFormLayout,
+    layout_custody: TerminalWholeFunctionExitLayoutCustody,
 ) -> Result<TerminalWholeFunctionExitContract, TerminalWholeFunctionExitContractError> {
     let selected_plan = selected.selected_plan();
     let machine = staged_machine.machine().plan();
@@ -430,6 +539,7 @@ fn compute<S: ValidatedTerminalSelectedAnalysis>(
         physical_register_model: machine.physical_register_model,
         pre_layout: encoding.identity(),
         resolved_layout: layout.identity(),
+        layout_custody,
         target,
         policy,
         hardening: TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
@@ -759,6 +869,15 @@ fn contract_identity(
     hasher.update(contract.physical_register_model.bytes());
     hasher.update(contract.pre_layout.bytes());
     hasher.update(contract.resolved_layout.bytes());
+    match contract.layout_custody {
+        TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1 => hasher.update([1]),
+        TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+            relaxation,
+        } => {
+            hasher.update([2]);
+            hasher.update(relaxation.bytes());
+        }
+    }
     encode_target(&mut hasher, contract.target);
     hasher.update([policy_tag(contract.policy)]);
     hasher.update([1]);
@@ -846,5 +965,64 @@ fn encode_units(hasher: &mut Sha256, units: &[RegisterUnitId]) {
     hasher.update((units.len() as u64).to_le_bytes());
     for unit in units {
         hasher.update(unit.0.to_le_bytes());
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn contract_with_custody(
+        layout_custody: TerminalWholeFunctionExitLayoutCustody,
+    ) -> TerminalWholeFunctionExitContract {
+        let mut contract = TerminalWholeFunctionExitContract {
+            identity: TerminalWholeFunctionExitContractIdentity::from_bytes([0; 32]),
+            selected: TerminalSelectedInstructionPlanIdentity::from_bytes([1; 32]),
+            post_allocation_manifest:
+                omega_optimization_core::PostAllocationOptimizationManifestIdentity::from_bytes(
+                    [2; 32],
+                ),
+            post_allocation_machine:
+                omega_machine_optimizer::TerminalPostAllocationMachineIdentity::from_bytes([3; 32]),
+            register_environment:
+                omega_register_model::TargetRegisterEnvironmentIdentity::from_bytes([4; 32]),
+            physical_register_model:
+                omega_register_model::PhysicalRegisterModelIdentity::from_bytes([5; 32]),
+            pre_layout: TerminalSelectedFormEncodingIdentity::from_bytes([6; 32]),
+            resolved_layout: TerminalResolvedSelectedFormLayoutIdentity::from_bytes([7; 32]),
+            layout_custody,
+            target: NativeTarget::linux_x64(),
+            policy: TerminalWholeFunctionExitPolicy::SystemVAMD64FramelessLeafV1,
+            hardening: TerminalWholeFunctionHardeningPolicy::NoAdditionalEntryExitHardeningV1,
+            entry_assumption:
+                TerminalWholeFunctionEntryAssumption::CallerReturnAddressAtStackPointerV1,
+            stack_pointer: RegisterViewId(0),
+            stack_alignment: 16,
+            red_zone_bytes: 128,
+            result_view: RegisterViewId(1),
+            callee_saved_units: Vec::new(),
+            functions: Vec::new(),
+        };
+        contract.identity = contract_identity(&contract);
+        contract
+    }
+
+    #[test]
+    fn layout_custody_and_relaxation_receipt_are_identity_bound() {
+        let baseline =
+            contract_with_custody(TerminalWholeFunctionExitLayoutCustody::BaselineNearLayoutV1);
+        let relaxed = contract_with_custody(
+            TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation: TerminalX86BranchRelaxationIdentity::from_bytes([8; 32]),
+            },
+        );
+        let another_relaxation = contract_with_custody(
+            TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation: TerminalX86BranchRelaxationIdentity::from_bytes([9; 32]),
+            },
+        );
+
+        assert_ne!(baseline.identity, relaxed.identity);
+        assert_ne!(relaxed.identity, another_relaxation.identity);
     }
 }

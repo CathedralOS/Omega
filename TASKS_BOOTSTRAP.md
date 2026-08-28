@@ -167,8 +167,12 @@ garbage is reclaimed with aliases and temporary roots intact, and irreducibly
 live growth still exits `254` without output. A pre-publication helper also
 reconstructs the exact 168,560-byte canonical LF image and validates the bounded
 Darwin-arm64 assembly dialect without assigning authority to an unobserved
-artifact. The next step is the exact full-source execution and repeatable
-assembly observation; this remains engineering work, not a Delta or Omega
+artifact. A separate fail-closed candidate-publication join now binds the exact
+lower-rung tools and source image, reconstructs the packed Gamma program,
+independently decodes two executions, requires byte-identical assembly, and
+applies that strict target validator. It cannot mint a receipt without the real
+observations. The next step remains the exact full-source execution and
+repeatable assembly observation; this is engineering work, not a Delta or Omega
 language-design blocker.
 
 Retired-producer cleanup completed on 2026-08-27: 141 producer-dependent gate

@@ -11,8 +11,10 @@ from standard input and checks the compositional source families isolated by
 `source/psi/source/source.omg`:
 
 - named record data, `[copy]`, named fields, and forward nominal references;
-- `u8`, `u32`, `bool`, fixed arrays, `in Trapping`, and literal inclusive scalar
-  ranges;
+- one optional `pub` qualifier on supported top-level data and machine
+  declarations;
+- `u8`, `u32`, bounded symbolic `u64`, `bool`, fixed arrays, `in Trapping`, and
+  literal inclusive scalar ranges;
 - attached machines, mutable/shared `self`, named states, and typed parameters;
 - field and indexed-field reads and assignments;
 - integer and Boolean literals, `+`, `<`, member access, and indexing;
@@ -34,6 +36,12 @@ The rules are name- and order-independent. The implementation may retain source
 spans in fixed tables, but it must not recognize the current declaration names,
 counts, or syntax-tree permutation.
 
+`pub` is reserved and accepted only once immediately before a supported `data`
+or `machine` declaration. This one-unit probe checks qualifier custody but has
+no cross-module visibility relation to resolve, and CKIR1 has no declaration-
+visibility row. Duplicate and misplaced qualifiers reject as malformed; the
+qualifier does not consume an additional root or backing-table row.
+
 ## Deliberate boundary
 
 The probe consumes one raw unit so it measures the new grammar and static
@@ -46,13 +54,22 @@ source exits 251 and publishes no bytes. Declared resource exhaustion exits 252
 and publishes no bytes. No successful result is a Terminal-Psi or executable
 artifact claim.
 
-Delta's present integer carrier is signed `i32`. The probe recognizes Omega
-`u32` type identity but admits only nonnegative literal/range endpoints through
-2,147,483,647 and interval obligations expressible within that carrier. A
-program requiring a larger authored `u32` value is unsupported status 251; it
-is not silently wrapped or treated as proof of full-width arithmetic. The
-actual unit's largest endpoint is 65,536. Full-width representation remains a
-later bridge-cost row if product source requires it.
+Delta's present integer carrier is signed `i32`. The probe recognizes distinct
+Omega `u32` and `u64` type identities but admits only nonnegative literal/range
+endpoints through 2,147,483,647 and interval obligations expressible within
+that carrier. It admits same-width `u64` assignment, `<`, guarded fixed-`u8`-
+array indexing, and exact addition only when the symbolic result also remains
+within that bound. Cross-width operands, unguarded indexing, and a symbolic
+addition that may cross the bound reject status 251. The actual unit's largest
+endpoint is 65,536.
+
+This is source-level identity and bounded interval checking, not Delta `u64`
+syntax or a general full-width runtime carrier. It relies on the independently
+closed OMGRSWA10 / OMGLOWJ19 / CKIR18 / OMGRFN21 relation for the selected
+full-width `SourceUnit`-like runtime operations. CKIR1 has no `u64` row, so this
+checker refuses bundled `u64` publication rather than relabeling it; the focused
+versioned relation owns that artifact path. Arrays of `u64` and unrelated
+full-width operations remain outside this probe.
 
 ## Resource contract
 
@@ -74,6 +91,12 @@ counts in the first fixture:
 Internal tables must be large enough that source satisfying these limits and the
 source-byte ceiling cannot hit an undocumented smaller cap. Exact-limit and
 adjacent-over-limit fixtures gate each independently where the grammar permits.
+
+The frozen checker has a separate 2,097,152-byte generated-Gamma profile. This
+is an elaboration-growth bound, not another Delta source-language resource.
+The meaning gate admits a valid checker program padded with trailing whitespace
+to exactly 2 MiB and refuses the adjacent byte before interpretation. Gamma's
+canonical interpreter retains its independently gated 4 MiB source ceiling.
 
 The aggregate backing follows from those public bounds and the source-byte
 ceiling:
@@ -111,22 +134,22 @@ normalized expression-depth ceiling: each suffix adds one AST level.
 6. The checker elaborates through the Beta-written Delta-to-Gamma route and the
    canonical Gamma interpreter agrees on the exact unit plus representative
    251 and 252 observations.
+7. A public guarded `u64` fixed-buffer slice succeeds, while duplicate/misplaced
+   `pub`, cross-width comparison, unguarded `u64` indexing, and bounded-symbolic
+   addition overflow reject without output.
 
 ## Measured result
 
-The implemented checker is 1,313 lines / 78,450 source bytes. Its fixed tables
-reserve 5,395,760 zero-initialized bytes in the current ARM64 image. The focused
-native gate carries 34 actual, renamed/reordered, phase-isolated, exact-limit,
-and adjacent-limit observations in about 0.15 seconds; six representative
-cases repeated through a lowermachine-built checker take about 0.01 seconds.
-
-The Beta-written elaborator produces 626,059 bytes of canonical Gamma, below
-the explicit 1 MiB ceiling, in about one second. Canonical Gamma interpretation
-is the expensive evidence: approximately two minutes for the exact 1,614-byte
-product unit, 12 seconds for an unguarded-index rejection, and three seconds for
-declared array-length exhaustion. The meaning gate therefore runs the exact
-unit and the two distinct failure classes once; the equivalent renamed positive
-is already repeated through native and lowermachine-built checkers.
+The implemented checker is 2,477 lines / 165,803 source bytes. The Beta-written
+elaborator currently produces 2,029,188 bytes of canonical Gamma, below the
+explicit 2 MiB profile ceiling, in about three seconds. Canonical Gamma
+interpretation is the expensive evidence: the exact 1,630-byte product unit
+takes 392.39 seconds and the focused public guarded-`u64` positive takes 100.20
+seconds on the current reference route. The nine canonical cases total 673.11
+seconds of interpretation (about 11 minutes 13 seconds), before the small fixed
+build/elaboration overhead. Equivalent permutations belong in faster native
+and lowermachine evidence rather than duplicating compiler-sized reference
+interpretation.
 
 This proves that the isolated record/array/attached-machine frontend families
 are implementable in current Delta with explicit fixed backing. It also prices

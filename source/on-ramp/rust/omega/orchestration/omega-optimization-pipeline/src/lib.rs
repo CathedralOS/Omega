@@ -63,10 +63,14 @@ pub use function_relative_realization::{
     FunctionRelativeOptimizationRealizationManifestDecodeError,
     FunctionRelativeOptimizationRealizationScope, FunctionRelativeOptimizationRealizationStage,
     FunctionRelativeOptimizationRealizationStatistics, FunctionRelativeOptimizationUnavailableData,
+    StagedFunctionRelativeLayoutOptimizationRealization,
+    StagedFunctionRelativeLayoutOptimizationRealizationCustodyReceipt,
     StagedSelectedLoweringFunctionRelativeRealization,
     StagedSelectedLoweringFunctionRelativeRealizationCustodyReceipt,
     ValidatedFunctionRelativeOptimizationRealizationManifest,
+    stage_function_relative_layout_optimization_realization,
     stage_selected_lowering_function_relative_realization,
+    validate_function_relative_layout_optimization_realization_custody,
     validate_selected_lowering_function_relative_realization_custody,
 };
 pub use literal_fold_homes::{
@@ -170,10 +174,13 @@ pub use selection::{
 pub use whole_function_exit_contract::{
     TerminalWholeFunctionEntryAssumption, TerminalWholeFunctionExitContract,
     TerminalWholeFunctionExitContractError, TerminalWholeFunctionExitContractIdentity,
-    TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitPolicy,
-    TerminalWholeFunctionHardeningPolicy, TerminalWholeFunctionReturnEvidence,
-    TerminalWholeFunctionReturnMechanism, ValidatedTerminalWholeFunctionExitContract,
-    stage_terminal_whole_function_exit_contract, validate_terminal_whole_function_exit_contract,
+    TerminalWholeFunctionExitEvidence, TerminalWholeFunctionExitLayoutCustody,
+    TerminalWholeFunctionExitPolicy, TerminalWholeFunctionHardeningPolicy,
+    TerminalWholeFunctionReturnEvidence, TerminalWholeFunctionReturnMechanism,
+    ValidatedTerminalWholeFunctionExitContract, stage_terminal_whole_function_exit_contract,
+    stage_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
+    validate_terminal_whole_function_exit_contract,
+    validate_terminal_whole_function_exit_contract_after_x86_branch_relaxation,
 };
 pub use x86_branch_relaxation::{
     OptimizedX86BranchRelaxationError, StagedOptimizedX86BranchRelaxation,
@@ -5681,10 +5688,31 @@ mod tests {
             );
             let manifest = realization.manifest().record();
             assert_eq!(manifest.selections, selections.identity());
-            assert_eq!(manifest.selected_lowering_completion, completion);
+            assert_eq!(
+                manifest.selected_lowering_selections,
+                selections
+                    .for_phase(
+                        omega_optimization_core::OptimizationExecutionPhase::SelectedLowering,
+                    )
+                    .identity()
+            );
+            assert_eq!(manifest.selected_lowering_completion, Some(completion));
+            assert_eq!(
+                manifest.function_relative_layout_selections,
+                selections
+                    .for_phase(
+                        omega_optimization_core::OptimizationExecutionPhase::FunctionRelativeLayout,
+                    )
+                    .identity()
+            );
             assert_eq!(manifest.selected, final_selected);
             assert_eq!(manifest.pre_layout, realization.encoding().identity());
+            assert_eq!(
+                manifest.baseline_resolved_layout,
+                realization.layout().identity()
+            );
             assert_eq!(manifest.resolved_layout, realization.layout().identity());
+            assert_eq!(manifest.x86_branch_relaxation, None);
             assert_eq!(
                 manifest.whole_function_exit_contract,
                 realization.exit_contract().identity()
@@ -5779,7 +5807,7 @@ mod tests {
                 *realization.custody()
             );
             let manifest = realization.manifest().record();
-            assert_eq!(manifest.selected_lowering_completion, completion);
+            assert_eq!(manifest.selected_lowering_completion, Some(completion));
             assert_eq!(manifest.selected, source_selected);
             assert_eq!(
                 manifest.whole_function_exit_contract,
@@ -5869,6 +5897,28 @@ mod tests {
                 FunctionRelativeOptimizationRealizationManifest::decode(&encoded),
                 Ok(manifest.clone())
             );
+            let mut without_selected_lowering = manifest.clone();
+            without_selected_lowering.selected_lowering_completion = None;
+            without_selected_lowering.identity = without_selected_lowering.recomputed_identity();
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &without_selected_lowering.encode()
+                ),
+                Ok(without_selected_lowering)
+            );
+            if target.architecture == omega_target::Architecture::X86_64 {
+                let mut with_no_change_relaxation = manifest.clone();
+                with_no_change_relaxation.x86_branch_relaxation =
+                    Some(TerminalX86BranchRelaxationIdentity::from_bytes([0x4f; 32]));
+                with_no_change_relaxation.identity =
+                    with_no_change_relaxation.recomputed_identity();
+                assert_eq!(
+                    FunctionRelativeOptimizationRealizationManifest::decode(
+                        &with_no_change_relaxation.encode()
+                    ),
+                    Ok(with_no_change_relaxation)
+                );
+            }
             assert!(manifest.render_text().contains("publication: unavailable"));
             let mut identity_tamper = encoded.clone();
             identity_tamper[12] ^= 1;
@@ -5883,22 +5933,22 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::WrongMagic)
             );
             let mut wrong_version = encoded.clone();
-            wrong_version[8..12].copy_from_slice(&3_u32.to_le_bytes());
+            wrong_version[8..12].copy_from_slice(&4_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&wrong_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        3
+                        4
                     )
                 )
             );
             let mut legacy_version = encoded.clone();
-            legacy_version[8..12].copy_from_slice(&1_u32.to_le_bytes());
+            legacy_version[8..12].copy_from_slice(&2_u32.to_le_bytes());
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&legacy_version),
                 Err(
                     FunctionRelativeOptimizationRealizationManifestDecodeError::UnsupportedVersion(
-                        1
+                        2
                     )
                 )
             );
@@ -5915,13 +5965,32 @@ mod tests {
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::Truncated)
             );
             let content_offset = 8 + 4 + 32;
+            let selected_lowering_completion_status_offset = content_offset + 1 + 2 * 32;
+            let x86_branch_relaxation_status_offset =
+                selected_lowering_completion_status_offset + 1 + 32 + 9 * 32;
             let mut unknown_stage = encoded.clone();
             unknown_stage[content_offset] = 9;
             assert_eq!(
                 FunctionRelativeOptimizationRealizationManifest::decode(&unknown_stage),
                 Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownStage(9))
             );
-            let target_offset = content_offset + 1 + 11 * 32;
+            let mut unknown_selected_lowering_completion = encoded.clone();
+            unknown_selected_lowering_completion[selected_lowering_completion_status_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &unknown_selected_lowering_completion
+                ),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownSelectedLoweringCompletionStatus(9))
+            );
+            let mut unknown_x86_branch_relaxation = encoded.clone();
+            unknown_x86_branch_relaxation[x86_branch_relaxation_status_offset] = 9;
+            assert_eq!(
+                FunctionRelativeOptimizationRealizationManifest::decode(
+                    &unknown_x86_branch_relaxation
+                ),
+                Err(FunctionRelativeOptimizationRealizationManifestDecodeError::UnknownX86BranchRelaxationStatus(9))
+            );
+            let target_offset = x86_branch_relaxation_status_offset + 1 + 32;
             let mut unknown_architecture = encoded.clone();
             unknown_architecture[target_offset] = 9;
             assert_eq!(
@@ -5996,9 +6065,15 @@ mod tests {
             );
             assert_manifest_field_is_bound!(
                 selected_lowering_completion,
-                omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity::from_bytes(
-                    [0x53; 32]
+                Some(
+                    omega_optimization_core::SelectedLoweringOptimizationCompletionIdentity::from_bytes(
+                        [0x53; 32]
+                    )
                 )
+            );
+            assert_manifest_field_is_bound!(
+                function_relative_layout_selections,
+                omega_optimization_core::OptimizationSelectionIdentity::from_bytes([0x54; 32])
             );
             assert_manifest_field_is_bound!(
                 pre_physical_manifest,
@@ -6035,12 +6110,20 @@ mod tests {
                 TerminalSelectedFormEncodingIdentity::from_bytes([0x59; 32])
             );
             assert_manifest_field_is_bound!(
-                resolved_layout,
+                baseline_resolved_layout,
                 TerminalResolvedSelectedFormLayoutIdentity::from_bytes([0x5a; 32])
             );
             assert_manifest_field_is_bound!(
+                resolved_layout,
+                TerminalResolvedSelectedFormLayoutIdentity::from_bytes([0x5b; 32])
+            );
+            assert_manifest_field_is_bound!(
+                x86_branch_relaxation,
+                Some(TerminalX86BranchRelaxationIdentity::from_bytes([0x5c; 32]))
+            );
+            assert_manifest_field_is_bound!(
                 whole_function_exit_contract,
-                TerminalWholeFunctionExitContractIdentity::from_bytes([0x5b; 32])
+                TerminalWholeFunctionExitContractIdentity::from_bytes([0x5d; 32])
             );
             assert_manifest_field_is_bound!(
                 target,
@@ -6276,6 +6359,196 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn function_relative_only_rel8_suite_shrinks_and_replays_without_selected_lowering() {
+        let target = NativeTarget::linux_x64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let mut staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        assert_eq!(staged.selections(), selections.identity());
+        assert_eq!(staged.selected_lowering_completion(), None);
+        assert!(staged.function_relative_realization().is_none());
+        assert!(
+            optimization_pipeline_report(&staged)
+                .function_relative()
+                .is_some()
+        );
+        let StagedOptimizedVerifiedPhysicalPipeline::FunctionRelativeLayout { realization } =
+            &mut staged
+        else {
+            panic!("the exact function-relative phase must use its direct realization route")
+        };
+        assert_eq!(
+            validate_function_relative_layout_optimization_realization_custody(realization)
+                .unwrap(),
+            *realization.custody()
+        );
+        assert_eq!(realization.relaxation().actions().len(), 1);
+        assert_eq!(
+            realization
+                .baseline_layout()
+                .functions()
+                .iter()
+                .map(|function| function.byte_count)
+                .sum::<u64>()
+                .checked_sub(
+                    realization
+                        .layout()
+                        .functions()
+                        .iter()
+                        .map(|function| function.byte_count)
+                        .sum::<u64>()
+                ),
+            Some(4)
+        );
+        let relaxed_branch = realization
+            .layout()
+            .functions()
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+            .find(|instruction| instruction.branch.is_some())
+            .unwrap();
+        assert_eq!(&relaxed_branch.bytes[..1], [0x75]);
+
+        let manifest = realization.manifest().record();
+        assert_eq!(
+            manifest.selected_lowering_selections,
+            OptimizationSelections::default().identity()
+        );
+        assert_eq!(manifest.selected_lowering_completion, None);
+        assert_eq!(
+            manifest.function_relative_layout_selections,
+            selections.identity()
+        );
+        assert_eq!(
+            manifest.baseline_resolved_layout,
+            realization.baseline_layout().identity()
+        );
+        assert_eq!(manifest.resolved_layout, realization.layout().identity());
+        assert_eq!(
+            manifest.x86_branch_relaxation,
+            Some(realization.relaxation().identity())
+        );
+        assert!(matches!(
+            realization.exit_contract().contract().layout_custody,
+            TerminalWholeFunctionExitLayoutCustody::X86RelaxConditionalBranchesToRel8V1 {
+                relaxation
+            } if relaxation == realization.relaxation().identity()
+        ));
+        let original = realization.manifest().record().resolved_layout;
+        realization.manifest_mut().record_mut().resolved_layout =
+            realization.baseline_layout().identity();
+        assert_eq!(
+            validate_function_relative_layout_optimization_realization_custody(realization),
+            Err(FunctionRelativeOptimizationRealizationError::RootMismatch)
+        );
+        realization.manifest_mut().record_mut().resolved_layout = original;
+        assert_eq!(
+            validate_function_relative_layout_optimization_realization_custody(realization)
+                .unwrap(),
+            *realization.custody()
+        );
+    }
+
+    #[test]
+    fn selected_lowering_and_rel8_phases_retain_both_completion_receipts() {
+        let target = NativeTarget::linux_x64();
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections = OptimizationSelections::new([
+            Optimization::SelectedIncomingU12ExactAddImmediate,
+            Optimization::X86RelaxConditionalBranchesToRel8V1,
+        ])
+        .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections.clone(), selected_lowering_budget())
+                .unwrap(),
+        )
+        .unwrap();
+        let staged = stage_optimized_verified_physical_pipeline_with_provider_executions(
+            optimized,
+            target,
+            &[],
+        )
+        .unwrap();
+        let StagedOptimizedVerifiedPhysicalPipeline::SelectedLowering { realization } = &staged
+        else {
+            panic!("the selected-lowering phase remains the owning physical route")
+        };
+        assert_eq!(
+            validate_selected_lowering_function_relative_realization_custody(realization).unwrap(),
+            *realization.custody()
+        );
+        let relaxation = realization
+            .relaxation()
+            .expect("the independently selected layout phase must execute");
+        assert_eq!(relaxation.actions().len(), 1);
+        let manifest = realization.manifest().record();
+        assert_eq!(
+            manifest.selected_lowering_completion,
+            staged.selected_lowering_completion()
+        );
+        assert_eq!(
+            manifest.function_relative_layout_selections,
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1,])
+                .unwrap()
+                .identity()
+        );
+        assert_eq!(manifest.x86_branch_relaxation, Some(relaxation.identity()));
+        assert_eq!(manifest.resolved_layout, relaxation.layout().identity());
+        assert_eq!(
+            manifest.baseline_resolved_layout,
+            realization.baseline_layout().identity()
+        );
+    }
+
+    #[test]
+    fn x86_rel8_selection_rejects_a_non_x86_target_without_a_realization() {
+        let (semantic, proof) = conditional_exact_binary_artifact(false);
+        let selections =
+            OptimizationSelections::new([Optimization::X86RelaxConditionalBranchesToRel8V1])
+                .unwrap();
+        let optimized = optimize_artifact_sections(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+            ExplicitOptimizationRequest::new(selections, selected_lowering_budget()).unwrap(),
+        )
+        .unwrap();
+        assert!(matches!(
+            stage_optimized_verified_physical_pipeline_with_provider_executions(
+                optimized,
+                NativeTarget::linux_arm64(),
+                &[],
+            ),
+            Err(
+                OptimizedVerifiedPhysicalPipelineError::FunctionRelativeRealization(
+                    FunctionRelativeOptimizationRealizationError::X86BranchRelaxation(
+                        OptimizedX86BranchRelaxationError::UnsupportedTarget(_)
+                    )
+                )
+            )
+        ));
     }
 
     #[test]
