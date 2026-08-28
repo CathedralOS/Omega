@@ -1017,44 +1017,273 @@ fn validate_seatbelt_import_topology(system: &[u8], dyld: &[u8]) -> io::Result<(
     if system_imports != ["dyld-support.sb"] || !dyld_imports.is_empty() {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
-            "native resolver Seatbelt import topology is not the audited closed graph",
+            "native resolver Seatbelt profile is outside the accepted direct-import syntax subset",
         ));
     }
     Ok(())
 }
 
 #[cfg(target_os = "macos")]
-fn seatbelt_imports(bytes: &[u8]) -> io::Result<Vec<&str>> {
+fn seatbelt_imports(bytes: &[u8]) -> io::Result<Vec<String>> {
     let text = std::str::from_utf8(bytes).map_err(|_| {
         io::Error::new(
             io::ErrorKind::InvalidData,
             "native resolver Seatbelt profile is not UTF-8",
         )
     })?;
+    let tokens = seatbelt_tokens(text)?;
     let mut imports = Vec::new();
-    for line in text.lines() {
-        let line = line.trim();
-        if !line.contains("(import") {
-            continue;
+    let mut lists = Vec::<SeatbeltListFrame>::new();
+    for token in tokens {
+        match token {
+            SeatbeltToken::Open => {
+                observe_seatbelt_list_datum(lists.last_mut())?;
+                lists.push(SeatbeltListFrame::default());
+            }
+            SeatbeltToken::Close => {
+                let list = lists.pop().ok_or_else(seatbelt_syntax_error)?;
+                if list.is_import {
+                    let imported = list.imported.ok_or_else(seatbelt_import_error)?;
+                    if list.datums != 2 {
+                        return Err(seatbelt_import_error());
+                    }
+                    imports.push(imported.to_owned());
+                }
+            }
+            SeatbeltToken::Atom(atom) => {
+                observe_seatbelt_atom(lists.last_mut(), atom)?;
+            }
+            SeatbeltToken::String { content, escaped } => {
+                observe_seatbelt_string(lists.last_mut(), content, escaped)?;
+            }
         }
-        let imported = line
-            .strip_prefix("(import \"")
-            .and_then(|line| line.strip_suffix("\")"))
-            .filter(|imported| {
-                !imported.is_empty()
-                    && imported
-                        .bytes()
-                        .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
-            })
-            .ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::InvalidData,
-                    "native resolver Seatbelt profile has a noncanonical import",
-                )
-            })?;
-        imports.push(imported);
+    }
+    if !lists.is_empty() {
+        return Err(seatbelt_syntax_error());
     }
     Ok(imports)
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SeatbeltToken<'text> {
+    Open,
+    Close,
+    Atom(&'text str),
+    String { content: &'text str, escaped: bool },
+}
+
+#[cfg(target_os = "macos")]
+#[derive(Debug, Default)]
+struct SeatbeltListFrame<'text> {
+    datums: usize,
+    is_import: bool,
+    imported: Option<&'text str>,
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_tokens(text: &str) -> io::Result<Vec<SeatbeltToken<'_>>> {
+    let bytes = text.as_bytes();
+    let mut tokens = Vec::new();
+    let mut cursor = 0;
+    while cursor < bytes.len() {
+        match bytes[cursor] {
+            byte if byte.is_ascii_whitespace() => cursor += 1,
+            b';' => {
+                cursor += 1;
+                while cursor < bytes.len() && bytes[cursor] != b'\n' {
+                    cursor += 1;
+                }
+            }
+            b'#' if bytes.get(cursor + 1) == Some(&b'|') => {
+                cursor = skip_seatbelt_block_comment(bytes, cursor + 2)?;
+            }
+            b'#' if bytes.get(cursor + 1) == Some(&b';') => {
+                return Err(seatbelt_syntax_error());
+            }
+            b'(' => {
+                tokens.push(SeatbeltToken::Open);
+                cursor += 1;
+            }
+            b')' => {
+                tokens.push(SeatbeltToken::Close);
+                cursor += 1;
+            }
+            b'"' => {
+                let content_start = cursor + 1;
+                cursor = content_start;
+                let mut escaped = false;
+                loop {
+                    let Some(byte) = bytes.get(cursor).copied() else {
+                        return Err(seatbelt_syntax_error());
+                    };
+                    match byte {
+                        b'"' => {
+                            let content = &text[content_start..cursor];
+                            tokens.push(SeatbeltToken::String { content, escaped });
+                            cursor += 1;
+                            break;
+                        }
+                        b'\\' => {
+                            escaped = true;
+                            cursor = cursor
+                                .checked_add(2)
+                                .filter(|cursor| *cursor <= bytes.len())
+                                .ok_or_else(seatbelt_syntax_error)?;
+                        }
+                        _ => cursor += 1,
+                    }
+                }
+            }
+            _ => {
+                let start = cursor;
+                while cursor < bytes.len() && !seatbelt_token_delimiter(bytes, cursor) {
+                    cursor += 1;
+                }
+                if cursor == start {
+                    return Err(seatbelt_syntax_error());
+                }
+                tokens.push(SeatbeltToken::Atom(&text[start..cursor]));
+            }
+        }
+    }
+    Ok(tokens)
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_token_delimiter(bytes: &[u8], cursor: usize) -> bool {
+    bytes[cursor].is_ascii_whitespace()
+        || matches!(bytes[cursor], b'(' | b')' | b'"' | b';')
+        || bytes[cursor] == b'#' && bytes.get(cursor + 1) == Some(&b'|')
+}
+
+#[cfg(target_os = "macos")]
+fn skip_seatbelt_block_comment(bytes: &[u8], mut cursor: usize) -> io::Result<usize> {
+    let mut depth = 1_usize;
+    while cursor < bytes.len() {
+        if bytes[cursor] == b'#' && bytes.get(cursor + 1) == Some(&b'|') {
+            depth = depth.checked_add(1).ok_or_else(seatbelt_syntax_error)?;
+            cursor += 2;
+        } else if bytes[cursor] == b'|' && bytes.get(cursor + 1) == Some(&b'#') {
+            depth -= 1;
+            cursor += 2;
+            if depth == 0 {
+                return Ok(cursor);
+            }
+        } else {
+            cursor += 1;
+        }
+    }
+    Err(seatbelt_syntax_error())
+}
+
+#[cfg(target_os = "macos")]
+fn observe_seatbelt_list_datum(list: Option<&mut SeatbeltListFrame<'_>>) -> io::Result<()> {
+    let Some(list) = list else {
+        return Ok(());
+    };
+    list.datums = list
+        .datums
+        .checked_add(1)
+        .ok_or_else(seatbelt_syntax_error)?;
+    if list.is_import {
+        return Err(seatbelt_import_error());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn observe_seatbelt_atom<'text>(
+    list: Option<&mut SeatbeltListFrame<'text>>,
+    atom: &'text str,
+) -> io::Result<()> {
+    if atom.contains(['\\', '|', '[', ']', '{', '}'])
+        || atom.starts_with("#!")
+        || atom != "import" && atom.eq_ignore_ascii_case("import")
+        || seatbelt_reader_import(atom)
+        || seatbelt_reflective_import_vocabulary(atom)
+    {
+        return Err(seatbelt_syntax_error());
+    }
+    let Some(list) = list else {
+        if atom == "import" {
+            return Err(seatbelt_import_error());
+        }
+        return Ok(());
+    };
+    if list.datums == 0 {
+        list.is_import = atom == "import";
+    } else if atom == "import" || list.is_import {
+        return Err(seatbelt_import_error());
+    }
+    list.datums = list
+        .datums
+        .checked_add(1)
+        .ok_or_else(seatbelt_syntax_error)?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_reader_import(atom: &str) -> bool {
+    atom.strip_suffix("import").is_some_and(|prefix| {
+        !prefix.is_empty()
+            && prefix
+                .bytes()
+                .all(|byte| matches!(byte, b'\'' | b'`' | b',' | b'#' | b'@'))
+    })
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_reflective_import_vocabulary(atom: &str) -> bool {
+    atom.contains("eval")
+        || atom.contains("symbol")
+        || atom.contains("syntax")
+        || matches!(atom, "read" | "load" | "define-macro")
+}
+
+#[cfg(target_os = "macos")]
+fn observe_seatbelt_string<'text>(
+    list: Option<&mut SeatbeltListFrame<'text>>,
+    content: &'text str,
+    escaped: bool,
+) -> io::Result<()> {
+    let Some(list) = list else {
+        return Ok(());
+    };
+    if list.is_import && list.datums == 1 {
+        if escaped
+            || content.is_empty()
+            || !content
+                .bytes()
+                .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'-'))
+        {
+            return Err(seatbelt_import_error());
+        }
+        list.imported = Some(content);
+    } else if list.is_import {
+        return Err(seatbelt_import_error());
+    }
+    list.datums = list
+        .datums
+        .checked_add(1)
+        .ok_or_else(seatbelt_syntax_error)?;
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_syntax_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "native resolver Seatbelt profile has invalid bounded syntax",
+    )
+}
+
+#[cfg(target_os = "macos")]
+fn seatbelt_import_error() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "native resolver Seatbelt profile has a noncanonical import",
+    )
 }
 
 #[cfg(target_os = "macos")]
@@ -1362,8 +1591,10 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn seatbelt_import_topology_is_closed_and_profile_content_is_bound() {
-        use super::{ResolverExecutionBackendIdentity, validate_seatbelt_import_topology};
+    fn seatbelt_direct_import_subset_is_fail_closed_and_profile_content_is_bound() {
+        use super::{
+            ResolverExecutionBackendIdentity, seatbelt_imports, validate_seatbelt_import_topology,
+        };
 
         let backend = ResolverExecutionBackend::open().expect("open resolver backend");
         let ResolverExecutionBackendIdentity::MacosSeatbelt {
@@ -1378,10 +1609,22 @@ mod tests {
         assert_eq!(dyld_profile_sha256.len(), 64);
         assert!(
             validate_seatbelt_import_topology(
-                b"(version 3)\n(import \"dyld-support.sb\")\n",
+                b"(version 3)\n(import\n  \"dyld-support.sb\"\n)\n",
                 b"(version 3)\n"
             )
             .is_ok()
+        );
+        assert_eq!(
+            seatbelt_imports(
+                br#"; (import "line-comment.sb")
+                    #| (import "block-comment.sb")
+                       #| (import "nested-comment.sb") |#
+                    |#
+                    (define spelling "(import \"string.sb\")")
+                    ( import "dyld-support.sb" )"#
+            )
+            .expect("scan complete Seatbelt syntax"),
+            ["dyld-support.sb"]
         );
         assert!(
             validate_seatbelt_import_topology(
@@ -1397,6 +1640,27 @@ mod tests {
             )
             .is_err()
         );
+        for malformed in [
+            b"(import \"dyld\\-support.sb\")".as_slice(),
+            b"(import (identity \"dyld-support.sb\"))".as_slice(),
+            b"(import \"dyld-support.sb\" \"extra.sb\")".as_slice(),
+            b"(import \"dyld-support.sb\"".as_slice(),
+            b"(|import| \"dyld-support.sb\")".as_slice(),
+            b"(IMPORT \"dyld-support.sb\")".as_slice(),
+            b"#!fold-case\n(IMPORT \"dyld-support.sb\")".as_slice(),
+            b"(#; ignored\n import \"dyld-support.sb\")".as_slice(),
+            b"[import \"dyld-support.sb\"]".as_slice(),
+            b"(apply import (list \"extra.sb\"))".as_slice(),
+            b"(define load-profile import)".as_slice(),
+            b"(map import (list \"extra.sb\"))".as_slice(),
+            b"(eval (list import \"extra.sb\"))".as_slice(),
+            b"(eval (list (string->symbol \"import\") \"extra.sb\"))".as_slice(),
+            b"(eval (list 'import \"extra.sb\"))".as_slice(),
+            b"#| unterminated".as_slice(),
+            b")".as_slice(),
+        ] {
+            assert!(seatbelt_imports(malformed).is_err());
+        }
     }
 
     #[cfg(unix)]
