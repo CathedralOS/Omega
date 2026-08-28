@@ -253,7 +253,7 @@ These facts constrain the work below.
   and their codec to v6, postallocation manifest and codec to v6,
   effect-catalog to v4, preallocation-effect to v5/codec v6, and
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
-  selected-form encoding v4, resolved-layout v4,
+  selected-form encoding v5, resolved-layout v4,
   whole-function exit v4, function-relative manifest v6, fragment/text
   manifests v3, fragment vocabulary v3, and x86 relaxation/revision v2 all
   reject older detached vocabulary. A dedicated baseline carrier now proves
@@ -339,9 +339,13 @@ These facts constrain the work below.
   canonical 89-byte structural-call template. Its `E8` displacement remains an
   explicit typed internal-Machine fixup (opcode 80, field 81, next-IP 85,
   signed width four, addend zero), so zero placeholder bytes are not executable
-  authority. The next backend milestone is to retain this template/fixup in the
-  layout-independent selected-form carrier and resolve it only at whole-text
-  placement, where caller and callee section offsets are both known. Only then
+  authority. Layout-independent selected-form encoding v5 now retains a
+  parallel structural-function roster with the exact template, decoded
+  footprint, typed fixup, separate canonical `C3` return row, and independently
+  replayed ordinary/structural counts. It grants no layout or relocation
+  authority. The next backend milestone is to carry the unresolved fixup through
+  resolved and function-relative layout, then resolve it only at whole-text
+  placement where caller and callee section offsets are both known. Only then
   can an applicable object and MachineId-rooted private continuation symbol be
   joined to the settlement, semantic contract, and wrapper plan. The compiler-
   private wrapper itself receives no fabricated Terminal `MachineId`. The
@@ -2480,9 +2484,11 @@ dependency.
   allocation legality, empty homes, an explicit allocation-manifest statistic,
   and post-allocation machine replay. The target-owned encoder produces an
   independently decoded canonical 89-byte template with one typed unresolved
-  internal-Machine rel32 fixup; it does not misclassify the zero field as a
-  resolved call. The next boundary must retain and resolve that fixup through
-  whole-section layout, encoding, and an applicable object/private continuation
+  internal-Machine rel32 fixup; selected-form encoding v5 retains it, its full
+  footprint, the separate return byte, and exact structural counts without
+  misclassifying the zero field as a resolved call. The next boundary must carry
+  and resolve that fixup through function-relative and whole-section layout,
+  encoding, and an applicable object/private continuation
   symbol, join those facts with the settlement, contract, and wrapper plan,
   then construct the semantic
   `ProgramStorageEntry` wrapper object. The scalar-

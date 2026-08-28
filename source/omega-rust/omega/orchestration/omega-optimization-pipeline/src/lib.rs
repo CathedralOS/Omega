@@ -219,8 +219,10 @@ pub use post_allocation_machine_optimizations::{
 pub use post_allocation_selected_form_encoding::{
     DeferredTerminalControlEncodingReason, OptimizedSelectedFormEncodingError,
     StagedOptimizedSelectedFormEncoding, TerminalSelectedFormDecodedFootprint,
-    TerminalSelectedFormEncodingIdentity, TerminalSelectedFormEncodingRow,
-    TerminalSelectedFormEncodingState, TerminalSelectedFormMachineOptimizationCustody,
+    TerminalSelectedFormEncodingCounts, TerminalSelectedFormEncodingIdentity,
+    TerminalSelectedFormEncodingRow, TerminalSelectedFormEncodingState,
+    TerminalSelectedFormMachineOptimizationCustody, TerminalSelectedStructuralUnitCallEncodingRow,
+    TerminalSelectedStructuralUnitFunctionEncoding,
     stage_optimized_layout_independent_selected_form_encoding,
     stage_optimized_layout_independent_selected_form_encoding_after_aarch64_cbnz_fusion,
     validate_optimized_layout_independent_selected_form_encoding,
@@ -11477,6 +11479,89 @@ mod tests {
             )
             .is_err()
         );
+
+        let encoding = stage_optimized_layout_independent_selected_form_encoding(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+        )
+        .expect("structural Unit calls must retain typed unresolved pre-layout encoding");
+        assert!(encoding.rows().is_empty());
+        assert_eq!(encoding.structural_unit_functions().len(), 2);
+        assert_eq!(
+            encoding.counts(),
+            TerminalSelectedFormEncodingCounts {
+                ordinary_encoded: 0,
+                ordinary_deferred_control: 0,
+                structural_encoded_call_templates: 1,
+                structural_encoded_returns: 2,
+                structural_deferred_internal_control: 1,
+                structural_internal_fixups: 1,
+            }
+        );
+        let encoded_caller = &encoding.structural_unit_functions()[0];
+        let encoded_callee = &encoding.structural_unit_functions()[1];
+        let encoded_call = encoded_caller
+            .call
+            .as_ref()
+            .expect("caller owns one unresolved structural call template");
+        assert_eq!(encoded_call.bytes.len(), 89);
+        assert_eq!(
+            encoded_call.callee,
+            post.machine().plan().structural_unit_functions[0]
+                .call
+                .as_ref()
+                .unwrap()
+                .callee
+        );
+        assert_eq!(encoded_call.fixup.callee, encoded_call.callee);
+        assert_eq!(encoded_call.fixup.opcode_byte_offset, 80);
+        assert_eq!(encoded_call.fixup.field_byte_offset, 81);
+        assert_eq!(encoded_call.fixup.next_instruction_byte_offset, 85);
+        assert_eq!(encoded_call.fixup.field_byte_width, 4);
+        assert_eq!(&encoded_call.bytes[81..85], &[0, 0, 0, 0]);
+        assert!(encoded_callee.call.is_none());
+        for function in [encoded_caller, encoded_callee] {
+            assert!(matches!(
+                &function.return_instruction.state,
+                TerminalSelectedFormEncodingState::Encoded { bytes, .. }
+                    if bytes.as_slice() == [0xc3]
+            ));
+        }
+        validate_optimized_layout_independent_selected_form_encoding(
+            range_stage.liveness_stage().selected_stage().selected(),
+            &post,
+            environment.physical(),
+            &encoding,
+        )
+        .unwrap();
+
+        let mut corrupted = encoding.clone();
+        corrupted.structural_unit_functions_mut()[0]
+            .call
+            .as_mut()
+            .unwrap()
+            .bytes[0] ^= 1;
+        assert!(matches!(
+            validate_optimized_layout_independent_selected_form_encoding(
+                range_stage.liveness_stage().selected_stage().selected(),
+                &post,
+                environment.physical(),
+                &corrupted,
+            ),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
+        let mut corrupted = encoding.clone();
+        corrupted.counts_mut().structural_internal_fixups = 0;
+        assert!(matches!(
+            validate_optimized_layout_independent_selected_form_encoding(
+                range_stage.liveness_stage().selected_stage().selected(),
+                &post,
+                environment.physical(),
+                &corrupted,
+            ),
+            Err(OptimizedSelectedFormEncodingError::ArtifactMismatch)
+        ));
     }
 
     #[test]
