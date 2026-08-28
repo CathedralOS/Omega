@@ -29,7 +29,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 5;
+const RESOLVER_EXECUTION_OBSERVATION_SCHEMA_VERSION: u32 = 6;
 const RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT: usize = 32;
 const RESOLVER_EXECUTION_PATH_BYTE_LIMIT: usize = 32 * 1024;
 const RESOLVER_EXECUTION_CANONICAL_BYTE_LIMIT: usize = 2 * 1024 * 1024;
@@ -220,6 +220,7 @@ pub struct ResolverExecutionPolicyObservation {
     resource_ceilings: ResolverExecutionResourceCeilings,
     executable: PathBuf,
     additional_executables: Vec<PathBuf>,
+    inspection_read_root: Option<PathBuf>,
     mutable_root: Option<PathBuf>,
     guarantees: [ResolverExecutionGuaranteeRow; ResolverExecutionGuarantee::ALL.len()],
 }
@@ -255,6 +256,10 @@ impl ResolverExecutionPolicyObservation {
 
     pub fn additional_executables(&self) -> &[PathBuf] {
         &self.additional_executables
+    }
+
+    pub fn inspection_read_root(&self) -> Option<&Path> {
+        self.inspection_read_root.as_deref()
     }
 
     pub fn mutable_root(&self) -> Option<&Path> {
@@ -312,6 +317,13 @@ impl ResolverExecutionPolicyObservation {
         bytes.extend_from_slice(&(self.additional_executables.len() as u64).to_le_bytes());
         for executable in &self.additional_executables {
             encode_path(&mut bytes, executable);
+        }
+        match &self.inspection_read_root {
+            Some(root) => {
+                bytes.push(1);
+                encode_path(&mut bytes, root);
+            }
+            None => bytes.push(0),
         }
         match &self.mutable_root {
             Some(root) => {
@@ -436,6 +448,13 @@ struct ResolverExecutionPolicyInputs<'a> {
     generated_policy_sha256: Option<String>,
     executable: &'a Path,
     additional_executables: &'a [PathBuf],
+    inspection_read_root: Option<&'a Path>,
+    mutable_root: Option<&'a Path>,
+}
+
+#[derive(Clone, Copy)]
+struct ResolverExecutionAuthorityRoots<'a> {
+    inspection_read_root: Option<&'a Path>,
     mutable_root: Option<&'a Path>,
 }
 
@@ -512,6 +531,7 @@ impl ResolverExecutionBackend {
             resource_ceilings: configured_resource_ceilings(),
             executable: inputs.executable.to_path_buf(),
             additional_executables: inputs.additional_executables.to_vec(),
+            inspection_read_root: inputs.inspection_read_root.map(Path::to_path_buf),
             mutable_root: inputs.mutable_root.map(Path::to_path_buf),
             guarantees,
         })
@@ -544,7 +564,8 @@ impl ResolverExecutionBackend {
     /// Construct a command under the host's selected native enforcement.
     ///
     /// `additional_executables` is the closed set of transport helpers the
-    /// already-verified primary executable may launch. `mutable_root` is
+    /// already-verified primary executable may launch. `inspection_read_root`
+    /// is required exactly for repository inspection. `mutable_root` is
     /// required exactly for the two mutating phases and rejected otherwise.
     #[cfg(test)]
     fn command(
@@ -567,6 +588,22 @@ impl ResolverExecutionBackend {
         .map(|(command, _observation)| command)
     }
 
+    #[cfg(test)]
+    fn command_with_inspection_read_root(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        inspection_read_root: &Path,
+    ) -> io::Result<Command> {
+        let (mut command, _observation) = self.command_with_inspection_read_root_observation(
+            executable,
+            additional_executables,
+            inspection_read_root,
+        )?;
+        command.current_dir(inspection_read_root);
+        Ok(command)
+    }
+
     /// Construct one command and its opaque policy observation from the same
     /// validated inputs. The observation does not state that the command ran.
     pub fn command_with_observation(
@@ -587,6 +624,27 @@ impl ResolverExecutionBackend {
         )
     }
 
+    /// Construct one repository-inspection command bound to the exact retained
+    /// repository whose file contents may be read.
+    pub fn command_with_inspection_read_root_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        inspection_read_root: &Path,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.command_with_authority_roots_observation(
+            executable,
+            additional_executables,
+            ResolverExecutionPhase::RepositoryInspection,
+            None,
+            None,
+            ResolverExecutionAuthorityRoots {
+                inspection_read_root: Some(inspection_read_root),
+                mutable_root: None,
+            },
+        )
+    }
+
     /// Construct one command and bind its native policy to an endpoint route.
     /// Network phases require a route; nonnetwork phases reject one. Finish the
     /// route after execution to obtain its separate endpoint observation.
@@ -598,6 +656,28 @@ impl ResolverExecutionBackend {
         network_transport: Option<ResolverExecutionNetworkTransport>,
         endpoint_route: Option<&ResolverExecutionEndpointRoute>,
         mutable_root: Option<&Path>,
+    ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
+        self.command_with_authority_roots_observation(
+            executable,
+            additional_executables,
+            phase,
+            network_transport,
+            endpoint_route,
+            ResolverExecutionAuthorityRoots {
+                inspection_read_root: None,
+                mutable_root,
+            },
+        )
+    }
+
+    fn command_with_authority_roots_observation(
+        &self,
+        executable: &Path,
+        additional_executables: &[PathBuf],
+        phase: ResolverExecutionPhase,
+        network_transport: Option<ResolverExecutionNetworkTransport>,
+        endpoint_route: Option<&ResolverExecutionEndpointRoute>,
+        roots: ResolverExecutionAuthorityRoots<'_>,
     ) -> io::Result<(Command, ResolverExecutionPolicyObservation)> {
         self.verify()?;
         require_absolute(executable, "resolver executable")?;
@@ -643,7 +723,7 @@ impl ResolverExecutionBackend {
                 ));
             }
         }
-        match (phase.requires_mutable_root(), mutable_root) {
+        match (phase.requires_mutable_root(), roots.mutable_root) {
             (true, Some(root)) => {
                 require_absolute(root, "resolver mutable root")?;
                 require_canonical_bounded_path(root, "resolver mutable root")?;
@@ -662,6 +742,25 @@ impl ResolverExecutionBackend {
             }
             (false, None) => {}
         }
+        match (phase, roots.inspection_read_root) {
+            (ResolverExecutionPhase::RepositoryInspection, Some(root)) => {
+                require_absolute(root, "resolver inspection read root")?;
+                require_canonical_bounded_path(root, "resolver inspection read root")?;
+            }
+            (ResolverExecutionPhase::RepositoryInspection, None) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "repository inspection has no read root",
+                ));
+            }
+            (_, Some(_)) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "noninspection resolver phase received an inspection read root",
+                ));
+            }
+            (_, None) => {}
+        }
 
         #[cfg(target_os = "macos")]
         let (mut command, generated_policy_sha256) = self.macos_command(
@@ -670,7 +769,7 @@ impl ResolverExecutionBackend {
             phase,
             network_transport,
             endpoint_route.map(ResolverExecutionEndpointRoute::policy),
-            mutable_root,
+            roots,
         )?;
         #[cfg(not(target_os = "macos"))]
         let mut command = Command::new(executable);
@@ -685,7 +784,8 @@ impl ResolverExecutionBackend {
             generated_policy_sha256,
             executable,
             additional_executables: &additional_executables,
-            mutable_root,
+            inspection_read_root: roots.inspection_read_root,
+            mutable_root: roots.mutable_root,
         })?;
         Ok((command, observation))
     }
@@ -698,7 +798,7 @@ impl ResolverExecutionBackend {
         phase: ResolverExecutionPhase,
         network_transport: Option<ResolverExecutionNetworkTransport>,
         endpoint_route: Option<&ResolverExecutionEndpointRoutePolicy>,
-        mutable_root: Option<&Path>,
+        roots: ResolverExecutionAuthorityRoots<'_>,
     ) -> io::Result<(Command, Option<String>)> {
         let ResolverExecutionBackendIdentity::MacosSeatbelt {
             executable: sandbox_executable,
@@ -713,9 +813,25 @@ impl ResolverExecutionBackend {
         if phase.permits_descendant_processes() {
             profile.push_str("(allow process-fork) ");
         }
+        profile.push_str("(allow signal) ");
+        if phase == ResolverExecutionPhase::RepositoryInspection {
+            profile.push_str(
+                "(allow file-read-metadata) \
+                 (allow file-read-data (subpath (param \"INSPECTION_READ_ROOT\")) \
+                  (literal (param \"EXECUTABLE_0\"))",
+            );
+            for index in 0..additional_executables.len() {
+                profile.push_str(&format!(" (literal (param \"EXECUTABLE_{}\"))", index + 1));
+            }
+            profile.push_str(&format!(
+                " (literal \"{}\") (literal \"{MACOS_NULL_DEVICE}\")) ",
+                std::path::MAIN_SEPARATOR
+            ));
+        } else {
+            profile.push_str("(allow file-read*) ");
+        }
         profile.push_str(&format!(
-            "(allow signal) (allow file-read*) \
-             (allow file-test-existence file-write-data (literal \"{MACOS_NULL_DEVICE}\")) \
+            "(allow file-test-existence file-write-data (literal \"{MACOS_NULL_DEVICE}\")) \
              (allow process-exec (literal (param \"EXECUTABLE_0\"))"
         ));
         for index in 0..additional_executables.len() {
@@ -746,10 +862,15 @@ impl ResolverExecutionBackend {
                 helper,
             ));
         }
-        if let Some(root) = mutable_root {
+        if let Some(root) = roots.mutable_root {
             command
                 .arg("-D")
                 .arg(definition_argument("MUTABLE_ROOT", root));
+        }
+        if let Some(root) = roots.inspection_read_root {
+            command
+                .arg("-D")
+                .arg(definition_argument("INSPECTION_READ_ROOT", root));
         }
         if let Some(route) = endpoint_route {
             command.arg("-D").arg(format!(
@@ -1120,8 +1241,8 @@ mod tests {
     #[cfg(unix)]
     use super::CHILD_OPEN_FILE_LIMIT;
     use super::{
-        RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionBackend,
-        ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
+        RESOLVER_EXECUTION_ADDITIONAL_EXECUTABLE_LIMIT, ResolverExecutionAuthorityRoots,
+        ResolverExecutionBackend, ResolverExecutionEndpointRoute, ResolverExecutionGuarantee,
         ResolverExecutionGuaranteeDisposition, ResolverExecutionNetworkTransport,
         ResolverExecutionPhase, ResolverExecutionRequestedEndpoint,
     };
@@ -1138,6 +1259,12 @@ mod tests {
             .expect("open loopback endpoint route")
     }
 
+    fn inspection_root() -> std::path::PathBuf {
+        std::env::temp_dir()
+            .canonicalize()
+            .expect("canonical temporary inspection root")
+    }
+
     #[test]
     fn mutability_is_derived_from_the_closed_phase() {
         let backend = ResolverExecutionBackend::open().expect("open resolver backend");
@@ -1146,13 +1273,19 @@ mod tests {
         } else {
             Path::new("/bin/sh")
         };
+        let inspection_root = inspection_root();
         assert!(
             backend
-                .command(
+                .command_with_authority_roots_observation(
                     executable,
                     &[],
                     ResolverExecutionPhase::RepositoryInspection,
-                    Some(Path::new("/tmp")),
+                    None,
+                    None,
+                    ResolverExecutionAuthorityRoots {
+                        inspection_read_root: Some(&inspection_root),
+                        mutable_root: Some(Path::new("/tmp")),
+                    },
                 )
                 .is_err()
         );
@@ -1175,6 +1308,7 @@ mod tests {
             .canonicalize()
             .expect("canonical temporary root");
         let route = loopback_route(&backend);
+        let inspection_root = inspection_root();
 
         for (phase, mutable_root) in [
             (ResolverExecutionPhase::TransportDiscovery, None),
@@ -1213,17 +1347,72 @@ mod tests {
         ] {
             assert!(
                 backend
-                    .command_with_endpoint_route_observation(
+                    .command_with_authority_roots_observation(
                         executable,
                         &[],
                         phase,
                         None,
                         Some(&route),
-                        mutable_root,
+                        ResolverExecutionAuthorityRoots {
+                            inspection_read_root: (phase
+                                == ResolverExecutionPhase::RepositoryInspection)
+                                .then_some(inspection_root.as_path()),
+                            mutable_root,
+                        },
                     )
                     .is_err()
             );
         }
+    }
+
+    #[test]
+    fn inspection_read_roots_are_required_exactly_for_inspection() {
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let executable = if cfg!(windows) {
+            Path::new(r"C:\Windows\System32\cmd.exe")
+        } else {
+            Path::new("/bin/sh")
+        };
+        let inspection_root = inspection_root();
+
+        assert!(
+            backend
+                .command_with_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::RepositoryInspection,
+                    None,
+                    None,
+                )
+                .is_err(),
+            "inspection requires an explicit content-read root"
+        );
+        assert!(
+            backend
+                .command_with_authority_roots_observation(
+                    executable,
+                    &[],
+                    ResolverExecutionPhase::RepositoryInitialization,
+                    None,
+                    None,
+                    ResolverExecutionAuthorityRoots {
+                        inspection_read_root: Some(&inspection_root),
+                        mutable_root: Some(&inspection_root),
+                    },
+                )
+                .is_err(),
+            "other phases reject inspection content-read authority"
+        );
+        assert!(
+            backend
+                .command_with_inspection_read_root_observation(
+                    executable,
+                    &[],
+                    Path::new("relative"),
+                )
+                .is_err(),
+            "inspection content-read roots must be absolute"
+        );
     }
 
     #[test]
@@ -1237,14 +1426,9 @@ mod tests {
         let mutable_root = std::env::temp_dir()
             .canonicalize()
             .expect("canonical temporary root");
+        let inspection_root = inspection_root();
         let (_, inspection) = backend
-            .command_with_observation(
-                executable,
-                &[],
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-                None,
-            )
+            .command_with_inspection_read_root_observation(executable, &[], &inspection_root)
             .expect("issue inspection policy observation");
         let fetch_route = loopback_route(&backend);
         let (_, fetch) = backend
@@ -1285,25 +1469,32 @@ mod tests {
         );
         assert!(
             backend
-                .command_with_observation(
+                .command_with_authority_roots_observation(
                     executable,
                     &[],
                     ResolverExecutionPhase::RepositoryInspection,
                     Some(ResolverExecutionNetworkTransport::Https),
                     None,
+                    ResolverExecutionAuthorityRoots {
+                        inspection_read_root: Some(&inspection_root),
+                        mutable_root: None,
+                    },
                 )
                 .is_err(),
             "nonnetwork phases reject transport authority"
         );
         assert!(
             backend
-                .command_with_endpoint_route_observation(
+                .command_with_authority_roots_observation(
                     executable,
                     &[],
                     ResolverExecutionPhase::RepositoryInspection,
                     None,
                     Some(&fetch_route),
-                    None,
+                    ResolverExecutionAuthorityRoots {
+                        inspection_read_root: Some(&inspection_root),
+                        mutable_root: None,
+                    },
                 )
                 .is_err(),
             "nonnetwork phases reject endpoint routes"
@@ -1319,19 +1510,30 @@ mod tests {
         assert_eq!(
             inspection.canonical_bytes(),
             backend
-                .command_with_observation(
-                    executable,
-                    &[],
-                    ResolverExecutionPhase::RepositoryInspection,
-                    None,
-                    None,
-                )
+                .command_with_inspection_read_root_observation(executable, &[], &inspection_root,)
                 .expect("reissue inspection policy observation")
                 .1
                 .canonical_bytes()
         );
         assert_ne!(inspection.canonical_bytes(), fetch.canonical_bytes());
+        let alternate_inspection_root = inspection_root.join("alternate");
+        let alternate_inspection = backend
+            .command_with_inspection_read_root_observation(
+                executable,
+                &[],
+                &alternate_inspection_root,
+            )
+            .expect("issue alternate inspection policy observation")
+            .1;
+        assert_ne!(
+            inspection.canonical_bytes(),
+            alternate_inspection.canonical_bytes()
+        );
         assert_eq!(inspection.executable(), executable);
+        assert_eq!(
+            inspection.inspection_read_root(),
+            Some(inspection_root.as_path())
+        );
         assert_eq!(fetch.mutable_root(), Some(mutable_root.as_path()));
         #[cfg(unix)]
         {
@@ -1376,22 +1578,19 @@ mod tests {
         } else {
             Path::new("/usr/bin/git").to_path_buf()
         };
+        let inspection_root = inspection_root();
         let (_, left) = backend
-            .command_with_observation(
+            .command_with_inspection_read_root_observation(
                 executable,
                 &[second.clone(), first.clone(), second.clone()],
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-                None,
+                &inspection_root,
             )
             .expect("construct normalized policy observation");
         let (_, right) = backend
-            .command_with_observation(
+            .command_with_inspection_read_root_observation(
                 executable,
                 &[first.clone(), second.clone()],
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-                None,
+                &inspection_root,
             )
             .expect("reconstruct normalized policy observation");
         assert_eq!(left.canonical_bytes(), right.canonical_bytes());
@@ -1407,12 +1606,10 @@ mod tests {
         ];
         assert!(
             backend
-                .command_with_observation(
+                .command_with_inspection_read_root_observation(
                     executable,
                     &excessive,
-                    ResolverExecutionPhase::RepositoryInspection,
-                    None,
-                    None,
+                    &inspection_root,
                 )
                 .is_err()
         );
@@ -1427,13 +1624,7 @@ mod tests {
             .canonicalize()
             .expect("canonical temporary root");
         let (inspection_command, inspection) = backend
-            .command_with_observation(
-                executable,
-                &[],
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-                None,
-            )
+            .command_with_inspection_read_root_observation(executable, &[], &mutable_root)
             .expect("issue inspection policy observation");
         let (initialization_command, initialization) = backend
             .command_with_observation(
@@ -1511,6 +1702,12 @@ mod tests {
         assert!(!inspection_profile.contains("network-outbound"));
         assert!(!inspection_profile.contains("file-write*"));
         assert!(!inspection_profile.contains("process-fork"));
+        assert!(!inspection_profile.contains("(allow file-read*)"));
+        assert!(inspection_profile.contains("(allow file-read-metadata)"));
+        assert!(
+            inspection_profile
+                .contains("(allow file-read-data (subpath (param \"INSPECTION_READ_ROOT\"))")
+        );
         assert!(
             inspection_profile
                 .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
@@ -1748,12 +1945,12 @@ mod tests {
         let helper_executables = [Path::new("/bin/bash").to_path_buf()];
         #[cfg(not(target_os = "macos"))]
         let helper_executables = [];
+        let inspection_root = inspection_root();
         let mut command = backend
-            .command(
+            .command_with_inspection_read_root(
                 Path::new("/bin/sh"),
                 &helper_executables,
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
+                &inspection_root,
             )
             .expect("build limited shell");
         let output = command
@@ -1837,12 +2034,7 @@ mod tests {
         let helper_executables = [Path::new("/bin/bash").to_path_buf()];
 
         let mut allowed = backend
-            .command(
-                Path::new("/bin/sh"),
-                &helper_executables,
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-            )
+            .command_with_inspection_read_root(Path::new("/bin/sh"), &helper_executables, &root)
             .expect("build inspection sandbox");
         let status = allowed
             .args(["-c", "printf allowed > /dev/null"])
@@ -1851,12 +2043,7 @@ mod tests {
         assert!(status.success());
 
         let mut denied = backend
-            .command(
-                Path::new("/bin/sh"),
-                &helper_executables,
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-            )
+            .command_with_inspection_read_root(Path::new("/bin/sh"), &helper_executables, &root)
             .expect("build inspection sandbox");
         let status = denied
             .args(["-c", "printf denied > \"$1\"", "resolver-test"])
@@ -1866,6 +2053,61 @@ mod tests {
         assert!(!status.success());
         assert!(!marker.exists());
         std::fs::remove_dir(root).expect("remove inspection canary root");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn seatbelt_inspection_confines_file_content_to_the_retained_repository() {
+        use std::os::unix::fs::symlink;
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        static SEQUENCE: AtomicU64 = AtomicU64::new(0);
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let parent = std::env::temp_dir().join(format!(
+            "omega-resolver-inspection-read-{}-{sequence}",
+            std::process::id()
+        ));
+        let repository = parent.join("repository");
+        std::fs::create_dir_all(&repository).expect("create inspection repository");
+        let repository = repository
+            .canonicalize()
+            .expect("canonicalize inspection repository");
+        let inside = repository.join("inside");
+        let sibling = parent.join("sibling");
+        let escaped_link = repository.join("escaped-link");
+        std::fs::write(&inside, b"inside").expect("write inside canary");
+        std::fs::write(&sibling, b"sibling").expect("write sibling canary");
+        symlink(&sibling, &escaped_link).expect("create escaping symlink");
+
+        let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let mut allowed = backend
+            .command_with_inspection_read_root(Path::new("/bin/cat"), &[], &repository)
+            .expect("build repository-content sandbox");
+        let output = allowed.arg(&inside).output().expect("read inside content");
+        assert!(
+            output.status.success(),
+            "inside read failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(output.stdout, b"inside");
+
+        for denied_path in [&sibling, &escaped_link] {
+            let mut denied = backend
+                .command_with_inspection_read_root(Path::new("/bin/cat"), &[], &repository)
+                .expect("build repository-content sandbox");
+            let output = denied
+                .arg(denied_path)
+                .output()
+                .expect("attempt escaped content read");
+            assert!(!output.status.success());
+            assert!(output.stdout.is_empty());
+        }
+
+        std::fs::remove_file(escaped_link).expect("remove escaping symlink");
+        std::fs::remove_file(inside).expect("remove inside canary");
+        std::fs::remove_file(sibling).expect("remove sibling canary");
+        std::fs::remove_dir(repository).expect("remove inspection repository");
+        std::fs::remove_dir(parent).expect("remove inspection parent");
     }
 
     #[cfg(target_os = "macos")]
@@ -1920,12 +2162,12 @@ mod tests {
             Path::new("/bin/bash").to_path_buf(),
             Path::new("/usr/bin/true").to_path_buf(),
         ];
+        let inspection_root = inspection_root();
         let mut command = backend
-            .command(
+            .command_with_inspection_read_root(
                 Path::new("/bin/sh"),
                 &helper_executables,
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
+                &inspection_root,
             )
             .expect("build descendant-denial sandbox");
         let status = command
@@ -1947,13 +2189,9 @@ mod tests {
             .expect("make canary listener nonblocking");
         let port = listener.local_addr().expect("read canary address").port();
         let backend = ResolverExecutionBackend::open().expect("open resolver backend");
+        let inspection_root = inspection_root();
         let mut denied = backend
-            .command(
-                Path::new("/usr/bin/nc"),
-                &[],
-                ResolverExecutionPhase::RepositoryInspection,
-                None,
-            )
+            .command_with_inspection_read_root(Path::new("/usr/bin/nc"), &[], &inspection_root)
             .expect("build network-denied sandbox");
         let status = denied
             .args(["127.0.0.1", &port.to_string()])
