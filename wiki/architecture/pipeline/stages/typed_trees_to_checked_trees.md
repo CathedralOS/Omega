@@ -321,7 +321,14 @@ Current ownership is:
   borrow overlap entry dispatch and root matching,
   `checks/borrows/overlap/segments.rs` owns place-segment overlap policy,
   `checks/borrows/overlap/indexes.rs` owns index and range overlap policy, and
-  handles normalized fixed-index/range pairs as well as range/range pairs;
+  handles normalized fixed-index/range pairs as well as range/range pairs. For
+  admitted zero-premise structural compatibility rows it also captures and
+  replays the ordered forming/active path positions of every consulted scalar,
+  range-start, and normalized exclusive-end selector. Exact integer and
+  immutable-symbol values are formation-frozen; explicit unknown rows remain
+  conservative. Replay independently normalizes the exact typed formation and
+  requires equality before consuming a prior certificate across an idempotent
+  ledger rebuild; a new pair records the current formation normalization;
   `checks/borrows/details.rs` owns diagnostic lifetime explanations.
   Aggregate loan construction recursively preserves exact record, active-case,
   and fixed-index owner paths. Direct helper-call results and moved/projected

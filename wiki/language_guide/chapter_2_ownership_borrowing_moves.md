@@ -276,9 +276,16 @@ for this split without promoting proof facts into authority. Each admitted
 loan/loan non-interference judgment records a separate zero-premise
 `Structural` row naming the formation's machine, state, and statement, both
 exact loan occurrences, their frozen places, and the normalized relational
-conclusion. Rerunning checked-fact validation rebuilds those rows
-deterministically. Proposition premises and Terminal verification remain a
-later rung; this checked record does not change ordinary borrow admission.
+conclusion. For every dynamic selector position consulted by the judgment, the
+row also freezes its forming/active side, place-path position, selector
+coordinate, and exact normalized integer or immutable-symbol value; a
+conservatively unknown coordinate is retained explicitly and grants no positive
+evidence. Rerunning checked-fact validation independently normalizes the exact
+typed formation expression, requires equality with the frozen rows, and then
+replays the relationship. Runtime changes cannot retarget the immutable-symbol
+occurrence captured by an existing loan; typed formation drift rejects.
+Proposition premises and Terminal verification remain a later rung; this
+checked record does not change ordinary borrow admission.
 
 In:
 

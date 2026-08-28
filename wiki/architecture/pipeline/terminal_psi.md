@@ -361,11 +361,17 @@ the exact machine/state/statement formation coordinate, two state-owned loan
 handles, frozen captured places, and normalized relational conclusion. Repeated
 checked-fact validation rebuilds that arena deterministically, and resource
 rejoin rejects changed handles, places, or formation coordinates. A separate
-checked replay now recomputes spatial disjointness, directed containment, and
-access-aware non-interference from those frozen places plus the authoritative
-loan polarities, and requires the zero-premise `Structural` derivation. This
-carrier does not yet encode Terminal evidence or admit proposition premises,
-and it does not alter the loan resource rows or admission semantics.
+formation snapshot retains every consulted dynamic-selector coordinate in
+ordered forming/active path position with its normalized integer,
+immutable-symbol, or conservative-unknown result. Checked replay independently
+normalizes the exact typed formation expression, requires equality with the
+snapshot, recomputes spatial disjointness, directed containment, and
+access-aware non-interference from the frozen places plus authoritative loan
+polarities, and requires the zero-premise `Structural` derivation. Missing,
+reordered, malformed, or conclusion-changing selector rows and duplicate or
+stale certificate roster entries reject. This carrier does not yet encode
+Terminal evidence or admit proposition premises, and it does not alter the loan
+resource rows or admission semantics.
 
 Checked loan formation also retains one narrow parent-lineage prerequisite.
 Every loan is classified as a direct root, a direct reborrow naming one exact

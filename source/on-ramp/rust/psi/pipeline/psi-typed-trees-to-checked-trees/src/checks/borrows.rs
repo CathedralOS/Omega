@@ -27,13 +27,14 @@ pub(crate) fn check_flow_call_borrows(
     resources::replay_checked_direct_borrow_resources(program, facts)?;
     let mut diagnostics = Vec::new();
     let mut compatibility_certificates = Vec::new();
-
-    // Checked recording is deliberately idempotent: each run rebuilds this
-    // proof ledger from the unchanged resource/control facts.
-    facts
+    let retained_compatibility_certificates = facts
         .borrow
         .compatibility_certificates
-        .reset_retain_capacity();
+        .iter()
+        .map(|(_, certificate)| certificate.clone())
+        .collect::<Vec<_>>();
+    let mut retained_compatibility_certificates_consumed =
+        vec![false; retained_compatibility_certificates.len()];
 
     check_view_return_elision(program, &mut diagnostics);
     check_view_return_escape(program, facts, &mut diagnostics);
@@ -54,18 +55,49 @@ pub(crate) fn check_flow_call_borrows(
             state_flow,
             &mut diagnostics,
             &mut compatibility_certificates,
+            &retained_compatibility_certificates,
+            &mut retained_compatibility_certificates_consumed,
         );
     }
 
-    facts
-        .borrow
-        .compatibility_certificates
-        .insert_many(compatibility_certificates);
-    diagnostics.extend(validate_checked_borrow_compatibility_certificates(
-        program, facts,
-    ));
+    for (certificate, consumed) in retained_compatibility_certificates
+        .iter()
+        .zip(&retained_compatibility_certificates_consumed)
+    {
+        if !consumed {
+            diagnostics.push(Diagnostic::error(format!(
+                "checked borrow compatibility certificate at statement {} was not consumed by its exact formation loan pair",
+                certificate.formation.statement_index,
+            )));
+        }
+    }
+    for (index, certificate) in compatibility_certificates.iter().enumerate() {
+        if compatibility_certificates[..index]
+            .iter()
+            .any(|prior| compatibility_certificate_key_matches(prior, certificate))
+        {
+            diagnostics.push(duplicate_compatibility_certificate_diagnostic(certificate));
+            continue;
+        }
+        if let Err(diagnostic) =
+            replay_checked_borrow_compatibility_certificate(program, facts, certificate)
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
 
     if diagnostics.is_empty() {
+        // Settlement is transactional: publish the rebuilt proof ledger only
+        // after every retained formation was consumed exactly once and every
+        // new row independently replayed.
+        facts
+            .borrow
+            .compatibility_certificates
+            .reset_retain_capacity();
+        facts
+            .borrow
+            .compatibility_certificates
+            .insert_many(compatibility_certificates);
         Ok(())
     } else {
         Err(diagnostics)
@@ -83,14 +115,46 @@ fn validate_checked_borrow_compatibility_certificates(
     program: &psi_typed_trees::TypedTrees,
     facts: &CheckFacts,
 ) -> Vec<Diagnostic> {
-    facts
+    let certificates = facts
         .borrow
         .compatibility_certificates
         .iter()
-        .filter_map(|(_, certificate)| {
-            replay_checked_borrow_compatibility_certificate(program, facts, certificate).err()
-        })
-        .collect()
+        .map(|(_, certificate)| certificate)
+        .collect::<Vec<_>>();
+    let mut diagnostics = Vec::new();
+    for (index, certificate) in certificates.iter().enumerate() {
+        if certificates[..index]
+            .iter()
+            .any(|prior| compatibility_certificate_key_matches(prior, certificate))
+        {
+            diagnostics.push(duplicate_compatibility_certificate_diagnostic(certificate));
+            continue;
+        }
+        if let Err(diagnostic) =
+            replay_checked_borrow_compatibility_certificate(program, facts, certificate)
+        {
+            diagnostics.push(diagnostic);
+        }
+    }
+    diagnostics
+}
+
+fn duplicate_compatibility_certificate_diagnostic(
+    certificate: &psi_checked_trees::CheckedBorrowCompatibilityCertificate,
+) -> Diagnostic {
+    Diagnostic::error(format!(
+        "checked borrow compatibility certificate duplicates the formation loan-pair key at statement {}",
+        certificate.formation.statement_index,
+    ))
+}
+
+fn compatibility_certificate_key_matches(
+    left: &psi_checked_trees::CheckedBorrowCompatibilityCertificate,
+    right: &psi_checked_trees::CheckedBorrowCompatibilityCertificate,
+) -> bool {
+    left.formation == right.formation
+        && left.forming_loan == right.forming_loan
+        && left.active_loan == right.active_loan
 }
 
 fn replay_checked_borrow_compatibility_certificate(
@@ -120,13 +184,21 @@ fn replay_checked_borrow_compatibility_certificate(
             "checked borrow compatibility certificate does not rejoin its exact state-owned loans",
         ));
     };
-    let replayed = overlap::captured_place_compatibility(
+    let forming_loan = facts.borrow.loans.get(certificate.forming_loan);
+    let active_loan = facts.borrow.loans.get(certificate.active_loan);
+    let Some(replayed) = overlap::borrow_loan_compatibility_from_selector_snapshot(
         program,
-        &certificate.forming_place,
+        facts,
+        forming_loan,
         forming_access,
-        &certificate.active_place,
+        active_loan,
         active_access,
-    );
+        &certificate.selector_snapshot,
+    ) else {
+        return Err(Diagnostic::error(
+            "checked borrow compatibility certificate selector snapshot drifted from its captured-place shape",
+        ));
+    };
     let replayed_conclusion = psi_checked_trees::BorrowCompatibilityConclusion {
         disjoint: replayed.disjoint,
         containment: replayed.containment,

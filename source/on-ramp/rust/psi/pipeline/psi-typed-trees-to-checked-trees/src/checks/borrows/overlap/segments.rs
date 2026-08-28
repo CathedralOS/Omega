@@ -1,5 +1,12 @@
-use super::indexes::{index_expression_may_contain_fixed, index_expressions_may_overlap};
-use psi_checked_trees::CapturedPlaceContainment;
+use super::indexes::{
+    SelectorLocation, SelectorSnapshotEvaluation,
+    index_expression_may_contain_fixed_with_selectors,
+    index_expression_may_overlap_fixed_range_with_selectors,
+    index_expressions_may_overlap_with_selectors,
+};
+use psi_checked_trees::{
+    BorrowCompatibilityPlaceSide, BorrowCompatibilitySelectorSnapshot, CapturedPlaceContainment,
+};
 
 pub(super) fn place_segments_containment(
     left: &[psi_facts::PlaceSegment],
@@ -103,17 +110,61 @@ fn structural_segment_equal(left: psi_facts::PlaceSegment, right: psi_facts::Pla
     }
 }
 
+#[cfg(test)]
 pub(super) fn place_segments_may_overlap(
     program: &psi_typed_trees::TypedTrees,
     left: &[psi_facts::PlaceSegment],
     right: &[psi_facts::PlaceSegment],
 ) -> bool {
+    let mut selectors = SelectorSnapshotEvaluation::capture();
+    place_segments_may_overlap_evaluated(program, left, right, &mut selectors)
+}
+
+pub(super) fn place_segments_may_overlap_with_snapshot(
+    program: &psi_typed_trees::TypedTrees,
+    left: &[psi_facts::PlaceSegment],
+    right: &[psi_facts::PlaceSegment],
+) -> (bool, Vec<BorrowCompatibilitySelectorSnapshot>) {
+    let mut selectors = SelectorSnapshotEvaluation::capture();
+    let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
+    (
+        may_overlap,
+        selectors
+            .finish()
+            .expect("captured selector evaluation is always complete"),
+    )
+}
+
+pub(super) fn place_segments_may_overlap_from_snapshot(
+    program: &psi_typed_trees::TypedTrees,
+    left: &[psi_facts::PlaceSegment],
+    right: &[psi_facts::PlaceSegment],
+    snapshot: &[BorrowCompatibilitySelectorSnapshot],
+) -> Option<bool> {
+    let mut selectors = SelectorSnapshotEvaluation::replay(snapshot);
+    let may_overlap = place_segments_may_overlap_evaluated(program, left, right, &mut selectors);
+    selectors.finish().map(|_| may_overlap)
+}
+
+fn place_segments_may_overlap_evaluated(
+    program: &psi_typed_trees::TypedTrees,
+    left: &[psi_facts::PlaceSegment],
+    right: &[psi_facts::PlaceSegment],
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
+) -> bool {
     let shared_len = left.len().min(right.len());
     left.iter()
         .take(shared_len)
         .zip(right.iter().take(shared_len))
-        .all(|(left_segment, right_segment)| {
-            place_segment_pair_may_overlap(program, *left_segment, *right_segment)
+        .enumerate()
+        .all(|(segment_index, (left_segment, right_segment))| {
+            place_segment_pair_may_overlap(
+                program,
+                *left_segment,
+                *right_segment,
+                segment_index,
+                selectors,
+            )
         })
 }
 
@@ -121,7 +172,17 @@ fn place_segment_pair_may_overlap(
     program: &psi_typed_trees::TypedTrees,
     left: psi_facts::PlaceSegment,
     right: psi_facts::PlaceSegment,
+    segment_index: usize,
+    selectors: &mut SelectorSnapshotEvaluation<'_>,
 ) -> bool {
+    let left_location = SelectorLocation {
+        side: BorrowCompatibilityPlaceSide::Forming,
+        segment_index,
+    };
+    let right_location = SelectorLocation {
+        side: BorrowCompatibilityPlaceSide::Active,
+        segment_index,
+    };
     match (left, right) {
         (
             psi_facts::PlaceSegment::Field {
@@ -169,23 +230,45 @@ fn place_segment_pair_may_overlap(
         (
             psi_facts::PlaceSegment::FixedRange { start, end },
             psi_facts::PlaceSegment::Index { expression },
-        )
-        | (
+        ) => index_expression_may_overlap_fixed_range_with_selectors(
+            program,
+            expression,
+            right_location,
+            start,
+            end,
+            selectors,
+        ),
+        (
             psi_facts::PlaceSegment::Index { expression },
             psi_facts::PlaceSegment::FixedRange { start, end },
-        ) => program
-            .expression_table
-            .constant_integer_value(expression)
-            .and_then(|value| usize::try_from(value).ok())
-            .is_none_or(|index| start < end && start <= index && index < end),
+        ) => index_expression_may_overlap_fixed_range_with_selectors(
+            program,
+            expression,
+            left_location,
+            start,
+            end,
+            selectors,
+        ),
         (
             psi_facts::PlaceSegment::FixedIndex { index },
             psi_facts::PlaceSegment::Index { expression },
-        )
-        | (
+        ) => index_expression_may_contain_fixed_with_selectors(
+            program,
+            expression,
+            right_location,
+            index,
+            selectors,
+        ),
+        (
             psi_facts::PlaceSegment::Index { expression },
             psi_facts::PlaceSegment::FixedIndex { index },
-        ) => index_expression_may_contain_fixed(program, expression, index),
+        ) => index_expression_may_contain_fixed_with_selectors(
+            program,
+            expression,
+            left_location,
+            index,
+            selectors,
+        ),
         (
             psi_facts::PlaceSegment::Index {
                 expression: left_expression,
@@ -193,7 +276,14 @@ fn place_segment_pair_may_overlap(
             psi_facts::PlaceSegment::Index {
                 expression: right_expression,
             },
-        ) => index_expressions_may_overlap(program, left_expression, right_expression),
+        ) => index_expressions_may_overlap_with_selectors(
+            program,
+            left_expression,
+            left_location,
+            right_expression,
+            right_location,
+            selectors,
+        ),
         _ => false,
     }
 }
@@ -201,7 +291,9 @@ fn place_segment_pair_may_overlap(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use psi_checked_trees::expression::{ExpressionHandle, ExpressionNode};
+    use psi_checked_trees::expression::{
+        BinaryOperator, ExpressionHandle, ExpressionNode, TableBinaryExpression,
+    };
 
     fn integer_expression(
         program: &mut psi_typed_trees::TypedTrees,
@@ -243,6 +335,32 @@ mod tests {
             &program,
             &[psi_facts::PlaceSegment::FixedIndex { index: 0 }],
             &[psi_facts::PlaceSegment::Index { expression: one }],
+        ));
+    }
+
+    #[test]
+    fn fixed_range_preserves_pure_constant_index_folding() {
+        let mut program = psi_typed_trees::TypedTrees::default();
+        let one = integer_expression(&mut program, 1);
+        let two = integer_expression(&mut program, 2);
+        let three =
+            program
+                .expression_table
+                .insert(ExpressionNode::Binary(TableBinaryExpression {
+                    left: one,
+                    operator: BinaryOperator::Add,
+                    right: two,
+                }));
+
+        assert!(!place_segments_may_overlap(
+            &program,
+            &[psi_facts::PlaceSegment::FixedRange { start: 0, end: 3 }],
+            &[psi_facts::PlaceSegment::Index { expression: three }],
+        ));
+        assert!(place_segments_may_overlap(
+            &program,
+            &[psi_facts::PlaceSegment::FixedRange { start: 0, end: 4 }],
+            &[psi_facts::PlaceSegment::Index { expression: three }],
         ));
     }
 
