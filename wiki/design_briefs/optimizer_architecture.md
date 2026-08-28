@@ -2342,8 +2342,9 @@ function-relative manifest/codec v8 binds the exact post-allocation selection,
 an explicit allocation-recovery phase projection,
 baseline/final pre-layout identities, optional fusion identity, and both
 resolved layouts; whole-function exit identity v7 independently admits only
-the exact elided-compare custody. Emission, relocation, image, installation,
-and publication remain later boundaries.
+the exact elided-compare custody. This carrier alone grants no emission,
+relocation, image, installation, or publication authority; later explicit
+stages consume it under their own custody.
 
 The second exact, default-off post-allocation transformation is
 `Aarch64SelectShortestMovnSeededI64MaterializationV1`. It accepts only an
@@ -2376,9 +2377,17 @@ target-convention evidence. A following owning function-relative realization
 retains that exit plus `OMGFRM` v8. Its manifest carries an optional MOVN
 materialization identity beside mutually exclusive x86-relaxation and CBNZ
 custody, binds the exact phase projections and baseline/final roots, and feeds
-the existing report lane. Fragment emission, text placement, object
-construction, installation, and publication remain unavailable. The build hook
-is the exact named selection; empty builds retain the baseline.
+the existing report lane. Direct and selected-lowering MOVN carriers now enter
+the generic fragment stage under the separate `Aarch64MovnV1` source kind. The
+fragment replay retains the strictly shorter materialization bytes and exact
+instruction provenance; dense AArch64 text placement then retains four-byte
+alignment, all section coordinates, the semantic entry, and a closed no-
+relocation conclusion. `OMGFFE` v6 and `OMGTSP` v6 authenticate a generalized
+six-kind source vocabulary. The unchanged generic object, canonical Terminal-
+artifact, and ordinary-callable stages consume the resulting authenticated
+child identities without introducing MOVN-specific schemas. Entry bridging,
+native image construction, installation, and publication remain unavailable.
+The build hook is the exact named selection; empty builds retain the baseline.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
@@ -2536,20 +2545,25 @@ custody or the exact independently replayed relaxation receipt. Baseline exit
 validation remains strict and cannot admit short bytes by accident.
 
 A later relocation-free boundary now consumes completed x86 rel8, AArch64 CBNZ,
-or active-resident rematerialization realization carriers and materializes dense
-bytes independently per function. Its immutable function-fragment artifact
+AArch64 MOVN, or active-resident rematerialization realization carriers and
+materializes dense bytes independently per function. Its immutable function-
+fragment artifact
 retains the function, block, and instruction spans—including the CBNZ route's
-zero-byte compare and the rematerializer's fresh nonempty `MaterializeI64`—plus
+zero-byte compare, the MOVN route's shorter materialization row, and the
+rematerializer's fresh nonempty `MaterializeI64`—plus
 the chosen alternatives, decoded branch evidence, full Psi/selected provenance,
 successor bindings, and path-specific fuel settlements. The architecture-
 neutral rematerialization source kind replays the complete owning carrier,
 requires its exact singleton allocation-recovery projection, and retains the
-baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8 or CBNZ.
+baseline `JNE rel32` or `B.NE imm19` branch rather than claiming rel8, CBNZ, or
+MOVN. The MOVN source kind independently replays either its direct or selected-
+lowering owning realization and consumes only its already resolved final bytes.
 It never concatenates functions into a globally placed section. Production and
 an independently coded replay reconstruct source custody, offsets, row bytes,
 aggregate bytes, statistics, receipt, and the content identity. The strict
-`OMGFFE` v5 manifest binds the generalized five-kind source vocabulary, including
-Unit baseline and structural-Unit custody, source realization, and every selected, post-allocation,
+`OMGFFE` v6 manifest binds the generalized six-kind source vocabulary,
+including MOVN, Unit baseline, and structural-Unit custody, source realization,
+and every selected, post-allocation,
 layout, exit, target, and fragment root while explicitly marking section
 placement, symbols, object
 relocations, executable image, installation, and publication unavailable.
@@ -2567,9 +2581,9 @@ return forms contain no address-bearing target and every relative conditional
 branch is already resolved to blocks in its owned function. Production and a
 separately coded replay reconstruct the byte concatenation, coordinates,
 alignment, entry, statistics, and closed no-relocation conclusion. The strict
-`OMGTSP` v5 manifest binds the generalized five-kind source vocabulary and all upstream
-roots while marking symbols, object container and serialization, external entry
-bridge, executable image,
+`OMGTSP` v6 manifest binds the generalized six-kind source vocabulary and all
+upstream roots while marking symbols, object container and serialization,
+external entry bridge, executable image,
 installation, and publication unavailable.
 
 The next object-owned boundary consumes that validated text section by value.
@@ -2625,7 +2639,7 @@ They retain the fresh nonempty `MaterializeI64` section span, transformed
 selected root and homes, sole `PressureRematerialization` ledger row, Terminal
 semantic/proof roots, private entry symbol, both return-edge result rows, and
 target ABI parameter/result registers through independent replay. The
-route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v5;
+route-specific source tag remains authenticated by `OMGFFE`/`OMGTSP` v6;
 `OMGTRO`/`OMGTOM` and `OMGOTA`/`OMGOTM` remain v1 because their generic
 child-identity vocabularies did not change. `OMGOER`/`OMGOEM` advance to v3
 because their closed exit-policy codec now names the structural leaf. Artifact reporting
@@ -2741,14 +2755,14 @@ the exact caller call/return spans `[0, 89)`/`[89, 90)` and leaf return span
 distinct balanced Microsoft-x64 structural-call policy, and a separate owning
 function-relative carrier publishes `OMGFRM` v8 statistics with zero ordinary
 rows, structural `2/2/3/91`, and one unresolved internal-Machine fixup.
-Machine-code fragment schema v3 and `OMGFFE` v5 now retain that exact parallel
+Machine-code fragment schema v3 and `OMGFFE` v6 now retain that exact parallel
 structural roster, 90/1-byte aggregate spans, call/return provenance, and a
 target-neutral typed fixup. That call-bearing fixture remains explicitly
 distinct from the relocation-free leaf stage. The target-owned x86 resolver
 computes checked signed rel32 fields and independently replays the complete
 patched call, including the canonical `+5` forward fixture and negative calls.
 Two-pass whole-text placement now constructs the complete `MachineId` offset
-map before resolving calls. Text-section schema v3 and `OMGTSP` v5 retain the
+map before resolving calls. Text-section schema v3 and `OMGTSP` v6 retain the
 patched 91-byte section, caller/callee spans `0/90` and `90/1`, exact opcode,
 field, next-IP and callee coordinates, the canonical `+5` displacement, and
 zero remaining internal fixups. Independent replay reconstructs the target
@@ -2796,8 +2810,8 @@ landed. Whole-function
 exit v6 independently admits exactly either the existing two-Machine
 entry-caller-to-leaf graph or one call-free entry leaf, and assigns the latter
 the separately named `MicrosoftX64FramelessStructuralUnitLeafV1` policy.
-Generalized `OMGFFE` v5 structural fragments classify its zero-fixup output as
-relocation-free; `OMGTSP` v5 places one `C3` with no resolution rows; the object
+Generalized `OMGFFE` v6 structural fragments classify its zero-fixup output as
+relocation-free; `OMGTSP` v6 places one `C3` with no resolution rows; the object
 owns one semantic-entry private symbol and no relocations; and canonical
 artifact replay rejoins the exact semantic and proof inputs. No fabricated
 wrapper `MachineId` or parameterless signature substitution is involved. This
@@ -3165,20 +3179,20 @@ projections.
 The pre-physical manifest's versioned standalone codec serializes that whole
 earlier record and strict nested codecs; the post-allocation record adds
 truthful home statistics while marking frame, emission, and publication
-unavailable. The function-relative v6 record then binds exact phase projections
+unavailable. The function-relative v8 record then binds exact phase projections
 and optional completions to the validated final selected CFG, machine effects,
 post-allocation machine, canonical encoding, baseline/final layout roots,
 optional layout-transform receipt, named layout policy, final code-size
 statistics, and the frameless whole-function exit contract. It explicitly
 marks frame, section, relocation, image, installation, and publication fields
-unavailable. The separate strict v3 function-fragment manifest additionally
-binds completed x86 rel8, AArch64 CBNZ, active-resident rematerialization, or
-Unit-baseline realization custody to relocation-free per-function bytes and
-exact span/provenance/fuel statistics while retaining the same later-boundary
-unavailability. The strict v3 text-section manifest then binds deterministic
-no-padding placement, section coordinates, aggregate bytes, the semantic-entry
-coordinate, and the independently proved absence of
-relocation requirements for the current inventory. It still declares symbols,
+unavailable. The separate strict v6 function-fragment manifest additionally
+binds completed x86 rel8, AArch64 CBNZ, AArch64 MOVN, active-resident
+rematerialization, Unit-baseline, or structural-Unit realization custody to
+per-function bytes and exact span/provenance/fuel statistics while retaining
+the same later-boundary unavailability. The strict v6 text-section manifest
+then binds deterministic placement, section coordinates, aggregate bytes, the
+semantic-entry coordinate, and the independently proved relocation conclusion
+for the six-kind inventory. It still declares symbols,
 object container/serialization, external entry bridge, image, installation,
 and publication unavailable. The pre-physical, post-allocation, and function-
 relative records have strict self-authenticating codecs. A third strict v1

@@ -262,10 +262,17 @@ These facts constrain the work below.
   exact replayed byte reduction in an owning carrier. Whole-function exit v7
   names the exact MOVN materialization custody, and function-relative manifest
   v8 retains the baseline/final roots, strict byte reduction, phase projection,
-  exit identity, and optional MOVN identity for reporting. The explicit stage
-  currently stops before fragment emission, text placement, object, callable,
-  installation, and publication authority. Combining it with another post-
-  allocation rule fails closed until an ordered composition is specified.
+  exit identity, and optional MOVN identity for reporting. Direct and selected-
+  lowering MOVN realizations now feed the generic function-fragment and dense
+  text-section stages under a distinct authenticated source kind. The exact
+  shorter materialization bytes, instruction spans, semantic-entry coordinate,
+  and zero-relocation conclusion survive independent replay. The unchanged
+  generic object, canonical Terminal-artifact, and ordinary-callable stages can
+  then retain those authenticated child roots without a MOVN-specific schema or
+  shortcut. This explicit staging grants no process-entry bridge, native image,
+  installation, or publication authority. Combining the rule with another
+  post-allocation rule still fails closed until an ordered composition is
+  specified.
 
   The first Unit backend vocabulary is now admitted without claiming an entry
   bridge. Independent legalization replay accepts exactly one receiver-free,
@@ -283,7 +290,7 @@ These facts constrain the work below.
   postallocation-machine to v4/codec v3. Fixed-copy codec v4,
   selected-form encoding v6, resolved-layout v6,
   whole-function exit v7, function-relative manifest v8, fragment manifest
-  v5, text manifest v5, fragment vocabulary v3, text-section vocabulary v3, and x86
+  v6, text manifest v6, fragment vocabulary v3, text-section vocabulary v3, and x86
   relaxation/revision v2 all
   reject older detached vocabulary. The ordinary-callable record/manifest
   codec is v3 because it closes over the expanded exit-policy vocabulary while
@@ -385,7 +392,7 @@ These facts constrain the work below.
   structural function-relative carrier and `OMGFRM` v8 manifest retain ordinary
   counts `0/0/0/0/0`, structural counts `2/2/3/91`, and one unresolved internal-
   Machine fixup under independent replay. Machine-code fragment schema v3 and
-  `OMGFFE` v5 now carry a generalized structural Unit roster. The two-function
+  `OMGFFE` v6 now carry a generalized structural Unit roster. The two-function
   call fixture retains exact 90/1-byte aggregate spans, call and return
   provenance, and an architecture-neutral unresolved internal-Machine fixup;
   the one-function leaf truthfully enters the relocation-free stage with one
@@ -395,7 +402,7 @@ These facts constrain the work below.
   milestone has now landed: two-pass dense placement constructs the complete
   `MachineId` offset map, independently reconstructs the target template,
   resolves the caller to the canonical `+5` displacement, and publishes
-  `OMGTSP` v5 with one source fixup, one resolution, and zero remaining fixups.
+  `OMGTSP` v6 with one source fixup, one resolution, and zero remaining fixups.
   Text-section schema v3 identity-binds the patched bytes and complete
   resolution coordinates. The unchanged zero-relocation object path then emits
   exact caller/callee private symbols at `0/90` and `90/1` with no fabricated
@@ -1334,12 +1341,13 @@ alternate semantic handoff.
   Current closure boundary: pre-physical, post-allocation, and selected-
   lowering function-relative records are structured, content-identified, and
   independently replayable. The function-relative record supplies truthful
-  code-size statistics; its v6 form binds the allocation-recovery projection
-  and the v4 validated frameless-leaf/Unit exit contract. A separate strict v3
-  function-fragment manifest now joins completed x86 rel8, AArch64 CBNZ, or
-  active-resident rematerialization or Unit-baseline realization to relocation-
-  free bytes, and a strict v3 text-section manifest binds deterministic
-  placement and a closed no-relocation proof for all four source kinds. A
+  code-size statistics; its v8 form binds the allocation-recovery projection
+  and the v7 validated whole-function exit contract. A separate strict v6
+  function-fragment manifest now joins completed x86 rel8, AArch64 CBNZ,
+  AArch64 MOVN, active-resident rematerialization, Unit-baseline, or structural-
+  Unit realization custody to bytes, and a strict v6 text-section manifest
+  binds deterministic placement and the applicable relocation conclusion for
+  all six source kinds. A
   strict v1 object-container
   manifest then binds private symbols, the object-local semantic entry,
   canonical container bytes,
@@ -2808,17 +2816,21 @@ alternate semantic handoff.
   non-x86 rejection.
 
   A subsequent relocation-free emission boundary consumes completed x86 rel8,
-  AArch64 CBNZ, or active-resident rematerialization realization carriers. Its
+  AArch64 CBNZ, AArch64 MOVN, or active-resident rematerialization realization
+  carriers. Its
   immutable function-fragment plan concatenates dense bytes independently per
   function and retains every block/instruction span (including a zero-byte
-  elided CBNZ compare and the rematerializer's fresh nonempty `MaterializeI64`),
+  elided CBNZ compare, the MOVN route's strictly shorter materialization row,
+  and the rematerializer's fresh nonempty `MaterializeI64`),
   complete provenance, successor bindings, branch evidence, and path-specific
   fuel. The architecture-neutral rematerialization source kind replays its
   complete owning carrier and requires the exact singleton allocation-recovery
   projection. It retains baseline `JNE rel32` or `B.NE imm19` branch evidence;
-  it cannot claim rel8 or CBNZ execution. A strict `OMGFFE` v5 manifest binds
-  the generalized five-kind source vocabulary, including Unit baseline and
-  structural-Unit custody, source
+  it cannot claim rel8, CBNZ, or MOVN execution. The MOVN source kind separately
+  replays its exact direct or selected-lowering owning realization and retains
+  the already validated final layout bytes without changing the selected plan.
+  A strict `OMGFFE` v6 manifest binds the generalized six-kind source vocabulary,
+  including MOVN, Unit baseline, and structural-Unit custody, source
   realization, selections,
   selected/post-allocation/layout/exit roots, target, fragment identity, and
   exact statistics. Independent replay reconstructs source custody, offsets,
@@ -2835,10 +2847,10 @@ alternate semantic handoff.
   without inventing an object/process entry symbol. An exhaustive current-
   alternative check proves that fallthrough/scalar/return forms embed no target
   and every relative conditional branch is already resolved within its owned
-  function. The strict `OMGTSP` v5 manifest includes rematerialization,
-  Unit-baseline, and structural-Unit source-kind tags, and independent replay binds every source,
-  layout, exit, and fragment root, aggregate byte, statistic, placement
-  coordinate, and the closed no-relocation conclusion. Symbols, object
+  function. The strict `OMGTSP` v6 manifest includes MOVN, rematerialization,
+  Unit-baseline, and structural-Unit source-kind tags. Independent replay binds
+  every source, layout, exit, and fragment root, aggregate byte, statistic,
+  placement coordinate, and the closed no-relocation conclusion. Symbols, object
   container/serialization, external entry bridge, executable image,
   installation, and publication remain unavailable.
 
@@ -3076,13 +3088,20 @@ alternate semantic handoff.
   keeps baseline and transformed encodings/layouts beside homes, machine,
   materialization, exit, and manifest custody; the report exposes the exact
   optional MOVN identity while rejecting simultaneous x86-relaxation or CBNZ
-  custody. The root build vocabulary remains an exact named opt-in and the
-  zero-seeded baseline is unchanged. Other post-allocation selections or
-  combinations fail closed.
+  custody. Fragment emission now admits distinct direct and selected-lowering
+  MOVN carriers, preserves the shorter materialization row and every provenance
+  span, and authenticates the sixth source kind in `OMGFFE` v6. Dense AArch64
+  text placement retains those bytes and coordinates with four-byte alignment
+  and no relocation requirements under `OMGTSP` v6. The generic object,
+  canonical Terminal-artifact, and ordinary-callable stages require no MOVN-
+  specific vocabulary after that authenticated text boundary and retain its
+  child identities through replay. The root build vocabulary remains an exact
+  named opt-in and the zero-seeded baseline is unchanged. Other post-allocation
+  selections or combinations fail closed.
 
-  Remaining here includes carrying MOVN custody through fragment emission,
-  text placement, object custody and later boundaries, general redundant move/
-  spill/reload rules, and additional independently validated target combines.
+  Remaining here includes native image, entry-bridge, installation, and
+  publication custody for this route, general redundant move/spill/reload
+  rules, and additional independently validated target combines.
 
 - **OPT-BLOCK-LAYOUT.** Select deterministic function/block layout and
   fallthrough edges from static or admitted profile weights.

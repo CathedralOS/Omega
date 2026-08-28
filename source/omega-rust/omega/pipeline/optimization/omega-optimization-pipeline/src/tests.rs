@@ -9121,6 +9121,356 @@ fn relocation_free_cbnz_fragment_emission_retains_the_elided_compare_span() {
 }
 
 #[test]
+fn aarch64_movn_reaches_fragments_text_object_artifact_and_callable_for_both_routes() {
+    use omega_calling_conventions::{CallingPolicy, MachineRegister};
+
+    for (target, selected_lowering) in [
+        (NativeTarget::linux_arm64(), false),
+        (NativeTarget::macos_arm64(), true),
+    ] {
+        std::thread::Builder::new()
+            .name("aarch64-movn-object-custody".into())
+            .stack_size(8 * 1024 * 1024)
+            .spawn(move || {
+                let (semantic, proof) =
+                    conditional_active_resident_exact_add_chain_artifact_with_false_literal(
+                        IntegerValue::Unsigned(u64::MAX as u128),
+                    );
+                let selections = if selected_lowering {
+                    OptimizationSelections::new([
+                        Optimization::SelectedIncomingU12ExactAddImmediate,
+                        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    ])
+                    .unwrap()
+                } else {
+                    OptimizationSelections::new([
+                        Optimization::Aarch64SelectShortestMovnSeededI64MaterializationV1,
+                    ])
+                    .unwrap()
+                };
+                let optimized = optimize_artifact_sections(
+                    &semantic,
+                    &proof,
+                    &AdmissionProfile::default(),
+                    ExplicitOptimizationRequest::new(
+                        selections.clone(),
+                        selected_lowering_budget(),
+                    )
+                    .unwrap(),
+                )
+                .unwrap();
+                let physical =
+                    stage_optimized_verified_physical_pipeline_with_provider_executions(
+                        optimized,
+                        target,
+                        &[],
+                    )
+                    .unwrap();
+                let source = match physical {
+                    StagedOptimizedVerifiedPhysicalPipeline::PostAllocationMachineMovn {
+                        realization,
+                    } if !selected_lowering => {
+                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(
+                            Box::new(realization),
+                        )
+                    }
+                    StagedOptimizedVerifiedPhysicalPipeline::SelectedLoweringPostAllocationMachineMovn {
+                        realization,
+                    } if selected_lowering => {
+                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
+                            Box::new(realization),
+                        )
+                    }
+                    _ => panic!("MOVN fixture must retain the corresponding realization route"),
+                };
+
+                let mut emitted = stage_optimized_function_fragment_emission(source).unwrap();
+                assert_eq!(
+                    validate_optimized_function_fragment_emission(&emitted).unwrap(),
+                    emitted.custody()
+                );
+                assert_eq!(
+                    emitted.manifest().record().source_kind,
+                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                );
+                assert_eq!(
+                    emitted.manifest().record().selections,
+                    selections.identity()
+                );
+
+                let (materialization, baseline_layout, final_layout, exit, realization_manifest) =
+                    match emitted.source() {
+                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnDirect(
+                            realization,
+                        ) => (
+                            realization.materialization(),
+                            realization.baseline_layout(),
+                            realization.layout(),
+                            realization.exit_contract(),
+                            realization.manifest(),
+                        ),
+                        StagedOptimizedFunctionFragmentEmissionSource::Aarch64MovnAfterSelectedLowering(
+                            realization,
+                        ) => (
+                            realization.materialization(),
+                            realization.baseline_layout(),
+                            realization.layout(),
+                            realization.exit_contract(),
+                            realization.manifest(),
+                        ),
+                        _ => unreachable!(),
+                };
+                let action = &materialization.materialization().plan().actions[0];
+                let action_instruction = action.instruction;
+                let exit_identity = exit.identity();
+                let baseline_row = baseline_layout
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.blocks)
+                    .flat_map(|block| &block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap();
+                let final_row = final_layout
+                    .functions()
+                    .iter()
+                    .flat_map(|function| &function.blocks)
+                    .flat_map(|block| &block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap();
+                let fragment_row = emitted
+                    .fragments()
+                    .functions
+                    .iter()
+                    .flat_map(|function| &function.blocks)
+                    .flat_map(|block| &block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap();
+                assert_eq!(fragment_row.bytes, final_row.bytes);
+                assert_eq!(
+                    fragment_row.bytes.len(),
+                    usize::from(action.recipe.word_count().unwrap()) * 4
+                );
+                assert!(fragment_row.bytes.len() < baseline_row.bytes.len());
+                assert_eq!(
+                    emitted.manifest().record().source_realization,
+                    realization_manifest.record().identity
+                );
+                assert_eq!(
+                    emitted.manifest().record().whole_function_exit_contract,
+                    exit_identity
+                );
+                assert_eq!(
+                    emitted.manifest().record().final_pre_layout,
+                    final_layout.pre_layout()
+                );
+                assert_eq!(
+                    emitted.manifest().record().final_resolved_layout,
+                    final_layout.identity()
+                );
+                let receipt = materialization.custody();
+                let baseline_bytes = baseline_layout
+                    .functions()
+                    .iter()
+                    .map(|function| function.byte_count)
+                    .sum::<u64>();
+                let fragment_bytes = emitted
+                    .fragments()
+                    .functions
+                    .iter()
+                    .map(|function| function.byte_count)
+                    .sum::<u64>();
+                assert_eq!(
+                    baseline_bytes.checked_sub(fragment_bytes),
+                    receipt
+                        .baseline_words()
+                        .checked_sub(receipt.selected_words())
+                        .and_then(|words| words.checked_mul(4))
+                );
+                let fragment_manifest = emitted.manifest().record().clone();
+                let fragment_encoded = fragment_manifest.encode();
+                assert_eq!(&fragment_encoded[8..12], &6_u32.to_le_bytes());
+                assert_eq!(fragment_encoded[45], 6);
+                assert_eq!(
+                    FunctionFragmentEmissionManifest::decode(&fragment_encoded),
+                    Ok(fragment_manifest.clone())
+                );
+                let mut unknown_fragment_source = fragment_encoded;
+                unknown_fragment_source[45] = 7;
+                assert_eq!(
+                    FunctionFragmentEmissionManifest::decode(&unknown_fragment_source),
+                    Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(7))
+                );
+                let expected_text_bytes = emitted
+                    .fragments()
+                    .functions
+                    .iter()
+                    .flat_map(|function| function.bytes.iter().copied())
+                    .collect::<Vec<_>>();
+                let original_fragment_identity = emitted.fragments().identity;
+                let original_movn_byte = emitted
+                    .fragments()
+                    .functions
+                    .iter()
+                    .flat_map(|function| &function.blocks)
+                    .flat_map(|block| &block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap()
+                    .bytes[0];
+                emitted
+                    .fragments_mut()
+                    .functions
+                    .iter_mut()
+                    .flat_map(|function| &mut function.blocks)
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap()
+                    .bytes[0] ^= 1;
+                let corrupted_fragment_identity = emitted.fragments().recomputed_identity();
+                emitted.fragments_mut().identity = corrupted_fragment_identity;
+                assert_eq!(
+                    validate_optimized_function_fragment_emission(&emitted),
+                    Err(FunctionFragmentEmissionError::ArtifactMismatch)
+                );
+                emitted
+                    .fragments_mut()
+                    .functions
+                    .iter_mut()
+                    .flat_map(|function| &mut function.blocks)
+                    .flat_map(|block| &mut block.instructions)
+                    .find(|row| row.instruction == action_instruction)
+                    .unwrap()
+                    .bytes[0] = original_movn_byte;
+                let restored_fragment_identity = emitted.fragments().recomputed_identity();
+                assert_eq!(restored_fragment_identity, original_fragment_identity);
+                emitted.fragments_mut().identity = restored_fragment_identity;
+                assert_eq!(
+                    validate_optimized_function_fragment_emission(&emitted).unwrap(),
+                    emitted.custody()
+                );
+
+                let text = stage_optimized_relocation_free_text_section(emitted).unwrap();
+                assert_eq!(
+                    validate_optimized_relocation_free_text_section(&text).unwrap(),
+                    text.custody()
+                );
+                assert_eq!(text.text_section().section_alignment, 4);
+                assert_eq!(text.text_section().bytes, expected_text_bytes);
+                assert_eq!(
+                    text.text_section().relocation_requirements,
+                    omega_object_file::TextSectionRelocationRequirements::ProvenNoneForFullyResolvedInternalControlV1
+                );
+                assert_eq!(text.manifest().record().source_kind, FunctionFragmentEmissionSourceKind::Aarch64MovnV1);
+                assert_eq!(text.manifest().record().statistics.padding_bytes, 0);
+                assert_eq!(text.manifest().record().statistics.relocation_requirements, 0);
+                let text_manifest = text.manifest().record().clone();
+                let text_encoded = text_manifest.encode();
+                assert_eq!(&text_encoded[8..12], &6_u32.to_le_bytes());
+                assert_eq!(text_encoded[45], 6);
+                assert_eq!(
+                    FunctionFragmentTextSectionManifest::decode(&text_encoded),
+                    Ok(text_manifest.clone())
+                );
+                let mut unknown_text_source = text_encoded;
+                unknown_text_source[45] = 7;
+                assert_eq!(
+                    FunctionFragmentTextSectionManifest::decode(&unknown_text_source),
+                    Err(FunctionFragmentTextSectionManifestDecodeError::UnknownSourceKind(7))
+                );
+
+                let object = stage_optimized_relocation_free_object_container(text).unwrap();
+                assert_eq!(
+                    validate_optimized_relocation_free_object_container(&object).unwrap(),
+                    object.custody()
+                );
+                assert_eq!(object.object().text_section.bytes, expected_text_bytes);
+                assert_eq!(object.object().relocation_record_count, 0);
+                assert_eq!(object.object().symbols.len(), 1);
+                assert_eq!(
+                    object.object().symbols[0].linkage,
+                    omega_object_file::RelocationFreeObjectSymbolLinkage::ObjectLocalV1
+                );
+                assert_eq!(
+                    object.object().symbols[0].role,
+                    omega_object_file::RelocationFreeObjectSymbolRole::SemanticEntryV1
+                );
+                let object_manifest = object.manifest().record().identity;
+                let artifact = stage_validated_optimized_object_artifact(
+                    canonical_artifact(&semantic, &proof),
+                    object,
+                )
+                .unwrap();
+                assert_eq!(
+                    validate_optimized_object_artifact(&artifact).unwrap(),
+                    artifact.custody()
+                );
+                assert_eq!(artifact.artifact().selections, selections.identity());
+                assert_eq!(
+                    artifact.artifact().function_fragment_manifest,
+                    fragment_manifest.identity
+                );
+                assert_eq!(artifact.artifact().text_section_manifest, text_manifest.identity);
+                assert_eq!(artifact.artifact().object_container_manifest, object_manifest);
+                assert_eq!(
+                    OptimizedObjectArtifactRecord::decode(&artifact.artifact().encode()).unwrap(),
+                    *artifact.artifact()
+                );
+                let artifact_report = optimization_pipeline_report_from_object_artifact(&artifact);
+                assert_eq!(
+                    artifact_report.function_fragment().unwrap().source_kind,
+                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                );
+                assert!(
+                    artifact_report
+                        .function_relative()
+                        .unwrap()
+                        .aarch64_movn_materialization
+                        .is_some()
+                );
+                assert!(artifact_report.ordinary_callable_entry().is_none());
+
+                let callable = stage_validated_optimized_ordinary_callable_entry(artifact)
+                    .expect("the MOVN semantic entry remains an ordinary scalar callable");
+                assert_eq!(
+                    validate_optimized_ordinary_callable_entry(&callable).unwrap(),
+                    callable.custody()
+                );
+                assert_eq!(callable.entry().calling_policy, CallingPolicy::Aapcs64);
+                assert_eq!(
+                    callable.entry().parameters[0].abi_register,
+                    MachineRegister::Aarch64X(0)
+                );
+                assert_eq!(
+                    callable.entry().result.abi_register,
+                    MachineRegister::Aarch64X(0)
+                );
+                assert_eq!(callable.entry().returns.len(), 2);
+                assert_eq!(callable.entry().exit_contract, exit_identity);
+                assert_eq!(
+                    callable.entry().disposition,
+                    OptimizedOrdinaryCallableEntryDisposition::ExternalProcessEntryBridgeRequiredV1
+                );
+                let report = optimization_pipeline_report_from_ordinary_callable_entry(&callable);
+                assert_eq!(
+                    report.function_fragment().unwrap().source_kind,
+                    FunctionFragmentEmissionSourceKind::Aarch64MovnV1
+                );
+                assert_eq!(
+                    report.ordinary_callable_entry().unwrap().entry,
+                    callable.entry().identity
+                );
+                let human = report
+                    .render_human_text(OptimizationReportRequest::EmitHumanText)
+                    .unwrap();
+                assert!(human.contains("external process entry bridge: required"));
+                assert!(human.contains("publication: unavailable"));
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+}
+
+#[test]
 fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_architectures() {
     for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
         let realization = staged_active_resident_function_relative_realization(target);
@@ -9227,17 +9577,17 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
 
         let record = emitted.manifest().record();
         let encoded = record.encode();
-        assert_eq!(&encoded[8..12], &5_u32.to_le_bytes());
+        assert_eq!(&encoded[8..12], &6_u32.to_le_bytes());
         assert_eq!(encoded[45], 3);
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&encoded),
             Ok(record.clone())
         );
         let mut unknown_source = encoded;
-        unknown_source[45] = 6;
+        unknown_source[45] = 7;
         assert_eq!(
             FunctionFragmentEmissionManifest::decode(&unknown_source),
-            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(6))
+            Err(FunctionFragmentEmissionManifestDecodeError::UnknownSourceKind(7))
         );
 
         let original_fresh_byte = emitted.fragments().functions[0]
@@ -9294,7 +9644,7 @@ fn active_resident_rematerialization_emits_relocation_free_fragments_on_both_arc
             FunctionFragmentEmissionSourceKind::ActiveResidentImmediateU64MultiUseRematerializationV1
         );
         let text_encoded = placed.manifest().record().encode();
-        assert_eq!(&text_encoded[8..12], &5_u32.to_le_bytes());
+        assert_eq!(&text_encoded[8..12], &6_u32.to_le_bytes());
         assert_eq!(text_encoded[45], 3);
         assert_eq!(
             FunctionFragmentTextSectionManifest::decode(&text_encoded),
@@ -11633,7 +11983,7 @@ fn structural_unit_call_reaches_post_allocation_machine_custody() {
         FunctionFragmentEmissionManifest::decode(&fragment_manifest.encode()),
         Ok(fragment_manifest.clone())
     );
-    for unsupported in [4_u32, 6_u32] {
+    for unsupported in [5_u32, 7_u32] {
         let mut encoded = fragment_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
@@ -11764,7 +12114,7 @@ fn structural_unit_call_reaches_post_allocation_machine_custody() {
         FunctionFragmentTextSectionManifest::decode(&text_manifest.encode()),
         Ok(text_manifest.clone())
     );
-    for unsupported in [4_u32, 6_u32] {
+    for unsupported in [5_u32, 7_u32] {
         let mut encoded = text_manifest.encode();
         encoded[8..12].copy_from_slice(&unsupported.to_le_bytes());
         assert_eq!(
