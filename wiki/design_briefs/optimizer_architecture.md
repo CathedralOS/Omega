@@ -783,10 +783,22 @@ and fixed arrays are nonempty. Structural returns independently locate an exact
 to occur strictly earlier in the same block or in a CFG-dominating block; block
 storage order and immutable source-frontier rows grant no availability. A
 source-derived content-bearing structural call/return canary exercises that
-admission boundary. Full provider-attachment specialization replay,
+admission boundary. Trivial-affine local declarations additionally require
+dense declaration ordinals and empty-Record carriers. Each local has exactly
+one full typed witness route: an executable `EstablishTrivialAffineLocal`, or
+the compressed tuple on the currently emitted structural parameter return.
+That tuple must equal the complete local catalog in declaration order, use
+unique hidden source-operation identities disjoint from executable operations,
+and pair with the exact parameter-zero/result carrier shape and reverse
+local-plus-affine-tail discard sequence. Compressed no-ABI locals deliberately
+remain outside executable `declared_places`. This is catalog and current
+compressed-return correspondence, not authority to synthesize locals or a
+path-sensitive proof that an explicit local is available at an arbitrary
+rewritten site; hidden source-operation provenance remains in the later full
+custody replay layer. Full provider-attachment specialization replay,
 structural-domain content-projection validation, remaining root-kind legality,
-byte-literal and affine-local availability, provider and ownership/custody
-replay, exact payloadless-callee classification, and the wider
+byte-literal and path-sensitive affine-local availability, provider and
+ownership/custody replay, exact payloadless-callee classification, and the wider
 crash/requirement/effect vocabulary remain explicit unfinished validator
 layers. It
 also rechecks the complete current

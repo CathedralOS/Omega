@@ -548,14 +548,25 @@ These facts constrain the work below.
   producer in current executable nodes and require strict same-block ordering
   or CFG dominance without trusting block storage order or immutable source
   frontiers; a source-derived content-bearing call/return passes verified
-  optimizer admission. The verified builder additionally attaches
+  optimizer admission. Trivial-affine local catalog rows now require dense
+  declaration ordinals and exact empty-Record carriers. The validator accepts
+  exactly one establishment representation: full typed executable
+  `EstablishTrivialAffineLocal` witnesses, or the currently emitted compressed
+  `ReturnStructural.trivial_affine_locals` tuple. Compressed tuples must match
+  the complete catalog in declaration order, use unique hidden source-operation
+  identities disjoint from executable operations, retain the exact
+  parameter-zero/result carrier shape, and discard locals then affine tail
+  parameters in canonical reverse order. Those no-ABI tuple locals remain
+  outside `declared_places`; source-derived one-local, two-local, and
+  local-plus-tail returns pass verified optimizer admission. The verified
+  builder additionally attaches
   a canonical immutable catalog of verifier-owned block-entry,
   operation-entry/exit, and edge-entry/available-edge-exit ownership snapshots.
   `OPT-UNIT-BUILDER` and `OPT-UNIT-VALIDATOR` remain open until verified
   proof/range evidence, full provider-attachment specialization replay, and
   structural-domain content-projection validation; remaining root-kind
-  legality, byte-literal and affine-local availability, provider and full
-  ownership/custody replay, exact payloadless-callee classification, and the
+  legality, byte-literal and path-sensitive affine-local availability, provider
+  and full ownership/custody replay, exact payloadless-callee classification, and the
   crash/requirement/effect vocabulary also remain across the Terminal-Psi
   lowering boundary.
 - Proof-bearing integer casts, shifts, addition, subtraction, multiplication,
@@ -1221,10 +1232,19 @@ dependency.
   operation result now requires that exact producer to occur strictly earlier
   in the same block or in a CFG-dominating block, independent of block storage
   order and immutable source-frontier rows. A source-derived content-bearing
-  structural call/return canary passes verified optimizer admission. Remaining
-  root-kind legality, byte-literal and affine-local availability, provider and
-  ownership/custody replay, exact payloadless-callee classification, and the
-  crash/requirement/effect vocabulary remain open.
+  structural call/return canary passes verified optimizer admission.
+  Trivial-affine local catalogs require dense declaration ordinals and exact
+  empty-Record carriers, with one-to-one full typed recognition through either
+  executable establishments or the compressed structural-return tuple. The
+  compressed form independently replays the exact currently emitted
+  parameter/result shape, unique hidden operation identities, complete tuple,
+  and reverse local-plus-affine-tail discard order while keeping no-ABI locals
+  out of executable `declared_places`; real one-local, two-local, and
+  local-plus-tail source canaries pass admission. Remaining root-kind legality,
+  byte-literal and path-sensitive affine-local availability, provider and full
+  ownership/custody replay—including hidden local-operation provenance—exact
+  payloadless-callee classification, and the crash/requirement/effect vocabulary
+  remain open.
 
 - **OPT-ANALYSIS-MANAGER.** Add deterministic revision-keyed analysis caching,
   dependency declaration, and precise invalidation.
