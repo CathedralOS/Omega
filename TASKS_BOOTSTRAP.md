@@ -90,7 +90,7 @@ admission, and optional stress evidence stay under the same compiler owner.
 - [ ] Collapse the remaining Beta admission explosion into one canonical exact
   instruction/event/memory identity format plus small responsibility-specific
   semantic modules. The current bounded admission consists of 189 Alpha modules
-  and 64,271 lines; Checker A is 1,041,389 source bytes and the checker ROOT is
+  and 63,654 lines; Checker A is 1,039,495 source bytes and the checker ROOT is
   82,314 bytes. Shape, control, data, and
   publication modules must consume common decoded facts rather than repeat byte
   offsets, macro bodies, or equivalent verification permutations.
@@ -99,8 +99,8 @@ admission, and optional stress evidence stay under the same compiler owner.
   continuation, epilogue, and shared macro identities are centralized. The r13
   word-size optimization still shifts many semantic consumers. The checked
   stable-row memory resolver has landed with the complete `gen_stmts` and
-  `gen_expr` memory families plus a same-block swapped-PC tooth; 28 further
-  modules must consume it.
+  `gen_expr` memory families plus a same-block swapped-PC tooth; 14 further
+  consumer modules still call the coordinate-taking memory adapter.
   Synthetic `__write_str`, the sole missing shared owner found by the
   internal-site audit, now resolves from the checked prelude successor; effect
   custody owns its one exhaustive body check and the duplicate summary scan is
@@ -108,11 +108,14 @@ admission, and optional stress evidence stay under the same compiler owner.
   the `bc-cursor-leaf-summary`/`bc-skip-ws-summary`/`bc-slurp-summary`
   procedure subgroup now consume existing owners, removing 290 raw artifact-PC
   literals. The next memory, procedure/epilogue, and emit-layout tranches are
-  also localized: 24 memory consumers and nine internal-site consumers remain,
-  spanning 29 modules. Source rows `259` and `391` are not artifact PCs.
-  `gen_emit`'s three identical newline events now use exact-cardinality
-  occurrence identity; an eighth tooth swaps two witness PCs and rejects before
-  r13.
+  also localized, including complete `gen_to` shape/rules and the remaining
+  source-row-bound fixed emits. The earlier nine-module internal-site tranche is
+  closed. A fresh broad compatibility-API census still spans 58 modules before
+  separating owner-internal or dynamically derived calls from literal semantic
+  coordinates; classify and migrate the latter before r13. Source rows `259`
+  and `391` are not artifact PCs. `gen_emit`'s three identical newline events
+  use exact-cardinality occurrence identity; an eighth tooth swaps two witness
+  PCs and rejects before r13.
 - [ ] Apply the r13 optimization only after that localization. Acceptance is a
   change to `bc.beta`, centralized identity/shape/ABI owners, generated exact
   identities, and adjacent manifests—not mechanical edits across unrelated
