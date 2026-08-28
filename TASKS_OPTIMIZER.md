@@ -239,6 +239,33 @@ These facts constrain the work below.
   bridging, native image construction, installation, and publication remain
   closed and install no output.
 
+  The first Unit backend vocabulary is now admitted without claiming an entry
+  bridge. Independent legalization replay accepts exactly one receiver-free,
+  zero-VReg, one-block function ending in `ReturnUnit`; selection produces the
+  distinct `ReturnUnit` semantic, constraint, and alternative identities.
+  Target-owned encoders and effect validators require canonical x86-64 `C3` or
+  AArch64 `RET X30`, with no scalar result custody. The schema expansion is
+  explicit rather than backward-compatible guesswork: legalized-plan and
+  legalization-replay v5, selected-plan v8, effect-catalog v3,
+  preallocation-effect v4/codec v5, postallocation-machine v3/codec v2,
+  fixed-copy codec v4, selected-form encoding v4, resolved-layout v3,
+  fragment/text v2, fragment manifest v3, and x86 relaxation/revision v2 all
+  reject older detached vocabulary. This is backend vocabulary only; the full
+  Unit liveness-to-object route remains open.
+
+  Checked compilation now retains the complete
+  `SelectedCompilerProgramEntry`, not merely its machine name. The exact
+  target-owned source signature and optional paired semantic/physical calling
+  plans stay together through Terminal native-realization input validation.
+  `ProgramEntrySourceSignatureIdentity` provides a canonical SHA-256 join over
+  the complete normalized callable, target slot, receiver, ordered parameter
+  roles/types/layouts/modes, and Unit result while excluding compilation-local
+  arena handles. Source-package provenance also recognizes both the current
+  direct `source/library/{core,std,alloc}` roots and the legacy nested layout,
+  so a moved toolchain entry cannot be misclassified under a shallower package.
+  This retained declaration custody owns no runtime roots, wrapper bytes,
+  bootstrap, image, installation, or publication authority.
+
   A separate
   `StagedOptimizedAssignedOperations` carrier
   retains the optimizer run, ledger, projection receipt, target plan, assigned
@@ -2331,14 +2358,16 @@ dependency.
   adds it. This is current scalar-callable custody, not process-entry authority.
 
   The next entry boundary has one settled semantic layer and one genuinely
-  unsettled physical layer. Engineering can add optimized selected vocabulary
-  for the receiver-free straight-line Unit entry/source shape, retain the exact
-  target-owned `ProgramEntry` source signature and calling plans, and construct
+  unsettled physical layer. The exact Unit legalization, selection, encoding,
+  and effect vocabulary is present, and checked/native staging retains the
+  target-owned `ProgramEntry` source signature and paired calling plans. Next,
+  carry that zero-VReg one-block form through liveness, ranges, legality, homes,
+  exit, fragment, text, object, and optimized-artifact custody, then construct
   the existing semantic `ProgramStorageEntry` wrapper object that passes the
   two `Extent in Granted` roots to the private Terminal symbol. The scalar-
   result conditional fixture used by the callable classifier remains
-  intentionally ineligible. However, the current UEFI surface explicitly calls
-  its physical shell planned and non-invoked: no authoritative contract maps
+  intentionally ineligible. The current UEFI surface explicitly calls its
+  physical shell planned and non-invoked: no authoritative contract maps
   `(EfiImageHandle, &EfiSystemTable)` to the semantic Image and InitialStorage
   extents or maps Unit completion/failure to `EfiStatus`. Hosted targets do not
   yet publish a physical entry contract at all. `OWNER_QUESTIONS.md` Q17 owns

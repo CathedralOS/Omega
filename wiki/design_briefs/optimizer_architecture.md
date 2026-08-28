@@ -183,8 +183,11 @@ canonical Terminal Psi semantic + proof sections
     -> validated dense text-section placement
     -> private-symbol Omega object container
     -> canonical Terminal semantic/proof-to-object artifact + rebuild record
-    -> validated ordinary-callable entry classification
-       (process entry, native image, install, and publication closed)
+    -> entry-specific semantic classification
+       -> validated ordinary-callable entry classification, or
+       -> retained ProgramEntry signature/calling plans
+          -> validated Unit semantic ProgramStorage wrapper (next)
+       (physical process entry, native image, install, and publication closed)
     -> encoding, relocation, image, installation
 ```
 
@@ -2324,11 +2327,38 @@ still omits callable metadata until the opaque callable carrier owns the
 artifact. The final disposition remains
 `ExternalProcessEntryBridgeRequiredV1`.
 
+The clean backend now has an exact Unit-return vocabulary alongside the scalar
+callable vocabulary. Independent legalization replay admits only the current
+receiver-free, zero-VReg, one-block shape whose sole terminator is
+`ReturnUnit`. Selection uses distinct Unit semantic, constraint, and
+alternative identities; it does not encode Unit as a scalar return with a fake
+value. x86-64 owns canonical `C3` encoding/effects and AArch64 owns canonical
+`RET X30` encoding/effects. Because this changes closed replay vocabularies,
+the affected legalized, selected, effect, encoding, layout, fragment, text,
+and relaxation schemas advance and old records fail closed. This admission is
+not yet the complete liveness-through-object route and grants no wrapper or
+process-entry authority.
+
+The source-side join is no longer reduced to an entry machine name.
+`CheckedCompilation` retains the complete `SelectedCompilerProgramEntry`, and
+native realization accepts a coupled request containing the exact target,
+admission profile, selections, provider settlements, source entry signature,
+and optional paired semantic/physical calling plans. Validation rejects target
+or pairing drift before lowering. A domain-separated
+`ProgramEntrySourceSignatureIdentity` binds the normalized callable, complete
+target slot, receiver form, ordered visible roles and indices, normalized type
+identities, exact value/Extent layouts and modes, and Unit result. Arena symbol
+handles are excluded because they are replay coordinates rather than stable
+semantic identity. This is declaration-only custody: it cannot authorize
+runtime roots, bootstrap conversion, image construction, or publication.
+
 The entry path separates a design-settled semantic wrapper from an unsettled
-physical bootstrap. Optimizer engineering can add a distinct receiver-free,
-straight-line Unit selected shape, retain the exact target-owned `ProgramEntry`
-source signature and calling plans, join those roots to the clean object, and
-construct the existing semantic `ProgramStorageEntry` wrapper that supplies
+physical bootstrap. The distinct receiver-free, straight-line Unit selected
+shape and retained target-owned `ProgramEntry` signature/calling plans now
+exist. The next implementation boundary carries that form through the
+zero-VReg liveness, allocation, exit, fragment, text, object, and canonical
+artifact joins, then constructs the existing semantic `ProgramStorageEntry`
+wrapper that supplies
 the Image and InitialStorage `Extent in Granted` values to the private Terminal
 symbol. The scalar-result conditional fixture above is therefore correctly an
 ordinary callable and cannot serve as the positive Unit fixture. That semantic
