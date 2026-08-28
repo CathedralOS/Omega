@@ -1897,7 +1897,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
             machine hide() -> Ticket in Ticket::Internal;
         }
         pub domain Ticket::Issued
-        established by Issues::issue;
+        established by Issues::issue, Issues::issue;
         domain Ticket::Internal
         established by Issues::hide;
     "#;
@@ -1938,7 +1938,17 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
         })
         .collect::<Vec<_>>();
 
-    assert_eq!(rows.len(), 4, "rows={rows:#?}");
+    let issued = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Ticket::Issued")
+        .expect("Issued domain");
+    assert_eq!(
+        issued.establishment_routes.len(),
+        1,
+        "semantic alternatives should deduplicate"
+    );
+    assert_eq!(rows.len(), 6, "rows={rows:#?}");
     assert_eq!(
         rows.iter()
             .filter(|(kind, exposure, symbol)| {
@@ -1949,7 +1959,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
                     && *symbol == issues.symbol
             })
             .count(),
-        1
+        2
     );
     assert_eq!(
         rows.iter()
@@ -1961,7 +1971,7 @@ fn retains_exact_establishment_route_declarations_with_domain_exposure() {
                     && *symbol == issue.symbol
             })
             .count(),
-        1
+        2
     );
     assert_eq!(
         rows.iter()
