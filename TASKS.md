@@ -122,6 +122,15 @@ Remaining:
   Psi, and all later Psi/Omega phases remain open. Extend this as live
   grammar/semantic slices, not checkpoint dialects, private bridge IRs, or
   file-shape allowlists.
+  Before substantially extending the parser state machine, introduce one
+  bounded `ParseInput` owner for token access/cursor custody, then split root
+  and data parsing into responsibility-local machines under
+  `source/omega/psi/parse/`. Do not obtain smaller files by duplicating token
+  access, exposing parser scratch as a public interface, or generating state
+  permutations. Profile that boundary as part of the split: the current focused
+  parser gate spends roughly nine minutes compiling the product parser on the
+  hosted implementation, while its 45 black-box executions are otherwise
+  bounded. Keep generated viewers and other unconsumed debug output disabled.
   Freeze the exact manifest and feature census only for the complete compiler
   closure at the Delta-to-Omega join.
 
