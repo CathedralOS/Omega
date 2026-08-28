@@ -121,7 +121,8 @@ maximal-observation equality over finite `B_bc1` inputs, including typed
 resource outcomes and coinductive divergence. It is not yet a certificate
 accepted by the universal `source/alpha/checker/artifacts/check.tape`:
 the current proof language has no encoded Alpha/Beta simulation relation or
-settled coinduction rule. Accordingly the short chain manifest continues to
+settled coinduction rule. [`OWNER_QUESTIONS.md`](../../../../OWNER_QUESTIONS.md)
+Q18 owns that language decision. Accordingly the short chain manifest continues to
 disclose complete Beta source/artifact admission as open rather than promoting
 this executable reconstruction by pedigree.
 

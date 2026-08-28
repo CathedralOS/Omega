@@ -56,7 +56,9 @@ tape-capacity obligations only. The adjacent canonical maximal-observation
 reconstruction emits one 82,030-byte ROOT Alpha tape; its exact digest is
 `bf98cdb69e7853962bd1f58dd4794b7c570294633183b784f7b06021319b1220`.
 This is strong executable evidence, but it is not yet a derivation in the
-rooted checker calculus. Complete source/artifact admission remains open.
+rooted checker calculus. Complete source/artifact admission is blocked on
+[`OWNER_QUESTIONS.md`](../../../OWNER_QUESTIONS.md) Q18's guarded-simulation
+judgment.
 
 ## Gamma meaning artifacts
 
