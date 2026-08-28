@@ -405,6 +405,7 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
     let psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition,
         requirement,
+        authored_path,
     } = contract
     else {
         panic!("Selected should retain an exact nominal requirement");
@@ -421,6 +422,13 @@ fn resolves_forward_declared_nominal_machine_parameter_to_exact_requirement() {
 
     assert_eq!(*trait_definition, trait_definition_row.symbol);
     assert_eq!(*requirement, requirement_row.symbol);
+    assert_eq!(
+        authored_path
+            .iter()
+            .map(|member| member.as_str())
+            .collect::<Vec<_>>(),
+        ["WindowProcedure", "call"]
+    );
     assert_ne!(parameter.symbol, requirement_row.symbol);
     let psi_symbol_resolved_trees::data::MachineParameterContractView::Nominal {
         trait_definition,
@@ -527,6 +535,7 @@ fn nominal_machine_parameter_view_rejects_mismatched_trait_requirement_pair() {
     let mismatched = psi_symbol_resolved_trees::data::MachineParameterContract::Nominal {
         trait_definition: first.symbol,
         requirement: second_requirement.symbol,
+        authored_path: Vec::new(),
     };
 
     assert!(
@@ -1886,6 +1895,153 @@ fn distinguishes_public_contract_expressions_from_public_machine_bodies() {
     assert!(call_exposures.contains(
         &psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
     ));
+}
+
+#[test]
+fn retains_nested_unary_operator_custody_in_public_propositions() {
+    let source = "pub proposition inverted(value: u8, expected: u8) = ~value == expected;";
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize public unary proposition");
+    let syntax = parse_syntax_trees(&tokens).expect("parse public unary proposition");
+    let program = lower_syntax_trees(&syntax).expect("resolve public unary proposition");
+    let proposition = program
+        .propositions
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "inverted")
+        .expect("inverted proposition");
+    let psi_symbol_resolved_trees::proposition::PropositionBody::Transparent { proposition } =
+        proposition.body
+    else {
+        panic!("inverted proposition must remain transparent")
+    };
+    let psi_symbol_resolved_trees::expression::ExpressionNode::Binary(binary) =
+        program.tables.bodies.expressions.expression(proposition)
+    else {
+        panic!("inverted proposition must retain its binary root")
+    };
+    let unary = binary.left;
+    assert!(matches!(
+        program.tables.bodies.expressions.expression(unary),
+        psi_symbol_resolved_trees::expression::ExpressionNode::Unary(_)
+    ));
+    let occurrences = program
+        .tables
+        .bodies
+        .expressions
+        .authored_selection_occurrences(unary)
+        .collect::<Vec<_>>();
+    let [occurrence] = occurrences.as_slice() else {
+        panic!("nested unary operator must retain one exact authored selection")
+    };
+    let selection = program
+        .authored_declaration_selections()
+        .get(*occurrence)
+        .expect("nested unary occurrence must rejoin its selection");
+    assert_eq!(
+        selection.kind(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::Operator
+    );
+    assert_eq!(
+        selection.exposure(),
+        psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+}
+
+#[test]
+fn retains_exact_establishment_route_declarations_with_domain_exposure() {
+    let source = r#"
+        data Ticket { }
+        pub trait Issues {
+            machine issue() -> Ticket in Ticket::Issued;
+            machine hide() -> Ticket in Ticket::Internal;
+        }
+        pub domain Ticket::Issued
+        established by Issues::issue, Issues::issue;
+        domain Ticket::Internal
+        established by Issues::hide;
+    "#;
+    let tokens = Lexer::new(source)
+        .tokenize()
+        .expect("tokenize establishment selections");
+    let syntax = parse_syntax_trees(&tokens).expect("parse establishment selections");
+    let program = lower_syntax_trees(&syntax).expect("resolve establishment selections");
+    let issues = program
+        .traits
+        .iter()
+        .find(|definition| definition.name.as_str() == "Issues")
+        .expect("Issues trait");
+    let requirements = program.trait_machine_signatures(issues.machines);
+    let issue = requirements
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "issue")
+        .expect("issue requirement");
+    let hide = requirements
+        .iter()
+        .find(|requirement| requirement.name.as_str() == "hide")
+        .expect("hide requirement");
+    let rows = program
+        .authored_declaration_selections()
+        .iter()
+        .filter_map(|selection| match selection.target() {
+            psi_symbol_resolved_trees::AuthoredDeclarationSelectionTarget::Resolved(target)
+                if [issues.symbol, issue.symbol, hide.symbol]
+                    .contains(&target.selected_symbol()) =>
+            {
+                Some((
+                    selection.kind(),
+                    selection.exposure(),
+                    target.selected_symbol(),
+                ))
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+
+    let issued = program
+        .domain_definitions
+        .iter()
+        .find(|domain| domain.name.as_str() == "Ticket::Issued")
+        .expect("Issued domain");
+    assert_eq!(
+        issued.establishment_routes.len(),
+        1,
+        "semantic alternatives should deduplicate"
+    );
+    assert_eq!(rows.len(), 6, "rows={rows:#?}");
+    assert_eq!(
+        rows.iter()
+            .filter(|(kind, exposure, symbol)| {
+                *kind
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::TypeReference
+                    && *exposure
+                        == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                    && *symbol == issues.symbol
+            })
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|(kind, exposure, symbol)| {
+                *kind
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionKind::StaticPathSegment
+                    && *exposure
+                        == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PublicInterface
+                    && *symbol == issue.symbol
+            })
+            .count(),
+        2
+    );
+    assert_eq!(
+        rows.iter()
+            .filter(|(_, exposure, _)| {
+                *exposure
+                    == psi_symbol_resolved_trees::AuthoredDeclarationSelectionExposure::PrivateImplementation
+            })
+            .count(),
+        2
+    );
 }
 
 #[test]

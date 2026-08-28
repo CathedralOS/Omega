@@ -202,13 +202,10 @@ pub(crate) fn validate_external_leaf_native_shapes(
         if boundary_has_explicit_calling_policy(program, trait_definition) {
             continue;
         }
-        let Some(requirement_name) = conformance.requirement.as_ref() else {
-            continue;
-        };
         let Some(requirement) = program
             .trait_machine_signatures(trait_definition)
             .iter()
-            .find(|requirement| requirement.name == *requirement_name)
+            .find(|requirement| requirement.symbol == conformance.requirement_symbol)
         else {
             continue;
         };
@@ -440,6 +437,7 @@ pub(crate) fn validate_machine_trait_conformances(
             machine,
             trait_definition,
             requirement_name,
+            conformance.requirement_symbol,
             conformance.alias.as_ref().map(|alias| alias.as_str()),
             explicit_type_arguments,
             diagnostics,
@@ -1216,6 +1214,13 @@ fn validate_machine_operator_conformance(
         )));
         return true;
     };
+    if conformance.requirement_symbol != operator.symbol {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` operator realization `{}::{}` does not retain the exact selected overload",
+            machine.name, namespace, requirement_name,
+        )));
+        return true;
+    }
 
     if conformance.external_binding.is_none() {
         crate::contract_entailment::check_operator_contract_conformance(
@@ -1238,6 +1243,7 @@ fn validate_machine_single_requirement(
     machine: &Machine,
     trait_definition: &TraitDefinition,
     requirement_name: &psi_typed_trees::name::Identifier,
+    settled_requirement_symbol: psi_symbols::SymbolHandle,
     conformance_alias: Option<&str>,
     explicit_type_arguments: &[TypeReferenceHandle],
     diagnostics: &mut Vec<Diagnostic>,
@@ -1295,6 +1301,13 @@ fn validate_machine_single_requirement(
         )));
         return;
     };
+    if requirement.symbol != settled_requirement_symbol {
+        diagnostics.push(Diagnostic::error(format!(
+            "machine `{}` satisfies `{}::{}` but its retained exact requirement does not match overload resolution",
+            machine.name, trait_definition.name, requirement_name,
+        )));
+        return;
+    }
 
     validate_machine_state_satisfies_trait_signature_with_arguments(
         program,

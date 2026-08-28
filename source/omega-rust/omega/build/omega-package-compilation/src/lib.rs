@@ -5,15 +5,25 @@
 mod source_consumption;
 
 use omega_build_output::PackageGeneratedSource;
+use psi_checked_interpreter::{
+    CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION, CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+    CanonicalFilesystemMetadataIndex, CanonicalFilesystemMetadataRow,
+    CanonicalFilesystemMetadataRowKind, FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+};
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;
+use sha2::{Digest, Sha256};
 pub use source_consumption::{
     PackageSourceConsumptionCommitment, derive_source_consumption_commitment,
     toolchain_source_identities, toolchain_source_identity_digest, verify_current_files,
 };
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt;
+use std::io::Read;
 use std::path::{Path, PathBuf};
+
+const CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN: &[u8] = b"OMEGA-CANONICAL-BUILD-SOURCE-CONTENT-V1\0";
+const CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT: u64 = 512 * 1024 * 1024;
 
 /// One stable package identity, its canonical declared name, and the canonical
 /// source root from which this compilation may load it. The name is validated
@@ -24,6 +34,7 @@ pub struct PackageSourceBinding {
     identity: PackageKeyIdentity,
     canonical_name: String,
     source_root: PathBuf,
+    canonical_source_metadata: Option<CanonicalFilesystemMetadataIndex>,
 }
 
 impl PackageSourceBinding {
@@ -36,7 +47,17 @@ impl PackageSourceBinding {
             identity,
             canonical_name: canonical_name.into(),
             source_root,
+            canonical_source_metadata: None,
         }
+    }
+
+    /// Capture compiler-owned canonical build-visible metadata from this exact
+    /// physical root. Callers cannot supply rows or a content commitment.
+    pub fn with_canonical_source_metadata(mut self) -> Result<Self, String> {
+        let canonical_root = canonical_source_root(&self.source_root)?;
+        self.canonical_source_metadata =
+            Some(capture_canonical_source_metadata_root(&canonical_root)?);
+        Ok(self)
     }
 
     pub const fn identity(&self) -> PackageKeyIdentity {
@@ -49,6 +70,10 @@ impl PackageSourceBinding {
 
     pub fn source_root(&self) -> &Path {
         &self.source_root
+    }
+
+    pub fn canonical_source_metadata(&self) -> Option<&CanonicalFilesystemMetadataIndex> {
+        self.canonical_source_metadata.as_ref()
     }
 }
 
@@ -232,6 +257,7 @@ pub struct PackageCompilationInputs {
     /// Canonical declared names retained solely for human-facing package
     /// diagnostics. Security decisions continue to compare exact identities.
     package_names: BTreeMap<PackageKeyIdentity, String>,
+    canonical_source_metadata: BTreeMap<PackageKeyIdentity, CanonicalFilesystemMetadataIndex>,
     dependencies: BTreeMap<PackageKeyIdentity, BTreeMap<String, PackageKeyIdentity>>,
     dependency_generated_sources: BTreeMap<PackageKeyIdentity, PackageGeneratedSourceBundle>,
 }
@@ -245,9 +271,20 @@ impl PackageCompilationInputs {
         let mut errors = Vec::new();
         let mut canonical_packages = BTreeMap::new();
         let mut canonical_names = BTreeMap::new();
+        let mut canonical_source_metadata = BTreeMap::new();
         let mut roots = BTreeMap::<PathBuf, PackageKeyIdentity>::new();
 
         for package in packages {
+            if package.identity != root && package.canonical_source_metadata.is_some() {
+                errors.push(PackageCompilationInputError::InvalidSourceRoot {
+                    identity: package.identity,
+                    path: package.source_root,
+                    reason:
+                        "only the current root package may retain canonical build Source metadata"
+                            .to_owned(),
+                });
+                continue;
+            }
             if !is_kebab_case(&package.canonical_name) {
                 errors.push(PackageCompilationInputError::InvalidPackageName {
                     identity: package.identity,
@@ -265,6 +302,17 @@ impl PackageCompilationInputs {
                     continue;
                 }
             };
+            if let Some(metadata) = &package.canonical_source_metadata
+                && let Err(reason) =
+                    validate_canonical_source_metadata_root(&canonical_root, metadata)
+            {
+                errors.push(PackageCompilationInputError::InvalidSourceRoot {
+                    identity: package.identity,
+                    path: canonical_root,
+                    reason,
+                });
+                continue;
+            }
 
             if canonical_packages
                 .insert(package.identity, canonical_root.clone())
@@ -275,6 +323,9 @@ impl PackageCompilationInputs {
                 });
             }
             canonical_names.insert(package.identity, package.canonical_name);
+            if let Some(metadata) = package.canonical_source_metadata {
+                canonical_source_metadata.insert(package.identity, metadata);
+            }
             if let Some(first) = roots.insert(canonical_root.clone(), package.identity) {
                 errors.push(PackageCompilationInputError::DuplicateSourceRoot {
                     first,
@@ -361,6 +412,7 @@ impl PackageCompilationInputs {
                 root,
                 packages: canonical_packages,
                 package_names: canonical_names,
+                canonical_source_metadata,
                 dependencies: canonical_dependencies,
                 dependency_generated_sources: BTreeMap::new(),
             })
@@ -379,6 +431,13 @@ impl PackageCompilationInputs {
 
     pub fn package_name(&self, identity: PackageKeyIdentity) -> Option<&str> {
         self.package_names.get(&identity).map(String::as_str)
+    }
+
+    pub fn canonical_source_metadata(
+        &self,
+        identity: PackageKeyIdentity,
+    ) -> Option<&CanonicalFilesystemMetadataIndex> {
+        self.canonical_source_metadata.get(&identity)
     }
 
     pub fn packages(&self) -> impl Iterator<Item = (PackageKeyIdentity, &Path)> {
@@ -628,6 +687,9 @@ impl PackageCompilationInputs {
                 ))),
             }
         }
+        if let Err(mut metadata_diagnostics) = self.validate_canonical_source_metadata() {
+            diagnostics.append(&mut metadata_diagnostics);
+        }
 
         match root_path.canonicalize() {
             Ok(root_file) => {
@@ -669,6 +731,357 @@ impl PackageCompilationInputs {
             Err(diagnostics)
         }
     }
+
+    #[doc(hidden)]
+    pub fn validate_canonical_source_metadata(&self) -> Result<(), Vec<Diagnostic>> {
+        let mut diagnostics = Vec::new();
+        for (identity, metadata) in &self.canonical_source_metadata {
+            let root = self
+                .packages
+                .get(identity)
+                .expect("canonical Source metadata retains a validated package root");
+            if let Err(reason) = validate_canonical_source_metadata_root(root, metadata) {
+                diagnostics.push(Diagnostic::error(format!(
+                    "canonical Source metadata for package {} changed before compiler evidence was issued: {reason}",
+                    display_identity(*identity)
+                )));
+            }
+        }
+        if diagnostics.is_empty() {
+            Ok(())
+        } else {
+            Err(diagnostics)
+        }
+    }
+}
+
+fn validate_canonical_source_metadata_root(
+    root: &Path,
+    metadata: &CanonicalFilesystemMetadataIndex,
+) -> Result<(), String> {
+    let observed = capture_canonical_source_metadata_root(root)?;
+    if &observed == metadata {
+        Ok(())
+    } else {
+        Err(
+            "canonical Source metadata or content commitment no longer matches the complete physical root"
+                .to_owned(),
+        )
+    }
+}
+
+#[derive(Debug)]
+struct CapturedPhysicalMetadataRow {
+    kind: CanonicalFilesystemMetadataRowKind,
+    content_digest: Option<[u8; 32]>,
+}
+
+fn capture_canonical_source_metadata_root(
+    root: &Path,
+) -> Result<CanonicalFilesystemMetadataIndex, String> {
+    let mut stack = vec![(root.to_path_buf(), Vec::<u8>::new())];
+    let mut rows = BTreeMap::<Vec<u8>, CapturedPhysicalMetadataRow>::new();
+    let mut aggregate_path_bytes = 0usize;
+    let mut aggregate_content_bytes = 0u64;
+
+    while let Some((path, relative_path)) = stack.pop() {
+        if rows.len() >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
+            return Err(format!(
+                "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
+            ));
+        }
+        let physical = std::fs::symlink_metadata(&path).map_err(|error| {
+            format!("could not inspect canonical Source metadata path: {error}")
+        })?;
+        let captured =
+            capture_physical_metadata_row(&path, &physical, &mut aggregate_content_bytes)?;
+        if rows.insert(relative_path.clone(), captured).is_some() {
+            return Err(format!(
+                "physical Source traversal duplicated a path: {relative_path:?}"
+            ));
+        }
+
+        if physical.is_dir() {
+            let children = std::fs::read_dir(&path).map_err(|error| {
+                format!("could not enumerate canonical Source metadata directory: {error}")
+            })?;
+            for child in children {
+                let child = child.map_err(|error| {
+                    format!("could not enumerate canonical Source metadata entry: {error}")
+                })?;
+                if rows
+                    .len()
+                    .checked_add(stack.len())
+                    .and_then(|count| count.checked_add(1))
+                    .is_none_or(|count| count > CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT)
+                {
+                    return Err(format!(
+                        "canonical Source metadata exceeds its {CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT}-row ceiling"
+                    ));
+                }
+                let name = os_str_bytes(&child.file_name())?;
+                let mut child_relative = relative_path.clone();
+                if !child_relative.is_empty() {
+                    child_relative.push(b'/');
+                }
+                child_relative.extend_from_slice(&name);
+                aggregate_path_bytes = aggregate_path_bytes
+                    .checked_add(child_relative.len())
+                    .filter(|bytes| *bytes <= FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT)
+                    .ok_or_else(|| {
+                        format!(
+                            "canonical Source metadata path bytes exceed {FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT}"
+                        )
+                    })?;
+                if !psi_checked_interpreter::canonical_filesystem_metadata_path_is_canonical(
+                    &child_relative,
+                    false,
+                ) {
+                    return Err(format!(
+                        "physical Source path is not canonical metadata: {child_relative:?}"
+                    ));
+                }
+                stack.push((child.path(), child_relative));
+            }
+        }
+    }
+
+    let commitment = canonical_build_source_content_commitment(&rows)?;
+    CanonicalFilesystemMetadataIndex::version_1(
+        commitment,
+        rows.into_iter()
+            .map(|(path, row)| CanonicalFilesystemMetadataRow::new(path, row.kind)),
+    )
+    .map_err(|error| format!("could not construct canonical Source metadata: {error}"))
+}
+
+fn capture_physical_metadata_row(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    aggregate_content_bytes: &mut u64,
+) -> Result<CapturedPhysicalMetadataRow, String> {
+    if metadata.is_dir() {
+        #[cfg(unix)]
+        require_canonical_mode(path, metadata, 0o555)?;
+        return Ok(CapturedPhysicalMetadataRow {
+            kind: CanonicalFilesystemMetadataRowKind::Directory,
+            content_digest: None,
+        });
+    }
+    if metadata.is_file() {
+        #[cfg(unix)]
+        let executable = {
+            use std::os::unix::fs::PermissionsExt;
+            let mode = metadata.permissions().mode() & 0o777;
+            match mode {
+                0o444 => false,
+                0o555 => true,
+                _ => {
+                    return Err(format!(
+                        "physical Source file {} has noncanonical mode {mode:#o}",
+                        path.display()
+                    ));
+                }
+            }
+        };
+        #[cfg(not(unix))]
+        let executable = false;
+        charge_canonical_source_content(aggregate_content_bytes, metadata.len())?;
+        let content_digest = hash_canonical_source_file(path, metadata)?;
+        return Ok(CapturedPhysicalMetadataRow {
+            kind: CanonicalFilesystemMetadataRowKind::File {
+                executable,
+                logical_byte_length: metadata.len(),
+            },
+            content_digest: Some(content_digest),
+        });
+    }
+    if metadata.file_type().is_symlink() {
+        let target = std::fs::read_link(path).map_err(|error| {
+            format!(
+                "could not read canonical Source symlink {}: {error}",
+                path.display()
+            )
+        })?;
+        let target = os_str_bytes(target.as_os_str())?;
+        let target_length = u64::try_from(target.len())
+            .map_err(|_| "canonical Source symlink target length exceeds u64".to_owned())?;
+        charge_canonical_source_content(aggregate_content_bytes, target_length)?;
+        return Ok(CapturedPhysicalMetadataRow {
+            kind: CanonicalFilesystemMetadataRowKind::Symlink {
+                target_spelling_logical_byte_length: target_length,
+            },
+            content_digest: Some(Sha256::digest(&target).into()),
+        });
+    }
+    Err(format!(
+        "physical Source path {} has an unsupported filesystem kind",
+        path.display()
+    ))
+}
+
+fn charge_canonical_source_content(total: &mut u64, amount: u64) -> Result<(), String> {
+    *total = total
+        .checked_add(amount)
+        .filter(|total| *total <= CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT)
+        .ok_or_else(|| {
+            format!(
+                "canonical Source content exceeds its {CANONICAL_BUILD_SOURCE_CONTENT_BYTE_LIMIT}-byte ceiling"
+            )
+        })?;
+    Ok(())
+}
+
+fn hash_canonical_source_file(
+    path: &Path,
+    initial_metadata: &std::fs::Metadata,
+) -> Result<[u8; 32], String> {
+    let mut file = std::fs::File::open(path).map_err(|error| {
+        format!(
+            "could not open canonical Source file {}: {error}",
+            path.display()
+        )
+    })?;
+    let mut digest = Sha256::new();
+    let mut observed = 0u64;
+    let mut buffer = [0u8; 64 * 1024];
+    loop {
+        let count = file.read(&mut buffer).map_err(|error| {
+            format!(
+                "could not read canonical Source file {}: {error}",
+                path.display()
+            )
+        })?;
+        if count == 0 {
+            break;
+        }
+        observed = observed
+            .checked_add(u64::try_from(count).expect("fixed buffer read fits u64"))
+            .filter(|observed| *observed <= initial_metadata.len())
+            .ok_or_else(|| {
+                format!(
+                    "canonical Source file {} grew while captured",
+                    path.display()
+                )
+            })?;
+        digest.update(&buffer[..count]);
+    }
+    if observed != initial_metadata.len() {
+        return Err(format!(
+            "canonical Source file {} changed length while captured",
+            path.display()
+        ));
+    }
+    let final_metadata = std::fs::symlink_metadata(path).map_err(|error| {
+        format!(
+            "could not recheck canonical Source file {}: {error}",
+            path.display()
+        )
+    })?;
+    if !final_metadata.is_file() || final_metadata.len() != initial_metadata.len() {
+        return Err(format!(
+            "canonical Source file {} changed identity while captured",
+            path.display()
+        ));
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::MetadataExt;
+        if final_metadata.dev() != initial_metadata.dev()
+            || final_metadata.ino() != initial_metadata.ino()
+            || final_metadata.mode() != initial_metadata.mode()
+        {
+            return Err(format!(
+                "canonical Source file {} changed identity or mode while captured",
+                path.display()
+            ));
+        }
+    }
+    Ok(digest.finalize().into())
+}
+
+fn canonical_build_source_content_commitment(
+    rows: &BTreeMap<Vec<u8>, CapturedPhysicalMetadataRow>,
+) -> Result<[u8; 32], String> {
+    let mut digest = Sha256::new();
+    digest.update(CANONICAL_BUILD_SOURCE_CONTENT_DOMAIN);
+    digest.update(CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION.to_le_bytes());
+    digest.update(
+        u64::try_from(rows.len())
+            .map_err(|_| "canonical Source row count exceeds u64".to_owned())?
+            .to_le_bytes(),
+    );
+    for (path, row) in rows {
+        hash_framed_bytes(&mut digest, path)?;
+        match row.kind {
+            CanonicalFilesystemMetadataRowKind::Directory => digest.update([0]),
+            CanonicalFilesystemMetadataRowKind::File {
+                executable,
+                logical_byte_length,
+            } => {
+                digest.update([1, u8::from(executable)]);
+                digest.update(logical_byte_length.to_le_bytes());
+                digest.update(
+                    row.content_digest
+                        .ok_or_else(|| "canonical Source file omits content digest".to_owned())?,
+                );
+            }
+            CanonicalFilesystemMetadataRowKind::Symlink {
+                target_spelling_logical_byte_length,
+            } => {
+                digest.update([2]);
+                digest.update(target_spelling_logical_byte_length.to_le_bytes());
+                digest.update(
+                    row.content_digest.ok_or_else(|| {
+                        "canonical Source symlink omits content digest".to_owned()
+                    })?,
+                );
+            }
+        }
+    }
+    Ok(digest.finalize().into())
+}
+
+fn hash_framed_bytes(digest: &mut Sha256, bytes: &[u8]) -> Result<(), String> {
+    digest.update(
+        u64::try_from(bytes.len())
+            .map_err(|_| "canonical Source path length exceeds u64".to_owned())?
+            .to_le_bytes(),
+    );
+    digest.update(bytes);
+    Ok(())
+}
+
+#[cfg(unix)]
+fn require_canonical_mode(
+    path: &Path,
+    metadata: &std::fs::Metadata,
+    expected: u32,
+) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let mode = metadata.permissions().mode() & 0o777;
+    if mode == expected {
+        Ok(())
+    } else {
+        Err(format!(
+            "physical Source directory {} has noncanonical mode {mode:#o}; expected {expected:#o}",
+            path.display()
+        ))
+    }
+}
+
+#[cfg(unix)]
+fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
+    use std::os::unix::ffi::OsStrExt;
+    Ok(value.as_bytes().to_vec())
+}
+
+#[cfg(not(unix))]
+fn os_str_bytes(value: &std::ffi::OsStr) -> Result<Vec<u8>, String> {
+    value
+        .to_str()
+        .map(|value| value.as_bytes().to_vec())
+        .ok_or_else(|| "physical Source path is not portable UTF-8".to_owned())
 }
 
 impl psi_build_time_evaluation::BuildTimeSelectionAuthority for PackageCompilationInputs {
@@ -1114,6 +1527,99 @@ mod tests {
 
     fn identity(marker: u8) -> PackageKeyIdentity {
         PackageKeyIdentity::from_digest([marker; 32]).expect("nonzero package identity")
+    }
+
+    #[test]
+    fn compiler_captured_canonical_metadata_rejects_late_same_length_content_drift() {
+        let tree = TempTree::new();
+        let root = tree.package("root");
+        fs::write(root.join("undeclared.omg"), b"source").expect("write undeclared source");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(
+                root.join("undeclared.omg"),
+                fs::Permissions::from_mode(0o444),
+            )
+            .expect("seal source file");
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o555))
+                .expect("seal source root");
+        }
+        let binding = PackageSourceBinding::new(identity(1), "root", root.clone())
+            .with_canonical_source_metadata()
+            .expect("compiler captures canonical metadata");
+        let inputs = PackageCompilationInputs::new(identity(1), vec![binding], vec![])
+            .expect("input construction independently recaptures canonical metadata");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(
+                root.join("undeclared.omg"),
+                fs::Permissions::from_mode(0o644),
+            )
+            .expect("temporarily unseal source file");
+        }
+        fs::write(root.join("undeclared.omg"), b"change").expect("replace equal-length bytes");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(
+                root.join("undeclared.omg"),
+                fs::Permissions::from_mode(0o444),
+            )
+            .expect("reseal source file");
+        }
+
+        let diagnostics = inputs
+            .validate_canonical_source_metadata()
+            .expect_err("late content drift must invalidate compiler-captured metadata");
+        assert!(
+            diagnostics[0]
+                .message
+                .contains("changed before compiler evidence was issued")
+        );
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&tree.0.join("root"), fs::Permissions::from_mode(0o755))
+                .expect("unseal source root for cleanup");
+        }
+    }
+
+    #[test]
+    fn dependency_metadata_indexes_are_rejected_instead_of_aggregated() {
+        let tree = TempTree::new();
+        let root = tree.package("root");
+        let dependency = tree.package("dependency");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            fs::set_permissions(&root, fs::Permissions::from_mode(0o555)).expect("seal root");
+            fs::set_permissions(&dependency, fs::Permissions::from_mode(0o555))
+                .expect("seal dependency");
+        }
+        let dependency = PackageSourceBinding::new(identity(2), "dependency", dependency)
+            .with_canonical_source_metadata()
+            .expect("capture dependency metadata");
+
+        let errors = PackageCompilationInputs::new(
+            identity(1),
+            vec![
+                PackageSourceBinding::new(identity(1), "root", root),
+                dependency,
+            ],
+            vec![PackageDependencyBinding::new(
+                identity(1),
+                "dependency",
+                identity(2),
+            )],
+        )
+        .expect_err("only the current build root may retain a metadata index");
+        assert!(errors.iter().any(|error| matches!(
+            error,
+            PackageCompilationInputError::InvalidSourceRoot { reason, .. }
+                if reason.contains("only the current root package")
+        )));
     }
 
     fn generated_bundle(

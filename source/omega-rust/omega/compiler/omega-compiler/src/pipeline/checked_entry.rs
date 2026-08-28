@@ -532,6 +532,30 @@ fn compile_to_checked_inner_with_replay(
             &mut timings,
         )?;
     }
+    if let Some(replay_record) = replay_record {
+        let expected_source_metadata = package_inputs
+            .map(|inputs| {
+                inputs
+                    .canonical_source_metadata(inputs.root())
+                    .map(|metadata| {
+                        crate::pipeline::build_config::BuildCanonicalSourceMetadataIdentity::new(
+                            metadata.policy_version(),
+                            *metadata.source_content_commitment(),
+                        )
+                    })
+                    .ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            "package-aware filesystem replay requires canonical Source metadata",
+                        )]
+                    })
+            })
+            .transpose()?;
+        if replay_record.canonical_source_metadata_identity() != expected_source_metadata {
+            return Err(vec![Diagnostic::error(
+                "build filesystem replay record does not match the current canonical Source metadata identity",
+            )]);
+        }
+    }
     let filesystem_replay = replay_record
         .map(|record| {
             super::build_replay_record::rehydrate_review_only_build_filesystem_replay_record(
@@ -548,18 +572,30 @@ fn compile_to_checked_inner_with_replay(
             })
         })
         .transpose()?;
-    let mut build_machine_filesystem_scope =
+    let build_dir = build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
+        root_path
+            .parent()
+            .filter(|parent| !parent.as_os_str().is_empty())
+            .map(|parent| parent.join("build"))
+            .unwrap_or_else(|| std::path::PathBuf::from("build"))
+    });
+    let mut build_machine_filesystem_scope = if let Some(inputs) = package_inputs {
+        crate::pipeline::build_config::BuildMachineFilesystemScope::for_package_root(
+            inputs
+                .package_root(inputs.root())
+                .expect("validated package inputs retain their root")
+                .to_path_buf(),
+            build_dir,
+            filesystem_sponsor,
+            inputs.canonical_source_metadata(inputs.root()).cloned(),
+        )
+    } else {
         crate::pipeline::build_config::BuildMachineFilesystemScope::for_root(
             root_path,
-            build_dir.map(Path::to_path_buf).unwrap_or_else(|| {
-                root_path
-                    .parent()
-                    .filter(|parent| !parent.as_os_str().is_empty())
-                    .map(|parent| parent.join("build"))
-                    .unwrap_or_else(|| std::path::PathBuf::from("build"))
-            }),
+            build_dir,
             filesystem_sponsor,
-        );
+        )
+    };
     if let Some(filesystem_replay) = filesystem_replay {
         build_machine_filesystem_scope =
             build_machine_filesystem_scope.with_replay(filesystem_replay);
@@ -809,6 +845,9 @@ fn compile_to_checked_inner_with_replay(
         .unwrap_or_default();
     if source_consumption_commitment.is_some() {
         omega_package_compilation::verify_current_files(&program, &generated_source_custody)?;
+    }
+    if let Some(package_inputs) = package_inputs {
+        package_inputs.validate_canonical_source_metadata()?;
     }
     Ok(CheckedCompilation {
         program,

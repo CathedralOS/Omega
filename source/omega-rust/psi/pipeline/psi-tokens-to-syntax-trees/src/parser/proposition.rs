@@ -3,8 +3,8 @@ use crate::parser::expression::parse_expression_handle_without_struct_literals;
 use crate::parser::input::{Input, ParseResult};
 use crate::parser::state::parse_optional_state_parameters;
 use crate::parser::type_reference::parse_type_reference_handle;
-use psi_syntax_trees::SyntaxTrees;
 use psi_syntax_trees::item::{PropositionBody, PropositionDefinition};
+use psi_syntax_trees::SyntaxTrees;
 use psi_tokens::PunctuationKind;
 
 pub(super) fn parse_proposition_definition<'tokens, 'source>(
@@ -20,26 +20,35 @@ pub(super) fn parse_proposition_definition<'tokens, 'source>(
     }
     let (parameters, input) = parse_optional_state_parameters(syntax_trees, input)?;
 
-    let (body, input) = if input.at_punctuation(PunctuationKind::Semicolon) {
+    let (body, transparent_formula_source_span, input) = if input
+        .at_punctuation(PunctuationKind::Semicolon)
+    {
         (
             PropositionBody::Primitive,
+            None,
             input.take_punctuation(PunctuationKind::Semicolon, ";")?,
         )
     } else if input.at_contextual("evidence") {
         let input = input.take_contextual("evidence")?;
         let (evidence, input) = parse_type_reference_handle(syntax_trees, input)?;
         let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        (PropositionBody::Witness { evidence }, input)
+        (PropositionBody::Witness { evidence }, None, input)
     } else if input.at_punctuation(PunctuationKind::LeftBrace) {
         return Err(input.error_here(
             "`{ Evidence; }` proposition evidence is retired; write `evidence Evidence;` after the proposition signature",
         ));
     } else if input.at_punctuation(PunctuationKind::Equal) {
         let input = input.take_punctuation(PunctuationKind::Equal, "=")?;
-        let (proposition, input) =
+        let formula_start = input;
+        let (proposition, formula_end) =
             parse_expression_handle_without_struct_literals(syntax_trees, input)?;
-        let input = input.take_punctuation(PunctuationKind::Semicolon, ";")?;
-        (PropositionBody::Transparent { proposition }, input)
+        let formula_source_span = formula_start.source_span_until(formula_end);
+        let input = formula_end.take_punctuation(PunctuationKind::Semicolon, ";")?;
+        (
+            PropositionBody::Transparent { proposition },
+            Some(formula_source_span),
+            input,
+        )
     } else {
         return Err(input.expected_one_of_here(&[
             "`;` for a primitive proposition",
@@ -54,6 +63,7 @@ pub(super) fn parse_proposition_definition<'tokens, 'source>(
             is_public: false,
             type_parameters: generic_parameters.type_parameters,
             parameters,
+            transparent_formula_source_span,
             body,
         },
         input,

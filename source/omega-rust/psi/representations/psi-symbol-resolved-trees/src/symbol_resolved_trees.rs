@@ -83,6 +83,7 @@ pub struct SymbolResolvedDeclarationStorage {
     pub data_payload_fields: Arena<data::DataField>,
     pub data_type_parameters: Arena<data::TypeParameter>,
     pub proof_facts: Arena<domain::ProofFact>,
+    proof_fact_source_spans: Vec<Option<psi_source::SourceSpan>>,
     pub domain_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_path_members: Arena<crate::name::DiagnosticName>,
     pub operator_definitions: Arena<operator::OperatorDefinition>,
@@ -201,6 +202,31 @@ impl SymbolResolvedTrees {
         self.tables.declarations.proof_facts.span_or_empty(span)
     }
 
+    pub fn proof_fact_source_span(
+        &self,
+        handle: Handle<domain::ProofFact>,
+    ) -> Option<psi_source::SourceSpan> {
+        self.tables
+            .declarations
+            .proof_fact_source_spans
+            .get(proof_fact_source_span_index(handle))
+            .copied()
+            .flatten()
+    }
+
+    pub fn set_proof_fact_source_span(
+        &mut self,
+        handle: Handle<domain::ProofFact>,
+        source_span: psi_source::SourceSpan,
+    ) {
+        let index = proof_fact_source_span_index(handle);
+        self.tables
+            .declarations
+            .proof_fact_source_spans
+            .resize(index + 1, None);
+        self.tables.declarations.proof_fact_source_spans[index] = Some(source_span);
+    }
+
     pub fn domain_path_members(
         &self,
         span: HandleSpan<crate::name::DiagnosticName>,
@@ -268,6 +294,7 @@ impl SymbolResolvedTrees {
             data::MachineParameterContract::Nominal {
                 trait_definition,
                 requirement,
+                ..
             } => {
                 let trait_definition = self
                     .traits
@@ -444,6 +471,13 @@ impl SymbolResolvedTrees {
     pub fn snapshot_json_pretty(&self) -> Result<String, serde_json::Error> {
         self.snapshot().to_json_pretty()
     }
+}
+
+fn proof_fact_source_span_index(handle: Handle<domain::ProofFact>) -> usize {
+    usize::try_from(handle.arena_index())
+        .expect("proof fact source-span index exceeds usize")
+        .checked_sub(1)
+        .expect("proof fact source-span handle must be valid")
 }
 
 impl PhaseSnapshot for SymbolResolvedTrees {

@@ -157,7 +157,7 @@ pub struct EvaluationUsage {
 /// returned or evaluator-halted outcome. Exact path results and successful file
 /// and directory observation regions plus canonical metadata values are
 /// designated, but replay execution is not complete yet.
-pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 18;
+pub const FILESYSTEM_OPERATION_ATTEMPT_SCHEMA_VERSION: u32 = 19;
 
 /// One semantic field in the canonical metadata value returned by the
 /// filesystem host seam. This is target-neutral vocabulary; the selected
@@ -511,6 +511,286 @@ pub fn filesystem_root_relative_path_is_canonical(relative: &[u8], allow_empty: 
         .any(|component| component.is_empty() || component == b"." || component == b"..")
 }
 
+/// Version of Psi's canonical immutable-source metadata policy.
+pub const CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION: u32 = 1;
+
+/// Maximum complete source-tree rows accepted by the canonical metadata
+/// carrier. One row is reserved for the source root; the remaining 65,536
+/// match the package resolver's source-entry ceiling.
+pub const CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT: usize = 65_537;
+
+/// Whether raw bytes are one canonical slash-separated source-tree coordinate.
+///
+/// Unlike runtime rooted-path evidence, the complete source index deliberately
+/// does not require UTF-8. Source custody preserves otherwise valid raw Unix
+/// names even when package code cannot express those names through Psi's
+/// target-neutral runtime path gate.
+pub fn canonical_filesystem_metadata_path_is_canonical(relative: &[u8], allow_empty: bool) -> bool {
+    if relative.len() > FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT
+        || relative.contains(&0)
+        || relative.contains(&b'\\')
+    {
+        return false;
+    }
+    if relative.is_empty() {
+        return allow_empty;
+    }
+    if relative[0] == b'/' {
+        return false;
+    }
+    !relative
+        .split(|byte| *byte == b'/')
+        .any(|component| component.is_empty() || component == b"." || component == b"..")
+}
+
+/// Closed source entry shape from which package-visible metadata is derived.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CanonicalFilesystemMetadataRowKind {
+    Directory,
+    File {
+        executable: bool,
+        logical_byte_length: u64,
+    },
+    Symlink {
+        target_spelling_logical_byte_length: u64,
+    },
+}
+
+impl CanonicalFilesystemMetadataRowKind {
+    pub const fn logical_byte_length(self) -> u64 {
+        match self {
+            Self::Directory => 0,
+            Self::File {
+                logical_byte_length,
+                ..
+            } => logical_byte_length,
+            Self::Symlink {
+                target_spelling_logical_byte_length,
+            } => target_spelling_logical_byte_length,
+        }
+    }
+}
+
+/// One raw root-relative row in a canonical immutable-source metadata index.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalFilesystemMetadataRow {
+    relative_path: Vec<u8>,
+    kind: CanonicalFilesystemMetadataRowKind,
+}
+
+impl CanonicalFilesystemMetadataRow {
+    pub fn new(
+        relative_path: impl Into<Vec<u8>>,
+        kind: CanonicalFilesystemMetadataRowKind,
+    ) -> Self {
+        Self {
+            relative_path: relative_path.into(),
+            kind,
+        }
+    }
+
+    pub fn relative_path(&self) -> &[u8] {
+        &self.relative_path
+    }
+
+    pub const fn kind(&self) -> CanonicalFilesystemMetadataRowKind {
+        self.kind
+    }
+}
+
+/// Why compiler-supplied immutable-source metadata is not canonical.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum CanonicalFilesystemMetadataIndexError {
+    UnsupportedPolicyVersion(u32),
+    RowLimitExceeded { limit: usize, attempted: usize },
+    InvalidRelativePath(Vec<u8>),
+    DuplicateRelativePath(Vec<u8>),
+    AggregatePathBytesLimitExceeded { limit: usize, attempted: usize },
+    LogicalByteLengthExceedsI64(Vec<u8>),
+    MissingRootDirectory,
+    RootIsNotDirectory,
+    MissingParentDirectory(Vec<u8>),
+    ParentIsNotDirectory(Vec<u8>),
+}
+
+impl std::fmt::Display for CanonicalFilesystemMetadataIndexError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::UnsupportedPolicyVersion(version) => {
+                write!(
+                    formatter,
+                    "unsupported canonical filesystem metadata policy {version}"
+                )
+            }
+            Self::RowLimitExceeded { limit, attempted } => write!(
+                formatter,
+                "canonical filesystem metadata rows exceed {limit}: attempted {attempted}"
+            ),
+            Self::InvalidRelativePath(path) => write!(
+                formatter,
+                "canonical filesystem metadata contains an invalid relative path: {path:?}"
+            ),
+            Self::DuplicateRelativePath(path) => write!(
+                formatter,
+                "canonical filesystem metadata duplicates relative path: {path:?}"
+            ),
+            Self::AggregatePathBytesLimitExceeded { limit, attempted } => write!(
+                formatter,
+                "canonical filesystem metadata path bytes exceed {limit}: attempted {attempted}"
+            ),
+            Self::LogicalByteLengthExceedsI64(path) => write!(
+                formatter,
+                "canonical filesystem metadata length does not fit i64 at path: {path:?}"
+            ),
+            Self::MissingRootDirectory => {
+                write!(
+                    formatter,
+                    "canonical filesystem metadata omits the root directory"
+                )
+            }
+            Self::RootIsNotDirectory => {
+                write!(
+                    formatter,
+                    "canonical filesystem metadata root is not a directory"
+                )
+            }
+            Self::MissingParentDirectory(path) => write!(
+                formatter,
+                "canonical filesystem metadata omits a parent directory for path: {path:?}"
+            ),
+            Self::ParentIsNotDirectory(path) => write!(
+                formatter,
+                "canonical filesystem metadata parent is not a directory for path: {path:?}"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for CanonicalFilesystemMetadataIndexError {}
+
+/// Immutable, validated metadata for one complete content-authenticated source.
+///
+/// The source-content commitment is deliberately opaque to Psi. The package
+/// resolver owns its construction and the compiler binds it to the source
+/// identity; the interpreter only enforces the closed metadata policy.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CanonicalFilesystemMetadataIndex {
+    policy_version: u32,
+    source_content_commitment: [u8; 32],
+    rows: std::collections::BTreeMap<Vec<u8>, CanonicalFilesystemMetadataRowKind>,
+}
+
+impl CanonicalFilesystemMetadataIndex {
+    pub fn version_1(
+        source_content_commitment: [u8; 32],
+        rows: impl IntoIterator<Item = CanonicalFilesystemMetadataRow>,
+    ) -> Result<Self, CanonicalFilesystemMetadataIndexError> {
+        Self::new(
+            CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION,
+            source_content_commitment,
+            rows,
+        )
+    }
+
+    pub fn new(
+        policy_version: u32,
+        source_content_commitment: [u8; 32],
+        rows: impl IntoIterator<Item = CanonicalFilesystemMetadataRow>,
+    ) -> Result<Self, CanonicalFilesystemMetadataIndexError> {
+        if policy_version != CANONICAL_FILESYSTEM_METADATA_POLICY_VERSION {
+            return Err(
+                CanonicalFilesystemMetadataIndexError::UnsupportedPolicyVersion(policy_version),
+            );
+        }
+        let mut total_path_bytes = 0usize;
+        let mut canonical_rows = std::collections::BTreeMap::new();
+        for (row_index, row) in rows.into_iter().enumerate() {
+            if row_index >= CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT {
+                return Err(CanonicalFilesystemMetadataIndexError::RowLimitExceeded {
+                    limit: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+                    attempted: row_index.saturating_add(1),
+                });
+            }
+            if !canonical_filesystem_metadata_path_is_canonical(&row.relative_path, true) {
+                return Err(CanonicalFilesystemMetadataIndexError::InvalidRelativePath(
+                    row.relative_path,
+                ));
+            }
+            total_path_bytes = total_path_bytes
+                .checked_add(row.relative_path.len())
+                .filter(|total| *total <= FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT)
+                .ok_or(
+                    CanonicalFilesystemMetadataIndexError::AggregatePathBytesLimitExceeded {
+                        limit: FILESYSTEM_ROOT_RELATIVE_PATH_BYTE_LIMIT,
+                        attempted: total_path_bytes.saturating_add(row.relative_path.len()),
+                    },
+                )?;
+            if row.kind.logical_byte_length() > i64::MAX as u64 {
+                return Err(
+                    CanonicalFilesystemMetadataIndexError::LogicalByteLengthExceedsI64(
+                        row.relative_path,
+                    ),
+                );
+            }
+            if canonical_rows
+                .insert(row.relative_path.clone(), row.kind)
+                .is_some()
+            {
+                return Err(
+                    CanonicalFilesystemMetadataIndexError::DuplicateRelativePath(row.relative_path),
+                );
+            }
+        }
+        match canonical_rows.get(b"".as_slice()) {
+            None => return Err(CanonicalFilesystemMetadataIndexError::MissingRootDirectory),
+            Some(CanonicalFilesystemMetadataRowKind::Directory) => {}
+            Some(_) => return Err(CanonicalFilesystemMetadataIndexError::RootIsNotDirectory),
+        }
+        for path in canonical_rows.keys().filter(|path| !path.is_empty()) {
+            let parent = path
+                .iter()
+                .rposition(|byte| *byte == b'/')
+                .map_or(b"".as_slice(), |separator| &path[..separator]);
+            match canonical_rows.get(parent) {
+                None => {
+                    return Err(
+                        CanonicalFilesystemMetadataIndexError::MissingParentDirectory(path.clone()),
+                    );
+                }
+                Some(CanonicalFilesystemMetadataRowKind::Directory) => {}
+                Some(_) => {
+                    return Err(CanonicalFilesystemMetadataIndexError::ParentIsNotDirectory(
+                        path.clone(),
+                    ));
+                }
+            }
+        }
+        Ok(Self {
+            policy_version,
+            source_content_commitment,
+            rows: canonical_rows,
+        })
+    }
+
+    pub const fn policy_version(&self) -> u32 {
+        self.policy_version
+    }
+
+    pub const fn source_content_commitment(&self) -> &[u8; 32] {
+        &self.source_content_commitment
+    }
+
+    pub fn rows(&self) -> impl ExactSizeIterator<Item = CanonicalFilesystemMetadataRow> + '_ {
+        self.rows.iter().map(|(relative_path, kind)| {
+            CanonicalFilesystemMetadataRow::new(relative_path.clone(), *kind)
+        })
+    }
+
+    pub(crate) fn row(&self, relative_path: &[u8]) -> Option<CanonicalFilesystemMetadataRowKind> {
+        self.rows.get(relative_path).copied()
+    }
+}
+
 impl FilesystemGrantRootIdentity {
     pub const fn new(value: u32) -> Option<Self> {
         if value == 0 { None } else { Some(Self(value)) }
@@ -526,6 +806,7 @@ impl FilesystemGrantRootIdentity {
 pub struct FilesystemGrantRoot {
     identity: FilesystemGrantRootIdentity,
     path: std::path::PathBuf,
+    canonical_metadata: Option<CanonicalFilesystemMetadataIndex>,
 }
 
 impl FilesystemGrantRoot {
@@ -533,7 +814,17 @@ impl FilesystemGrantRoot {
         Self {
             identity,
             path: path.into(),
+            canonical_metadata: None,
         }
+    }
+
+    /// Attach canonical immutable-source metadata to this grant root.
+    pub fn with_canonical_metadata(
+        mut self,
+        canonical_metadata: CanonicalFilesystemMetadataIndex,
+    ) -> Self {
+        self.canonical_metadata = Some(canonical_metadata);
+        self
     }
 
     pub const fn identity(&self) -> FilesystemGrantRootIdentity {
@@ -542,6 +833,10 @@ impl FilesystemGrantRoot {
 
     pub fn path(&self) -> &std::path::Path {
         &self.path
+    }
+
+    pub const fn canonical_metadata(&self) -> Option<&CanonicalFilesystemMetadataIndex> {
+        self.canonical_metadata.as_ref()
     }
 }
 
@@ -1478,11 +1773,70 @@ impl FilesystemSourcePathMetadataReplayRecord {
     }
 }
 
-/// One ordered source-input replay event. Descriptor-backed file reads remain
-/// an indivisible closed chain; path metadata reads are independent events.
+/// One successful Source-rooted descriptor metadata event. The descriptor is
+/// created by the event's exact flags-zero open, observed once, and retired by
+/// its exact close; it cannot be borrowed from or leaked into another event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSourceDescriptorMetadataReplayRecord {
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    logical_handle_identity: FilesystemLogicalHandleIdentity,
+    open_post_error: i32,
+    metadata_post_error: i32,
+    mutable_resolution: Vec<u8>,
+    mutable_pre_state: Vec<u8>,
+    mutable_post_state: Vec<u8>,
+    metadata: FilesystemMetadataObservation,
+    close_post_error: i32,
+}
+
+impl FilesystemSourceDescriptorMetadataReplayRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_root: FilesystemGrantRootIdentity,
+        source_relative_path: Vec<u8>,
+        logical_handle_identity: u64,
+        open_post_error: i32,
+        metadata_post_error: i32,
+        mutable_resolution: Vec<u8>,
+        mutable_pre_state: Vec<u8>,
+        mutable_post_state: Vec<u8>,
+        metadata: FilesystemMetadataObservation,
+        close_post_error: i32,
+    ) -> Result<Self, String> {
+        let logical_handle_identity = FilesystemLogicalHandleIdentity::new(logical_handle_identity)
+            .ok_or_else(|| "filesystem replay logical identity must be nonzero".to_owned())?;
+        if !filesystem_root_relative_path_is_canonical(&source_relative_path, false)
+            || metadata.kind() != FilesystemMetadataObservationKind::OpenDescriptor
+            || metadata.output_operand_ordinal() != 1
+            || mutable_resolution != mutable_pre_state
+            || mutable_pre_state.len() != mutable_post_state.len()
+            || mutable_post_state.len() < FILESYSTEM_METADATA_API_CARRIER_BYTES
+        {
+            return Err("filesystem replay descriptor metadata is inconsistent".to_owned());
+        }
+        Ok(Self {
+            source_root,
+            source_relative_path,
+            logical_handle_identity,
+            open_post_error,
+            metadata_post_error,
+            mutable_resolution,
+            mutable_pre_state,
+            mutable_post_state,
+            metadata,
+            close_post_error,
+        })
+    }
+}
+
+/// One ordered source-input replay event. Descriptor-backed file reads and
+/// descriptor metadata remain indivisible closed chains; path metadata reads
+/// are independent events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemSourceInputReplayEventRecord {
     ReadChain(FilesystemSourceReadChainReplayRecord),
+    DescriptorMetadata(FilesystemSourceDescriptorMetadataReplayRecord),
     PathMetadata(FilesystemSourcePathMetadataReplayRecord),
 }
 
@@ -1500,15 +1854,22 @@ impl FilesystemSourceInputReplayRecord {
         }
         let mut identities = Vec::new();
         for event in &events {
-            let FilesystemSourceInputReplayEventRecord::ReadChain(chain) = event else {
-                continue;
+            let identity = match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                    Some(chain.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                    Some(metadata.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::PathMetadata(_) => None,
             };
-            if identities.contains(&chain.logical_handle_identity) {
+            let Some(identity) = identity else { continue };
+            if identities.contains(&identity) {
                 return Err(
-                    "filesystem replay source-read chains must use distinct handles".to_owned(),
+                    "filesystem replay descriptor events must use distinct handles".to_owned(),
                 );
             }
-            identities.push(chain.logical_handle_identity);
+            identities.push(identity);
         }
         Ok(Self { events })
     }
@@ -1640,6 +2001,7 @@ impl FilesystemInputOutputReplayRecord {
                     FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                         chain.reads.len().checked_add(2)?
                     }
+                    FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                     FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
                 })
             })
@@ -1654,6 +2016,11 @@ impl FilesystemInputOutputReplayRecord {
             FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                 chain.source_root == output_write_chain.output_root
                     || chain.logical_handle_identity == output_write_chain.logical_handle_identity
+            }
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                metadata.source_root == output_write_chain.output_root
+                    || metadata.logical_handle_identity
+                        == output_write_chain.logical_handle_identity
             }
             FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                 metadata.source_root == output_write_chain.output_root
@@ -1834,6 +2201,17 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
             );
         }
         cursor += 1;
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
+            cursor += 1;
+            if cursor == attempts.len() || attempts[cursor].operation_tag() != 8 {
+                return Err(
+                    "bounded filesystem replay requires ordered source-input events".to_owned(),
+                );
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         let reads_start = cursor;
         while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
             cursor += 1;
@@ -1973,6 +2351,7 @@ fn source_input_record_attempts(
         count
             + match event {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => chain.reads.len() + 2,
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
             }
     });
@@ -1981,6 +2360,9 @@ fn source_input_record_attempts(
         match event {
             FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                 attempts.extend(source_read_chain_attempts(chain));
+            }
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                attempts.extend(source_descriptor_metadata_attempts(metadata));
             }
             FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                 attempts.push(source_path_metadata_attempt(metadata));
@@ -2322,6 +2704,34 @@ mod filesystem_replay_record_tests {
         .expect("full output write is canonical")
     }
 
+    fn descriptor_metadata_input(identity: u64) -> FilesystemSourceInputReplayRecord {
+        let carrier = vec![0; FILESYSTEM_METADATA_API_CARRIER_BYTES];
+        let metadata = FilesystemMetadataObservation::new(
+            1,
+            FilesystemMetadataObservationKind::OpenDescriptor,
+            0o100444,
+            23,
+            1_000_000_000,
+        );
+        let event = FilesystemSourceDescriptorMetadataReplayRecord::new(
+            root(1),
+            b"main.omg".to_vec(),
+            identity,
+            0,
+            0,
+            carrier.clone(),
+            carrier.clone(),
+            carrier,
+            metadata,
+            0,
+        )
+        .expect("descriptor metadata event is canonical");
+        FilesystemSourceInputReplayRecord::new(vec![
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(event),
+        ])
+        .expect("descriptor metadata is a source event")
+    }
+
     fn typed_replay() -> FilesystemReplay {
         let output = output_chain(2);
         let included = BuildIncludedSource::from_coordinate(
@@ -2361,6 +2771,35 @@ mod filesystem_replay_record_tests {
             .expect("one handoff coordinate is retained");
         assert_eq!(included.root(), output.output_root());
         assert_eq!(included.relative_path(), output.output_relative_path());
+    }
+
+    #[test]
+    fn typed_descriptor_metadata_record_emits_one_closed_exact_event() {
+        let replay =
+            FilesystemReplay::from_source_input_record(descriptor_metadata_input(7)).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 39, 8]
+        );
+        let metadata = &replay.attempts()[1];
+        assert_eq!(
+            metadata.logical_handle_inputs[0].resolution,
+            FilesystemLogicalHandleInputResolution::Resolved(
+                FilesystemLogicalHandleIdentity::new(7).unwrap()
+            )
+        );
+        assert_eq!(
+            metadata.metadata_observations[0].kind(),
+            FilesystemMetadataObservationKind::OpenDescriptor
+        );
+
+        let mut events = source_input(7).events;
+        events.extend(descriptor_metadata_input(7).events);
+        assert!(FilesystemSourceInputReplayRecord::new(events).is_err());
     }
 
     #[test]
@@ -2596,46 +3035,12 @@ fn source_read_chain_attempts(
     record: FilesystemSourceReadChainReplayRecord,
 ) -> Vec<FilesystemOperationAttempt> {
     let identity = record.logical_handle_identity;
-    let open = FilesystemOperationAttempt {
-        operation_tag: 2,
-        provider: FilesystemObservationProvider::RealScoped,
-        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-            result: FilesystemOperationResult::LogicalHandle(identity),
-            post_error: record.open_post_error,
-        }),
-        scalar_operands: vec![FilesystemScalarOperand {
-            operand_ordinal: 1,
-            value: FilesystemScalarOperandValue::I32(0),
-        }],
-        byte_operands: Vec::new(),
-        path_like_operands: Vec::new(),
-        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
-            operand_ordinal: 0,
-            root: record.source_root,
-            relative_path: record.source_relative_path.clone(),
-        }],
-        returned_paths: Vec::new(),
-        observed_byte_regions: Vec::new(),
-        metadata_observations: Vec::new(),
-        mutable_byte_operand_resolutions: Vec::new(),
-        mutable_i64_operand_resolutions: Vec::new(),
-        mutable_byte_operands: Vec::new(),
-        mutable_i64_operands: Vec::new(),
-        authorized_paths: vec![FilesystemAuthorizedPath {
-            operand_ordinal: 0,
-            access: FilesystemGrantAccess::Read,
-            root: record.source_root,
-            relative_path: record.source_relative_path,
-        }],
-        logical_handle_inputs: Vec::new(),
-        logical_handle_output: Some(FilesystemLogicalHandleOutput {
-            kind: FilesystemLogicalHandleKind::Descriptor,
-            identity,
-            source: FilesystemLogicalHandleOutputSource::Created,
-        }),
-        retired_logical_handles: Vec::new(),
-        grant_refusals: Vec::new(),
-    };
+    let open = source_descriptor_open_attempt(
+        record.source_root,
+        record.source_relative_path,
+        identity,
+        record.open_post_error,
+    );
     let read_count = record.reads.len();
     let reads = record.reads.into_iter().map(|read| {
         let read_length =
@@ -2705,12 +3110,121 @@ fn source_read_chain_attempts(
             grant_refusals: Vec::new(),
         }
     });
-    let close = FilesystemOperationAttempt {
+    let close = source_descriptor_close_attempt(identity, record.close_post_error);
+    let mut attempts = Vec::with_capacity(read_count + 2);
+    attempts.push(open);
+    attempts.extend(reads);
+    attempts.push(close);
+    attempts
+}
+
+fn source_descriptor_metadata_attempts(
+    record: FilesystemSourceDescriptorMetadataReplayRecord,
+) -> [FilesystemOperationAttempt; 3] {
+    let identity = record.logical_handle_identity;
+    let open = source_descriptor_open_attempt(
+        record.source_root,
+        record.source_relative_path,
+        identity,
+        record.open_post_error,
+    );
+    let metadata = FilesystemOperationAttempt {
+        operation_tag: 39,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.metadata_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: vec![record.metadata],
+        mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: record.mutable_resolution,
+        }],
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: vec![FilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: record.mutable_pre_state,
+            post_bytes: record.mutable_post_state,
+        }],
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let close = source_descriptor_close_attempt(identity, record.close_post_error);
+    [open, metadata, close]
+}
+
+fn source_descriptor_open_attempt(
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    identity: FilesystemLogicalHandleIdentity,
+    post_error: i32,
+) -> FilesystemOperationAttempt {
+    FilesystemOperationAttempt {
+        operation_tag: 2,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(identity),
+            post_error,
+        }),
+        scalar_operands: vec![FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(0),
+        }],
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: source_root,
+            relative_path: source_relative_path.clone(),
+        }],
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: vec![FilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Read,
+            root: source_root,
+            relative_path: source_relative_path,
+        }],
+        logical_handle_inputs: Vec::new(),
+        logical_handle_output: Some(FilesystemLogicalHandleOutput {
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            identity,
+            source: FilesystemLogicalHandleOutputSource::Created,
+        }),
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    }
+}
+
+fn source_descriptor_close_attempt(
+    identity: FilesystemLogicalHandleIdentity,
+    post_error: i32,
+) -> FilesystemOperationAttempt {
+    FilesystemOperationAttempt {
         operation_tag: 8,
         provider: FilesystemObservationProvider::RealScoped,
         outcome: Some(FilesystemOperationAttemptOutcome::Returned {
             result: FilesystemOperationResult::Scalar(0),
-            post_error: record.close_post_error,
+            post_error,
         }),
         scalar_operands: Vec::new(),
         byte_operands: Vec::new(),
@@ -2732,12 +3246,7 @@ fn source_read_chain_attempts(
         logical_handle_output: None,
         retired_logical_handles: vec![identity],
         grant_refusals: Vec::new(),
-    };
-    let mut attempts = Vec::with_capacity(read_count + 2);
-    attempts.push(open);
-    attempts.extend(reads);
-    attempts.push(close);
-    attempts
+    }
 }
 
 impl Default for EvaluationObservations {
@@ -3325,4 +3834,186 @@ pub fn evaluate_build_machine_with_filesystem_measured(
     options: InterpretOptions,
 ) -> Result<MeasuredBuildMachineEvaluation<Vec<BuildTimeValue>>, BuildMachineEvaluationFailure> {
     evaluator::run_granted_build_machine_arguments(program, machine_name, arguments, options)
+}
+
+#[cfg(test)]
+mod canonical_filesystem_metadata_tests {
+    use super::*;
+
+    fn row(
+        path: &[u8],
+        kind: CanonicalFilesystemMetadataRowKind,
+    ) -> CanonicalFilesystemMetadataRow {
+        CanonicalFilesystemMetadataRow::new(path.to_vec(), kind)
+    }
+
+    #[test]
+    fn canonical_metadata_accepts_raw_non_utf8_paths_and_preserves_ordered_rows() {
+        let index = CanonicalFilesystemMetadataIndex::version_1(
+            [3; 32],
+            [
+                row(b"raw-\xff", CanonicalFilesystemMetadataRowKind::Directory),
+                row(b"a:b", CanonicalFilesystemMetadataRowKind::Directory),
+                row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                row(
+                    b"raw-\xff/file",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 9,
+                    },
+                ),
+            ],
+        )
+        .unwrap();
+
+        assert_eq!(index.policy_version(), 1);
+        assert_eq!(index.source_content_commitment(), &[3; 32]);
+        assert_eq!(
+            index
+                .rows()
+                .map(|row| row.relative_path().to_vec())
+                .collect::<Vec<_>>(),
+            vec![
+                b"".to_vec(),
+                b"a:b".to_vec(),
+                b"raw-\xff".to_vec(),
+                b"raw-\xff/file".to_vec()
+            ]
+        );
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_invalid_and_duplicate_paths() {
+        for invalid in [
+            b"/absolute".as_slice(),
+            b"a//b".as_slice(),
+            b"a/./b".as_slice(),
+            b"a/../b".as_slice(),
+            b"a\\b".as_slice(),
+            b"a\0b".as_slice(),
+        ] {
+            assert!(matches!(
+                CanonicalFilesystemMetadataIndex::version_1(
+                    [0; 32],
+                    [
+                        row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                        row(invalid, CanonicalFilesystemMetadataRowKind::Directory),
+                    ],
+                ),
+                Err(CanonicalFilesystemMetadataIndexError::InvalidRelativePath(path))
+                    if path == invalid
+            ));
+        }
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::DuplicateRelativePath(path))
+                if path.is_empty()
+        ));
+    }
+
+    #[test]
+    fn canonical_metadata_requires_one_directory_root_and_directory_parent_closure() {
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1([0; 32], []),
+            Err(CanonicalFilesystemMetadataIndexError::MissingRootDirectory)
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [row(
+                    b"",
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 0,
+                    },
+                )],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::RootIsNotDirectory)
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"missing/leaf",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 0,
+                        },
+                    ),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::MissingParentDirectory(path))
+                if path == b"missing/leaf"
+        ));
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"file",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: 0,
+                        },
+                    ),
+                    row(b"file/child", CanonicalFilesystemMetadataRowKind::Directory),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::ParentIsNotDirectory(path))
+                if path == b"file/child"
+        ));
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_lengths_outside_the_stat_domain() {
+        assert!(matches!(
+            CanonicalFilesystemMetadataIndex::version_1(
+                [0; 32],
+                [
+                    row(b"", CanonicalFilesystemMetadataRowKind::Directory),
+                    row(
+                        b"huge",
+                        CanonicalFilesystemMetadataRowKind::File {
+                            executable: false,
+                            logical_byte_length: i64::MAX as u64 + 1,
+                        },
+                    ),
+                ],
+            ),
+            Err(CanonicalFilesystemMetadataIndexError::LogicalByteLengthExceedsI64(path))
+                if path == b"huge"
+        ));
+    }
+
+    #[test]
+    fn canonical_metadata_rejects_more_rows_than_the_resolver_can_issue() {
+        let rows = std::iter::once(row(b"", CanonicalFilesystemMetadataRowKind::Directory)).chain(
+            (0..CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT).map(|index| {
+                CanonicalFilesystemMetadataRow::new(
+                    format!("entry-{index}").into_bytes(),
+                    CanonicalFilesystemMetadataRowKind::File {
+                        executable: false,
+                        logical_byte_length: 0,
+                    },
+                )
+            }),
+        );
+
+        assert_eq!(
+            CanonicalFilesystemMetadataIndex::version_1([0; 32], rows),
+            Err(CanonicalFilesystemMetadataIndexError::RowLimitExceeded {
+                limit: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT,
+                attempted: CANONICAL_FILESYSTEM_METADATA_ROW_LIMIT + 1,
+            })
+        );
+    }
 }

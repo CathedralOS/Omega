@@ -662,7 +662,7 @@ fn retains_numbered_record_field_custody_for_unit_call_closure() {
 fn retains_completion_receipt_for_result_bearing_boundary_call() {
     let checked = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self) -> i32
         reaches PortIo
@@ -859,7 +859,7 @@ fn retains_nested_record_field_custody_for_unit_call_closure() {
 fn retains_literal_fixed_array_boundary_settlements_with_sibling_claims() {
     let checked = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo
@@ -947,7 +947,7 @@ fn retains_literal_fixed_array_boundary_settlements_with_sibling_claims() {
 fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_custody() {
     let checked = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo
@@ -1011,7 +1011,7 @@ fn retains_literal_fixed_array_projection_for_direct_unit_calls_with_sibling_cus
 fn fences_projected_unit_calls_outside_the_one_parameter_unit_slice() {
     let caller_with_extra_parameter = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo
@@ -1045,7 +1045,7 @@ fn fences_projected_unit_calls_outside_the_one_parameter_unit_slice() {
 
     let caller_with_scalar_parameter = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo
@@ -1078,7 +1078,7 @@ fn fences_projected_unit_calls_outside_the_one_parameter_unit_slice() {
 
     let callee_with_two_parameters = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo
@@ -1115,7 +1115,7 @@ fn fences_projected_unit_calls_outside_the_one_parameter_unit_slice() {
 fn fences_nested_fixed_array_projection_without_partial_plan() {
     let checked = checked(
         r#"
-        data Receipt [linear] { value: u64; }
+        pub data Receipt [linear] { value: u64; }
 
         boundary machine Receipt::settle(self)
         reaches PortIo

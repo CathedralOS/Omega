@@ -361,6 +361,15 @@ fn parses_primitive_witness_and_transparent_proposition_declarations() {
         psi_syntax_trees::item::PropositionBody::Transparent { proposition }
             if matches!(parsed.expressions.expression(proposition), ExpressionNode::Call(_))
     ));
+    assert!(propositions[0].transparent_formula_source_span.is_none());
+    assert!(propositions[1].transparent_formula_source_span.is_none());
+    let formula_span = propositions[2]
+        .transparent_formula_source_span
+        .expect("transparent proposition formula span");
+    assert_eq!(
+        &source[formula_span.span.start..formula_span.span.end],
+        "related(value, value)"
+    );
 
     let snapshot = parsed
         .snapshot_json()
@@ -4581,6 +4590,20 @@ fn parses_domain_definition_surface() {
         facts[1],
         psi_syntax_trees::item::ProofFact::Expression(_)
     ));
+    let source_slices = (0..domains[0].facts.count())
+        .map(|offset| {
+            let handle = psi_arena::Handle::from_parts(
+                domains[0].facts.start().arena_index() + offset,
+                domains[0].facts.start().generation(),
+            );
+            let span = parsed
+                .items
+                .proof_fact_source_span(handle)
+                .expect("authored proof fact source span");
+            &source[span.span.start..span.span.end]
+        })
+        .collect::<Vec<_>>();
+    assert_eq!(source_slices, ["self in Player::Valid", "self.health > 0"]);
 }
 
 #[test]

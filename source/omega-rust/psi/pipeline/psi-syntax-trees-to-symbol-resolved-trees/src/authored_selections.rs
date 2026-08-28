@@ -380,7 +380,13 @@ fn conformance_bound_candidates(program: &SymbolResolvedTrees) -> Vec<Unattached
         collect_conformance_bound_candidates(
             program,
             &machine.conformance_bounds,
-            if machine.is_public {
+            if machine.is_public
+                || matches!(
+                    machine.supply_mode,
+                    psi_language_semantics::MachineSupplyMode::Boundary
+                        | psi_language_semantics::MachineSupplyMode::Accepted
+                )
+            {
                 Exposure::PublicInterface
             } else {
                 Exposure::PrivateImplementation

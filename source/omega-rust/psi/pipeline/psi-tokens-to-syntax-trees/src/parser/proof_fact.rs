@@ -112,6 +112,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
         }
 
         let fact_input = input;
+        let mut authored_fact_handles = Vec::new();
         let (value, rest) =
             parse_expression_handle_without_struct_literals_or_membership(syntax_trees, input)?;
         input = rest;
@@ -177,6 +178,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                     let handle = syntax_trees
                         .items
                         .append_proof_fact(ProofFact::Expression(chain_expression));
+                    authored_fact_handles.push(handle);
                     if fact_count == 0 {
                         fact_start = handle;
                     }
@@ -189,6 +191,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                         let handle = syntax_trees.items.append_proof_fact(ProofFact::Membership(
                             ProofMembershipFact { value, domain },
                         ));
+                        authored_fact_handles.push(handle);
                         if fact_count == 0 {
                             fact_start = handle;
                         }
@@ -222,6 +225,7 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
                 let handle = syntax_trees
                     .items
                     .append_proof_fact(ProofFact::Expression(range_fact));
+                authored_fact_handles.push(handle);
                 if fact_count == 0 {
                     fact_start = handle;
                 }
@@ -249,12 +253,20 @@ pub(super) fn parse_proof_facts_until_with_machine_semicolon<'tokens, 'source>(
             let handle = syntax_trees
                 .items
                 .append_proof_fact(ProofFact::Expression(expression));
+            authored_fact_handles.push(handle);
             if fact_count == 0 {
                 fact_start = handle;
             }
             fact_count = fact_count
                 .checked_add(1)
                 .expect("proof fact span count overflow");
+        }
+
+        let authored_source_span = fact_input.source_span_until(input);
+        for handle in authored_fact_handles {
+            syntax_trees
+                .items
+                .set_proof_fact_source_span(handle, authored_source_span);
         }
 
         if is_terminator(input) {

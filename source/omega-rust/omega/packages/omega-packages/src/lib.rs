@@ -19,11 +19,9 @@ mod dependency_edit;
 mod dependency_projection;
 mod graph;
 mod identity;
-mod json;
 mod package_reconstruction_question;
 mod package_source;
 mod record_file;
-mod resolver;
 mod review_baseline;
 mod review_closure;
 mod review_evidence;
@@ -98,11 +96,6 @@ pub use package_source::{
     resolve_external_local_project_source, resolve_git_package_source,
     resolve_workspace_member_package_source,
 };
-pub use resolver::{
-    SourceCachePolicyRecord, SourceCachePolicyRecordParseError,
-    SourceCachePolicyRecordPersistenceError, SourceCachePolicyRecordPersistenceLimits,
-    SourceCacheRequest, SourceCacheVerdict, resolve_source_cache_record,
-};
 pub use review_baseline::{
     ReviewOnlyBaselineCapsule, ReviewOnlyBaselineDirectory, ReviewOnlyBaselineError,
     ReviewOnlyBaselineFileError, ReviewOnlyBaselineLimits, ReviewOnlyBaselineName,
@@ -115,10 +108,10 @@ pub use review_evidence::{
     ReviewOnlySourceConsumptionCommitment,
 };
 pub use source::{
-    GitExecutableIdentity, GitSourceRequest, GitSourceRequestError, GitTransportExecutableIdentity,
-    GitTransportProfile, LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot,
-    ResolvedLocalSource, SourceResolveError, resolve_git_source, resolve_local_source,
-    resolve_local_source_snapshot,
+    GitExecutableIdentity, GitNetworkTransferObservation, GitSourceRequest, GitSourceRequestError,
+    GitSourceResolutionObservation, GitTransportExecutableIdentity, GitTransportProfile,
+    LocalSourceLimits, ResolvedGitSource, ResolvedLocalSnapshot, ResolvedLocalSource,
+    SourceResolveError, resolve_git_source, resolve_local_source, resolve_local_source_snapshot,
 };
 pub use source_adapter::{
     ResolveDependencySourceError, ResolveExternalLocalPackageClosureError,
@@ -135,9 +128,8 @@ pub use source_closure_subject::{
 };
 pub use source_commands::{
     PackageSourceAudit, PackageSourceAuditCommandError, PackageSourceRequest,
-    PackageSourceRequestParseError, SourceAdapter, SourceCachePolicyCommandError,
-    audit_package_source, audit_package_source_locator, resolve_source_cache_record_locator,
-    write_source_cache_record_locator,
+    PackageSourceRequestParseError, SourceAdapter, audit_package_source,
+    audit_package_source_locator,
 };
 pub use source_patch::{
     PackageSourcePatch, PackageSourcePatchError, PackageSourcePatchLimits, PackageSourcePatchSide,

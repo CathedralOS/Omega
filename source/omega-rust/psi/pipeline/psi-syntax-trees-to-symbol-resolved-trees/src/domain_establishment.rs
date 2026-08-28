@@ -1,8 +1,14 @@
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::DomainEstablishmentRoute;
+use psi_language_semantics::declaration_selection::{
+    AuthoredDeclarationSelectionExposure as Exposure,
+    AuthoredDeclarationSelectionKind as SelectionKind, AuthoredDeclarationSelectionRecordError,
+};
+use psi_source::{SourceSpan, Span};
 use psi_symbol_resolved_trees::SymbolResolvedTrees;
 use psi_symbol_resolved_trees::domain::ProofFact;
 use psi_symbol_resolved_trees::expression::ExpressionNode;
+use psi_symbol_resolved_trees::name::DiagnosticName;
 use psi_symbol_resolved_trees::signature::{SignatureContract, SignatureContractKind};
 use psi_symbol_resolved_trees::types::TypeReference;
 use psi_symbols::SymbolHandle;
@@ -10,6 +16,15 @@ use psi_symbols::SymbolHandle;
 use crate::signature_free_requirements::{
     SignatureFreeRequirementResolutionError, resolve_signature_free_requirement, same_semantic_name,
 };
+
+#[derive(Debug, Clone, Copy)]
+struct AuthoredRouteResolution {
+    domain_symbol: SymbolHandle,
+    route: DomainEstablishmentRoute,
+    trait_source_span: SourceSpan,
+    requirement_source_span: SourceSpan,
+    exposure: Exposure,
+}
 
 /// Normalize authored domain-introduction relationships after every
 /// declaration and contract fact has a symbol.
@@ -20,23 +35,44 @@ use crate::signature_free_requirements::{
 pub(crate) fn normalize_domain_establishment_routes(
     program: &mut SymbolResolvedTrees,
 ) -> Result<(), Diagnostic> {
-    let mut additions = Vec::new();
-    collect_authored_requirement_routes(program, &mut additions)?;
+    let mut resolutions = Vec::new();
+    collect_authored_requirement_routes(program, &mut resolutions)?;
 
     program.domain_definitions.for_each_mut(|domain| {
         domain.establishment_routes.clear();
-        for (domain_symbol, route) in &additions {
-            if *domain_symbol == domain.symbol && !domain.establishment_routes.contains(route) {
-                domain.establishment_routes.push(*route);
+        for resolution in &resolutions {
+            if resolution.domain_symbol == domain.symbol
+                && !domain.establishment_routes.contains(&resolution.route)
+            {
+                domain.establishment_routes.push(resolution.route);
             }
         }
     });
+
+    for resolution in resolutions {
+        program
+            .record_resolved_authored_declaration_selection(
+                resolution.trait_source_span,
+                resolution.exposure,
+                SelectionKind::TypeReference,
+                resolution.route.source_symbol(),
+            )
+            .map_err(selection_diagnostic)?;
+        program
+            .record_resolved_authored_declaration_selection(
+                resolution.requirement_source_span,
+                resolution.exposure,
+                SelectionKind::StaticPathSegment,
+                resolution.route.requirement_symbol(),
+            )
+            .map_err(selection_diagnostic)?;
+    }
     Ok(())
 }
 
 fn collect_authored_requirement_routes(
     program: &SymbolResolvedTrees,
-    additions: &mut Vec<(SymbolHandle, DomainEstablishmentRoute)>,
+    resolutions: &mut Vec<AuthoredRouteResolution>,
 ) -> Result<(), Diagnostic> {
     for domain in &program.domain_definitions {
         if domain.alias.is_some() && !domain.authored_routes.is_empty() {
@@ -90,23 +126,56 @@ fn collect_authored_requirement_routes(
                         .join("::")
                 )));
             }
-            additions.push((
-                domain.symbol,
-                if trait_definition.is_boundary {
-                    DomainEstablishmentRoute::BoundaryRequirement {
-                        boundary_trait: trait_definition.symbol,
-                        requirement: requirement.symbol,
-                    }
+            let route = if trait_definition.is_boundary {
+                DomainEstablishmentRoute::BoundaryRequirement {
+                    boundary_trait: trait_definition.symbol,
+                    requirement: requirement.symbol,
+                }
+            } else {
+                DomainEstablishmentRoute::CheckedRequirement {
+                    trait_definition: trait_definition.symbol,
+                    requirement: requirement.symbol,
+                }
+            };
+            let [trait_path @ .., requirement_name] = path.as_slice() else {
+                unreachable!("resolved establishment route has a trait and requirement")
+            };
+            resolutions.push(AuthoredRouteResolution {
+                domain_symbol: domain.symbol,
+                route,
+                trait_source_span: path_source_span(trait_path),
+                requirement_source_span: requirement_name.source_span(),
+                exposure: if domain.is_public {
+                    Exposure::PublicInterface
                 } else {
-                    DomainEstablishmentRoute::CheckedRequirement {
-                        trait_definition: trait_definition.symbol,
-                        requirement: requirement.symbol,
-                    }
+                    Exposure::PrivateImplementation
                 },
-            ));
+            });
         }
     }
     Ok(())
+}
+
+fn path_source_span(path: &[DiagnosticName]) -> SourceSpan {
+    let first = path
+        .first()
+        .expect("resolved establishment route has a trait path")
+        .source_span();
+    let last = path
+        .last()
+        .expect("resolved establishment route has a trait path")
+        .source_span();
+    if first.source_id == last.source_id {
+        SourceSpan::new(first.source_id, Span::new(first.span.start, last.span.end))
+    } else {
+        first
+    }
+}
+
+fn selection_diagnostic(error: AuthoredDeclarationSelectionRecordError) -> Diagnostic {
+    Diagnostic::error(format!(
+        "failed to retain domain establishment-route declaration selection: {error:?}"
+    ))
 }
 
 fn requirement_authorizes_domain_subject(

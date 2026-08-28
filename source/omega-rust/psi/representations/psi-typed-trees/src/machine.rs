@@ -121,6 +121,13 @@ pub struct TraitConformance {
     /// lowering always supplies `Some`; `alias` names the satisfier
     /// (`as Name`) for plural algebras / signature collisions.
     pub requirement: Option<Identifier>,
+    /// Exact overload selected by the implementation entry signature. Trait
+    /// requirements retain their state symbol; operator realizations retain
+    /// the exact operator declaration symbol.
+    pub requirement_symbol: SymbolHandle,
+    /// Exact authored requirement-token occurrence retained because typed
+    /// identifiers deliberately own text only.
+    pub requirement_source_span: Option<psi_source::SourceSpan>,
     pub alias: Option<Identifier>,
     /// Exact interned identity of the external leaf's structured `via`
     /// binding. Absence means this is an ordinary checked satisfier.
@@ -137,11 +144,92 @@ impl Default for TraitConformance {
             name: Identifier::default(),
             arguments: HandleSpan::empty(),
             requirement: None,
+            requirement_symbol: SymbolHandle::invalid(),
+            requirement_source_span: None,
             alias: None,
             external_binding: None,
             external_binding_source_span: None,
         }
     }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum SatisfiedDeclaration<'program> {
+    Trait {
+        definition: &'program crate::trait_definition::TraitDefinition,
+        requirement: &'program crate::signature::StateSignature,
+    },
+    Operator(&'program crate::operator::OperatorDefinition),
+}
+
+impl SatisfiedDeclaration<'_> {
+    pub fn symbol(self) -> SymbolHandle {
+        match self {
+            Self::Trait { requirement, .. } => requirement.symbol,
+            Self::Operator(operator) => operator.symbol,
+        }
+    }
+}
+
+/// Resolve one authored `satisfies Namespace::requirement` edge from the
+/// complete typed program. Result-dispatch identity settles overloaded trait
+/// requirements; exact signature identity settles operators.
+pub fn resolve_satisfied_declaration<'program>(
+    program: &'program crate::TypedTrees,
+    machine: &'program Machine,
+    conformance: &'program TraitConformance,
+) -> Option<SatisfiedDeclaration<'program>> {
+    let requirement_name = conformance.requirement.as_ref()?;
+    if let Some(definition) = program
+        .traits()
+        .iter()
+        .find(|definition| definition.symbol == conformance.symbol)
+    {
+        let entry = program.machine_states(machine).first()?;
+        let implementation_dispatch = program.normalized_result_dispatch_set(entry.return_type);
+        let named = program
+            .trait_machine_signatures(definition)
+            .iter()
+            .filter(|requirement| requirement.name == *requirement_name)
+            .collect::<Vec<_>>();
+        let matching = if named.len() == 1 {
+            named
+        } else {
+            named
+                .into_iter()
+                .filter(|requirement| {
+                    program.normalized_result_dispatch_set(requirement.return_type)
+                        == implementation_dispatch
+                })
+                .collect()
+        };
+        let [requirement] = matching.as_slice() else {
+            return None;
+        };
+        return Some(SatisfiedDeclaration::Trait {
+            definition,
+            requirement,
+        });
+    }
+
+    if !program
+        .type_reference_table
+        .type_reference_handles(conformance.arguments)
+        .is_empty()
+    {
+        return None;
+    }
+    // Resolve the declaration the source selected before applying supply-mode
+    // policy. External supply does not turn an ordinary operator into a
+    // boundary operator; validation and package admission reject that
+    // unsupported association independently while retaining its exact subject.
+    let operator = crate::operator::resolve_satisfied_checked_operator(
+        program,
+        machine,
+        conformance.name.as_str(),
+        requirement_name.as_str(),
+    )?;
+    Some(SatisfiedDeclaration::Operator(operator))
 }
 
 impl Default for OwnedData {

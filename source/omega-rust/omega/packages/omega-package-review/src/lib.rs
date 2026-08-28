@@ -1014,6 +1014,27 @@ impl PackageReviewOperatorCoordinate {
     }
 }
 
+/// One exact operator requirement realized by a reviewed callable.
+///
+/// The coordinate identifies the selected overload. The alias preserves the
+/// authored local conformance name used by the checked body; it is not part of
+/// the operator declaration coordinate.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+pub struct PackageReviewOperatorRealization {
+    coordinate: PackageReviewOperatorCoordinate,
+    alias: Option<String>,
+}
+
+impl PackageReviewOperatorRealization {
+    pub const fn coordinate(&self) -> &PackageReviewOperatorCoordinate {
+        &self.coordinate
+    }
+
+    pub fn alias(&self) -> Option<&str> {
+        self.alias.as_deref()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub enum PackageReviewContractOperatorMeaning {
     Builtin,
@@ -1074,6 +1095,12 @@ pub enum PackageReviewContractExpression {
     /// Proof-only observation of one exact type's normalized all-zero home
     /// representation. The checker rejects quotient targets before review.
     ZeroValue(PackageReviewTypeIdentity),
+    /// Compiler-owned `len` projection on a fixed array or slice. The exact
+    /// checked authored-selection occurrence must identify this intrinsic;
+    /// same-spelled package fields remain ordinary nominal members.
+    CollectionLength {
+        collection: Box<PackageReviewContractExpression>,
+    },
     Member {
         receiver: Box<PackageReviewContractExpression>,
         member: PackageReviewNominalIdentity,
@@ -2006,7 +2033,7 @@ pub struct CheckedPackageCallableReview {
     parameters: Vec<PackageReviewCallableParameter>,
     return_type: PackageReviewTypeIdentity,
     conformances: Vec<PackageReviewCallableConformance>,
-    operator_realizations: Vec<PackageReviewOperatorCoordinate>,
+    operator_realizations: Vec<PackageReviewOperatorRealization>,
     contracts: Vec<PackageReviewCallableContract>,
     /// `Some` preserves a published ceiling, including an explicitly empty
     /// one. `None` is retained for the current ordinary build-machine form;
@@ -2186,7 +2213,7 @@ impl CheckedPackageCallableReview {
         &self.conformances
     }
 
-    pub fn operator_realizations(&self) -> &[PackageReviewOperatorCoordinate] {
+    pub fn operator_realizations(&self) -> &[PackageReviewOperatorRealization] {
         &self.operator_realizations
     }
 
@@ -2401,6 +2428,25 @@ pub enum PackageReviewSourceLocationRole {
     ServiceReach,
     SynchronousInvocation,
     ExternalBinding,
+    /// Exact initializer expression of one public const. This remains
+    /// distinct from the declaration-name anchor after value substitution.
+    ConstInitializer,
+    /// Exact source expression of one transparent public proposition. The
+    /// formula remains explanatory custody outside normalized proposition
+    /// identity.
+    PropositionFormula,
+    /// Exact semantic-token extent of one authored proof fact. The location
+    /// remains explanatory custody outside normalized fact identity.
+    ProofFact,
+    /// Exact declaration or derivation origin of one public trait machine
+    /// requirement nested beneath its owning trait row.
+    TraitRequirement,
+    /// Exact declaration or derivation origin of one public data field, sum
+    /// case, or sum payload field nested beneath its owning data row.
+    DataMember,
+    /// Exact declaration or derivation origin of one value parameter on a
+    /// reviewed callable, public operator, or public trait requirement.
+    CallableParameter,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
@@ -2716,7 +2762,7 @@ pub fn project_checked_package_review(
 
         let (callable, executable_supply) = project_callable(compilation, machine, role, owner)?;
         let mut contract_locations =
-            project_contract_clause_source_locations(compilation.machine_contracts(machine));
+            project_contract_source_locations(compilation, compilation.machine_contracts(machine))?;
         contract_locations.extend(project_machine_invocation_source_locations(
             compilation,
             machine,
@@ -2732,6 +2778,18 @@ pub fn project_checked_package_review(
         collect_type_parameter_source_locations(
             compilation,
             compilation.machine_type_parameters(machine),
+            &mut contract_locations,
+        )?;
+        let entry = compilation.machine_states(machine).first().ok_or_else(|| {
+            vec![Diagnostic::error(format!(
+                "reviewed callable `{}` has no canonical entry signature",
+                compilation.typed.symbols.display_path(machine.symbol, "::")
+            ))]
+        })?;
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.state_parameters(entry),
+            "reviewed callable parameter",
             &mut contract_locations,
         )?;
         contract_locations.extend(
@@ -3578,6 +3636,30 @@ fn canonical_source_location(
     canonical_source_span_location(compilation, span, role)
 }
 
+fn project_nested_declaration_source_location(
+    compilation: &CheckedCompilation,
+    symbol: SymbolHandle,
+    authored_role: PackageReviewSourceLocationRole,
+    subject: &str,
+) -> Result<ProjectedNestedSourceLocation, Vec<Diagnostic>> {
+    let (source_span, role) = match compilation.typed.symbols.symbol_source_span(symbol) {
+        Some(source_span) => (source_span, authored_role),
+        None => (
+            compilation
+                .typed
+                .symbols
+                .symbol_provenance_source_span(symbol)
+                .ok_or_else(|| {
+                    vec![Diagnostic::error(format!(
+                        "{subject} has neither an authored declaration span nor a derivation origin"
+                    ))]
+                })?,
+            PackageReviewSourceLocationRole::DerivationOrigin,
+        ),
+    };
+    Ok(ProjectedNestedSourceLocation { source_span, role })
+}
+
 fn canonical_source_span_location(
     compilation: &CheckedCompilation,
     span: psi_source::SourceSpan,
@@ -3819,9 +3901,22 @@ fn project_public_traits(
             },
         ));
         for requirement in compilation.trait_machine_signatures(definition) {
-            nested_source_locations.extend(project_contract_clause_source_locations(
+            nested_source_locations.push(project_nested_declaration_source_location(
+                compilation,
+                requirement.symbol,
+                PackageReviewSourceLocationRole::TraitRequirement,
+                "public trait requirement",
+            )?);
+            collect_callable_parameter_source_locations(
+                compilation,
+                compilation.state_signature_parameters(requirement),
+                "public trait requirement parameter",
+                &mut nested_source_locations,
+            )?;
+            nested_source_locations.extend(project_contract_source_locations(
+                compilation,
                 compilation.state_signature_contracts(requirement),
-            ));
+            )?);
             nested_source_locations.extend(project_signature_invocation_source_locations(
                 compilation,
                 requirement,
@@ -4263,6 +4358,30 @@ fn project_public_propositions(
             continue;
         }
         let (binders, parameter_types) = project_proposition_signature(compilation, declaration)?;
+        let nested_source_locations = match (
+            &declaration.body,
+            declaration.transparent_formula_source_span,
+        ) {
+            (PropositionBody::Transparent { .. }, Some(source_span)) => {
+                vec![ProjectedNestedSourceLocation {
+                    source_span,
+                    role: PackageReviewSourceLocationRole::PropositionFormula,
+                }]
+            }
+            (PropositionBody::Primitive | PropositionBody::Witness { .. }, None) => Vec::new(),
+            (PropositionBody::Transparent { .. }, None) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "public transparent proposition `{}` has no exact formula source custody",
+                    identity.path
+                ))]);
+            }
+            (PropositionBody::Primitive | PropositionBody::Witness { .. }, Some(_)) => {
+                return Err(vec![Diagnostic::error(format!(
+                    "public non-transparent proposition `{}` retains contradictory formula source custody",
+                    identity.path
+                ))]);
+            }
+        };
         let body = match &declaration.body {
             PropositionBody::Primitive | PropositionBody::Witness { .. } => {
                 let matching = compilation
@@ -4363,7 +4482,7 @@ fn project_public_propositions(
                 body,
             },
             declaration: declaration.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations,
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4401,7 +4520,10 @@ fn project_public_consts(
                 canonical_value_encoding,
             },
             declaration: declaration.symbol,
-            nested_source_locations: Vec::new(),
+            nested_source_locations: vec![ProjectedNestedSourceLocation {
+                source_span: declaration.initializer_source_span,
+                role: PackageReviewSourceLocationRole::ConstInitializer,
+            }],
         });
     }
     rows.sort_by(|left, right| left.row.identity.cmp(&right.row.identity));
@@ -4517,8 +4639,16 @@ fn project_public_operators(
         };
         let published_crash =
             project_operator_crash_routes(compilation, checked_crash, &context, &binders)?;
-        let mut nested_source_locations =
-            project_contract_clause_source_locations(compilation.operator_contracts(declaration));
+        let mut nested_source_locations = project_contract_source_locations(
+            compilation,
+            compilation.operator_contracts(declaration),
+        )?;
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.operator_parameters(declaration),
+            "public operator parameter",
+            &mut nested_source_locations,
+        )?;
         collect_type_parameter_source_locations(
             compilation,
             declaration_type_parameters,
@@ -4684,6 +4814,11 @@ fn project_public_domains(
             nested_source_locations: {
                 let mut locations = Vec::new();
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
+                locations.extend(project_required_proof_fact_source_locations(
+                    compilation,
+                    definition.facts,
+                    "public domain predicate",
+                )?);
                 locations
             },
         });
@@ -5566,6 +5701,39 @@ fn project_public_data(
             nested_source_locations: {
                 let mut locations = Vec::new();
                 collect_type_parameter_source_locations(compilation, parameters, &mut locations)?;
+                for member in compilation.data_members(definition) {
+                    match member {
+                        psi_typed_trees::data::DataMember::Field(field) => {
+                            locations.push(project_nested_declaration_source_location(
+                                compilation,
+                                field.symbol,
+                                PackageReviewSourceLocationRole::DataMember,
+                                "public data field",
+                            )?);
+                        }
+                        psi_typed_trees::data::DataMember::Variant(variant) => {
+                            locations.push(project_nested_declaration_source_location(
+                                compilation,
+                                variant.symbol,
+                                PackageReviewSourceLocationRole::DataMember,
+                                "public data case",
+                            )?);
+                            for field in compilation.data_payload_fields(variant) {
+                                locations.push(project_nested_declaration_source_location(
+                                    compilation,
+                                    field.symbol,
+                                    PackageReviewSourceLocationRole::DataMember,
+                                    "public data case payload field",
+                                )?);
+                            }
+                        }
+                    }
+                }
+                locations.extend(project_required_proof_fact_source_locations(
+                    compilation,
+                    definition.where_facts,
+                    "public data invariant",
+                )?);
                 locations
             },
         });
@@ -7543,20 +7711,71 @@ fn project_contracts(
     Ok(projected)
 }
 
-fn project_contract_clause_source_locations(
+fn proof_fact_handle(
+    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    offset: u32,
+) -> psi_arena::Handle<psi_typed_trees::domain::ProofFact> {
+    psi_arena::Handle::from_parts(
+        facts
+            .start()
+            .arena_index()
+            .checked_add(offset)
+            .expect("proof fact handle index overflow"),
+        facts.start().generation(),
+    )
+}
+
+fn project_required_proof_fact_source_locations(
+    compilation: &CheckedCompilation,
+    facts: psi_arena::HandleSpan<psi_typed_trees::domain::ProofFact>,
+    subject: &str,
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::with_capacity(facts.len());
+    for offset in 0..facts.count() {
+        let source_span = compilation
+            .proof_fact_source_span(proof_fact_handle(facts, offset))
+            .ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "{subject} fact has no exact authored source custody"
+                ))]
+            })?;
+        locations.push(ProjectedNestedSourceLocation {
+            source_span,
+            role: PackageReviewSourceLocationRole::ProofFact,
+        });
+    }
+    Ok(locations)
+}
+
+fn project_contract_source_locations(
+    compilation: &CheckedCompilation,
     contracts: &[psi_typed_trees::signature::SignatureContract],
-) -> Vec<ProjectedNestedSourceLocation> {
-    contracts
-        .iter()
-        .filter_map(|contract| {
-            contract
-                .keyword_source_span
-                .map(|source_span| ProjectedNestedSourceLocation {
+) -> Result<Vec<ProjectedNestedSourceLocation>, Vec<Diagnostic>> {
+    let mut locations = Vec::new();
+    for contract in contracts {
+        if let Some(source_span) = contract.keyword_source_span {
+            locations.push(ProjectedNestedSourceLocation {
+                source_span,
+                role: PackageReviewSourceLocationRole::ContractClause,
+            });
+        }
+        for offset in 0..contract.facts.count() {
+            let fact = proof_fact_handle(contract.facts, offset);
+            match compilation.proof_fact_source_span(fact) {
+                Some(source_span) => locations.push(ProjectedNestedSourceLocation {
                     source_span,
-                    role: PackageReviewSourceLocationRole::ContractClause,
-                })
-        })
-        .collect()
+                    role: PackageReviewSourceLocationRole::ProofFact,
+                }),
+                None if contract.keyword_source_span.is_some() => {
+                    return Err(vec![Diagnostic::error(
+                        "authored package-review contract fact has no exact source custody",
+                    )]);
+                }
+                None => {}
+            }
+        }
+    }
+    Ok(locations)
 }
 
 fn project_machine_service_reach_source_locations(
@@ -8072,9 +8291,16 @@ fn collect_type_parameter_source_locations(
         else {
             continue;
         };
-        locations.extend(project_contract_clause_source_locations(
+        collect_callable_parameter_source_locations(
+            compilation,
+            compilation.state_signature_parameters(signature),
+            "structural machine parameter contract value parameter",
+            locations,
+        )?;
+        locations.extend(project_contract_source_locations(
+            compilation,
             compilation.state_signature_contracts(signature),
-        ));
+        )?);
         locations.extend(project_signature_invocation_source_locations(
             compilation,
             signature,
@@ -8094,6 +8320,23 @@ fn collect_type_parameter_source_locations(
             compilation.state_signature_type_parameters(signature),
             locations,
         )?;
+    }
+    Ok(())
+}
+
+fn collect_callable_parameter_source_locations(
+    compilation: &CheckedCompilation,
+    parameters: &[psi_typed_trees::signature::StateParameter],
+    subject: &str,
+    locations: &mut Vec<ProjectedNestedSourceLocation>,
+) -> Result<(), Vec<Diagnostic>> {
+    for parameter in parameters {
+        locations.push(project_nested_declaration_source_location(
+            compilation,
+            parameter.symbol,
+            PackageReviewSourceLocationRole::CallableParameter,
+            subject,
+        )?);
     }
     Ok(())
 }
@@ -9289,10 +9532,20 @@ fn project_contract_expression_with_substitutions(
             left: Box::new(child(binary.left)?),
             right: Box::new(child(binary.right)?),
         }),
-        ExpressionNode::Unary(unary) => Ok(PackageReviewContractExpression::Unary {
-            operator: project_contract_unary_operator(unary.operator),
-            operand: Box::new(child(unary.operand)?),
-        }),
+        ExpressionNode::Unary(unary) => {
+            if exact_checked_contract_operator_meaning(compilation, context, expression)?
+                != PackageReviewContractOperatorMeaning::Builtin
+            {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` unary contract operator is not one closed compiler-owned meaning",
+                    context.subject_kind, context.subject_name
+                ))]);
+            }
+            Ok(PackageReviewContractExpression::Unary {
+                operator: project_contract_unary_operator(unary.operator),
+                operand: Box::new(child(unary.operand)?),
+            })
+        }
         ExpressionNode::Call(call) => {
             let target =
                 exact_checked_contract_call_target(compilation, context, expression, call)?;
@@ -9371,6 +9624,19 @@ fn project_contract_expression_with_substitutions(
             checked_fact,
         ),
         ExpressionNode::Member(member)
+            if contract_member_has_exact_collection_length(compilation, expression) =>
+        {
+            require_exact_checked_contract_collection_length(
+                compilation,
+                context,
+                expression,
+                member,
+            )?;
+            Ok(PackageReviewContractExpression::CollectionLength {
+                collection: Box::new(child(member.receiver)?),
+            })
+        }
+        ExpressionNode::Member(member)
             if matches!(
                 compilation.expression_table.expression(member.receiver),
                 ExpressionNode::Name(path)
@@ -9397,6 +9663,12 @@ fn project_contract_expression_with_substitutions(
                 .expect("guarded projection substitution");
             let projection =
                 exact_fact_call_projection(compilation, context, expression, actual, member)?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                projection.field,
+            )?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9412,6 +9684,12 @@ fn project_contract_expression_with_substitutions(
                     if substitutions.iter().any(|(symbol, _)| *symbol == path.symbol)
             ) =>
         {
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                member.member_symbol,
+            )?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9449,8 +9727,9 @@ fn project_contract_expression_with_substitutions(
                 vec![Diagnostic::error(format!(
                     "reviewed {} `{}` proposition parameter member does not resolve through its declared carrier",
                     context.subject_kind, context.subject_name
-                ))]
-            })?;
+                    ))]
+                })?;
+            require_exact_checked_contract_nominal_member(compilation, context, expression, field)?;
             project_contract_member_expression(
                 compilation,
                 context,
@@ -9471,6 +9750,12 @@ fn project_contract_expression_with_substitutions(
                 expression,
                 member.receiver,
                 member,
+            )?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                projection.field,
             )?;
             project_contract_member_expression(
                 compilation,
@@ -9520,24 +9805,37 @@ fn project_contract_expression_with_substitutions(
             } else {
                 child(root_expression)?
             };
-            checked_contract_member_path(
+            let member_path = checked_contract_member_path(
                 compilation,
                 context,
                 checked_fact,
                 expression,
                 root,
                 &source_members,
-            )?
-            .into_iter()
-            .try_fold(receiver, |receiver, (case_variant, member_symbol)| {
-                project_contract_member_expression(
-                    compilation,
-                    context,
-                    receiver,
-                    member_symbol,
-                    case_variant,
-                )
-            })
+            )?;
+            let selected_member = member_path.last().ok_or_else(|| {
+                vec![Diagnostic::error(format!(
+                    "reviewed {} `{}` contract member path has no checked member coordinate",
+                    context.subject_kind, context.subject_name
+                ))]
+            })?;
+            require_exact_checked_contract_nominal_member(
+                compilation,
+                context,
+                expression,
+                selected_member.1,
+            )?;
+            member_path
+                .into_iter()
+                .try_fold(receiver, |receiver, (case_variant, member_symbol)| {
+                    project_contract_member_expression(
+                        compilation,
+                        context,
+                        receiver,
+                        member_symbol,
+                        case_variant,
+                    )
+                })
         }
         ExpressionNode::Cast(cast) => {
             let semantic_domain = if cast.semantic_domain_symbol.is_valid() {
@@ -10337,6 +10635,133 @@ fn project_contract_name_expression(
     })
 }
 
+fn contract_member_has_exact_collection_length(
+    compilation: &CheckedCompilation,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+) -> bool {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionIntrinsic, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .any(|selection| {
+            selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.target()
+                    == AuthoredDeclarationSelectionTarget::Intrinsic(
+                        AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    )
+        })
+}
+
+fn require_exact_checked_contract_nominal_member(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    expected_member: SymbolHandle,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionKind,
+        AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member has {} exact checked member-selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    let AuthoredDeclarationSelectionTarget::Resolved(target) = selection.target() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member does not retain one exact declaration target",
+            context.subject_kind, context.subject_name
+        ))]);
+    };
+    if !expected_member.is_valid() || target.selected_symbol() != expected_member {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` nominal member disagrees with its exact checked member-selection row",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
+}
+
+fn require_exact_checked_contract_collection_length(
+    compilation: &CheckedCompilation,
+    context: &ContractProjectionContext<'_>,
+    expression: psi_typed_trees::expression::ExpressionHandle,
+    member: &psi_typed_trees::expression::TableMemberExpression,
+) -> Result<(), Vec<Diagnostic>> {
+    use psi_language_semantics::declaration_selection::{
+        AuthoredDeclarationSelectionExposure, AuthoredDeclarationSelectionIntrinsic,
+        AuthoredDeclarationSelectionKind, AuthoredDeclarationSelectionTarget,
+    };
+
+    let selections = compilation
+        .expression_table
+        .authored_selection_occurrences(expression)
+        .filter_map(|occurrence| {
+            compilation
+                .authored_declaration_selections()
+                .get(occurrence)
+        })
+        .filter(|selection| selection.kind() == AuthoredDeclarationSelectionKind::MemberAccess)
+        .collect::<Vec<_>>();
+    let [selection] = selections.as_slice() else {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length projection has {} exact checked member-selection rows; expected one",
+            context.subject_kind,
+            context.subject_name,
+            selections.len()
+        ))]);
+    };
+    if selection.exposure() != AuthoredDeclarationSelectionExposure::PublicInterface {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length projection is not retained as a public-interface selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    if member.member.as_str() != "len"
+        || member.member_symbol.is_valid()
+        || member.case_variant.is_some()
+        || selection.target()
+            != AuthoredDeclarationSelectionTarget::Intrinsic(
+                AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+            )
+    {
+        return Err(vec![Diagnostic::error(format!(
+            "reviewed {} `{}` collection-length syntax disagrees with its exact checked intrinsic selection",
+            context.subject_kind, context.subject_name
+        ))]);
+    }
+    Ok(())
+}
+
 fn project_contract_member_expression(
     compilation: &CheckedCompilation,
     context: &ContractProjectionContext<'_>,
@@ -10735,7 +11160,7 @@ fn project_callable_conformances(
 ) -> Result<
     (
         Vec<PackageReviewCallableConformance>,
-        Vec<PackageReviewOperatorCoordinate>,
+        Vec<PackageReviewOperatorRealization>,
         Vec<ProjectedReviewRow<PackageReviewExternalExecutableSupply>>,
     ),
     Vec<Diagnostic>,
@@ -10871,6 +11296,12 @@ fn project_callable_conformances(
                     }
                 ))]);
             };
+            if operator.symbol != conformance.requirement_symbol {
+                return Err(vec![Diagnostic::error(format!(
+                    "reviewed callable `{}` operator realization `{}::{}` drifted from its retained exact overload",
+                    machine.name, conformance.name, requirement_name
+                ))]);
+            }
             if !operator.is_public && (external_operator || require_public_trait) {
                 return Err(vec![Diagnostic::error(format!(
                     "reviewed callable `{}` realizes non-public operator `{}::{}` whose complete contract is absent from package review",
@@ -10914,7 +11345,10 @@ fn project_callable_conformances(
                 )?;
                 let coordinate = project_operator_coordinate(compilation, operator)?;
                 if require_public_trait {
-                    operator_realizations.push(coordinate.clone());
+                    operator_realizations.push(PackageReviewOperatorRealization {
+                        coordinate: coordinate.clone(),
+                        alias: None,
+                    });
                 }
                 external_executable_supply.push(project_external_executable_supply_with_source(
                     machine,
@@ -10956,12 +11390,6 @@ fn project_callable_conformances(
                     machine.name, conformance.name, requirement_name
                 ))]);
             }
-            if conformance.alias.is_some() {
-                return Err(vec![Diagnostic::error(format!(
-                    "reviewed callable `{}` realizes operator `{}::{}` through an alias not yet represented by package review",
-                    machine.name, conformance.name, requirement_name
-                ))]);
-            }
             if compilation.operator_contracts(operator).iter().any(|contract| {
                 matches!(
                     contract.kind,
@@ -10999,7 +11427,13 @@ fn project_callable_conformances(
                 machine,
                 operator,
             )?;
-            operator_realizations.push(project_operator_coordinate(compilation, operator)?);
+            operator_realizations.push(PackageReviewOperatorRealization {
+                coordinate: project_operator_coordinate(compilation, operator)?,
+                alias: conformance
+                    .alias
+                    .as_ref()
+                    .map(|alias| alias.as_str().to_owned()),
+            });
             continue;
         };
         if require_public_trait && !trait_definition.is_public {
@@ -11020,38 +11454,28 @@ fn project_callable_conformances(
                 machine.name
             ))]);
         };
-        let implementation_dispatch = compilation.normalized_result_dispatch_set(
-            compilation
-                .machine_states(machine)
-                .first()
-                .expect("reviewed callable entry was checked before conformances")
-                .return_type,
-        );
-        let named = compilation
-            .trait_machine_signatures(trait_definition)
-            .iter()
-            .filter(|requirement| requirement.name == *requirement_name)
-            .collect::<Vec<_>>();
-        let matching = if named.len() == 1 {
-            named
-        } else {
-            named
-                .into_iter()
-                .filter(|requirement| {
-                    compilation.normalized_result_dispatch_set(requirement.return_type)
-                        == implementation_dispatch
-                })
-                .collect()
-        };
-        let [requirement] = matching.as_slice() else {
+        let Some(psi_typed_trees::machine::SatisfiedDeclaration::Trait {
+            definition: resolved_trait,
+            requirement,
+        }) = psi_typed_trees::machine::resolve_satisfied_declaration(
+            &compilation.typed,
+            machine,
+            conformance,
+        )
+        else {
             return Err(vec![Diagnostic::error(format!(
-                "reviewed callable `{}` trait realization `{}::{}` resolves to {} exact requirement overloads; expected one",
-                machine.name,
-                trait_definition.name,
-                requirement_name,
-                matching.len()
+                "reviewed callable `{}` trait realization `{}::{}` does not resolve to one exact retained requirement overload",
+                machine.name, trait_definition.name, requirement_name,
             ))]);
         };
+        if resolved_trait.symbol != trait_definition.symbol
+            || requirement.symbol != conformance.requirement_symbol
+        {
+            return Err(vec![Diagnostic::error(format!(
+                "reviewed callable `{}` trait realization `{}::{}` drifted from its retained exact requirement",
+                machine.name, trait_definition.name, requirement_name
+            ))]);
+        }
         let row = PackageReviewCallableConformance {
             trait_identity: nominal_identity(compilation, trait_definition.symbol)?,
             requirement_identity: trait_requirement_identity(

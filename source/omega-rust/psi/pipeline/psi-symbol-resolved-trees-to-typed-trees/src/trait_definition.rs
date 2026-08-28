@@ -63,6 +63,14 @@ pub(crate) fn lower_trait_definition(
         .source_trees
         .trait_requirements(trait_definition.requires)
     {
+        crate::type_reference::retain_type_reference_selection(
+            lowerer.source_trees,
+            &mut lowerer.typed_trees,
+            &requirement.name,
+            requirement.symbol,
+            lowerer.type_reference_exposure,
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::TypeReference,
+        )?;
         let mut arguments = psi_arena::HandleSpan::empty();
         let source_arguments = lowerer
             .source_trees

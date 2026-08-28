@@ -227,6 +227,12 @@ source code ends a lifetime early through the ordinary consuming
 A package absent from the requester's direct dependency set cannot be selected
 by hiding its name behind a value whose type was inferred.
 
+The carrier in an attached declaration head is itself a declaration selection:
+`machine Data::operation` names the exact `Data` declaration as well as
+declaring the independently visible machine. Qualifying the machine does not
+inherit the carrier's visibility or make a transitively owned carrier directly
+nameable.
+
 Nominal identity may nevertheless flow through another package's API without
 granting that selection authority:
 
@@ -275,6 +281,10 @@ parameter or local is a lexical place and does not become a package row.
 Every declaration selected from a public-interface position must itself be
 publicly visible. The compiler rejects a public contract or predicate that
 names a private declaration rather than silently promoting the target.
+For a reviewed nominal member expression, the authored member token and the
+checked semantic place or call-result projection must also select the same
+exact field. The token cannot disappear merely because the checked expression
+already carries a structurally representable receiver and field path.
 
 Generic conformance bounds apply the same distinction. Their subject and
 evidence binder are lexical; the right-hand trait, or both declarations in a
@@ -292,10 +302,33 @@ authorized row map rather than those implementations.
 An exact `machine ... satisfies Trait::requirement` edge is not a standalone
 conformance declaration and follows the machine's visibility. Its optional
 `as Name` label groups requirement-local satisfiers but does not create a
-package-level selectable declaration. Conversely, a value may carry a private
+package-level selectable declaration. The edge nevertheless authors two exact
+declaration selections: the trait and its overload-resolved requirement. An
+operator requirement similarly selects the exact signature-matched operator.
+Both coordinates require direct dependency authority and must be public when
+the realizing machine publishes an interface, including boundary or accepted
+supply not separately spelled `pub`. Selection identity is settled before
+supply policy: an inadmissible external realization does not erase or replace
+the declaration it attempted to realize. Conversely, a value may carry a private
 dynamic conformance selected by its producer without granting the receiver
 authority to name or select that conformance elsewhere. Carrying compiler-
 selected semantics is not authored declaration selection.
+
+A domain's `established by Trait::requirement` entry applies the same rule
+directly at the domain declaration. It selects the exact trait and the one
+signature-free requirement, and both selections inherit the domain's
+visibility. Each comma-separated or repeated authored route remains a source
+occurrence even when equivalent semantic alternatives normalize to one route.
+A public domain therefore cannot authorize a private trait or requirement;
+private same-package domains may use private routes normally.
+
+A nominal callable machine-parameter contract such as `where machine Selected
+satisfies Trait::requirement` likewise authors both exact selections. The
+complete trait path and requirement token inherit the enclosing declaration's
+interface exposure, including exported boundary machines, and each selected
+declaration must be directly authorized and visible there. Nested machine-
+parameter contracts follow the same rule; generic nesting does not hide a
+transitive or private requirement.
 
 A Unit-producing or explicitly discarded call statement follows exactly the
 same rule as a value-producing call expression. Its target token selects the
@@ -382,6 +415,12 @@ proved, or admitted.
 Compiler intrinsics are a separate closed selection category. Their
 availability is fixed by the language/toolchain and cannot be acquired by a
 package declaring a public lookalike.
+An authored intrinsic still has source custody. In particular, each `!` or `~`
+token retains one exact operator-selection occurrence and the enclosing
+declaration determines whether that occurrence is public-interface or private-
+implementation use. Package review accepts the structural unary meaning only
+after checked lowering rejoins that occurrence to the compiler-owned builtin;
+a nested unary expression cannot disappear behind its enclosing binary fact.
 
 Omega has no `export` item. `pub` exposes declarations owned by the current
 package; it does not relabel dependency-owned identity. A package presents

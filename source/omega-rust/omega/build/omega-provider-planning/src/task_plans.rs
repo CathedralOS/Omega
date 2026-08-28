@@ -2350,7 +2350,7 @@ mod tests {
             satisfies TaskRuntime::try_start
             via Binding::CompilerIntrinsic;
 
-            boundary data Sleeper;
+            pub boundary data Sleeper;
             boundary machine Sleeper::park(token: i32) suspends;
             data Job { value: i32; }
             data Worker {}

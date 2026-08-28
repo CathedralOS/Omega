@@ -423,7 +423,13 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                 .expect("expression arena index overflow");
             let mut first_fact = Handle::invalid();
             let mut fact_count = 0u32;
-            for fact in snapshot.tables.items.proof_facts(base_info.where_facts) {
+            for (offset, fact) in snapshot
+                .tables
+                .items
+                .proof_facts(base_info.where_facts)
+                .iter()
+                .enumerate()
+            {
                 let const_result = match fact {
                     ProofFact::Expression(expression) => evaluate_const_fact_expression(
                         &snapshot,
@@ -459,8 +465,16 @@ fn desugar_generic_data_instances(syntax: &mut SyntaxTrees) -> Result<(), Vec<Di
                         instance.synthetic_name
                     ))]);
                 }
-                let copied = syntax.copy_proof_fact_from(&snapshot, fact);
-                let handle = syntax.tables.items.append_proof_fact(copied);
+                let source = Handle::from_parts(
+                    base_info
+                        .where_facts
+                        .start()
+                        .arena_index()
+                        .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
+                        .expect("proof fact source handle overflow"),
+                    base_info.where_facts.start().generation(),
+                );
+                let handle = syntax.copy_proof_fact_from(&snapshot, source);
                 if fact_count == 0 {
                     first_fact = handle;
                 }

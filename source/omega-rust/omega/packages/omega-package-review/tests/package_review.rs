@@ -4,13 +4,15 @@ use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use omega_package_review::{
-    PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
-    PackageReviewArithmeticDomain, PackageReviewByteSequencePredicate, PackageReviewCallableRole,
-    PackageReviewCallableSupply, PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk,
-    PackageReviewCastForm, PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
+    CheckedPackageReviewProjection, PACKAGE_REVIEW_ENCODING_VERSION,
+    PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewArithmeticDomain,
+    PackageReviewByteSequencePredicate, PackageReviewCallableRole, PackageReviewCallableSupply,
+    PackageReviewCanonicalRowKind, PackageReviewCanonicalRowRisk, PackageReviewCastForm,
+    PackageReviewCheckedServiceReach, PackageReviewConformanceSubject,
     PackageReviewContractBinaryOperator, PackageReviewContractExpression,
     PackageReviewContractFact, PackageReviewContractKind, PackageReviewContractOperatorMeaning,
-    PackageReviewContractStaticArgument, PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
+    PackageReviewContractStaticArgument, PackageReviewContractUnaryOperator,
+    PackageReviewCrashInterface, PackageReviewCrashRouteGuard,
     PackageReviewDangerousAuthorityClass, PackageReviewDataKind, PackageReviewDataMember,
     PackageReviewDomainAliasAtom, PackageReviewDomainClassification,
     PackageReviewDomainEstablishmentKind, PackageReviewDomainSemanticRole,
@@ -601,13 +603,19 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .source()
         .authored_locations()
         .expect("changed public data receives an authored source coordinate");
-    assert_eq!(first_locations.len(), 1);
-    assert_eq!(changed_locations.len(), 1);
-    assert_eq!(first_locations[0].relative_path(), "main.omg");
-    assert_eq!(changed_locations[0].relative_path(), "main.omg");
-    assert!(changed_locations[0].start_byte() > first_locations[0].start_byte());
+    let first_declaration = first_locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::Declaration)
+        .expect("public data declaration location");
+    let changed_declaration = changed_locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::Declaration)
+        .expect("changed public data declaration location");
+    assert_eq!(first_declaration.relative_path(), "main.omg");
+    assert_eq!(changed_declaration.relative_path(), "main.omg");
+    assert!(changed_declaration.start_byte() > first_declaration.start_byte());
     assert!(
-        !first_locations[0]
+        !first_declaration
             .relative_path()
             .contains(&first.0.display().to_string())
     );
@@ -1726,7 +1734,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             .iter()
             .find(|candidate| candidate.identity() == supply.callable())
             .expect("public external leaf callable");
-        assert_eq!(callable_row.operator_realizations(), [operator.clone()]);
+        let [realization] = callable_row.operator_realizations() else {
+            panic!("one exact external operator realization")
+        };
+        assert_eq!(realization.coordinate(), operator);
+        assert_eq!(realization.alias(), None);
     }
 }
 
@@ -2520,8 +2532,8 @@ crashes Abort
         target,
         "review identity must retain the deployment profile, not only its native ABI",
     );
-    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 74);
-    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 32);
+    assert_eq!(PACKAGE_REVIEW_ENCODING_VERSION, 76);
+    assert_eq!(PACKAGE_REVIEW_ROW_ENCODING_VERSION, 34);
     let [ready] = review.public_domains() else {
         panic!("one package-owned public domain row")
     };
@@ -3330,13 +3342,11 @@ fn review_projects_unused_public_proposition_declarations_without_granting_facts
         return;
     };
     let package = TempPackage::new();
-    package.write(
-        "main.omg",
-        r#"pub proposition ready();
+    let source = r#"pub proposition ready();
 pub proposition reflexive(value: i32) = value == value;
 proposition hidden();
-"#,
-    );
+"#;
+    package.write("main.omg", source);
     package.write(
         "build.omg",
         r#"target windows_x64 { }
@@ -3382,15 +3392,55 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
             PackageReviewContractExpression::Binary { .. }
         ))
     ));
-    let proposition_rows = review
+    let rows = review
         .canonical_rows()
-        .expect("canonical public proposition rows")
-        .into_iter()
+        .expect("canonical public proposition rows");
+    let proposition_rows = rows
+        .iter()
         .filter(|row| row.kind() == PackageReviewCanonicalRowKind::PublicProposition)
         .count();
     assert_eq!(
         proposition_rows, 2,
         "private propositions stay out of public API rows"
+    );
+    let reflexive_row = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("reflexive".len())
+                    .any(|window| window == b"reflexive")
+        })
+        .expect("transparent proposition row");
+    let locations = reflexive_row
+        .source()
+        .authored_locations()
+        .expect("transparent proposition source custody");
+    let formula = locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::PropositionFormula)
+        .expect("transparent proposition formula location");
+    let start = usize::try_from(formula.start_byte()).unwrap();
+    let end = usize::try_from(formula.end_byte()).unwrap();
+    assert_eq!(&source[start..end], "value == value");
+    let ready_row = rows
+        .iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("ready".len())
+                    .any(|window| window == b"ready")
+        })
+        .expect("primitive proposition row");
+    assert!(
+        ready_row
+            .source()
+            .authored_locations()
+            .unwrap()
+            .iter()
+            .all(|location| location.role() != PackageReviewSourceLocationRole::PropositionFormula)
     );
 }
 
@@ -3418,9 +3468,11 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         project_checked_package_review(&checked).expect("public const review")
     };
 
-    let original = project("pub const LIMIT: u64 = 4;\nconst HIDDEN_LIMIT: u64 = 2;\n");
+    let original_source = "pub const LIMIT: u64 = 4;\nconst HIDDEN_LIMIT: u64 = 2;\n";
+    let original = project(original_source);
     let changed_value = project("pub const LIMIT: u64 = 5;\n");
     let changed_type = project("pub const LIMIT: u32 = 4;\n");
+    let relocated = project("\n\npub const LIMIT: u64 = 4;\n");
 
     let [limit] = original.public_consts() else {
         panic!("private consts must stay out of public compatibility rows");
@@ -3440,7 +3492,33 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         const_rows[0].risk(),
         PackageReviewCanonicalRowRisk::Blocking
     );
-    assert!(const_rows[0].source().authored_locations().is_some());
+    let locations = const_rows[0]
+        .source()
+        .authored_locations()
+        .expect("public const source locations");
+    assert_eq!(locations.len(), 2);
+    let source_for_role = |role| {
+        let location = locations
+            .iter()
+            .find(|location| location.role() == role)
+            .expect("exact public const source role");
+        let start = usize::try_from(location.start_byte()).unwrap();
+        let end = usize::try_from(location.end_byte()).unwrap();
+        &original_source[start..end]
+    };
+    assert_eq!(
+        source_for_role(PackageReviewSourceLocationRole::Declaration),
+        "LIMIT"
+    );
+    assert_eq!(
+        source_for_role(PackageReviewSourceLocationRole::ConstInitializer),
+        "4"
+    );
+    let original_initializer_start = locations
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ConstInitializer)
+        .unwrap()
+        .start_byte();
     assert_ne!(
         original.canonical_review_bytes().unwrap(),
         changed_value.canonical_review_bytes().unwrap(),
@@ -3450,6 +3528,28 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         original.canonical_review_bytes().unwrap(),
         changed_type.canonical_review_bytes().unwrap(),
         "changing a public const declared type must change package compatibility",
+    );
+    assert_eq!(
+        original.canonical_review_bytes().unwrap(),
+        relocated.canonical_review_bytes().unwrap(),
+        "relocating identical const semantics must not change canonical review identity",
+    );
+    let relocated_row = relocated
+        .canonical_rows()
+        .unwrap()
+        .into_iter()
+        .find(|row| row.kind() == PackageReviewCanonicalRowKind::PublicConst)
+        .expect("relocated public const row");
+    let relocated_initializer = relocated_row
+        .source()
+        .authored_locations()
+        .unwrap()
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::ConstInitializer)
+        .expect("relocated initializer location");
+    assert_eq!(
+        relocated_initializer.start_byte(),
+        original_initializer_start + 2
     );
 }
 
@@ -3811,6 +3911,28 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         project_checked_package_review(&direct_checked).expect("direct witness review");
     let aliased_review =
         project_checked_package_review(&compile(&aliased)).expect("aliased witness review");
+    let forwarded_row = aliased_review
+        .canonical_rows()
+        .expect("aliased proposition rows")
+        .into_iter()
+        .find(|row| {
+            row.kind() == PackageReviewCanonicalRowKind::PublicProposition
+                && row
+                    .key_bytes()
+                    .windows("forwarded".len())
+                    .any(|window| window == b"forwarded")
+        })
+        .expect("transparent proposition application row");
+    let forwarded_formula = forwarded_row
+        .source()
+        .authored_locations()
+        .unwrap()
+        .iter()
+        .find(|location| location.role() == PackageReviewSourceLocationRole::PropositionFormula)
+        .expect("transparent proposition application source");
+    let start = usize::try_from(forwarded_formula.start_byte()).unwrap();
+    let end = usize::try_from(forwarded_formula.end_byte()).unwrap();
+    assert_eq!(&aliased_source[start..end], "carries<Item>(value)");
     let consume = direct_review
         .callables()
         .iter()
@@ -4864,6 +4986,293 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
 }
 
 #[test]
+fn review_rejects_nominal_member_selection_custody_tamper() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Pair [copy] {
+    left: i32;
+    right: i32;
+}
+pub proposition balanced(pair: Pair) = pair.left == pair.right;
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public nominal-member proposition should check");
+    project_checked_package_review(&checked)
+        .expect("untampered nominal-member selection custody should project");
+
+    let members = checked
+        .expression_table
+        .iter_expressions()
+        .filter_map(|(expression, node)| {
+            let psi_typed_trees::expression::ExpressionNode::Member(member) = node else {
+                return None;
+            };
+            matches!(member.member.as_str(), "left" | "right").then_some((
+                member.member.as_str().to_owned(),
+                expression,
+                checked
+                    .expression_table
+                    .authored_selection_occurrences(expression)
+                    .collect::<Vec<_>>(),
+            ))
+        })
+        .collect::<Vec<_>>();
+    let left = members
+        .iter()
+        .find(|(name, _, _)| name == "left")
+        .expect("left member expression");
+    let right = members
+        .iter()
+        .find(|(name, _, _)| name == "right")
+        .expect("right member expression");
+    let [left_occurrence] = left.2.as_slice() else {
+        panic!("left member must retain one exact selection")
+    };
+    let [right_occurrence] = right.2.as_slice() else {
+        panic!("right member must retain one exact selection")
+    };
+    assert_ne!(left_occurrence, right_occurrence);
+
+    let mut tampered = checked.clone();
+    tampered
+        .typed
+        .expression_table
+        .attach_authored_selection_occurrences(left.1, [*right_occurrence]);
+    let diagnostics = project_checked_package_review(&tampered)
+        .expect_err("duplicate nominal-member selection custody must reject");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("nominal member has 2 exact checked member-selection rows")
+    }));
+}
+
+#[test]
+fn review_projects_collection_length_as_an_exact_compiler_intrinsic() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition non_empty(items: &[u8]) = items.len > 0;\n",
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public collection-length proposition should check");
+    let length_selection = checked
+        .authored_declaration_selections()
+        .iter()
+        .find(|selection| {
+            selection.kind()
+                == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::MemberAccess
+                && selection.target()
+                    == psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+                        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::CollectionLength,
+                    )
+        })
+        .expect("checked contract must retain its exact collection-length selection");
+    assert_eq!(
+        length_selection.exposure(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("collection-length intrinsic should have exact review identity");
+    let proposition = review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "non_empty")
+        .expect("public proposition row");
+    let PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+        PackageReviewContractExpression::Binary { left, .. },
+    )) = proposition.body()
+    else {
+        panic!("binary transparent proposition body")
+    };
+    assert_eq!(
+        left.as_ref(),
+        &PackageReviewContractExpression::CollectionLength {
+            collection: Box::new(PackageReviewContractExpression::Parameter(0)),
+        }
+    );
+    review
+        .canonical_review_bytes()
+        .expect("collection-length review must be canonically encodable");
+}
+
+#[test]
+fn review_rejoins_unary_contract_operator_to_its_exact_compiler_intrinsic() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        "pub proposition inverted(value: u8, expected: u8) = ~value == expected;\n",
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("public unary proposition should check");
+    let inverted = checked
+        .propositions()
+        .iter()
+        .find(|proposition| proposition.name.as_str() == "inverted")
+        .expect("checked public proposition declaration");
+    let psi_typed_trees::proposition::PropositionBody::Transparent {
+        proposition:
+            psi_typed_trees::proposition::PropositionFormula::BooleanExpression(root_expression),
+    } = inverted.body
+    else {
+        panic!("inverted must retain its transparent boolean formula")
+    };
+    let psi_typed_trees::expression::ExpressionNode::Binary(binary) =
+        checked.expression_table.expression(root_expression)
+    else {
+        panic!("inverted formula must retain its equality root")
+    };
+    let unary_expression = binary.left;
+    assert!(matches!(
+        checked.expression_table.expression(unary_expression),
+        psi_typed_trees::expression::ExpressionNode::Unary(_)
+    ));
+    let unary_occurrences = checked
+        .expression_table
+        .authored_selection_occurrences(unary_expression)
+        .collect::<Vec<_>>();
+    let [unary_occurrence] = unary_occurrences.as_slice() else {
+        panic!("unary contract must retain one exact authored selection")
+    };
+    let unary_selection = checked
+        .authored_declaration_selections()
+        .get(*unary_occurrence)
+        .expect("unary occurrence must rejoin its checked selection");
+    assert_eq!(
+        unary_selection.kind(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionKind::Operator
+    );
+    assert_eq!(
+        unary_selection.target(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionTarget::Intrinsic(
+            psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionIntrinsic::BuiltinOperator,
+        )
+    );
+    assert_eq!(
+        unary_selection.exposure(),
+        psi_language_semantics::declaration_selection::AuthoredDeclarationSelectionExposure::PublicInterface
+    );
+
+    let review = project_checked_package_review(&checked)
+        .expect("unary compiler intrinsic should rejoin package review");
+    let proposition = review
+        .public_propositions()
+        .iter()
+        .find(|proposition| proposition.identity().path() == "inverted")
+        .expect("public proposition row");
+    assert_eq!(
+        proposition.body(),
+        &PackageReviewPublicPropositionBody::Transparent(PackageReviewContractFact::Expression(
+            PackageReviewContractExpression::Binary {
+                meaning: PackageReviewContractOperatorMeaning::Builtin,
+                operator: PackageReviewContractBinaryOperator::Equal,
+                left: Box::new(PackageReviewContractExpression::Unary {
+                    operator: PackageReviewContractUnaryOperator::BitwiseNot,
+                    operand: Box::new(PackageReviewContractExpression::Parameter(0)),
+                }),
+                right: Box::new(PackageReviewContractExpression::Parameter(1)),
+            },
+        ))
+    );
+    review
+        .canonical_review_bytes()
+        .expect("unary compiler intrinsic must remain canonically encodable");
+}
+
+#[test]
+fn package_field_named_len_remains_a_nominal_member_in_review() {
+    let package = TempPackage::new();
+    package.write(
+        "main.omg",
+        r#"pub data Buffer { len: u64; }
+pub machine consume(buffer: Buffer)
+requires buffer.len > 0
+{ }
+"#,
+    );
+    package.write(
+        "build.omg",
+        r#"target windows_x64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#,
+    );
+
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("same-spelled package field contract should check");
+    let review = project_checked_package_review(&checked)
+        .expect("same-spelled package field should retain nominal review identity");
+    let callable = review
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "consume")
+        .expect("public callable row");
+    let [contract] = callable.contracts() else {
+        panic!("one public callable contract")
+    };
+    let PackageReviewContractFact::Expression(PackageReviewContractExpression::Binary {
+        left, ..
+    }) = contract.fact()
+    else {
+        panic!("binary public callable contract")
+    };
+    let PackageReviewContractExpression::Member {
+        receiver, member, ..
+    } = left.as_ref()
+    else {
+        panic!("package field must remain a nominal member")
+    };
+    assert_eq!(
+        receiver.as_ref(),
+        &PackageReviewContractExpression::Parameter(0)
+    );
+    assert_eq!(member.path(), "Buffer::len");
+    assert_eq!(
+        member.owner(),
+        PackageReviewNominalOwner::Package(package_identity())
+    );
+}
+
+#[test]
 fn review_projects_contract_casts_without_diagnostic_spelling() {
     let Some(target) = host_target_name() else {
         return;
@@ -5326,17 +5735,21 @@ pub machine handle() satisfies Hidden::handle { }
 "#,
     );
     hidden.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &hidden.0.join("main.omg"),
         Some(target),
         package_inputs(&hidden.0),
     )
-    .expect("private-trait satisfier fixture should check");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    .expect_err("compiler admission must reject a public satisfier of a private trait");
+    assert!(
+        diagnostics
+            .iter()
+            .any(|diagnostic| { diagnostic.message.contains("private trait `Hidden`") })
+    );
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("realizes non-public trait `Hidden`")
+            .contains("private trait `Hidden::handle`")
     }));
 
     let generic = TempPackage::new();
@@ -5429,7 +5842,99 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         .iter()
         .find(|shape| shape.coordinate().identity().path() == "CheckedMath::identity")
         .expect("public operator declaration row");
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
+}
+
+#[test]
+fn review_projects_and_encodes_aliased_checked_operator_realization() {
+    let Some(target) = host_target_name() else {
+        return;
+    };
+    let build = r#"target windows_x64 { }
+target linux_x64 { }
+target linux_arm64 { }
+target macos_arm64 { }
+machine build(builder: &mut Build) { builder.package("review-fixture"); }
+"#;
+    let project = |alias: &str| {
+        let package = TempPackage::new();
+        package.write(
+            "main.omg",
+            &format!(
+                r#"pub data CheckedMath {{}}
+pub operator CheckedMath::identity(value: i32) -> i32;
+
+pub machine provide_identity(input: i32) -> i32
+satisfies CheckedMath::identity as {alias}
+{{
+    input
+}}
+"#,
+            ),
+        );
+        package.write("build.omg", build);
+        let checked = compile_to_checked_with_packages(
+            &package.0.join("main.omg"),
+            Some(target),
+            package_inputs(&package.0),
+        )
+        .expect("aliased checked operator realization fixture should check");
+        project_checked_package_review(&checked)
+            .expect("aliased checked operator realization should project exactly")
+    };
+
+    let selected = project("Selected");
+    let alternate = project("Alternate");
+    let selected_callable = selected
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_identity")
+        .expect("selected provider callable row");
+    let alternate_callable = alternate
+        .callables()
+        .iter()
+        .find(|callable| callable.identity().path() == "provide_identity")
+        .expect("alternate provider callable row");
+    let [selected_realization] = selected_callable.operator_realizations() else {
+        panic!("one selected operator realization")
+    };
+    let [alternate_realization] = alternate_callable.operator_realizations() else {
+        panic!("one alternate operator realization")
+    };
+    assert_eq!(selected_realization.alias(), Some("Selected"));
+    assert_eq!(alternate_realization.alias(), Some("Alternate"));
+    assert_eq!(
+        selected_realization.coordinate(),
+        alternate_realization.coordinate()
+    );
+
+    let callable_rows = |review: &CheckedPackageReviewProjection| {
+        review
+            .canonical_rows()
+            .expect("aliased operator realization rows")
+            .into_iter()
+            .filter(|row| row.kind() == PackageReviewCanonicalRowKind::Callable)
+            .collect::<Vec<_>>()
+    };
+    let selected_rows = callable_rows(&selected);
+    let alternate_rows = callable_rows(&alternate);
+    assert_eq!(selected_rows.len(), alternate_rows.len());
+    assert!(
+        selected_rows
+            .iter()
+            .zip(&alternate_rows)
+            .all(|(left, right)| left.key_bytes() == right.key_bytes())
+    );
+    assert_eq!(
+        selected_rows
+            .iter()
+            .zip(&alternate_rows)
+            .filter(|(left, right)| left.canonical_bytes() != right.canonical_bytes())
+            .count(),
+        1,
+        "changing only the alias must change only its callable value"
+    );
 }
 
 #[test]
@@ -5485,7 +5990,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         declaration.spelling(),
         Some(psi_language_core::OperatorSpelling::Subtract)
     );
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
 }
 
 #[test]
@@ -5540,7 +6046,8 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
     let [realization] = callable.operator_realizations() else {
         panic!("one exact boundary operator realization")
     };
-    assert_eq!(realization, declaration.coordinate());
+    assert_eq!(realization.coordinate(), declaration.coordinate());
+    assert_eq!(realization.alias(), None);
 
     let [provider] = review.selected_providers() else {
         panic!("one selected boundary operator provider")
@@ -5633,7 +6140,7 @@ machine build(builder: &mut Build) { builder.package("review-fixture"); }
         panic!("one exact public boundary operator realization")
     };
     assert!(overloads.iter().any(|operator| {
-        operator.coordinate() == public_realization
+        operator.coordinate() == public_realization.coordinate()
             && operator.coordinate().parameter_dispatch().contains("i32")
     }));
     assert!(
@@ -5951,27 +6458,30 @@ target linux_arm64 { }
 target macos_arm64 { }
 machine build(builder: &mut Build) { builder.package("review-fixture"); }
 "#;
-    let cases = [
-        (
-            "private",
-            r#"data CheckedMath {}
+    let private = TempPackage::new();
+    private.write(
+        "main.omg",
+        r#"data CheckedMath {}
 operator CheckedMath::identity(value: i32) -> i32;
 pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
 { input }
 "#,
-            "realizes non-public operator",
-        ),
-        (
-            "aliased",
-            r#"pub data CheckedMath {}
-pub operator CheckedMath::identity(value: i32) -> i32;
-pub machine provide_identity(input: i32) -> i32
-satisfies CheckedMath::identity as Selected
-{ input }
-"#,
-            "through an alias not yet represented",
-        ),
+    );
+    private.write("build.omg", build);
+    let diagnostics = compile_to_checked_with_packages(
+        &private.0.join("main.omg"),
+        Some(target),
+        package_inputs(&private.0),
+    )
+    .expect_err("compiler admission must reject a public satisfier of a private operator");
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic
+            .message
+            .contains("private operator `CheckedMath::identity`")
+    }));
+
+    let cases = [
         (
             "external",
             r#"pub data CheckedMath {}
@@ -6059,8 +6569,8 @@ satisfies CheckedMath::negate
     };
 
     let mut visibility_drift = compile_admission_control(
-        r#"data CheckedMath {}
-operator CheckedMath::identity(value: i32) -> i32;
+        r#"pub data CheckedMath {}
+pub operator CheckedMath::identity(value: i32) -> i32;
 pub machine provide_identity(input: i32) -> i32
 satisfies CheckedMath::identity
 { input }
@@ -6072,7 +6582,7 @@ satisfies CheckedMath::identity
         .tables
         .operators
         .span_mut_or_empty(operator_roots)[0]
-        .is_public = true;
+        .is_public = false;
     let diagnostics = project_checked_package_review(&visibility_drift)
         .expect_err("post-check private-to-public operator drift must reject");
     assert!(diagnostics.iter().any(|diagnostic| {
@@ -7169,17 +7679,16 @@ where machine Selected satisfies Hidden::call;
 "#,
     );
     hidden.write("build.omg", build);
-    let checked = compile_to_checked_with_packages(
+    let diagnostics = compile_to_checked_with_packages(
         &hidden.0.join("main.omg"),
         Some(target),
         package_inputs(&hidden.0),
     )
-    .expect("private nominal static-machine fixture should check before package review");
-    let diagnostics = project_checked_package_review(&checked).unwrap_err();
+    .expect_err("public authored selection should reject a private nominal requirement");
     assert!(diagnostics.iter().any(|diagnostic| {
         diagnostic
             .message
-            .contains("exposes non-public trait `Hidden` through a static-machine contract")
+            .contains("public interface selects private trait `Hidden")
     }));
 }
 
@@ -11132,6 +11641,112 @@ fn public_domain_predicate_fact_order_is_canonical_but_content_changes_encoding(
     };
     assert_eq!(encode(&first), encode(&reordered));
     assert_ne!(encode(&first), encode(&changed));
+}
+
+#[test]
+fn public_api_rows_retain_exact_nested_authored_extents() {
+    let package = TempPackage::new();
+    let source = r#"pub data Ledger
+where
+    count <= len,
+{
+    len: u32;
+    count: u32;
+}
+pub domain Ledger::Ready
+requires
+    self.count <= self.len;
+pub machine identity(input: u64) -> u64 { input }
+pub operator Ledger::project(record: Ledger) -> u32;
+pub trait Bounds {
+    machine clamp(value: u64) -> u64
+    requires value >= 1
+    ensures result >= value;
+}
+"#;
+    package.write("main.omg", source);
+    package.write(
+        "build.omg",
+        "target windows_x64 { }\nmachine build(builder: &mut Build) { builder.package(\"review-fixture\"); }\n",
+    );
+    let checked = compile_to_checked_with_packages(
+        &package.0.join("main.omg"),
+        Some("windows_x64"),
+        package_inputs(&package.0),
+    )
+    .expect("proof-fact source fixture should check");
+    let rows = project_checked_package_review(&checked)
+        .expect("proof-fact source fixture should project")
+        .canonical_rows()
+        .expect("proof-fact canonical rows");
+
+    let role_slices = |kind, role| {
+        rows.iter()
+            .filter(|row| row.kind() == kind)
+            .flat_map(|row| row.source().authored_locations().unwrap_or_default())
+            .filter(|location| location.role() == role && location.relative_path() == "main.omg")
+            .map(|location| {
+                &source[usize::try_from(location.start_byte()).unwrap()
+                    ..usize::try_from(location.end_byte()).unwrap()]
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicData,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
+        ["count <= len"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicDomain,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
+        ["self.count <= self.len"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::ProofFact,
+        ),
+        ["value >= 1", "result >= value"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicData,
+            PackageReviewSourceLocationRole::DataMember,
+        ),
+        ["len", "count"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::TraitRequirement,
+        ),
+        ["clamp"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::Callable,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["input"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicOperator,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["record"]
+    );
+    assert_eq!(
+        role_slices(
+            PackageReviewCanonicalRowKind::PublicTrait,
+            PackageReviewSourceLocationRole::CallableParameter,
+        ),
+        ["value"]
+    );
 }
 
 #[test]

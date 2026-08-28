@@ -2513,7 +2513,21 @@ fn copy_signature_contract(
     let original_facts = contract.facts;
     let mut copied = contract;
     copied.facts = HandleSpan::empty();
-    for fact in source.proof_facts.span_or_empty(original_facts) {
+    for (offset, fact) in source
+        .proof_facts
+        .span_or_empty(original_facts)
+        .iter()
+        .enumerate()
+    {
+        let source_fact = psi_arena::Handle::from_parts(
+            original_facts
+                .start()
+                .arena_index()
+                .checked_add(u32::try_from(offset).expect("proof fact offset overflow"))
+                .expect("proof fact source handle overflow"),
+            original_facts.start().generation(),
+        );
+        let source_span = source.proof_fact_source_span(source_fact);
         let fact = match fact {
             psi_typed_trees::domain::ProofFact::Expression(expression) => {
                 psi_typed_trees::domain::ProofFact::Expression(copy_expression(
@@ -2570,7 +2584,10 @@ fn copy_signature_contract(
                 )
             }
         };
-        program.proof_facts.append_to_span(&mut copied.facts, fact);
+        let copied_fact = program.proof_facts.append_to_span(&mut copied.facts, fact);
+        if let Some(source_span) = source_span {
+            program.set_proof_fact_source_span(copied_fact, source_span);
+        }
     }
     copied
 }

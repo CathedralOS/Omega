@@ -168,6 +168,8 @@ pub struct PropositionDefinition {
     pub is_public: bool,
     pub type_parameters: HandleSpan<TypeParameter>,
     pub parameters: HandleSpan<StateParameterHandle>,
+    /// Exact authored semantic-token extent of a transparent formula.
+    pub transparent_formula_source_span: Option<psi_source::SourceSpan>,
     pub body: PropositionBody,
 }
 
@@ -900,6 +902,7 @@ struct DeclarationStorage {
     operators: Arena<OperatorDefinition>,
     measures: Arena<MeasureDefinition>,
     proof_facts: Arena<ProofFact>,
+    proof_fact_source_spans: Vec<Option<psi_source::SourceSpan>>,
     target_host_settings: Arena<TargetHostSetting>,
     boundary_policies: Arena<BoundaryPolicy>,
 }
@@ -1017,6 +1020,33 @@ impl ItemTable {
 
     pub fn proof_facts(&self, span: HandleSpan<ProofFact>) -> &[ProofFact] {
         self.declaration_storage.proof_facts.span_or_empty(span)
+    }
+
+    pub fn proof_fact(&self, handle: Handle<ProofFact>) -> &ProofFact {
+        self.declaration_storage.proof_facts.get(handle)
+    }
+
+    pub fn proof_fact_source_span(
+        &self,
+        handle: Handle<ProofFact>,
+    ) -> Option<psi_source::SourceSpan> {
+        self.declaration_storage
+            .proof_fact_source_spans
+            .get(proof_fact_source_span_index(handle))
+            .copied()
+            .flatten()
+    }
+
+    pub fn set_proof_fact_source_span(
+        &mut self,
+        handle: Handle<ProofFact>,
+        source_span: psi_source::SourceSpan,
+    ) {
+        let index = proof_fact_source_span_index(handle);
+        self.declaration_storage
+            .proof_fact_source_spans
+            .resize(index + 1, None);
+        self.declaration_storage.proof_fact_source_spans[index] = Some(source_span);
     }
 
     pub fn target_host_settings(
@@ -1171,7 +1201,12 @@ impl ItemTable {
     }
 
     pub fn append_proof_fact(&mut self, fact: ProofFact) -> Handle<ProofFact> {
-        self.declaration_storage.proof_facts.append(fact)
+        let handle = self.declaration_storage.proof_facts.append(fact);
+        let index = proof_fact_source_span_index(handle);
+        self.declaration_storage
+            .proof_fact_source_spans
+            .resize(index + 1, None);
+        handle
     }
 
     pub fn append_target_host_setting(
@@ -1290,10 +1325,18 @@ impl DeclarationStorage {
             operators: Arena::new(),
             measures: Arena::new(),
             proof_facts: Arena::new(),
+            proof_fact_source_spans: Vec::new(),
             target_host_settings: Arena::new(),
             boundary_policies: Arena::new(),
         }
     }
+}
+
+fn proof_fact_source_span_index(handle: Handle<ProofFact>) -> usize {
+    usize::try_from(handle.arena_index())
+        .expect("proof fact source-span index exceeds usize")
+        .checked_sub(1)
+        .expect("proof fact source-span handle must be valid")
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
