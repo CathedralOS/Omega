@@ -3641,6 +3641,11 @@ fn verify_cache_custody_from_open_root(
             .dir_metadata()
             .map_err(|error| io_error(&path, error))?;
         verify_capability_cache_node_owner_and_mode(kind, &path, &metadata)?;
+        let directory_file = directory
+            .try_clone()
+            .map_err(|error| io_error(&path, error))?
+            .into_std_file();
+        verify_macos_open_cache_extended_acl_custody(kind, &path, &directory_file)?;
 
         let children = directory
             .entries()
@@ -3663,6 +3668,17 @@ fn verify_cache_custody_from_open_root(
                 .map_err(|error| io_error(&child_path, error))?;
             verify_capability_cache_node_owner_and_mode(kind, &child_path, &metadata)?;
             let file_type = metadata.file_type();
+            if file_type.is_file() {
+                verify_macos_open_cache_regular_file_acl_custody(
+                    kind,
+                    &child_path,
+                    &directory,
+                    &name,
+                    &metadata,
+                )?;
+            } else if file_type.is_symlink() {
+                verify_macos_cache_extended_acl_custody(kind, &child_path, false)?;
+            }
             if file_type.is_file() || file_type.is_symlink() {
                 logical_bytes = logical_bytes
                     .checked_add(metadata.len())
@@ -3900,7 +3916,7 @@ fn verify_capability_cache_node_owner_and_mode(
             "cache entry is writable by group or other users",
         ));
     }
-    verify_macos_cache_extended_acl_custody(kind, path, !metadata.file_type().is_symlink())
+    Ok(())
 }
 
 #[cfg(not(unix))]
@@ -3992,6 +4008,78 @@ fn verify_macos_cache_extended_acl_custody(
     Ok(())
 }
 
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_extended_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    file: &File,
+) -> Result<(), SourceResolveError> {
+    let has_allow_entry = omega_platform_custody::open_file_extended_acl_has_allow_entry(file)
+        .map_err(|error| {
+            cache_custody_invalid(
+                kind,
+                path,
+                format!("could not inspect retained cache extended ACL custody: {error}"),
+            )
+        })?;
+    if has_allow_entry {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache custody contains an extended ACL allow entry",
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_extended_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _file: &File,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn verify_macos_open_cache_regular_file_acl_custody(
+    kind: CacheCustodyKind,
+    path: &Path,
+    parent: &CapabilityDirectory,
+    name: &OsStr,
+    classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    let mut options = CapabilityOpenOptions::new();
+    options.read(true).follow(FollowSymlinks::No);
+    let file = parent.open_with(name, &options).map_err(|error| {
+        cache_custody_invalid(
+            kind,
+            path,
+            format!("could not open cache file without following links: {error}"),
+        )
+    })?;
+    let opened = file.metadata().map_err(|error| io_error(path, error))?;
+    if !opened.is_file() || !same_capability_file_identity(classified, &opened) {
+        return Err(cache_custody_invalid(
+            kind,
+            path,
+            "cache file changed between classification and no-follow open",
+        ));
+    }
+    verify_macos_open_cache_extended_acl_custody(kind, path, &file.into_std())
+}
+
+#[cfg(not(target_os = "macos"))]
+fn verify_macos_open_cache_regular_file_acl_custody(
+    _kind: CacheCustodyKind,
+    _path: &Path,
+    _parent: &CapabilityDirectory,
+    _name: &OsStr,
+    _classified: &CapabilityMetadata,
+) -> Result<(), SourceResolveError> {
+    Ok(())
+}
+
 #[cfg(all(unix, not(target_os = "macos")))]
 fn verify_macos_cache_extended_acl_custody(
     _kind: CacheCustodyKind,
@@ -4052,7 +4140,9 @@ impl CacheEntryLock {
             ));
         }
         verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
-        Ok((capability_file.into_std(), parent, lock_name))
+        let file = capability_file.into_std();
+        verify_macos_open_cache_extended_acl_custody(kind, path, &file)?;
+        Ok((file, parent, lock_name))
     }
 
     #[cfg(test)]
@@ -4181,6 +4271,7 @@ fn verify_cache_lock_path_identity(
         ));
     }
     verify_capability_cache_node_owner_and_mode(kind, path, &path_metadata)?;
+    verify_macos_open_cache_extended_acl_custody(kind, path, file)?;
 
     let parent_path = path
         .parent()
@@ -9462,6 +9553,28 @@ mod tests {
         verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 3)
             .expect("custody walk must remain bound to the opened cache root");
 
+        let _ = std::fs::remove_dir_all(&cache);
+        let _ = std::fs::remove_dir_all(&retained);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn cache_custody_acl_observation_remains_bound_to_open_root() {
+        let cache = temp_root("cache-open-root-acl-replacement");
+        let retained = cache.with_extension("retained");
+        std::fs::create_dir_all(&cache).expect("create cache root");
+        let canonical_cache = cache.canonicalize().expect("canonicalize cache root");
+        let directory =
+            open_absolute_directory_nofollow(&canonical_cache).expect("open cache root capability");
+
+        std::fs::rename(&cache, &retained).expect("relocate opened cache root");
+        std::fs::create_dir_all(&cache).expect("create replacement cache root");
+        change_macos_acl(&cache, &["+a", "everyone allow write"]);
+
+        verify_cache_custody_from_open_root(&canonical_cache, directory, CacheCustodyKind::Git, 0)
+            .expect("ACL observation must remain on the retained cache root");
+
+        change_macos_acl(&cache, &["-N"]);
         let _ = std::fs::remove_dir_all(&cache);
         let _ = std::fs::remove_dir_all(&retained);
     }

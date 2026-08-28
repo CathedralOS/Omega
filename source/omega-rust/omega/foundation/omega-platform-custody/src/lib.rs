@@ -6,6 +6,7 @@
 
 #![deny(unsafe_op_in_unsafe_fn)]
 
+use std::fs::File;
 use std::io;
 use std::path::Path;
 
@@ -28,11 +29,23 @@ pub fn extended_acl_has_allow_entry(
     platform::extended_acl_has_allow_entry(path, symbolic_link_behavior)
 }
 
+/// Report whether an already-open filesystem object has any native extended
+/// ACL allow entry.
+///
+/// The descriptor, rather than a display pathname, selects the inspected
+/// object. Deny-only ACLs cannot broaden filesystem authority and return
+/// `false`. Unsupported platforms and filesystems return an error.
+pub fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
+    platform::open_file_extended_acl_has_allow_entry(file)
+}
+
 #[cfg(target_os = "macos")]
 mod platform {
     use super::SymbolicLinkBehavior;
     use std::ffi::{CString, c_char, c_int, c_void};
+    use std::fs::File;
     use std::io;
+    use std::os::fd::AsRawFd;
     use std::os::unix::ffi::OsStrExt;
     use std::path::Path;
 
@@ -50,6 +63,7 @@ mod platform {
     unsafe extern "C" {
         fn acl_free(value: *mut c_void) -> c_int;
         fn acl_get_entry(acl: Acl, entry_id: c_int, entry: *mut AclEntry) -> c_int;
+        fn acl_get_fd_np(fd: c_int, kind: c_int) -> Acl;
         fn acl_get_file(path: *const c_char, kind: c_int) -> Acl;
         fn acl_get_link_np(path: *const c_char, kind: c_int) -> Acl;
         fn acl_get_tag_type(entry: AclEntry, tag: *mut c_int) -> c_int;
@@ -103,7 +117,28 @@ mod platform {
             }
             return Err(error);
         }
-        let acl = OwnedAcl(acl);
+        acl_has_allow_entry(OwnedAcl(acl))
+    }
+
+    pub(super) fn open_file_extended_acl_has_allow_entry(file: &File) -> io::Result<bool> {
+        // SAFETY: `file` keeps its live descriptor open for this call. A
+        // non-null returned allocation is immediately placed under one
+        // `acl_free` guard.
+        let acl = unsafe { acl_get_fd_np(file.as_raw_fd(), ACL_TYPE_EXTENDED) };
+        if acl.is_null() {
+            let error = io::Error::last_os_error();
+            // Darwin uses ENOENT for an existing descriptor whose object has
+            // no extended ACL. Unlike the path query, the live descriptor
+            // itself already establishes object existence.
+            if error.kind() == io::ErrorKind::NotFound {
+                return Ok(false);
+            }
+            return Err(error);
+        }
+        acl_has_allow_entry(OwnedAcl(acl))
+    }
+
+    fn acl_has_allow_entry(acl: OwnedAcl) -> io::Result<bool> {
         let mut entry = std::ptr::null_mut();
         let mut selector = ACL_FIRST_ENTRY;
         let mut saw_entry = false;
@@ -145,6 +180,7 @@ mod platform {
 #[cfg(not(target_os = "macos"))]
 mod platform {
     use super::SymbolicLinkBehavior;
+    use std::fs::File;
     use std::io;
     use std::path::Path;
 
@@ -157,11 +193,20 @@ mod platform {
             "native extended ACL inspection is not implemented on this platform",
         ))
     }
+
+    pub(super) fn open_file_extended_acl_has_allow_entry(_file: &File) -> io::Result<bool> {
+        Err(io::Error::new(
+            io::ErrorKind::Unsupported,
+            "native extended ACL inspection is not implemented on this platform",
+        ))
+    }
 }
 
 #[cfg(all(test, target_os = "macos"))]
 mod tests {
-    use super::{SymbolicLinkBehavior, extended_acl_has_allow_entry};
+    use super::{
+        SymbolicLinkBehavior, extended_acl_has_allow_entry, open_file_extended_acl_has_allow_entry,
+    };
     use std::os::unix::fs::PermissionsExt;
     use std::process::Command;
     use std::sync::atomic::{AtomicU64, Ordering};
@@ -192,10 +237,17 @@ mod tests {
             !extended_acl_has_allow_entry(&path, SymbolicLinkBehavior::Follow)
                 .expect("inspect empty ACL")
         );
+        let file = std::fs::File::open(&path).expect("retain ACL test file");
+        assert!(
+            !open_file_extended_acl_has_allow_entry(&file).expect("inspect empty ACL by handle")
+        );
         change_acl(&path, &["+a", "everyone allow write"]);
         assert!(
             extended_acl_has_allow_entry(&path, SymbolicLinkBehavior::Follow)
                 .expect("inspect allow ACL")
+        );
+        assert!(
+            open_file_extended_acl_has_allow_entry(&file).expect("inspect allow ACL by handle")
         );
         change_acl(&path, &["-N"]);
         change_acl(&path, &["+a", "everyone deny write"]);
@@ -203,8 +255,44 @@ mod tests {
             !extended_acl_has_allow_entry(&path, SymbolicLinkBehavior::Follow)
                 .expect("inspect deny-only ACL")
         );
+        assert!(
+            !open_file_extended_acl_has_allow_entry(&file)
+                .expect("inspect deny-only ACL by handle")
+        );
 
         change_acl(&path, &["-N"]);
         std::fs::remove_file(&path).expect("remove ACL test file");
+    }
+
+    #[test]
+    fn open_file_query_remains_bound_to_the_retained_object() {
+        let sequence = SEQUENCE.fetch_add(1, Ordering::Relaxed);
+        let root = std::env::temp_dir().join(format!(
+            "omega-platform-custody-retained-acl-{}-{sequence}",
+            std::process::id()
+        ));
+        std::fs::create_dir(&root).expect("create retained ACL test root");
+        let path = root.join("observed");
+        let retained = root.join("retained");
+        std::fs::write(&path, b"retained").expect("create retained ACL test file");
+        let file = std::fs::File::open(&path).expect("retain ACL test file");
+
+        std::fs::rename(&path, &retained).expect("relocate retained ACL test file");
+        std::fs::write(&path, b"replacement").expect("create replacement ACL test file");
+        change_acl(&path, &["+a", "everyone allow write"]);
+        assert!(
+            !open_file_extended_acl_has_allow_entry(&file)
+                .expect("inspect retained object rather than replacement path")
+        );
+
+        change_acl(&retained, &["+a", "everyone allow write"]);
+        assert!(
+            open_file_extended_acl_has_allow_entry(&file)
+                .expect("inspect allow ACL on retained object")
+        );
+
+        change_acl(&path, &["-N"]);
+        change_acl(&retained, &["-N"]);
+        std::fs::remove_dir_all(&root).expect("remove retained ACL test root");
     }
 }
