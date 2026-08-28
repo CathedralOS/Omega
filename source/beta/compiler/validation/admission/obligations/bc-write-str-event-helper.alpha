@@ -16,8 +16,11 @@ write_str_require_emit_event:
 ; Structural core for conditional consumers whose WSTR proposition is an
 ; explicit external antecedent rather than a process-local cell.
 write_str_require_emit_event_core:
-        mov r25, r20
-        mov r26, r20
+        mov r24, r20
+        call exact_require_write_str_extent
+        mov r23, r0                  ; checked helper entry
+        mov r25, r24
+        mov r26, r24
         imm r1, 8
         mul r26, r1
         imm r1, 7086080
@@ -42,7 +45,7 @@ write_str_emit_pc:
         mov r20, r27
         imm r2, 1
         add r20, r2
-        imm r21, 31
+        mov r21, r23
         call require_tape_word
 
         mov r29, r27

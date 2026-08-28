@@ -1,4 +1,4 @@
-; Relational summary for the synthesized __write_str helper at PCs 31..82.
+; Relational summary for the synthesized __write_str helper.
 ;
 ; For any natural len and admitted, nonwrapping memory interval [p,p+len), a
 ; valid hidden-return entry with r0=p and r1=len executes the loop with invariant
@@ -35,173 +35,10 @@
 ; LEN-index; output tags mean the exact M[P:P+index] suffix.
 
 write_str_summary_init:
-        call write_str_require_shape
+        call exact_require_write_str_extent
         call write_str_prove_schema
         call write_str_instantiate_emits
         jmp bc_post_write_str
-
-; ---- Exact helper closure ---------------------------------------------
-
-write_str_require_shape:
-        imm r20, 524512
-        imm r21, 0
-        imm r22, 31
-        call transfer_require_cell
-
-        imm r20, 31
-        imm r21, 1                    ; imm r3,0
-        call require_tape_byte
-        imm r20, 32
-        imm r21, 3
-        call require_tape_byte
-        imm r20, 33
-        imm r21, 0
-        call require_tape_word
-
-        imm r20, 41
-        imm r21, 16                   ; jeq r1,r3,82
-        call require_tape_byte
-        imm r20, 42
-        imm r21, 1
-        call require_tape_byte
-        imm r20, 43
-        imm r21, 3
-        call require_tape_byte
-        imm r20, 44
-        imm r21, 82
-        call require_tape_word
-
-        imm r20, 52
-        imm r21, 8                    ; loadb r2,r0
-        call require_tape_byte
-        imm r20, 53
-        imm r21, 2
-        call require_tape_byte
-        imm r20, 54
-        imm r21, 0
-        call require_tape_byte
-
-        imm r20, 55
-        imm r21, 18                   ; write r2
-        call require_tape_byte
-        imm r20, 56
-        imm r21, 2
-        call require_tape_byte
-
-        imm r20, 57
-        imm r21, 1                    ; imm r3,1
-        call require_tape_byte
-        imm r20, 58
-        imm r21, 3
-        call require_tape_byte
-        imm r20, 59
-        imm r21, 1
-        call require_tape_word
-
-        imm r20, 67
-        imm r21, 3                    ; add r0,r3
-        call require_tape_byte
-        imm r20, 68
-        imm r21, 0
-        call require_tape_byte
-        imm r20, 69
-        imm r21, 3
-        call require_tape_byte
-
-        imm r20, 70
-        imm r21, 4                    ; sub r1,r3
-        call require_tape_byte
-        imm r20, 71
-        imm r21, 1
-        call require_tape_byte
-        imm r20, 72
-        imm r21, 3
-        call require_tape_byte
-
-        imm r20, 73
-        imm r21, 12                   ; jmp 31
-        call require_tape_byte
-        imm r20, 74
-        imm r21, 31
-        call require_tape_word
-        imm r20, 82
-        imm r21, 20                   ; ret
-        call require_tape_byte
-
-        ; Exhaustively classify decoded starts in [31,83).  There is one load,
-        ; one write, one ret, no input read, memory write, call, halt, or trap.
-        imm r10, 31
-        imm r11, 0                    ; starts
-        imm r12, 0                    ; loadb
-        imm r13, 0                    ; writes
-        imm r14, 0                    ; returns
-write_str_shape_loop:
-        imm r1, 83
-        jlt r10, r1, write_str_shape_pc
-        imm r1, 9
-        jeq r11, r1, write_str_shape_load_count
-        jmp reject
-write_str_shape_load_count:
-        imm r1, 1
-        jeq r12, r1, write_str_shape_write_count
-        jmp reject
-write_str_shape_write_count:
-        jeq r13, r1, write_str_shape_ret_count
-        jmp reject
-write_str_shape_ret_count:
-        jeq r14, r1, write_str_shape_done
-        jmp reject
-write_str_shape_pc:
-        imm r1, 4194304
-        add r1, r10
-        loadb r2, r1
-        imm r3, 1
-        jeq r2, r3, write_str_shape_start
-        jmp write_str_shape_next
-write_str_shape_start:
-        imm r1, 1
-        add r11, r1
-        imm r1, 2097152
-        add r1, r10
-        loadb r2, r1
-        imm r3, 8
-        jeq r2, r3, write_str_shape_load
-        imm r3, 18
-        jeq r2, r3, write_str_shape_write
-        imm r3, 20
-        jeq r2, r3, write_str_shape_ret
-        imm r3, 0                    ; halt
-        jeq r2, r3, reject
-        imm r3, 6                    ; div
-        jeq r2, r3, reject
-        imm r3, 7                    ; mod
-        jeq r2, r3, reject
-        imm r3, 9                    ; storeb
-        jeq r2, r3, reject
-        imm r3, 11                   ; store
-        jeq r2, r3, reject
-        imm r3, 17                   ; read
-        jeq r2, r3, reject
-        imm r3, 19                   ; call
-        jeq r2, r3, reject
-        jmp write_str_shape_next
-write_str_shape_load:
-        imm r1, 1
-        add r12, r1
-        jmp write_str_shape_next
-write_str_shape_write:
-        imm r1, 1
-        add r13, r1
-        jmp write_str_shape_next
-write_str_shape_ret:
-        imm r1, 1
-        add r14, r1
-write_str_shape_next:
-        imm r1, 1
-        add r10, r1
-        jmp write_str_shape_loop
-write_str_shape_done:
-        ret
 
 ; ---- Executable symbolic induction -----------------------------------
 
@@ -301,35 +138,45 @@ write_str_prove_zero_exit:
 
 ; Count decoded starts along both exact helper paths.  The zero path executes
 ; imm/jeq/ret.  One positive cycle executes imm/jeq/loadb/write/imm/add/sub/jmp
-; before returning to PC31.  Exact operands above establish the fallthrough,
-; taken target, and backedge used by these two path lists.
+; before returning to the checked helper entry. Earlier effect custody owns the
+; exact operands establishing the fallthrough, taken target, and backedge.
 write_str_derive_costs:
+        call exact_require_write_str_extent
+        mov r21, r0                  ; entry
+        mov r22, r1                  ; zero-test branch
+        mov r23, r2                  ; load
+        mov r24, r3                  ; write
+        mov r25, r4                  ; imm one
+        mov r26, r5                  ; add
+        mov r27, r6                  ; sub
+        mov r28, r7                  ; backedge
+        mov r29, r8                  ; return
         imm r10, 0
-        imm r20, 31
+        mov r20, r21
         call write_str_cost_mark
-        imm r20, 41
+        mov r20, r22
         call write_str_cost_mark
-        imm r20, 82
+        mov r20, r29
         call write_str_cost_mark
         imm r1, 525880
         store r1, r10                 ; derived zero-path intercept
 
         imm r10, 0
-        imm r20, 31
+        mov r20, r21
         call write_str_cost_mark
-        imm r20, 41
+        mov r20, r22
         call write_str_cost_mark
-        imm r20, 52
+        mov r20, r23
         call write_str_cost_mark
-        imm r20, 55
+        mov r20, r24
         call write_str_cost_mark
-        imm r20, 57
+        mov r20, r25
         call write_str_cost_mark
-        imm r20, 67
+        mov r20, r26
         call write_str_cost_mark
-        imm r20, 70                   ; checked positive cost step
+        mov r20, r27                  ; checked positive cost step
         call write_str_cost_mark
-        imm r20, 73
+        mov r20, r28
         call write_str_cost_mark
         imm r1, 525872
         store r1, r10                 ; derived positive-cycle coefficient
@@ -454,8 +301,8 @@ write_str_rank_set:
         store r1, r2                  ; rank=LEN-(K+1)
         ret
 
-; The exact jump returns to PC31. Rename successor tags only after requiring
-; pointer, remaining, output, and rank to agree on K+1.
+; The exact jump returns to the checked helper entry. Rename successor tags only
+; after requiring pointer, remaining, output, and rank to agree on K+1.
 write_str_close_backedge:
         imm r20, 525768
         imm r21, 2
