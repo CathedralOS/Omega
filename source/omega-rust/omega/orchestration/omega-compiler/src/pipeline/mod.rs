@@ -22,12 +22,8 @@ pub(crate) mod legacy_driver;
 mod operator_adapter_dispatch;
 mod optimization_gate;
 mod output;
-#[path = "package/compilation.rs"]
-mod package_compilation;
 #[path = "package/declaration_admission.rs"]
 mod package_declaration_admission;
-#[path = "package/source_consumption.rs"]
-mod package_source_consumption;
 #[path = "program_storage/entry_physical.rs"]
 mod program_entry_physical;
 #[path = "program_storage/entry_source_signature.rs"]
@@ -132,6 +128,10 @@ pub use compile_policy::ExecutableTcbBuildPolicy;
 pub use compiler_executable_commitment::{
     CompilerExecutableCommitment, CompilerExecutableCommitmentError,
 };
+pub(crate) use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyClosure, PackageGeneratedSourceBundle,
+    PackageSourceConsumptionCommitment,
+};
 pub use omega_source_profile::{
     SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,
     SourceFeatureCensus, SourceFeatureCount, SourceResourceObservation, census_source_closure,
@@ -143,13 +143,6 @@ pub use output::{
     TerminalComponentDeploymentOutputStage, TerminalComponentDeploymentSupply,
     acquire_and_deploy_terminal_component_output, deploy_and_write_terminal_component_output,
     deploy_supplied_terminal_component_output, write_finalized_terminal_component_output,
-};
-pub use package_compilation::{
-    PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
-    PackageDependencyClosure, PackageGeneratedSourceBundle, PackageSourceBinding,
-};
-pub use package_source_consumption::{
-    PackageSourceConsumptionCommitment, toolchain_source_identity_digest,
 };
 pub use program_entry_physical::ProgramEntryPhysicalContractPlan;
 pub use program_entry_source_signature::{

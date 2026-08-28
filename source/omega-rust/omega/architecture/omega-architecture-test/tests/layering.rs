@@ -508,6 +508,42 @@ fn package_review_is_not_owned_or_reexported_by_the_compiler() {
 }
 
 #[test]
+fn package_compilation_inputs_are_not_owned_or_reexported_by_the_compiler() {
+    let root = workspace_root();
+    let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");
+    assert!(
+        !compiler
+            .join("src/pipeline/package/compilation.rs")
+            .exists()
+            && !compiler
+                .join("src/pipeline/package/source_consumption.rs")
+                .exists(),
+        "package graph and source-consumption custody must not return to omega-compiler"
+    );
+
+    let owner =
+        root.join("source/omega-rust/omega/orchestration/omega-package-compilation/src/lib.rs");
+    assert!(
+        owner.is_file(),
+        "omega-package-compilation must own package compilation inputs"
+    );
+
+    let public_api = std::fs::read_to_string(compiler.join("src/public_api.rs"))
+        .expect("read omega-compiler compatibility API");
+    for forbidden in [
+        "PackageCompilationInputs",
+        "PackageDependencyClosure",
+        "PackageGeneratedSourceBundle",
+        "PackageSourceConsumptionCommitment",
+    ] {
+        assert!(
+            !public_api.contains(forbidden),
+            "omega-compiler must not reexport package-compilation owner `{forbidden}`"
+        );
+    }
+}
+
+#[test]
 fn build_output_custody_is_not_owned_or_reexported_by_the_compiler() {
     let root = workspace_root();
     let compiler = root.join("source/omega-rust/omega/orchestration/omega-compiler");

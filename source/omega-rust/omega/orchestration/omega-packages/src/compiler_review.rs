@@ -7,9 +7,11 @@ use crate::{
 };
 use omega_compiler::{
     BuildObservationSummary, CompilerExecutableCommitment, CompilerExecutableCommitmentError,
-    FilesystemSponsor, FilesystemSponsorError, PackageCompilationInputError,
-    PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
+    FilesystemSponsor, FilesystemSponsorError,
     compile_to_checked_with_packages_in_sponsored_build_dir,
+};
+use omega_package_compilation::{
+    PackageCompilationInputError, PackageGeneratedSourceBundle, PackageSourceConsumptionCommitment,
 };
 use omega_package_review::{
     CheckedPackageReviewProjection, OrdinaryPackageObligationLedger, PackageReviewCanonicalRow,

@@ -1,0 +1,22 @@
+[package]
+name = "omega-package-compilation"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[lib]
+name = "omega_package_compilation"
+path = "src/lib.rs"
+
+[features]
+test-support = []
+
+[dependencies]
+omega-build-output = { path = "../omega-build-output" }
+omega-target = { path = "../../foundation/omega-target" }
+psi-checked-trees = { path = "../../../psi/representations/psi-checked-trees" }
+psi-build-time-evaluation = { path = "../../../psi/semantics/psi-build-time-evaluation" }
+psi-core = { path = "../../../psi/foundation/psi-core" }
+psi-diagnostics = { path = "../../../psi/foundation/psi-diagnostics" }
+psi-source = { path = "../../../psi/foundation/psi-source" }
+sha2 = "0.10.9"

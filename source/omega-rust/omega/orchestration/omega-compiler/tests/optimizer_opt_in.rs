@@ -1,7 +1,9 @@
 use omega_compiler::{
-    CompileOptions, Optimization, OptimizationReportRequest, PackageCompilationInputs,
-    PackageDependencyBinding, PackageSourceBinding, compile_to_checked,
+    CompileOptions, Optimization, OptimizationReportRequest, compile_to_checked,
     compile_to_checked_with_packages,
+};
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 
 fn compile(

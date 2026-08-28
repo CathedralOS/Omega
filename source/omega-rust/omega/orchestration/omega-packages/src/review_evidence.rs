@@ -5,8 +5,8 @@ use omega_compiler::{
     BuildFilesystemLogicalHandleOutputSource, BuildFilesystemOperationResult,
     BuildFilesystemProvider, BuildFilesystemRoot, BuildFilesystemScalarOperandValue,
     BuildObservationClass, BuildObservationSummary, CompilerExecutableCommitment,
-    PackageSourceConsumptionCommitment,
 };
+use omega_package_compilation::PackageSourceConsumptionCommitment;
 use omega_package_review::{
     DecodedPackageReviewCanonicalRow, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, PackageReviewCanonicalRowSource,

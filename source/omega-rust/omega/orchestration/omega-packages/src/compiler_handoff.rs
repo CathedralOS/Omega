@@ -1,5 +1,5 @@
 use crate::closure_resolution::ResolvedPackageSourceClosure;
-use omega_compiler::{
+use omega_package_compilation::{
     PackageCompilationInputError, PackageCompilationInputs, PackageDependencyBinding,
     PackageSourceBinding,
 };

@@ -12,7 +12,8 @@ use super::{
     PACKAGE_REVIEW_ROW_ENCODING_VERSION, PackageReviewCanonicalRow, PackageReviewCanonicalRowKind,
     PackageReviewCanonicalRowRisk, project_checked_package_review,
 };
-use omega_compiler::{CheckedCompilation, PackageDependencyBinding, PackageDependencyClosure};
+use omega_compiler::CheckedCompilation;
+use omega_package_compilation::{PackageDependencyBinding, PackageDependencyClosure};
 use omega_target::TargetProfile;
 use psi_core::PackageKeyIdentity;
 use psi_diagnostics::Diagnostic;

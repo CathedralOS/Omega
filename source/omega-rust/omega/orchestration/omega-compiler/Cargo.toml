@@ -11,6 +11,7 @@ path = "src/lib.rs"
 [dependencies]
 omega-build-declarations = { path = "../omega-build-declarations" }
 omega-build-output = { path = "../omega-build-output" }
+omega-package-compilation = { path = "../omega-package-compilation" }
 omega-source-profile = { path = "../omega-source-profile" }
 omega-core = { path = "../../foundation/omega-core" }
 omega-optimization-core = { path = "../../foundation/omega-optimization-core" }
@@ -98,6 +99,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 
 [dev-dependencies]
+omega-package-compilation = { path = "../omega-package-compilation", features = ["test-support"] }
 psi-facts = { path = "../../../psi/representations/psi-facts" }
 psi-terminal = { path = "../../../psi/representations/psi-terminal" }
 psi-terminal-verifier = { path = "../../../psi/semantics/psi-terminal-verifier" }

@@ -302,7 +302,7 @@ mod tests {
             .expect("nonzero package identity");
         PackageCompilationInputs::new(
             identity,
-            vec![crate::PackageSourceBinding::new(
+            vec![omega_package_compilation::PackageSourceBinding::new(
                 identity,
                 "terminal-owner-fixture",
                 source_root.to_path_buf(),

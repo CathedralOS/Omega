@@ -1,6 +1,6 @@
-use omega_compiler::{
-    BuildObservationClass, CheckedCompilation, PackageCompilationInputs, PackageDependencyBinding,
-    PackageSourceBinding, compile_to_checked_with_packages,
+use omega_compiler::{BuildObservationClass, CheckedCompilation, compile_to_checked_with_packages};
+use omega_package_compilation::{
+    PackageCompilationInputs, PackageDependencyBinding, PackageSourceBinding,
 };
 use omega_package_review::{
     PACKAGE_REVIEW_ENCODING_VERSION, PACKAGE_REVIEW_ROW_ENCODING_VERSION,
