@@ -1758,7 +1758,7 @@ fn validate_proof_certified_same_operand_integer_constant_candidate(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct IndependentRemainderByOneConstant {
+struct IndependentRemainderUnitConstant {
     psi_operation: OperationId,
     obligation: psi_core::ObligationId,
     result: ValueId,
@@ -1767,9 +1767,28 @@ struct IndependentRemainderByOneConstant {
     right: ValueId,
 }
 
-fn independent_remainder_by_one_constant(
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum IndependentRemainderUnitDivisor {
+    PositiveOne,
+    SignedNegativeOne,
+}
+
+impl IndependentRemainderUnitDivisor {
+    fn value(self, scalar_type: IntegerType) -> Option<IntegerValue> {
+        match self {
+            Self::PositiveOne => Some(independent_integer_one(scalar_type)),
+            Self::SignedNegativeOne if scalar_type.sign() == IntegerSign::Signed => {
+                Some(IntegerValue::Signed(-1))
+            }
+            Self::SignedNegativeOne => None,
+        }
+    }
+}
+
+fn independent_remainder_unit_constant(
     operation: &O,
-) -> Option<IndependentRemainderByOneConstant> {
+    divisor: IndependentRemainderUnitDivisor,
+) -> Option<IndependentRemainderUnitConstant> {
     let (psi_operation, obligation, result, scalar_type, left, right) = match operation {
         O::ExactIntegerRemainder {
             psi_operation,
@@ -1804,7 +1823,8 @@ fn independent_remainder_by_one_constant(
         ),
         _ => return None,
     };
-    Some(IndependentRemainderByOneConstant {
+    divisor.value(scalar_type)?;
+    Some(IndependentRemainderUnitConstant {
         psi_operation,
         obligation,
         result,
@@ -1823,13 +1843,45 @@ pub fn validate_proof_certified_integer_remainder_by_one_candidate(
     input: &PsiOptimizationUnit,
     candidate: &PsiRewriteCandidate,
 ) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_integer_remainder_by_unit_candidate(
+        input,
+        candidate,
+        IndependentRemainderUnitDivisor::PositiveOne,
+        b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
+        b"omega.validator.live-proof-certified-integer-remainder-by-one-elimination.v1",
+    )
+}
+
+/// Independently validate the defined signed integer laws `x % -1 = 0` for
+/// exact, wrapping, and saturating fixed-width integers. The right operand must
+/// be a direct typed literal, and the authored operation must retain its exact
+/// verifier-accepted obligation. For exact arithmetic that accepted obligation
+/// proves the otherwise exceptional signed-minimum input is unreachable.
+pub fn validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
+    validate_proof_certified_integer_remainder_by_unit_candidate(
+        input,
+        candidate,
+        IndependentRemainderUnitDivisor::SignedNegativeOne,
+        b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+        b"omega.validator.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+    )
+}
+
+fn validate_proof_certified_integer_remainder_by_unit_candidate(
+    input: &PsiOptimizationUnit,
+    candidate: &PsiRewriteCandidate,
+    divisor: IndependentRemainderUnitDivisor,
+    rule_domain: &[u8],
+    validator_domain: &[u8],
+) -> Result<ValidatedPsiRewrite, OptimizationUnitValidationError> {
     validate_psi_optimization_unit(input)?;
     if candidate.input() != input.identity {
         return Err(OptimizationUnitValidationError::CandidateInputMismatch);
     }
-    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(
-        b"omega.psi-rule.live-proof-certified-integer-remainder-by-one-elimination.v1",
-    );
+    let expected_rule = OptimizationRuleIdentity::from_canonical_bytes(rule_domain);
     if candidate.rule() != expected_rule
         || candidate.required_analyses()
             != AnalysisSet::new([
@@ -1873,7 +1925,7 @@ pub fn validate_proof_certified_integer_remainder_by_one_candidate(
                 .map_err(|_| OptimizationUnitValidationError::CandidateLocationMissing)?,
         )
         .ok_or(OptimizationUnitValidationError::CandidateLocationMissing)?;
-    let shape = independent_remainder_by_one_constant(&node.operation)
+    let shape = independent_remainder_unit_constant(&node.operation, divisor)
         .ok_or(OptimizationUnitValidationError::CandidatePatchMismatch)?;
     if patch.source_operation != shape.psi_operation
         || patch.result != shape.result
@@ -1923,7 +1975,9 @@ pub fn validate_proof_certified_integer_remainder_by_one_candidate(
     else {
         return Err(OptimizationUnitValidationError::CandidateOperandFactMismatch);
     };
-    let expected_one = independent_integer_one(shape.scalar_type);
+    let expected_one = divisor
+        .value(shape.scalar_type)
+        .ok_or(OptimizationUnitValidationError::CandidateOperandFactMismatch)?;
     if literal_result != shape.right
         || literal_type != ScalarType::Integer(shape.scalar_type)
         || literal_value != expected_one
@@ -2047,9 +2101,7 @@ pub fn validate_proof_certified_integer_remainder_by_one_candidate(
     Ok(ValidatedPsiRewrite {
         unit: output,
         candidate: candidate.identity(),
-        validator: OptimizationValidatorIdentity::from_canonical_bytes(
-            b"omega.validator.live-proof-certified-integer-remainder-by-one-elimination.v1",
-        ),
+        validator: OptimizationValidatorIdentity::from_canonical_bytes(validator_domain),
         provenance: expected_provenance.into(),
     })
 }
@@ -2086,6 +2138,15 @@ pub fn validate_scalar_evaluation_candidate(
         )
     {
         return validate_proof_certified_integer_remainder_by_one_candidate(input, candidate);
+    }
+    if candidate.rule()
+        == OptimizationRuleIdentity::from_canonical_bytes(
+            b"omega.psi-rule.live-proof-certified-signed-integer-remainder-by-negative-one-elimination.v1",
+        )
+    {
+        return validate_proof_certified_signed_integer_remainder_by_negative_one_candidate(
+            input, candidate,
+        );
     }
     match candidate.patch() {
         PsiRewritePatch::ReplaceIntegerOperationWithConstant(_) => {
