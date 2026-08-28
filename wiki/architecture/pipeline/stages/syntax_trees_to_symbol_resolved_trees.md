@@ -112,6 +112,16 @@ task:
   orchestration may sequence that Psi entry while the larger frontend conveyor
   is split, but cannot own or extend the language elaboration.
 
+- `source/on-ramp/rust/psi/semantics/psi-build-time-evaluation` owns the
+  cross-stage evaluation continuation. Pre-resolution returns target-filterable
+  syntax beside one opaque, non-cloneable `PreCheckEvaluation` retaining the
+  matching plan-laid rows, placed-view rows, and optional package-selection
+  authority. Omega may filter targets, resolve names, and type that syntax, then
+  consumes the continuation once; it cannot inspect or recombine the retained
+  rows or choose a different pre-check authority. Const-length, const-domain,
+  plan-laid, placed-view, and wire-plan work remains in its Psi-defined
+  fail-fast order.
+
 - `source/on-ramp/rust/psi/representations/psi-symbol-resolved-trees` contains the stage
   output.
 
