@@ -3,13 +3,13 @@ use crate::{
     OptimizationCandidateIdentity, OptimizationCandidateVerdict, OptimizationDecisionIdentity,
     OptimizationPassIdentity, OptimizationRuleIdentity, OptimizationRuleSetIdentity,
     OptimizationUnitIdentity, OptimizationValidatorIdentity, OptimizationWorkBudget,
-    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity,
+    OwnershipFrontierFactIdentity, ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use std::collections::BTreeSet;
 use std::fmt;
 
 const DECISION_MAGIC: &[u8; 8] = b"OMGDEC\0\0";
-const DECISION_VERSION: u32 = 4;
+const DECISION_VERSION: u32 = 5;
 const PASS_RECORD_MAGIC: &[u8; 8] = b"OMGPAR\0\0";
 const PASS_RECORD_VERSION: u32 = 1;
 const DECISION_FIXED_WIDTH: usize = 155;
@@ -19,6 +19,7 @@ pub enum OptimizationFactReference {
     ScalarConstant(ScalarConstantFactIdentity),
     AcceptedObligation(AcceptedObligationFactIdentity),
     OwnershipFrontier(OwnershipFrontierFactIdentity),
+    ValueRange(ValueRangeFactIdentity),
 }
 
 /// Actual work consumed by one pass. Zero is valid; publication separately
@@ -256,7 +257,7 @@ fn decision_identity(
     validator: Option<OptimizationValidatorIdentity>,
 ) -> OptimizationDecisionIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v4\0");
+    canonical.extend_from_slice(b"omega.optimization-manifest-decision.v5\0");
     canonical.extend_from_slice(&input.bytes());
     canonical.extend_from_slice(&candidate.bytes());
     canonical.extend_from_slice(&rule.bytes());
@@ -294,6 +295,10 @@ fn encode_fact_reference(encoded: &mut Vec<u8>, fact: OptimizationFactReference)
             encoded.push(3);
             encoded.extend_from_slice(&identity.bytes());
         }
+        OptimizationFactReference::ValueRange(identity) => {
+            encoded.push(4);
+            encoded.extend_from_slice(&identity.bytes());
+        }
     }
 }
 
@@ -309,6 +314,9 @@ fn decode_fact_reference(
         )),
         3 => Ok(OptimizationFactReference::OwnershipFrontier(
             OwnershipFrontierFactIdentity::from_bytes(cursor.array()?),
+        )),
+        4 => Ok(OptimizationFactReference::ValueRange(
+            ValueRangeFactIdentity::from_bytes(cursor.array()?),
         )),
         tag => Err(OptimizationManifestDecodeError::UnknownFactReference(tag)),
     }
@@ -595,6 +603,10 @@ mod tests {
         )
     }
 
+    fn range_fact(name: &[u8]) -> OptimizationFactReference {
+        OptimizationFactReference::ValueRange(ValueRangeFactIdentity::from_canonical_bytes(name))
+    }
+
     fn decision(rule: OptimizationRuleIdentity) -> OptimizationDecisionRecord {
         OptimizationDecisionRecord::new(
             OptimizationUnitIdentity::from_canonical_bytes(b"input"),
@@ -629,6 +641,26 @@ mod tests {
         assert_eq!(
             OptimizationDecisionRecord::decode(&decision.encode()),
             Ok(decision)
+        );
+    }
+
+    #[test]
+    fn value_range_fact_reference_round_trips_in_decision_v5() {
+        let record = OptimizationDecisionRecord::new(
+            OptimizationUnitIdentity::from_canonical_bytes(b"range-input"),
+            OptimizationCandidateIdentity::from_canonical_bytes(b"range-candidate"),
+            rule(b"range-rule"),
+            OptimizationCandidateVerdict::Applied,
+            AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
+            vec![fact(b"literal"), range_fact(b"proof-range")],
+            Some(OptimizationValidatorIdentity::from_canonical_bytes(
+                b"range-validator",
+            )),
+        )
+        .unwrap();
+        assert_eq!(
+            OptimizationDecisionRecord::decode(&record.encode()).unwrap(),
+            record
         );
     }
 

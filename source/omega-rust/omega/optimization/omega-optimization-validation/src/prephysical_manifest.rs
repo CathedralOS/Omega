@@ -722,7 +722,7 @@ fn pre_physical_manifest_identity(
     manifest: &PrePhysicalOptimizationManifest,
 ) -> PrePhysicalOptimizationManifestIdentity {
     let mut canonical = Vec::new();
-    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v26\0");
+    canonical.extend_from_slice(b"omega.pre-physical-optimization-manifest.v27\0");
     canonical.extend_from_slice(&encode_manifest_content(manifest));
     PrePhysicalOptimizationManifestIdentity::from_canonical_bytes(&canonical)
 }
@@ -920,6 +920,9 @@ fn render_fact(fact: OptimizationFactReference) -> String {
         OptimizationFactReference::OwnershipFrontier(identity) => {
             format!("ownership-frontier:{}", hex(&identity.bytes()))
         }
+        OptimizationFactReference::ValueRange(identity) => {
+            format!("value-range:{}", hex(&identity.bytes()))
+        }
     }
 }
 
@@ -994,6 +997,17 @@ mod tests {
         assert_eq!(
             render_fact(OptimizationFactReference::OwnershipFrontier(identity)),
             format!("ownership-frontier:{}", hex(&identity.bytes()))
+        );
+    }
+
+    #[test]
+    fn human_projection_names_value_range_facts_explicitly() {
+        let identity = omega_optimization_core::ValueRangeFactIdentity::from_canonical_bytes(
+            b"value-range-render-test",
+        );
+        assert_eq!(
+            render_fact(OptimizationFactReference::ValueRange(identity)),
+            format!("value-range:{}", hex(&identity.bytes()))
         );
     }
 

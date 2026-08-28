@@ -1,6 +1,7 @@
 use super::*;
 use omega_optimization_core::{
-    AcceptedObligationFactIdentity, AnalysisKind, OptimizationUnitIdentity,
+    AcceptedObligationFactIdentity, AnalysisKind, Optimization, OptimizationFactReference,
+    OptimizationSelections, OptimizationUnitIdentity, OptimizationWorkBudget,
 };
 use omega_optimization_unit::{
     ValueRangeFact, ValueRangeScope, ValueRangeSupport, value_range_fact_identity,
@@ -9,7 +10,7 @@ use omega_optimization_validation::{
     OptimizationUnitValidationError, validate_current_value_range_fact,
     validate_current_value_range_fact_at,
 };
-use omega_psi_optimizer::{AnalysisProduct, compute_analysis};
+use omega_psi_optimizer::{AnalysisProduct, compute_analysis, run_psi_pipeline};
 
 #[test]
 fn checked_source_guarded_exact_narrowing_carries_independently_verified_evidence() {
@@ -444,6 +445,148 @@ fn checked_source_exact_right_shift_carries_independently_verified_count_evidenc
         let entry = object.entry_function().bytes(&object);
         assert_eq!(run_host_machine_code_with_two_u64(entry, 1u64 << 63, 63), 1);
         assert_eq!(run_host_machine_code_with_two_u64(entry, 1u64 << 63, 64), 0);
+    }
+}
+
+#[test]
+fn checked_source_range_proof_folds_a_later_integer_comparison() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("range-consuming exact-shift source canary should compile");
+    let lowered = lower_machine(&checked, "terminal_exact_shift_range_fold")
+        .expect("guarded exact shift and later comparison should lower");
+    let comparison = lowered.semantic_module.machines[0]
+        .blocks
+        .iter()
+        .flat_map(|block| &block.operations)
+        .find(|operation| matches!(operation.kind, OperationKind::IntegerLessThan { .. }))
+        .expect("the later range-comparable operation remains explicit");
+    let comparison_operation = comparison.id;
+    let semantic = encode_module(&lowered.semantic_module).expect("range fold semantics");
+    let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range fold proof");
+    let optimizer_input =
+        omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+            &semantic,
+            &proof,
+            &AdmissionProfile::default(),
+        )
+        .expect("range fold verifies for optimizer admission");
+    let verified = omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+        optimizer_input,
+        TerminalFuelSchedule::CURRENT.identity(),
+    )
+    .expect("range fold retains proof custody");
+    let selections =
+        OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+            .expect("named SCCP selection");
+    let budget = OptimizationWorkBudget::new(512, 64, 64, 64, 16).expect("bounded source run");
+    let run = run_psi_pipeline(verified, &selections, budget)
+        .expect("the range-consuming candidate independently validates and commits");
+    let commit = run
+        .commits()
+        .iter()
+        .find(|commit| {
+            commit
+                .declaration()
+                .consumed_facts()
+                .iter()
+                .any(|fact| matches!(fact, OptimizationFactReference::ValueRange(_)))
+        })
+        .expect("one committed rewrite records its exact consumed range fact");
+    assert!(
+        commit
+            .declaration()
+            .consumed_facts()
+            .iter()
+            .any(|fact| matches!(fact, OptimizationFactReference::ScalarConstant(_)))
+    );
+    assert!(
+        run.session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .any(|node| matches!(
+                node.operation,
+                TerminalAbstractOperation::BooleanConstant {
+                    psi_operation,
+                    value: true,
+                    ..
+                } if psi_operation == comparison_operation
+            ))
+    );
+}
+
+#[test]
+fn checked_source_range_comparison_proves_false_and_declines_overlap() {
+    let checked = compile_to_checked(&source_canary(), None)
+        .expect("range comparison boundary source canaries should compile");
+    for (machine, expected) in [
+        ("terminal_exact_shift_range_false_fold", Some(false)),
+        ("terminal_exact_shift_range_overlap", None),
+    ] {
+        let lowered = lower_machine(&checked, machine).expect("range boundary machine lowers");
+        let comparison_operation = lowered.semantic_module.machines[0]
+            .blocks
+            .iter()
+            .flat_map(|block| &block.operations)
+            .find(|operation| matches!(operation.kind, OperationKind::IntegerLessThan { .. }))
+            .expect("range comparison remains explicit before optimization")
+            .id;
+        let semantic = encode_module(&lowered.semantic_module).expect("range boundary semantics");
+        let proof = encode_proof_bundle(&lowered.proof_bundle).expect("range boundary proof");
+        let optimizer_input =
+            omega_terminal_psi_to_abstract_operations::lower_artifact_sections_for_optimization(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+            )
+            .expect("range boundary verifies for optimizer admission");
+        let verified =
+            omega_terminal_psi_to_abstract_operations::build_verified_psi_optimization_unit(
+                optimizer_input,
+                TerminalFuelSchedule::CURRENT.identity(),
+            )
+            .expect("range boundary retains proof custody");
+        let selections =
+            OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
+                .expect("named SCCP selection");
+        let budget = OptimizationWorkBudget::new(512, 64, 64, 64, 16).expect("bounded source run");
+        let run = run_psi_pipeline(verified, &selections, budget)
+            .expect("range boundary pipeline remains valid");
+        let range_commit = run.commits().iter().find(|commit| {
+            commit
+                .declaration()
+                .consumed_facts()
+                .iter()
+                .any(|fact| matches!(fact, OptimizationFactReference::ValueRange(_)))
+        });
+        assert_eq!(range_commit.is_some(), expected.is_some());
+        let final_operation = run
+            .session()
+            .unit()
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.nodes)
+            .find(|node| match node.operation {
+                TerminalAbstractOperation::BooleanConstant { psi_operation, .. }
+                | TerminalAbstractOperation::IntegerLessThan { psi_operation, .. } => {
+                    psi_operation == comparison_operation
+                }
+                _ => false,
+            })
+            .expect("comparison provenance remains at its exact node");
+        match expected {
+            Some(expected) => assert!(matches!(
+                final_operation.operation,
+                TerminalAbstractOperation::BooleanConstant { value, .. } if value == expected
+            )),
+            None => assert!(matches!(
+                final_operation.operation,
+                TerminalAbstractOperation::IntegerLessThan { .. }
+            )),
+        }
     }
 }
 

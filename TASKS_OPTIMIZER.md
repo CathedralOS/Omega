@@ -492,7 +492,7 @@ These facts constrain the work below.
 - `omega-optimization-core` now owns frontend- and encoder-independent stable
   identities, rule contracts, ordered analysis/invalidation sets, safety and
   reason vocabularies, hard work budgets, candidate verdicts, and canonical
-  decision/pass manifest rows. Decision rows use a self-authenticating v4 codec:
+  decision/pass manifest rows. Decision rows use a self-authenticating v5 codec:
   identity is derived from the input revision, candidate, rule, verdict,
   consumed analyses, a canonical duplicate-free typed fact-reference set, and
   optional validator, then recomputed during decode. Applied decisions cannot
@@ -502,8 +502,10 @@ These facts constrain the work below.
   independently reconstructed propagated block-parameter facts and admitted
   operation-obligation facts consumed by proof-certified folds. The typed fact
   vocabulary can now also name an exact verifier-derived ownership-frontier
-  identity. No rule consumes that capability yet; adding the reference does not
-  broaden its source-site validity region.
+  identity and a current-revision `ValueRangeFactIdentity`. The first range
+  comparison consumes the latter; no rule consumes the ownership capability
+  yet, and either reference remains bounded by its independently checked
+  validity region.
 - `omega-optimization-unit` now deterministically reconstructs explicit blocks,
   scalar definitions/uses, conservative effect links, structural roots,
   ownership events, literal facts, source provenance, and separately identified
@@ -771,10 +773,19 @@ These facts constrain the work below.
   intersects only direct value/literal conjunctions, recomputes dominance and
   SSA availability, and rejects stale, malformed, pre-anchor, or nondominating
   use. A real guarded exact-right-shift source canary proves the resulting
-  unsigned `[0, 63]` interval and corruption fails closed.
+  unsigned `[0, 63]` interval and corruption fails closed. The first consumer,
+  `integer-less-than-range-constant.v1`, is the thirty-first explicitly ordered
+  SCCP rule. It folds only range-left/direct-literal-right comparisons: true
+  when `range.max < literal`, false when `range.min >= literal`, and otherwise
+  declines. Its proof-certified witness records the exact range and scalar-
+  constant identities; independent validation reconstructs both and rechecks
+  point-of-use applicability. A checked-source guarded-shift program exercises
+  `[0, 63] < 64`, commits `true`, and retains the range reference in decision
+  manifest v5. SCCP pass identity is v2, the optimized-plan projection
+  validator is v28, and the prephysical manifest identity is v27.
   The task reopens when the scalar vocabulary grows (including any future
   trapping or exact-float policy). Semantic analyses remain open for the wider
-  proof/effect/ownership vocabulary and for the first range-consuming rule.
+  proof/effect/ownership vocabulary and broader range-consuming rules.
 - Conservative node-effect summaries now distinguish pure scalar work,
   structural state, internal calls, boundary calls, services, and control.
   Unknown internal-call crash/suspension/observation behavior remains `May`;
@@ -1422,7 +1433,7 @@ dependency.
   canonical operation-proof interval vocabulary are implemented with
   independent reconstruction and point-of-use dominance/availability checks.
   Remaining here includes congruences, disjunctive nonzero facts, case domains,
-  broader proof goals, and a rule that records the exact consumed range fact.
+  broader proof goals, and additional rules over settled range relationships.
 
 - **OPT-ORDERED-REGISTRY.** Implement explicit ordered built-in registries with
   duplicate detection and no global singleton.
@@ -1596,10 +1607,14 @@ dependency.
   block parameters. Float support waits for complete per-operation exact
   semantics and must never use host arithmetic as a shortcut.
 
-  Current slice: thirty exact rules cover every currently evaluable Boolean
+  Current slice: thirty-one exact rules cover every currently evaluable Boolean
   and integer leaf and consume literal or coupled-CFG propagated block-
-  parameter facts reconstructed by the independent validator. Structural-field
-  and call results remain overdefined because the input has no immutable
+  parameter facts reconstructed by the independent validator. The thirty-first
+  rule consumes a proof-derived left interval plus an exact direct-literal
+  right operand for `IntegerLessThan`; it proves only the closed outcomes
+  `max < literal` and `min >= literal`, records both fact identities, and
+  declines overlapping ranges. Structural-field and call results remain
+  overdefined because the input has no immutable
   structural version or call-summary constant fact. Float and trapping-policy
   wording is a future acceptance boundary, not an unimplemented current
   operation. Reopen this task when the scalar vocabulary or admissible source

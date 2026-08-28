@@ -2233,14 +2233,14 @@ mod tests {
         assert_eq!(usage.commits, 1);
         assert_eq!(usage.validation_steps, 1);
         assert_eq!(usage.iterations, 2);
-        assert_eq!(usage.rule_evaluations, 31);
+        assert_eq!(usage.rule_evaluations, 32);
         assert_eq!(decisions.records.len(), 1);
         assert_eq!(
             decisions.records[0].outcome,
             BaselineDecisionOutcome::Choose(commits[0].candidate)
         );
         let pass_manifest = pass_manifest.expect("selected pass emits a manifest row");
-        assert_eq!(pass_manifest.ordered_rules().len(), 30);
+        assert_eq!(pass_manifest.ordered_rules().len(), 31);
         assert_eq!(pass_manifest.input(), unit.identity);
         assert_eq!(pass_manifest.output(), output.identity);
         assert_eq!(pass_manifest.decisions().len(), 1);
@@ -2419,7 +2419,7 @@ mod tests {
 
         assert_eq!(commits.len(), 2);
         assert_eq!(usage.iterations, 3);
-        assert_eq!(usage.rule_evaluations, 34);
+        assert_eq!(usage.rule_evaluations, 35);
         assert!(matches!(
             output.functions[0].blocks[0].nodes[2].operation,
             TerminalAbstractOperation::IntegerConstant {
@@ -2435,7 +2435,7 @@ mod tests {
             }
         ));
         let manifest = pass_manifest.unwrap();
-        assert_eq!(manifest.ordered_rules().len(), 30);
+        assert_eq!(manifest.ordered_rules().len(), 31);
         assert_eq!(manifest.decisions().len(), 2);
         assert_eq!(ledger.records().len(), 2);
     }

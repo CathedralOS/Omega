@@ -1145,7 +1145,7 @@ fingerprint, exact machine/operation/obligation owner, and canonical proposition
 bytes. The verified builder derives the sorted fact index from the immutable
 verifier carrier, binds it into the initial unit identity, and the independent
 validator reconstructs that projection before a public session can run. The
-manifest v3 row therefore records the operand facts and the exact admitted fact
+decision manifest v5 row therefore records operand facts and the exact admitted fact
 that authorized removal of a proof-bearing operation. This establishes the
 pattern future patch variants must follow before they become executable.
 
@@ -1156,12 +1156,23 @@ and every scalar definition's lattice state. The validation crate owns a second
 fixed-point implementation and reconstructs this snapshot without depending on
 the optimizer crate. A digest supplied by the optimizer is therefore only a
 claim; it becomes rewrite evidence only when the validator independently
-derives the identical snapshot and fact identity. The current thirty exact
+derives the identical snapshot and fact identity. The current thirty-one exact
 rules cover every evaluable Boolean and integer operation in the admitted
 verified-unit vocabulary. Structural-field and call results stay overdefined
 without immutable structural-version or call-summary facts. This is a
 current-vocabulary completion boundary, not permission to guess semantics for
 future float, trapping, or otherwise extended scalar operations.
+
+The thirty-first SCCP rule is the first proof-range consumer. For an
+`IntegerLessThan` with a proof-derived left interval and a direct integer
+literal on the right, it yields true only when `maximum < literal`, false only
+when `minimum >= literal`, and otherwise proposes nothing. Its proof-certified
+witness and decision manifest retain both the `ValueRangeFactIdentity` and
+`ScalarConstantFactIdentity`; the independent validator re-derives the range,
+SSA availability, operation-entry dominance, literal definition, and exact
+comparison result before commit. This extends decision schema v5 with a typed
+value-range reference and advances the SCCP pass identity to v2; it does not
+introduce a hidden optimization level or broaden the explicit build selection.
 
 The initial pass-manager skeleton has a public entry only from
 `VerifiedPsiOptimizationUnit`; a bare reconstructible seed cannot start a run.

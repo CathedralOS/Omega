@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use omega_optimization_core::ValueRangeFactIdentity;
 use omega_optimization_unit::{
     OptimizationFact, ProofQuestionOwner, PsiOptimizationFunction, PsiOptimizationUnit,
     ScalarConstantValue, ValueDefinitionSite, ValueRangeFact, ValueRangeRegion, ValueRangeScope,
@@ -278,6 +279,163 @@ fn reconstruct_value_range_fact(
             )
         }
     }
+}
+
+/// Independently find one proof-derived range by identity and prove that it is
+/// usable at the requested current operation entry. Candidate validation uses
+/// this instead of importing the optimizer's analysis implementation.
+pub(super) fn independently_reconstruct_value_range_fact_at(
+    unit: &PsiOptimizationUnit,
+    identity: ValueRangeFactIdentity,
+    machine: MachineId,
+    value: ValueId,
+    query_block: BlockId,
+    query_node: u32,
+) -> Option<ValueRangeFact> {
+    let function = unit
+        .functions
+        .iter()
+        .find(|function| function.machine == machine)?;
+    let dominators = independent_reachable_dominators(function);
+    for block in &function.blocks {
+        if !dominators.contains_key(&block.id) {
+            continue;
+        }
+        for (node_index, node) in block.nodes.iter().enumerate() {
+            let Some((operation, obligation, goal)) = proof_range_goal(&node.operation) else {
+                continue;
+            };
+            if function
+                .blocks
+                .iter()
+                .flat_map(|candidate| &candidate.nodes)
+                .filter(|candidate| {
+                    proof_range_goal(&candidate.operation)
+                        .is_some_and(|(candidate, _, _)| candidate == operation)
+                })
+                .count()
+                != 1
+                || function
+                    .facts
+                    .iter()
+                    .filter(|candidate| {
+                        matches!(candidate,
+                            OptimizationFact::OperationObligationReference {
+                                obligation: candidate_obligation,
+                                support,
+                            } if *candidate_obligation == obligation && *support == operation)
+                    })
+                    .count()
+                    != 1
+            {
+                continue;
+            }
+            let Ok(Some(proposition)) = goal.kernel_proposition() else {
+                continue;
+            };
+            let Ok(canonical) = psi_terminal_codec::canonical_proposition_order_key(&proposition)
+            else {
+                continue;
+            };
+            let Some(accepted) = unit
+                .accepted_obligation_facts
+                .iter()
+                .filter(|candidate| {
+                    candidate.machine == machine
+                        && candidate.operation == operation
+                        && candidate.obligation == obligation
+                        && candidate.proposition == canonical
+                        && candidate.terminal_psi == unit.terminal_psi
+                        && candidate.has_canonical_identity()
+                })
+                .exactly_one()
+            else {
+                continue;
+            };
+            let Some(question) = unit
+                .proof_questions
+                .iter()
+                .filter(|candidate| {
+                    candidate.owner == ProofQuestionOwner::Operation { machine, operation }
+                        && candidate.obligation == obligation
+                        && candidate.proposition == canonical
+                        && candidate.canonical_certificate
+                        && candidate.terminal_psi == unit.terminal_psi
+                        && candidate.proof_bundle_fingerprint == accepted.proof_bundle_fingerprint
+                        && candidate.has_canonical_identity()
+                })
+                .exactly_one()
+            else {
+                continue;
+            };
+            let IntervalExtraction::Bounds(bounds) = extract_integer_intervals(&proposition) else {
+                continue;
+            };
+            let Some((scalar_type, partial)) =
+                bounds
+                    .iter()
+                    .find_map(|((candidate, scalar_type), partial)| {
+                        (*candidate == value).then_some((*scalar_type, *partial))
+                    })
+            else {
+                continue;
+            };
+            if scalar_value_definition(function, value)
+                .is_none_or(|definition| definition.scalar_type != ScalarType::Integer(scalar_type))
+            {
+                continue;
+            }
+            let minimum = partial.lower.unwrap_or_else(|| scalar_type.minimum_value());
+            let maximum = partial.upper.unwrap_or_else(|| scalar_type.maximum_value());
+            if minimum == scalar_type.minimum_value() && maximum == scalar_type.maximum_value() {
+                continue;
+            }
+            let node_index =
+                u32::try_from(node_index).expect("optimization-unit node position fits u32");
+            let valid_in = ValueRangeRegion {
+                revision: unit.identity,
+                machine,
+                value,
+                scope: ValueRangeScope::DominatedOperationEntry {
+                    block: block.id,
+                    node: node_index,
+                    operation,
+                },
+                dominated_blocks: dominators
+                    .iter()
+                    .filter_map(|(candidate, values)| {
+                        values.contains(&block.id).then_some(*candidate)
+                    })
+                    .collect(),
+            };
+            let Some(fact) = new_fact(
+                value,
+                scalar_type,
+                minimum,
+                maximum,
+                ValueRangeSupport::AcceptedOperationProof {
+                    accepted: accepted.identity,
+                    question: question.identity,
+                    operation,
+                },
+                valid_in,
+            ) else {
+                continue;
+            };
+            if fact.identity == identity
+                && value_available_at(function, value, query_block, query_node)
+                && scope_applies_at(
+                    fact.valid_in.scope,
+                    &fact.valid_in.dominated_blocks,
+                    query_block,
+                    query_node,
+                )
+            {
+                return Some(fact);
+            }
+        }
+    }
+    None
 }
 
 fn new_fact(

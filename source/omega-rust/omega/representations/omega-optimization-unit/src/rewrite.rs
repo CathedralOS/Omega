@@ -4,7 +4,7 @@ use omega_optimization_core::{
     AcceptedObligationFactIdentity, AnalysisInvalidationSet, AnalysisSet,
     OptimizationCandidateIdentity, OptimizationFactReference, OptimizationRuleContract,
     OptimizationRuleIdentity, OptimizationSafetyClass, OptimizationUnitIdentity,
-    ScalarConstantFactIdentity,
+    ScalarConstantFactIdentity, ValueRangeFactIdentity,
 };
 use psi_core::{
     BlockId, EdgeId, IntegerCarrier, IntegerSign, IntegerType, IntegerValue, MachineId,
@@ -112,6 +112,10 @@ pub enum ScalarEvaluationWitness {
         right_fact: ScalarConstantFactIdentity,
         obligation_fact: AcceptedObligationFactIdentity,
     },
+    RangeAgainstConstant {
+        range_fact: ValueRangeFactIdentity,
+        constant_fact: ScalarConstantFactIdentity,
+    },
 }
 
 impl ScalarEvaluationWitness {
@@ -120,7 +124,9 @@ impl ScalarEvaluationWitness {
             Self::Unary { operand_fact } | Self::ProofCertifiedUnary { operand_fact, .. } => {
                 Some(operand_fact)
             }
-            Self::Binary { .. } | Self::ProofCertifiedBinary { .. } => None,
+            Self::Binary { .. }
+            | Self::ProofCertifiedBinary { .. }
+            | Self::RangeAgainstConstant { .. } => None,
         }
     }
 
@@ -137,7 +143,9 @@ impl ScalarEvaluationWitness {
                 right_fact,
                 ..
             } => Some((left_fact, right_fact)),
-            Self::Unary { .. } | Self::ProofCertifiedUnary { .. } => None,
+            Self::Unary { .. }
+            | Self::ProofCertifiedUnary { .. }
+            | Self::RangeAgainstConstant { .. } => None,
         }
     }
 
@@ -149,7 +157,22 @@ impl ScalarEvaluationWitness {
             | Self::ProofCertifiedBinary {
                 obligation_fact, ..
             } => Some(obligation_fact),
-            Self::Unary { .. } | Self::Binary { .. } => None,
+            Self::Unary { .. } | Self::Binary { .. } | Self::RangeAgainstConstant { .. } => None,
+        }
+    }
+
+    pub const fn range_against_constant(
+        self,
+    ) -> Option<(ValueRangeFactIdentity, ScalarConstantFactIdentity)> {
+        match self {
+            Self::RangeAgainstConstant {
+                range_fact,
+                constant_fact,
+            } => Some((range_fact, constant_fact)),
+            Self::Unary { .. }
+            | Self::Binary { .. }
+            | Self::ProofCertifiedUnary { .. }
+            | Self::ProofCertifiedBinary { .. } => None,
         }
     }
 }
@@ -1291,6 +1314,7 @@ impl PsiRewriteCandidate {
             PsiRewriteWitness::ScalarEvaluation(
                 ScalarEvaluationWitness::ProofCertifiedUnary { .. }
                     | ScalarEvaluationWitness::ProofCertifiedBinary { .. }
+                    | ScalarEvaluationWitness::RangeAgainstConstant { .. }
             ) | PsiRewriteWitness::AcceptedObligation(_)
                 | PsiRewriteWitness::ProofCertifiedScalarIdentity { .. }
         ) {
@@ -1819,6 +1843,15 @@ impl PsiRewriteCandidate {
                 OptimizationFactReference::ScalarConstant(*right_fact),
                 OptimizationFactReference::AcceptedObligation(*obligation_fact),
             ],
+            PsiRewriteWitness::ScalarEvaluation(
+                ScalarEvaluationWitness::RangeAgainstConstant {
+                    range_fact,
+                    constant_fact,
+                },
+            ) => vec![
+                OptimizationFactReference::ValueRange(*range_fact),
+                OptimizationFactReference::ScalarConstant(*constant_fact),
+            ],
             PsiRewriteWitness::AcceptedObligation(identity) => {
                 vec![OptimizationFactReference::AcceptedObligation(*identity)]
             }
@@ -1963,6 +1996,14 @@ fn encode_candidate(
             bytes.extend_from_slice(&left_fact.bytes());
             bytes.extend_from_slice(&right_fact.bytes());
             bytes.extend_from_slice(&obligation_fact.bytes());
+        }
+        PsiRewriteWitness::ScalarEvaluation(ScalarEvaluationWitness::RangeAgainstConstant {
+            range_fact,
+            constant_fact,
+        }) => {
+            bytes.extend_from_slice(&[1, 5]);
+            bytes.extend_from_slice(&range_fact.bytes());
+            bytes.extend_from_slice(&constant_fact.bytes());
         }
         PsiRewriteWitness::RedundantBlockParameter(witness) => {
             bytes.push(2);

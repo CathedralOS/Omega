@@ -19,6 +19,7 @@ use omega_optimization_unit::{
     PrunedMachineCustody, PsiOptimizationUnit, PsiProvenance, PsiRealizationSite,
     PsiRewriteCandidate, RedundantBlockParameterRewrite, RedundantBlockParameterWitness,
     ScalarSubstitution, SharedTerminalJumpFusionRewrite, UnreachablePrivateMachinesRewrite,
+    ValueRangeSupport,
 };
 use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
 use psi_core::{
@@ -28,10 +29,10 @@ use psi_core::{
 
 use crate::{
     AnalysisProduct, OrderedRuleRegistry, PsiOptimizationRule, RuleAnalysisView, RuleProposalError,
-    RuleRegistryError, ScalarConstant, ScalarConstantAnalysis,
+    RuleRegistryError, ScalarConstant, ScalarConstantAnalysis, ValueRangeAnalysis,
 };
 
-const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v1";
+const SCCP_PASS_NAME: &[u8] = b"omega.psi-pass.sparse-conditional-constant-propagation.v2";
 const CONTROL_FLOW_CLEANUP_PASS_NAME: &[u8] = b"omega.psi-pass.control-flow-cleanup.v11";
 const COPY_PROPAGATION_PASS_NAME: &[u8] = b"omega.psi-pass.copy-propagation.v1";
 const DEAD_PURE_SCALAR_PASS_NAME: &[u8] = b"omega.psi-pass.dead-pure-scalar-elimination.v2";
@@ -7360,6 +7361,154 @@ boolean_evaluation_rule!(
     BooleanEvaluationKind::IntegerLessOrEqual
 );
 
+#[derive(Debug, Clone, Copy, Default)]
+pub struct IntegerLessThanRangeConstantRule;
+
+impl IntegerLessThanRangeConstantRule {
+    pub fn contract() -> OptimizationRuleContract {
+        OptimizationRuleContract::new(
+            OptimizationRuleIdentity::from_canonical_bytes(
+                b"omega.psi-rule.integer-less-than-range-constant.v1",
+            ),
+            OptimizationPassIdentity::from_canonical_bytes(SCCP_PASS_NAME),
+            1,
+            AnalysisSet::new([AnalysisKind::ScalarConstants, AnalysisKind::ValueRanges]),
+            AnalysisInvalidationSet::new([AnalysisKind::UseDefinition]),
+            OptimizationSafetyClass::ProofCertified,
+        )
+        .expect("built-in rule has nonzero version")
+    }
+}
+
+impl PsiOptimizationRule for IntegerLessThanRangeConstantRule {
+    fn contract(&self) -> OptimizationRuleContract {
+        Self::contract()
+    }
+
+    fn propose(
+        &self,
+        unit: &PsiOptimizationUnit,
+        analyses: RuleAnalysisView<'_>,
+    ) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+        let Some(AnalysisProduct::ScalarConstants(constants)) =
+            analyses.get(AnalysisKind::ScalarConstants)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ScalarConstants,
+            ));
+        };
+        let Some(AnalysisProduct::ValueRanges(ranges)) = analyses.get(AnalysisKind::ValueRanges)
+        else {
+            return Err(RuleProposalError::MissingAnalysis(
+                AnalysisKind::ValueRanges,
+            ));
+        };
+        propose_integer_less_than_range_constant(unit, constants, ranges, Self::contract())
+    }
+}
+
+fn propose_integer_less_than_range_constant(
+    unit: &PsiOptimizationUnit,
+    constants: &ScalarConstantAnalysis,
+    ranges: &ValueRangeAnalysis,
+    contract: OptimizationRuleContract,
+) -> Result<Vec<PsiRewriteCandidate>, RuleProposalError> {
+    let mut candidates = Vec::new();
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let O::IntegerLessThan {
+                    psi_operation,
+                    result,
+                    left,
+                    right,
+                } = node.operation
+                else {
+                    continue;
+                };
+                let Some((right_value, constant_fact)) =
+                    literal_integer_constant(constants, function.machine, right)
+                else {
+                    continue;
+                };
+                let Some(scalar_type) = integer_value_type(function, left) else {
+                    continue;
+                };
+                if integer_value_type(function, right) != Some(scalar_type) {
+                    continue;
+                }
+                let node_index =
+                    u32::try_from(node_index).expect("optimization node indices are u32");
+                let Some(range) = ranges.facts.iter().find(|fact| {
+                    fact.valid_in.machine == function.machine
+                        && fact.value == left
+                        && fact.scalar_type == scalar_type
+                        && matches!(
+                            fact.support,
+                            ValueRangeSupport::AcceptedOperationProof { .. }
+                        )
+                        && ranges.fact_applies_at(
+                            fact,
+                            unit,
+                            function.machine,
+                            block.id,
+                            node_index,
+                        )
+                }) else {
+                    continue;
+                };
+                let constant = if scalar_type
+                    .compare(range.maximum, right_value)
+                    .is_some_and(|ordering| ordering.is_lt())
+                {
+                    true
+                } else if scalar_type
+                    .compare(range.minimum, right_value)
+                    .is_some_and(|ordering| !ordering.is_lt())
+                {
+                    false
+                } else {
+                    continue;
+                };
+                let location = NodeLocation {
+                    machine: function.machine,
+                    block: block.id,
+                    node: node_index,
+                };
+                candidates.push(
+                    PsiRewriteCandidate::new_boolean_evaluation(
+                        unit.identity,
+                        contract,
+                        vec![block.id],
+                        Vec::new(),
+                        vec![ProvenanceRewrite {
+                            input: PsiRealizationSite::Node(location),
+                            disposition: ProvenanceDisposition::RealizedAt(
+                                PsiRealizationSite::Node(location),
+                            ),
+                            sources: node.provenance.clone(),
+                            fuel: node.fuel.clone(),
+                        }],
+                        IntegerEvaluationWitness::RangeAgainstConstant {
+                            range_fact: range.identity,
+                            constant_fact,
+                        },
+                        -1,
+                        BooleanConstantRewrite {
+                            location,
+                            source_operation: psi_operation,
+                            result,
+                            constant,
+                        },
+                    )
+                    .map_err(RuleProposalError::InvalidCandidate)?,
+                );
+            }
+        }
+    }
+    Ok(candidates)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum BooleanEvaluationKind {
     Not,
@@ -8765,6 +8914,7 @@ fn built_in_rule_registrations(optimization: Optimization) -> Vec<BuiltInRuleReg
         register!(27, IntegerEqualConstantsRule);
         register!(28, IntegerLessThanConstantsRule);
         register!(29, IntegerLessOrEqualConstantsRule);
+        register!(30, IntegerLessThanRangeConstantRule);
     }
     if optimization == Optimization::ControlFlowCleanup {
         register!(0, ConstantConditionalFoldRule);
@@ -11989,12 +12139,13 @@ pub(crate) mod tests {
     fn selected_builtin_proposes_one_independently_validated_exact_fold() {
         let unit = exact_add_unit();
         let constants = compute_analysis(&unit, AnalysisKind::ScalarConstants).unwrap();
-        let products = vec![constants];
+        let ranges = compute_analysis(&unit, AnalysisKind::ValueRanges).unwrap();
+        let products = vec![constants, ranges];
         let selections =
             OptimizationSelections::new([Optimization::SparseConditionalConstantPropagation])
                 .unwrap();
         let registry = built_in_psi_registry(&selections).unwrap();
-        assert_eq!(registry.len(), 30);
+        assert_eq!(registry.len(), 31);
         let mut dispatched = 0usize;
         let mut candidates = Vec::new();
         for rule in registry.iter() {
