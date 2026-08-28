@@ -1,14 +1,16 @@
 // Hosted product-compiler entrypoint. The current live slice exposes Psi's exact
-// source-to-token phase through a hosted acceptance/status adapter; later
-// later phases publish structural observations and compose the remaining
-// Psi/Omega facades behind this owner.
+// source-to-token phase and first structural parse through a hosted status
+// adapter; later phases compose the remaining Psi/Omega owners behind it.
 
 use omega::language::std::console;
 use psi::lex::lexer;
+use psi::parse::parser;
+use psi::syntax::syntax;
 
 data Main {
     console: Console;
     lexer: Lexer;
+    parser: Parser;
 }
 
 machine Main::main(&mut self) {
@@ -37,27 +39,231 @@ machine Main::main(&mut self) {
             self.lexer.source.length,
             self.lexer.source.length
         );
-        self.write_observation();
+        self.write_lex_observation();
         self.console.exit_process(252);
     }
 
     state tokenize(&mut self) {
         self.lexer.tokenize();
         transition self.lexer.output.accepted {
-            true -> accepted()
+            true -> prepare_parse()
             _ -> rejected()
         }
     }
 
+    state prepare_parse(&mut self) {
+        self.parser.initialize(self.lexer.source.id, self.lexer.source.length);
+        transition self.lexer.output.token_count > 0 {
+            true -> parser_token(0)
+            _ -> parse()
+        }
+    }
+
+    state parser_token(&mut self, index: u64 [0..=16383]) {
+        let token: TokenObservation = self.lexer.output.observations[index];
+        let tag: u8 = token.tag;
+        let first: u8 = token.first;
+        let start: u64 in Trapping = token.start;
+        let end: u64 in Trapping = token.end;
+        self.parser.append_token(tag, first, start, end);
+        transition self.parser.last_retained {
+            true -> parser_token_next(index)
+            _ -> parser_input_rejected()
+        }
+    }
+
+    state parser_token_next(&mut self, index: u64 [0..=16383]) {
+        let next: u64 = index + 1;
+        transition next < self.lexer.output.token_count {
+            true -> parser_token_bound(next)
+            _ -> parse()
+        }
+    }
+
+    state parser_token_bound(&mut self, next: u64) {
+        transition next < 16384 {
+            true -> parser_token(next)
+            _ -> parser_input_rejected()
+        }
+    }
+
+    state parse(&mut self) {
+        self.parser.parse();
+        transition self.parser.output.accepted {
+            true -> accepted()
+            _ -> parse_rejected()
+        }
+    }
+
+    state parser_input_rejected(&mut self) {
+        self.write_parse_observation();
+        self.console.exit_process(250);
+    }
+
     state accepted(&mut self) {
-        self.write_observation();
+        self.write_parse_observation();
         self.console.exit_process(0);
     }
 
+    state parse_rejected(&mut self) {
+        self.write_parse_observation();
+        self.console.exit_process(250);
+    }
+
     state rejected(&mut self) {
-        self.write_observation();
+        self.write_lex_observation();
         self.console.exit_process(251);
     }
+}
+
+// Versioned canonical structural parse observation. Every scalar coordinate
+// and count is little-endian u64. The stream begins with `OMGPAR1\0`, version
+// 1, acceptance and diagnostic fields, followed by ordered root, use-item, and
+// path-member tables. This is hosted development tooling, not an Omega ABI.
+machine Main::write_parse_observation(&mut self) {
+    self.write_byte(79);
+    self.write_byte(77);
+    self.write_byte(71);
+    self.write_byte(80);
+    self.write_byte(65);
+    self.write_byte(82);
+    self.write_byte(49);
+    self.write_byte(0);
+    self.write_u64(1);
+    transition self.parser.output.accepted {
+        true -> parse_accepted_header()
+        _ -> parse_rejected_header()
+    }
+
+    state parse_accepted_header(&mut self) {
+        self.write_byte(1);
+        transition { _ -> parse_diagnostic_none() }
+    }
+
+    state parse_rejected_header(&mut self) {
+        self.write_byte(0);
+        transition self.parser.output.diagnostic.code {
+            ParseDiagnosticCode::None -> parse_diagnostic_none()
+            ParseDiagnosticCode::LexicalInputRejected -> parse_diagnostic(1)
+            ParseDiagnosticCode::UnsupportedRootItem -> parse_diagnostic(2)
+            ParseDiagnosticCode::ExpectedPathMember -> parse_diagnostic(3)
+            ParseDiagnosticCode::ExpectedPathSeparatorOrSemicolon -> parse_diagnostic(4)
+            ParseDiagnosticCode::RootCapacityExceeded -> parse_diagnostic(5)
+            ParseDiagnosticCode::UseCapacityExceeded -> parse_diagnostic(6)
+            ParseDiagnosticCode::PathMemberCapacityExceeded -> parse_diagnostic(7)
+            ParseDiagnosticCode::TokenInputCapacityExceeded -> parse_diagnostic(8)
+        }
+    }
+
+    state parse_diagnostic_none(&mut self) {
+        self.write_byte(0);
+        transition { _ -> parse_diagnostic_coordinates() }
+    }
+
+    state parse_diagnostic(&mut self, tag: u8) {
+        self.write_byte(tag);
+        transition { _ -> parse_diagnostic_coordinates() }
+    }
+
+    state parse_diagnostic_coordinates(&mut self) {
+        self.write_u64(self.parser.output.diagnostic.source_span.source.value as u64);
+        self.write_u64(self.parser.output.diagnostic.source_span.span.start);
+        self.write_u64(self.parser.output.diagnostic.source_span.span.end);
+        self.write_u64(self.parser.output.root_count);
+        transition self.parser.output.root_count > 0 {
+            true -> parse_root(0)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root(&mut self, index: u64 [0..=255]) {
+        let root: RootItem = self.parser.output.roots[index];
+        transition root.kind {
+            RootItemKind::Use -> parse_root_use(root, index)
+        }
+    }
+
+    state parse_root_use(
+        &mut self,
+        root: RootItem,
+        index: u64 [0..=255]
+    ) {
+        self.write_byte(1);
+        self.write_u64(root.item_index);
+        self.write_u64(root.source_span.source.value as u64);
+        self.write_u64(root.source_span.span.start);
+        self.write_u64(root.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.root_count {
+            true -> parse_root_bound(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_root_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_root(next)
+            _ -> parse_use_count()
+        }
+    }
+
+    state parse_use_count(&mut self) {
+        self.write_u64(self.parser.output.use_count);
+        transition self.parser.output.use_count > 0 {
+            true -> parse_use_item(0)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_use_item(&mut self, index: u64 [0..=255]) {
+        let item: UseItem = self.parser.output.uses[index];
+        self.write_u64(item.first_member);
+        self.write_u64(item.member_count);
+        self.write_u64(item.source_span.source.value as u64);
+        self.write_u64(item.source_span.span.start);
+        self.write_u64(item.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.use_count {
+            true -> parse_use_bound(next)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_use_bound(&mut self, next: u64) {
+        transition next < 256 {
+            true -> parse_use_item(next)
+            _ -> parse_member_count()
+        }
+    }
+
+    state parse_member_count(&mut self) {
+        self.write_u64(self.parser.output.member_count);
+        transition self.parser.output.member_count > 0 {
+            true -> parse_member(0)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_member(&mut self, index: u64 [0..=1023]) {
+        let member: IdentifierSpan = self.parser.output.members[index];
+        self.write_u64(member.source_span.source.value as u64);
+        self.write_u64(member.source_span.span.start);
+        self.write_u64(member.source_span.span.end);
+        let next: u64 = index + 1;
+        transition next < self.parser.output.member_count {
+            true -> parse_member_bound(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_member_bound(&mut self, next: u64) {
+        transition next < 1024 {
+            true -> parse_member(next)
+            _ -> parse_done()
+        }
+    }
+
+    state parse_done(&mut self) { }
 }
 
 // Versioned canonical lexical observation. Every scalar coordinate/count is
@@ -66,7 +272,7 @@ machine Main::main(&mut self) {
 // source bytes, and every retained token. Each token carries a structural kind
 // tag plus three metadata bytes, source/start/end, raw spelling, and decoded
 // bytes. This is hosted development tooling, not an Omega ABI or an enum layout.
-machine Main::write_observation(&mut self) {
+machine Main::write_lex_observation(&mut self) {
     self.write_byte(79);
     self.write_byte(77);
     self.write_byte(71);
