@@ -1,3 +1,0 @@
-; Compatibility source boundary. Responsibility-neutral table/call joiners now
-; live in bc-exact-shape-helpers.alpha so independent checker tranches can use
-; them without importing main.ready or cursor-semantic modules.

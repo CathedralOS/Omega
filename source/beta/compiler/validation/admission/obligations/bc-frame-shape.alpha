@@ -272,18 +272,13 @@ count_ordinary_call_arity:
         jmp reject
 count_ordinary_zero:
         imm r1, 524576
-        jmp increment_ordinary_arity
+        jmp exact_increment_cell
 count_ordinary_one:
         imm r1, 524584
-        jmp increment_ordinary_arity
+        jmp exact_increment_cell
 count_ordinary_two:
         imm r1, 524592
-increment_ordinary_arity:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
+        jmp exact_increment_cell
 
 ident_is_let:
         imm r20, 3

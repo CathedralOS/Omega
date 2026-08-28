@@ -1058,7 +1058,6 @@ cat "$OBLIGATION_DIR/bc-block-control.alpha" \
   "$OBLIGATION_DIR/bc-cursor-leaf-summary.alpha" \
   "$OBLIGATION_DIR/bc-skip-ws-summary.alpha" \
   "$OBLIGATION_DIR/bc-main-ready-summary.alpha" \
-  "$OBLIGATION_DIR/bc-summary-combinators.alpha" \
   "$OBLIGATION_DIR/bc-main-loop-entry-summary.alpha" \
   "$OBLIGATION_DIR/bc-classifier-shape.alpha" \
   "$OBLIGATION_DIR/bc-classifier-summary.alpha" \

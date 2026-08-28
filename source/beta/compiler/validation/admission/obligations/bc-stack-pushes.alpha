@@ -133,18 +133,13 @@ add_stack_push_source_room:
         jmp reject
 count_binary_push_source:
         imm r1, 524760
-        jmp increment_stack_push_kind
+        jmp exact_increment_cell
 count_argument_push_source:
         imm r1, 524768
-        jmp increment_stack_push_kind
+        jmp exact_increment_cell
 count_store_push_source:
         imm r1, 524776
-increment_stack_push_kind:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
+        jmp exact_increment_cell
 
 check_stack_push_source_counts:
         imm r1, 524752

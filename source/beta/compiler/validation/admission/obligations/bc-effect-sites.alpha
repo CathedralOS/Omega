@@ -118,18 +118,18 @@ count_source_call:
         call record_call_arity
         call count_ordinary_call_arity
         imm r1, 524464
-        jmp increment_source_kind
+        jmp exact_increment_cell
 count_source_read:
         call record_call_arity
         imm r1, 524472
-        jmp increment_source_kind
+        jmp exact_increment_cell
 count_source_write:
         call record_call_arity
         imm r1, 524480
-        jmp increment_source_kind
+        jmp exact_increment_cell
 count_source_return:
         imm r1, 524496
-        jmp increment_source_kind
+        jmp exact_increment_cell
 count_source_emit:
         imm r1, 524488
         load r2, r1
@@ -138,13 +138,6 @@ count_source_emit:
         store r1, r2
         call record_emit_literal
         ret
-increment_source_kind:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
-
 ; Record the exact quoted payload for the current emit event without consuming
 ; it from the outer lexical scan.  Escapes count as one decoded byte.
 record_emit_literal:
