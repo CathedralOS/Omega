@@ -281,7 +281,6 @@ emit_expression_table_prefix() {
 
 expression_family_require_module_budgets() {
   for expression_family_module in \
-    bc-expression-selected-row-helpers.alpha \
     bc-expression-leaf-shape.alpha \
     bc-expression-call-control-shape.alpha \
     bc-expression-call-data-shape.alpha \
@@ -308,7 +307,6 @@ build_expression_family_shape_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-expression-shape-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-expression-leaf-shape.alpha" \
       "$OBLIGATION_DIR/bc-expression-call-control-shape.alpha" \
@@ -334,7 +332,6 @@ build_expression_family_semantic_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-expression-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
       "$OBLIGATION_DIR/bc-write-str-summary.alpha" \
@@ -480,7 +477,6 @@ build_statement_family_shape_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-statement-family-shape-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-statement-emit-epilogue-shape.alpha" \
       "$OBLIGATION_DIR/bc-statement-gen-store-shape.alpha" \
@@ -514,7 +510,6 @@ build_statement_family_semantic_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-statement-semantic-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-statement-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-write-str-event-helper.alpha" \
@@ -666,7 +661,6 @@ build_parse_body_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-parse-body-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-parse-body-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-parse-body-shape.alpha" \
@@ -748,7 +742,6 @@ build_resource_classification_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-resource-classification-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-resource-classification-shape.alpha" \
       "$OBLIGATION_DIR/bc-resource-classification-antecedents.alpha" \
@@ -823,7 +816,6 @@ build_declaration_budget_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-declaration-budget-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-declaration-budget-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-declaration-budget-shape.alpha" \
@@ -893,7 +885,6 @@ build_parse_proc_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-parse-proc-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-parse-proc-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-parse-proc-entry-shape.alpha" \
@@ -967,7 +958,6 @@ build_root_observation_checker() {
   {
     emit_expression_table_prefix
     cat "$OBLIGATION_DIR/bc-root-observation-root.alpha" \
-      "$OBLIGATION_DIR/bc-expression-selected-row-helpers.alpha" \
       "$OBLIGATION_DIR/bc-exact-shape-helpers.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-antecedents.alpha" \
       "$OBLIGATION_DIR/bc-root-observation-shape.alpha" \

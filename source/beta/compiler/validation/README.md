@@ -44,9 +44,11 @@ shape, memory-site classification, expression and statement composition,
 bounded emitters, parsing/resource outcomes, and the final greatest-fixed-point
 maximal observation. Responsibility-specific decoded-region descriptors share
 one parameterized effect census for exact call, return, write, store, and
-raw-byte-access policy. The final ROOT tape is 79,124 bytes for the current
+raw-byte-access policy. Selected local, memory, primitive, and push rows likewise
+share one canonical exact-table decoder instead of tranche-local copies. The
+final ROOT tape is 79,124 bytes for the current
 exact subjects, SHA-256
-`4d86cbf68057f622d18ead2127d5bf663b3183510ae87166116811dd7f485ad2`.
+`feb10320cf6e9caa10aadb8a89af3e6dd8da0529aeadf5b85d6c5a8c3b93a5b1`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
