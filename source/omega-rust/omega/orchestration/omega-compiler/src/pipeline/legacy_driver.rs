@@ -12,12 +12,14 @@ use crate::pipeline::boundary_report::BoundaryReportObservation;
 use crate::pipeline::compile_policy::{
     ExecutableTcbBuildPolicy, settle_compiler_executable_tcb_installation,
 };
+use crate::pipeline::legacy_stages::{
+    backend_plan_to_native_image_payload, checked_trees_to_state_graph,
+    control_flow_to_backend_plan, state_graph_to_control_flow,
+};
 use crate::pipeline::output::{LegacyCompilerOutputCustody, write_output};
 use crate::pipeline::stages::{
-    backend_plan_to_native_image_payload, checked_trees_to_state_graph,
-    control_flow_to_backend_plan, source_files_to_syntax_trees, state_graph_to_control_flow,
-    symbol_resolved_trees_to_typed_trees, syntax_trees_to_symbol_resolved_trees,
-    typed_trees_to_checked_trees,
+    source_files_to_syntax_trees, symbol_resolved_trees_to_typed_trees,
+    syntax_trees_to_symbol_resolved_trees, typed_trees_to_checked_trees,
 };
 use crate::pipeline::timing::CompileTimings;
 use omega_core::parallel::WorkerPool;

@@ -13,6 +13,7 @@ mod emitted_program;
 mod float_intrinsic_dispatch;
 pub mod frontend;
 pub(crate) mod legacy_driver;
+mod legacy_stages;
 #[path = "dispatch/operator_adapter.rs"]
 mod operator_adapter_dispatch;
 mod optimization_gate;
@@ -63,9 +64,6 @@ pub(crate) use crate::compiler::{
 };
 
 pub(crate) use artifacts::write_checked_snapshot;
-pub use omega_program_storage::{
-    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
-};
 pub use build_config::{
     BUILD_OBSERVATION_SCHEMA_VERSION, BuildEvaluationUsage, BuildFilesystemAuthorizedPath,
     BuildFilesystemByteOperand, BuildFilesystemGrantAccess, BuildFilesystemGrantRefusal,
@@ -100,6 +98,9 @@ pub use compile_policy::ExecutableTcbBuildPolicy;
 pub(crate) use omega_package_compilation::{
     PackageCompilationInputs, PackageDependencyClosure, PackageGeneratedSourceBundle,
     PackageSourceConsumptionCommitment,
+};
+pub use omega_program_storage::{
+    PROGRAM_STORAGE_INSTALLATION_ARTIFACT, program_storage_installation_record_json,
 };
 pub use omega_source_profile::{
     SOURCE_FEATURE_CATALOG, SOURCE_FEATURE_CENSUS_SCHEMA, SOURCE_FEATURE_IDS, SOURCE_RESOURCE_IDS,

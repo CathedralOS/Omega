@@ -1206,6 +1206,33 @@ fn retained_native_product_enters_only_terminal_realization() {
 }
 
 #[test]
+fn shared_frontend_stages_stop_at_checked_psi() {
+    let root = workspace_root();
+    let stages_path =
+        root.join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/stages.rs");
+    let stages = std::fs::read_to_string(&stages_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", stages_path.display()));
+    for forbidden in [
+        "checked_trees_to_state_graph",
+        "state_graph_to_control_flow",
+        "control_flow_to_backend_plan",
+        "backend_plan_to_native_image_payload",
+    ] {
+        assert!(
+            !stages.contains(forbidden),
+            "shared frontend stages crossed the checked-Psi seam through `{forbidden}`"
+        );
+    }
+
+    let legacy_path = root
+        .join("source/omega-rust/omega/orchestration/omega-compiler/src/pipeline/legacy_stages.rs");
+    let legacy = std::fs::read_to_string(&legacy_path)
+        .unwrap_or_else(|error| panic!("failed to read {}: {error}", legacy_path.display()));
+    assert!(legacy.contains("pub(super) fn checked_trees_to_state_graph"));
+    assert!(legacy.contains("deleted with `LegacyDriver`"));
+}
+
+#[test]
 fn admitted_external_root_entry_fact_cannot_detach_before_body_dispatch() {
     let root = workspace_root();
     let path =
