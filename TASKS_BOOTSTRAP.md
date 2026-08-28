@@ -75,12 +75,12 @@ Canonical subjects:
 
 - `source/beta/compiler/bc.beta`: 32,605 bytes;
 - `source/beta/compiler/artifacts/bc.tape`: 40,693 bytes;
-- exact maximal-observation ROOT: 80,869 bytes,
-  `5c9b3574ce6ef13209329bc039d74013e31d7a940840027499332110e5c4257a`.
+- exact maximal-observation ROOT: 82,085 bytes,
+  `17a09ed098fcbaa7247373bf009893260994b246fc920577f2345f65b1c03d4d`.
 
 - [ ] Reduce the remaining admission implementation without merging distinct
   proof responsibilities. The bounded gate currently has 190 Alpha modules,
-  60,188 lines, and a 997,796-byte Checker A source. Shape, control, data,
+  60,391 lines, and a 1,004,588-byte Checker A source. Shape, control, data,
   memory, stack, effect, ranged-store, and meaning modules may share canonical
   decoded facts and structural indexes; they must retain separate semantic
   theorems.
@@ -202,7 +202,7 @@ second source tree participates.
 - [ ] Reconstruct and check the second source/artifact edge independently.
 - [ ] Demonstrate that conservative and production lowering implement the same
   pinned source meaning.
-- [ ] Treat binary equality and Rust agreement as reproducibility or diagnostic
+- [x] Treat binary equality and Rust agreement as reproducibility or diagnostic
   evidence only. Correctness comes from checked edges and explicit admissions.
 
 ## Tooling and external dependencies

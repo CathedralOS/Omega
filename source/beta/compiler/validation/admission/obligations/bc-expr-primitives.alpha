@@ -41,18 +41,13 @@ add_expr_primitive_room:
         jmp reject
 count_expr_literal:
         imm r1, 524704
-        jmp increment_expr_kind
+        jmp exact_increment_cell
 count_expr_arithmetic:
         imm r1, 524712
-        jmp increment_expr_kind
+        jmp exact_increment_cell
 count_expr_comparison:
         imm r1, 524744
-increment_expr_kind:
-        load r2, r1
-        imm r3, 1
-        add r2, r3
-        store r1, r2
-        ret
+        jmp exact_increment_cell
 
 ; Cursor is at the first decimal digit. Parse with Beta's wrapping word
 ; arithmetic, leaving the cursor immediately after the literal.
