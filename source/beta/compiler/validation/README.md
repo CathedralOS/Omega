@@ -98,10 +98,13 @@ row/block/kind/width tuple instead of accepting a semantic caller's artifact
 coordinate. `gen_stmts` rejoins its loads to independently checked address
 literals and its stores to the shared pop-before-store macro; a seventh control
 swaps two valid same-block word-load PCs and rejects. `gen_expr` now uses the
-same memory-owner rejoins for its complete memory family. The final ROOT tape is
-82,172 bytes for the current
+same memory-owner rejoins for its complete memory family. The synthesized
+`__write_str` helper resolves from the exact main-prelude successor and mapper
+cell; effect custody owns its sole exhaustive body check, while event and
+summary consumers use its returned relative sites. The final ROOT tape is
+82,314 bytes for the current
 exact subjects, SHA-256
-`7e3675449da2af21bd43d5374f2f1c8300c87dfaa998fa9491dfd06b1e4c001b`.
+`e45032fa8095973892754e82ebc81af180cb6acab1a6e2292e8384b1ce18bbf9`.
 
 Historical focus modes, per-mutation checker-source permutations, local green
 receipt caches, and mutation-only mapper outputs were removed. Git history is
