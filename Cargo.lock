@@ -1821,21 +1821,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "omega-target-operations-to-machine-program"
-version = "0.1.0"
-dependencies = [
- "omega-abstract-operations",
- "omega-assigned-target-operations-to-machine-instructions",
- "omega-machine-instructions",
- "omega-machine-program",
- "omega-target-operations",
- "omega-target-operations-to-assigned-target-operations",
- "psi-diagnostics",
- "psi-language-semantics",
- "psi-symbols",
-]
-
-[[package]]
 name = "omega-task-plans"
 version = "0.1.0"
 dependencies = [

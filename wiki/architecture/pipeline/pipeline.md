@@ -242,7 +242,6 @@ Current deliberate gaps:
 - [Fixed-View Copies To Reanalyzed Legality](stages/fixed_view_copies_to_reanalyzed_legality.md)
 - [Allocation Legality To Register Homes](stages/allocation_legality_to_register_homes.md)
 - [Target Operations To Assigned Target Operations](stages/target_operations_to_assigned_target_operations.md)
-- [Target Operations To Machine Program](stages/target_operations_to_machine_program.md)
 - [Assigned Target Operations To Machine Instructions](stages/assigned_target_operations_to_machine_instructions.md)
 - [Machine Instructions To Machine Bytes](stages/machine_instructions_to_machine_bytes.md)
 - [Machine Bytes To Object Plan](stages/machine_bytes_to_object_plan.md)

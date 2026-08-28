@@ -112,7 +112,6 @@ members = [
     "source/omega-rust/omega/pipeline/omega-abstract-operations-to-target-operations",
     "source/omega-rust/omega/pipeline/omega-target-operations-to-assigned-target-operations",
     "source/omega-rust/omega/pipeline/omega-assigned-target-operations-to-machine-instructions",
-    "source/omega-rust/omega/pipeline/omega-target-operations-to-machine-program",
     "source/omega-rust/omega/backend/omega-backend-report",
     "source/omega-rust/omega/backend/instruction_set_architectures/omega-terminal-isa-aarch64",
     "source/omega-rust/omega/backend/instruction_set_architectures/omega-terminal-isa-x86_64",
