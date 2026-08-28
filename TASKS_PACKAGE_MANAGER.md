@@ -870,6 +870,16 @@ complete.
   read confinement for one phase, not complete `FilesystemReadsConfined`:
   inspection metadata remains broad and the other phases retain broad reads.
 
+  Follow-up 2026-08-28: macOS repository initialization now applies the same
+  content/metadata split. File-content reads are confined to the exact mutable
+  quarantine root plus the same fixed executable/runtime files; broad metadata
+  reads remain. Canaries prove inside-root content succeeds while an adjacent
+  file and an in-root escaping symlink fail, and all 157 source-resolver tests
+  prove real bare-repository initialization still works. Git cache policy v18
+  prevents reuse of repositories initialized under the broader read policy.
+  Discovery and fetch still retain broad reads, and complete filesystem-read
+  confinement remains unavailable.
+
   Milestone 2026-08-27: each package compilation handoff now derives one
   complete, bounded canonical metadata index for the package whose build
   machine may execute. Resolver custody is freshly revalidated first; the

@@ -11,8 +11,8 @@ acceptance authority. Compilation consumes a resolver-owned immutable snapshot,
 never a live local tree, Git working tree, or helper-produced claim.
 
 The intended strict production path has three custody stages. The current
-macOS floor now confines repository-inspection file content but does not yet
-enforce read separation for the other phases or metadata:
+macOS floor now confines repository-initialization and inspection file content
+but does not yet enforce read separation for network phases or metadata:
 
 1. A fetch helper resolves transport into a fresh quarantined object store. In
    the strict boundary it has the selected transport authority and no access to
@@ -53,10 +53,10 @@ establish a required guarantee, strict resolution rejects; it never degrades to
 The current macOS engineering floor now selects a fixed Seatbelt launcher and
 closed resolver phase; it is described below. Every phase uses a self-contained
 compiler-generated policy with no host-profile import and confines writes and
-executable paths; the nonnetwork phases also deny network. Initialization,
-discovery, and fetch reads remain broad. Inspection confines file-content reads
-to its exact retained repository and fixed runtime files while retaining broad
-metadata reads. Each network phase confines its child to one compiler-owned
+executable paths; the nonnetwork phases also deny network. Discovery and fetch
+reads remain broad. Initialization and inspection confine file-content reads to
+their exact mutable quarantine or retained repository and fixed runtime files
+while retaining broad metadata reads. Each network phase confines its child to one compiler-owned
 loopback broker port. The broker accepts only the normalized host and port derived from the
 validated locator and records the effective connected peer. Linux and Windows
 route selected helpers through the same broker but do not yet deny direct
@@ -121,11 +121,11 @@ sealing, endpoint and credential trust, bounded command result, object
 authentication, snapshot identity, and final publication verdict.
 
 Every macOS phase uses a compiler-generated default-deny profile with no import.
-All grant exact selected executables and write-data to `/dev/null`.
-Initialization, discovery, and fetch grant broad reads. Inspection grants broad
-metadata reads but file-content reads only beneath the exact retained bare
-repository, from the exact executable set, `/dev/null`, and the literal
-filesystem-root directory entry required by the native process runtime.
+All grant exact selected executables and write-data to `/dev/null`. Discovery
+and fetch grant broad reads. Initialization and inspection grant broad metadata
+reads but file-content reads only beneath the exact mutable quarantine or
+retained bare repository, from the exact executable set, `/dev/null`, and the
+literal filesystem-root directory entry required by the native process runtime.
 Initialization and fetch additionally grant writes only beneath the exact
 mutable quarantine root. Discovery and fetch require the already-validated
 closed HTTPS or SSH transport authority and grant outbound network. Only SSH
@@ -140,7 +140,7 @@ phase. Filesystem-write and executable-path rows are
 `Enforced` for every phase, network denial is `Enforced` where applicable, and
 descendant containment is `Enforced` for initialization and inspection. The
 exact compiler-owned rlimit rows are `Enforced` throughout macOS.
-Because inspection metadata remains broad and the other phases retain broad
+Because nonnetwork metadata remains broad and network phases retain broad
 content reads, `FilesystemReadsConfined` remains `Unavailable`.
 Before a successful Git result is issued, the package layer also requires the
 number of retained policy observations to equal the bounded launch count and
