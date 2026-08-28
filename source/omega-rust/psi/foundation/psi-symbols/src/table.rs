@@ -444,6 +444,20 @@ impl SymbolTable {
             .filter(|symbol| self.get(*symbol).kind == SymbolKind::BuiltinFunction)
     }
 
+    /// Classify only an exact compiler-installed root builtin-function slot.
+    /// Names are deliberately irrelevant: same-spelled package declarations
+    /// and generated source-free symbols are not compiler functions.
+    pub fn builtin_function_for_symbol(&self, symbol: SymbolHandle) -> Option<BuiltinFunction> {
+        if !symbol.is_valid() || self.get(symbol).kind != SymbolKind::BuiltinFunction {
+            return None;
+        }
+        self.child_handles(self.root)?
+            .skip(BUILTIN_TYPE_COUNT)
+            .take(BuiltinFunction::COUNT)
+            .position(|candidate| candidate == symbol)
+            .and_then(BuiltinFunction::from_ordinal)
+    }
+
     pub fn builtin_type_symbol(&self, builtin_type: BuiltinType) -> Option<SymbolHandle> {
         self.child_handles(self.root)?
             .nth(builtin_type.ordinal())
@@ -561,5 +575,119 @@ impl SymbolTable {
 
     pub fn path_member_arena(&self) -> &Arena<SymbolHandle> {
         &self.path_members
+    }
+}
+
+#[cfg(test)]
+mod builtin_function_identity_tests {
+    use super::*;
+    use crate::{builtin_function_symbols, builtin_type_symbols};
+
+    fn builtin_symbol_table(
+        function_symbols: impl IntoIterator<Item = (SymbolKind, SymbolNameRef<'static>)>,
+    ) -> SymbolTable {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        builder.insert_children(
+            root,
+            builtin_type_symbols().into_iter().chain(function_symbols),
+        );
+        builder.finish()
+    }
+
+    #[test]
+    fn every_installed_builtin_function_round_trips_by_exact_slot() {
+        let symbols = builtin_symbol_table(builtin_function_symbols());
+
+        for function in BuiltinFunction::ALL {
+            let symbol = symbols
+                .builtin_function_symbol(function)
+                .expect("compiler builtin function must occupy its fixed root slot");
+            assert_eq!(symbols.builtin_function_for_symbol(symbol), Some(function));
+        }
+    }
+
+    #[test]
+    fn same_spelled_non_builtin_symbols_do_not_classify() {
+        let mut builder = SymbolTableBuilder::new();
+        let root = builder.insert_root(SymbolKind::Root, SymbolNameRef::Static("root"));
+        let root_children = builder.insert_children(
+            root,
+            builtin_type_symbols()
+                .into_iter()
+                .chain(builtin_function_symbols())
+                .chain([
+                    (SymbolKind::BuiltinFunction, SymbolNameRef::Static("max")),
+                    (SymbolKind::Machine, SymbolNameRef::Static("user")),
+                ]),
+        );
+        let mut root_children = SymbolTableBuilder::child_handles(root_children);
+        let same_spelled_late_root = root_children
+            .nth(BUILTIN_TYPE_COUNT + BuiltinFunction::COUNT)
+            .expect("late same-spelled root symbol");
+        let user = root_children.next().expect("user parent");
+        let same_spelled_non_root = SymbolTableBuilder::child_handles(builder.insert_children(
+            user,
+            [(SymbolKind::BuiltinFunction, SymbolNameRef::Static("max"))],
+        ))
+        .next()
+        .expect("same-spelled non-root symbol");
+        let symbols = builder.finish();
+
+        assert_eq!(symbols.name(same_spelled_late_root), "max");
+        assert_eq!(symbols.name(same_spelled_non_root), "max");
+        assert_eq!(
+            symbols.builtin_function_for_symbol(same_spelled_late_root),
+            None
+        );
+        assert_eq!(
+            symbols.builtin_function_for_symbol(same_spelled_non_root),
+            None
+        );
+    }
+
+    #[test]
+    fn same_spelled_generated_symbol_does_not_classify() {
+        let mut symbols = builtin_symbol_table(builtin_function_symbols());
+        let origin = symbols
+            .builtin_function_symbol(BuiltinFunction::Max)
+            .expect("max builtin");
+        let generated = symbols.insert_generated_root_from(
+            origin,
+            SymbolKind::BuiltinFunction,
+            BuiltinFunction::Max.name(),
+        );
+
+        assert_eq!(symbols.name(generated), BuiltinFunction::Max.name());
+        assert_eq!(symbols.builtin_function_for_symbol(generated), None);
+    }
+
+    #[test]
+    fn fixed_function_slot_with_wrong_kind_does_not_classify() {
+        let function_symbols = builtin_function_symbols().map(|(kind, name)| {
+            if name.as_str() == BuiltinFunction::Max.name() {
+                (SymbolKind::Function, name)
+            } else {
+                (kind, name)
+            }
+        });
+        let symbols = builtin_symbol_table(function_symbols);
+        let wrong_kind = symbols
+            .child_handles(symbols.root())
+            .expect("root children")
+            .nth(BUILTIN_TYPE_COUNT + BuiltinFunction::Max.ordinal())
+            .expect("max fixed slot");
+
+        assert_eq!(symbols.name(wrong_kind), BuiltinFunction::Max.name());
+        assert_eq!(symbols.get(wrong_kind).kind, SymbolKind::Function);
+        assert_eq!(symbols.builtin_function_for_symbol(wrong_kind), None);
+        assert_eq!(
+            symbols.builtin_function_for_symbol(
+                symbols
+                    .builtin_function_symbol(BuiltinFunction::Min)
+                    .expect("neighboring min builtin"),
+            ),
+            Some(BuiltinFunction::Min),
+        );
     }
 }

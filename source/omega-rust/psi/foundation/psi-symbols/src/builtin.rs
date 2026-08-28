@@ -159,7 +159,11 @@ impl BuiltinType {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// Closed semantic identity for every compiler-installed source-free
+/// function. Ordinals are the exact root-child slots following the builtin
+/// type slots installed by [`builtin_function_symbols`]; names are diagnostic
+/// only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BuiltinFunction {
     Max,
     Min,
@@ -273,6 +277,84 @@ pub enum BuiltinFunction {
 
 impl BuiltinFunction {
     pub const COUNT: usize = 71;
+
+    pub const ALL: [Self; Self::COUNT] = [
+        Self::Max,
+        Self::Min,
+        Self::Sqrt,
+        Self::AsmHlt,
+        Self::AsmPortOut,
+        Self::AsmPortIn,
+        Self::AsmLoadFence,
+        Self::AsmStoreFence,
+        Self::AsmFullFence,
+        Self::AsmDisableInterrupts,
+        Self::AsmEnableInterrupts,
+        Self::AsmSnapshotFlags,
+        Self::AsmRestoreFlags,
+        Self::AsmReadMsr,
+        Self::AsmWriteMsr,
+        Self::AsmReadCr0,
+        Self::AsmReadCr2,
+        Self::AsmReadCr3,
+        Self::AsmReadCr4,
+        Self::AsmWriteCr0,
+        Self::AsmWriteCr3,
+        Self::AsmWriteCr4,
+        Self::FloatIsNan,
+        Self::FloatMultiplyThenAddF32,
+        Self::FloatMultiplyThenAddF64,
+        Self::FloatFusedMultiplyAddF32,
+        Self::FloatFusedMultiplyAddF64,
+        Self::FloatIsFinite,
+        Self::FloatIsInfinite,
+        Self::FloatIsNormal,
+        Self::FloatIsSubnormal,
+        Self::FloatClassifyF32,
+        Self::FloatClassifyF64,
+        Self::ContentOld,
+        Self::ContentSeparate,
+        Self::FloatAddTowardZeroF32,
+        Self::FloatAddTowardZeroF64,
+        Self::FloatAddTowardPositiveF32,
+        Self::FloatAddTowardPositiveF64,
+        Self::FloatAddTowardNegativeF32,
+        Self::FloatAddTowardNegativeF64,
+        Self::FloatSubtractTowardZeroF32,
+        Self::FloatSubtractTowardZeroF64,
+        Self::FloatSubtractTowardPositiveF32,
+        Self::FloatSubtractTowardPositiveF64,
+        Self::FloatSubtractTowardNegativeF32,
+        Self::FloatSubtractTowardNegativeF64,
+        Self::FloatMultiplyTowardZeroF32,
+        Self::FloatMultiplyTowardZeroF64,
+        Self::FloatMultiplyTowardPositiveF32,
+        Self::FloatMultiplyTowardPositiveF64,
+        Self::FloatMultiplyTowardNegativeF32,
+        Self::FloatMultiplyTowardNegativeF64,
+        Self::FloatDivideTowardZeroF32,
+        Self::FloatDivideTowardZeroF64,
+        Self::FloatDivideTowardPositiveF32,
+        Self::FloatDivideTowardPositiveF64,
+        Self::FloatDivideTowardNegativeF32,
+        Self::FloatDivideTowardNegativeF64,
+        Self::FloatSqrtTowardZeroF32,
+        Self::FloatSqrtTowardZeroF64,
+        Self::FloatSqrtTowardPositiveF32,
+        Self::FloatSqrtTowardPositiveF64,
+        Self::FloatSqrtTowardNegativeF32,
+        Self::FloatSqrtTowardNegativeF64,
+        Self::FloatFusedMultiplyAddTowardZeroF32,
+        Self::FloatFusedMultiplyAddTowardZeroF64,
+        Self::FloatFusedMultiplyAddTowardPositiveF32,
+        Self::FloatFusedMultiplyAddTowardPositiveF64,
+        Self::FloatFusedMultiplyAddTowardNegativeF32,
+        Self::FloatFusedMultiplyAddTowardNegativeF64,
+    ];
+
+    pub fn from_ordinal(ordinal: usize) -> Option<Self> {
+        Self::ALL.get(ordinal).copied()
+    }
 
     pub fn name(self) -> &'static str {
         match self {
@@ -908,77 +990,27 @@ mod builtin_ordinal_tests {
         // over root children inserted in builtin_function_symbols() order --
         // the same silent-shift hazard the type test pins.
         let table = builtin_function_symbols();
-        for function in [
-            BuiltinFunction::Max,
-            BuiltinFunction::Min,
-            BuiltinFunction::Sqrt,
-            BuiltinFunction::AsmHlt,
-            BuiltinFunction::AsmPortOut,
-            BuiltinFunction::AsmPortIn,
-            BuiltinFunction::AsmLoadFence,
-            BuiltinFunction::AsmStoreFence,
-            BuiltinFunction::AsmFullFence,
-            BuiltinFunction::AsmDisableInterrupts,
-            BuiltinFunction::AsmEnableInterrupts,
-            BuiltinFunction::AsmSnapshotFlags,
-            BuiltinFunction::AsmRestoreFlags,
-            BuiltinFunction::FloatIsNan,
-            BuiltinFunction::FloatMultiplyThenAddF32,
-            BuiltinFunction::FloatMultiplyThenAddF64,
-            BuiltinFunction::FloatFusedMultiplyAddF32,
-            BuiltinFunction::FloatFusedMultiplyAddF64,
-            BuiltinFunction::FloatIsFinite,
-            BuiltinFunction::FloatIsInfinite,
-            BuiltinFunction::FloatIsNormal,
-            BuiltinFunction::FloatIsSubnormal,
-            BuiltinFunction::FloatClassifyF32,
-            BuiltinFunction::FloatClassifyF64,
-            BuiltinFunction::ContentOld,
-            BuiltinFunction::ContentSeparate,
-            BuiltinFunction::FloatAddTowardZeroF32,
-            BuiltinFunction::FloatAddTowardZeroF64,
-            BuiltinFunction::FloatAddTowardPositiveF32,
-            BuiltinFunction::FloatAddTowardPositiveF64,
-            BuiltinFunction::FloatAddTowardNegativeF32,
-            BuiltinFunction::FloatAddTowardNegativeF64,
-            BuiltinFunction::FloatSubtractTowardZeroF32,
-            BuiltinFunction::FloatSubtractTowardZeroF64,
-            BuiltinFunction::FloatSubtractTowardPositiveF32,
-            BuiltinFunction::FloatSubtractTowardPositiveF64,
-            BuiltinFunction::FloatSubtractTowardNegativeF32,
-            BuiltinFunction::FloatSubtractTowardNegativeF64,
-            BuiltinFunction::FloatMultiplyTowardZeroF32,
-            BuiltinFunction::FloatMultiplyTowardZeroF64,
-            BuiltinFunction::FloatMultiplyTowardPositiveF32,
-            BuiltinFunction::FloatMultiplyTowardPositiveF64,
-            BuiltinFunction::FloatMultiplyTowardNegativeF32,
-            BuiltinFunction::FloatMultiplyTowardNegativeF64,
-            BuiltinFunction::FloatDivideTowardZeroF32,
-            BuiltinFunction::FloatDivideTowardZeroF64,
-            BuiltinFunction::FloatDivideTowardPositiveF32,
-            BuiltinFunction::FloatDivideTowardPositiveF64,
-            BuiltinFunction::FloatDivideTowardNegativeF32,
-            BuiltinFunction::FloatDivideTowardNegativeF64,
-            BuiltinFunction::FloatSqrtTowardZeroF32,
-            BuiltinFunction::FloatSqrtTowardZeroF64,
-            BuiltinFunction::FloatSqrtTowardPositiveF32,
-            BuiltinFunction::FloatSqrtTowardPositiveF64,
-            BuiltinFunction::FloatSqrtTowardNegativeF32,
-            BuiltinFunction::FloatSqrtTowardNegativeF64,
-            BuiltinFunction::FloatFusedMultiplyAddTowardZeroF32,
-            BuiltinFunction::FloatFusedMultiplyAddTowardZeroF64,
-            BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF32,
-            BuiltinFunction::FloatFusedMultiplyAddTowardPositiveF64,
-            BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF32,
-            BuiltinFunction::FloatFusedMultiplyAddTowardNegativeF64,
-        ] {
+        for (ordinal, function) in BuiltinFunction::ALL.into_iter().enumerate() {
+            assert_eq!(
+                function.ordinal(),
+                ordinal,
+                "closed function inventory must retain the canonical ordinal for {:?}",
+                function,
+            );
             assert_eq!(
                 table[function.ordinal()].1.as_str(),
                 function.name(),
                 "ordinal for {:?} does not match the symbol table position",
                 function
             );
+            assert_eq!(
+                BuiltinFunction::from_ordinal(function.ordinal()),
+                Some(function),
+                "ordinal for {:?} must recover its closed identity",
+                function,
+            );
         }
+        assert_eq!(BuiltinFunction::from_ordinal(BuiltinFunction::COUNT), None);
     }
 
     #[test]
