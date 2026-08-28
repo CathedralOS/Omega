@@ -234,23 +234,96 @@ class ArtifactCustodyTests(unittest.TestCase):
         self.assertEqual(result.returncode, status, result.stderr)
         self.assertEqual(result.stdout, b"")
 
-    def test_exact_generate_and_verify_retains_open_refinement(self) -> None:
-        generated = self.run_cli("generate", *self.evidence.join_arguments())
-        self.assertEqual(generated.returncode, 0, generated.stderr)
-        receipt = json.loads(generated.stdout)
-        self.assertEqual(receipt["claim"], custody.CLAIM)
-        self.assertEqual(receipt["open_refinement"], custody.OPEN_REFINEMENT)
+    def test_handcrafted_container_cannot_mint_reconstruction_receipt(self) -> None:
+        # The synthetic image remains a validator fixture.  Unlike the old
+        # custody-only join, generate must now execute the supplied producer;
+        # this non-executable marker cannot receive a reconstruction receipt.
+        self.assert_rejects(251, "generate", *self.evidence.join_arguments())
+
+    def test_replay_uses_exact_command_paths_and_matches_output(self) -> None:
+        assembly_raw = b"exact assembly snapshot\n"
+        candidate_raw = b"exact replayed image"
+        target = {"target": "macos_arm64"}
+        seen: list[list[str]] = []
+
+        def run(arguments, **options):
+            seen.append(arguments)
+            self.assertIs(options["stdin"], subprocess.DEVNULL)
+            self.assertEqual(options["timeout"], custody.REALIZATION_TIMEOUT_SECONDS)
+            output = Path(arguments[arguments.index("-o") + 1])
+            source = Path(arguments[-1])
+            self.assertEqual(source.read_bytes(), assembly_raw)
+            output.write_bytes(candidate_raw)
+            return subprocess.CompletedProcess(arguments, 0)
+
+        with (
+            mock.patch.object(custody.subprocess, "run", side_effect=run),
+            mock.patch.object(custody, "validate_macho", return_value=target),
+        ):
+            reconstruction = custody.replay_realization(
+                assembly_raw, candidate_raw, self.evidence.clang,
+                self.evidence.linker, self.evidence.sdk_settings,
+            )
+
+        self.assertEqual(len(seen), 1)
+        command = seen[0]
+        self.assertEqual(command[0], str(self.evidence.clang))
+        self.assertEqual(command[1:3], ["-arch", "arm64"])
         self.assertEqual(
-            receipt["assembly_publication"]["receipt_sha256"],
-            json.loads(self.evidence.assembly_evidence.receipt.read_bytes())["receipt_sha256"],
+            command[3:7],
+            [
+                "-isysroot", str(self.evidence.sdk_settings.parent),
+                f"-fuse-ld={self.evidence.linker}",
+                "-mmacosx-version-min=11.0",
+            ],
         )
-        self.assertEqual(receipt["receipt_sha256"], custody.receipt_digest(receipt))
-        self.evidence.receipt.write_bytes(generated.stdout)
-        verified = self.run_cli(
-            "verify", str(self.evidence.receipt), *self.evidence.join_arguments()
+        self.assertEqual(command[7:9], ["-Wl,-no_uuid", "-Wl,-no_adhoc_codesign"])
+        self.assertEqual(reconstruction["command_profile"], custody.COMMAND_PROFILE)
+        self.assertEqual(reconstruction["target"], target)
+        self.assertEqual(
+            reconstruction["artifact"]["sha256"],
+            hashlib.sha256(candidate_raw).hexdigest(),
         )
-        self.assertEqual(verified.returncode, 0, verified.stderr)
-        self.assertEqual(verified.stdout, b"")
+
+    def test_replay_status_diagnostics_and_output_cross_pairs_reject(self) -> None:
+        assembly_raw = b"exact assembly snapshot\n"
+        candidate_raw = b"candidate image"
+
+        def result(status: int = 0, stdout: bytes = b"", stderr: bytes = b"", artifact: bytes = candidate_raw):
+            def run(arguments, **options):
+                options["stdout"].write(stdout)
+                options["stderr"].write(stderr)
+                Path(arguments[arguments.index("-o") + 1]).write_bytes(artifact)
+                return subprocess.CompletedProcess(arguments, status)
+            return run
+
+        cases = (
+            ("status", result(status=1), "status"),
+            ("stdout", result(stdout=b"unexpected\n"), "diagnostics"),
+            ("stderr", result(stderr=b"unexpected\n"), "diagnostics"),
+            ("artifact", result(artifact=b"cross-paired image"), "artifact cross-pair"),
+        )
+        for name, run, message in cases:
+            with self.subTest(name=name):
+                with (
+                    mock.patch.object(custody.subprocess, "run", side_effect=run),
+                    mock.patch.object(
+                        custody, "validate_macho",
+                        return_value={"target": "macos_arm64"},
+                    ),
+                ):
+                    with self.assertRaisesRegex(custody.CustodyError, message):
+                        custody.replay_realization(
+                            assembly_raw, candidate_raw, self.evidence.clang,
+                            self.evidence.linker, self.evidence.sdk_settings,
+                        )
+
+    def test_replay_rejects_ambient_tool_lookup(self) -> None:
+        with self.assertRaisesRegex(custody.CustodyError, "clang driver path"):
+            custody.replay_realization(
+                b"assembly", b"artifact", Path("clang"), self.evidence.linker,
+                self.evidence.sdk_settings,
+            )
 
     def test_observe_reconstructs_exact_realization(self) -> None:
         result = self.run_cli(
@@ -485,43 +558,58 @@ class ArtifactCustodyTests(unittest.TestCase):
         )
 
     @unittest.skipUnless(platform.system() == "Darwin" and platform.machine() == "arm64", "Darwin arm64 integration")
-    def test_command_profile_builds_a_real_unsigned_macho(self) -> None:
+    def test_real_toolchain_generate_and_verify_reconstruction_receipt(self) -> None:
         root = Path(self.temporary.name) / "real"
         root.mkdir()
-        assembly = root / "candidate.s"
-        artifact = root / "candidate"
-        stdout = root / "clang.stdout"
-        stderr = root / "clang.stderr"
-        assembly.write_bytes(POSITIVE_ASSEMBLY)
         clang = subprocess.check_output(["xcrun", "--find", "clang"], text=True).strip()
         linker = subprocess.check_output(["xcrun", "--find", "ld"], text=True).strip()
         sdk = subprocess.check_output(
             ["xcrun", "--sdk", "macosx", "--show-sdk-path"], text=True
         ).strip()
+        self.evidence.clang = Path(clang)
+        self.evidence.linker = Path(linker)
+        self.evidence.sdk_settings = Path(sdk) / "SDKSettings.json"
+        self.evidence.libsystem = Path(sdk) / "usr/lib/libSystem.tbd"
+        self.evidence.runtime = Path(
+            subprocess.check_output(
+                [clang, "-print-file-name=libclang_rt.osx.a"], text=True
+            ).strip()
+        )
         result = subprocess.run(
             [clang, "-arch", "arm64", "-isysroot", sdk,
              f"-fuse-ld={linker}",
              "-mmacosx-version-min=11.0",
-             "-Wl,-no_uuid", "-Wl,-no_adhoc_codesign", "-o", str(artifact), str(assembly)],
+             "-Wl,-no_uuid", "-Wl,-no_adhoc_codesign", "-o",
+             str(self.evidence.artifact), str(self.evidence.assembly)],
             stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False,
         )
         self.assertEqual(result.returncode, 0, result.stderr)
-        stdout.write_bytes(result.stdout)
-        stderr.write_bytes(result.stderr)
-        summary = custody.validate_macho(artifact.read_bytes())
+        self.evidence.stdout.write_bytes(result.stdout)
+        self.evidence.stderr.write_bytes(result.stderr)
+        self.evidence.write_observation()
+        summary = custody.validate_macho(self.evidence.artifact.read_bytes())
         self.assertEqual(summary["target"], "macos_arm64")
-        observation = custody.make_observation(
-            0, 0, assembly, artifact, stdout, stderr, Path(clang), Path(linker),
-            Path(sdk) / "SDKSettings.json", Path(sdk) / "usr/lib/libSystem.tbd",
-            Path(
-                subprocess.check_output(
-                    [clang, "-print-file-name=libclang_rt.osx.a"], text=True
-                ).strip()
-            ),
+        generated = self.run_cli("generate", *self.evidence.join_arguments())
+        self.assertEqual(generated.returncode, 0, generated.stderr)
+        receipt = json.loads(generated.stdout)
+        self.assertEqual(receipt["claim"], custody.CLAIM)
+        self.assertEqual(receipt["open_refinement"], custody.OPEN_REFINEMENT)
+        self.assertEqual(
+            receipt["assembly_publication"]["receipt_sha256"],
+            json.loads(self.evidence.assembly_evidence.receipt.read_bytes())["receipt_sha256"],
         )
-        self.assertEqual(observation["command_profile"], custody.COMMAND_PROFILE)
-        self.assertEqual(observation["artifact"]["byte_length"], artifact.stat().st_size)
-        execution = subprocess.run([str(artifact)], check=False)
+        self.assertEqual(receipt["receipt_sha256"], custody.receipt_digest(receipt))
+        self.assertEqual(
+            receipt["reconstruction"]["artifact"]["sha256"],
+            hashlib.sha256(self.evidence.artifact.read_bytes()).hexdigest(),
+        )
+        self.evidence.receipt.write_bytes(generated.stdout)
+        verified = self.run_cli(
+            "verify", str(self.evidence.receipt), *self.evidence.join_arguments()
+        )
+        self.assertEqual(verified.returncode, 0, verified.stderr)
+        self.assertEqual(verified.stdout, b"")
+        execution = subprocess.run([str(self.evidence.artifact)], check=False)
         self.assertEqual(execution.returncode, 0)
 
 
