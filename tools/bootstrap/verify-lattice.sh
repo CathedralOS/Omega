@@ -11,8 +11,6 @@ OMEGA_REPO_ROOT=$(CDPATH= cd -- "$OMEGA_GATE_DIR/../.." && pwd -P)
 export OMEGA_REPO_ROOT
 . "$OMEGA_GATE_DIR/paths.sh"
 
-sh "$OMEGA_GATE_DIR/check-path-hygiene.sh"
-
 step() { # label owner-role script [documentary dependency roles...]
   label=$1
   role=$2
@@ -30,11 +28,15 @@ step() { # label owner-role script [documentary dependency roles...]
   return "$status"
 }
 
+step "bootstrap — canonical path hygiene" bootstrap-tools check-path-hygiene.sh
+
 step "alpha — accepted seed and assembler reproduction" alpha verify.sh
 step "alpha — assembler fixed point" alpha-assembler selfhost.sh
+step "alpha — below-Beta checker construction" alpha-checker reconstruct-artifact.sh alpha alpha-assembler
 
 step "beta — Alpha-rooted compiler construction" beta-compiler cold-start/full-source.sh alpha alpha-assembler
 step "beta — compiler artifact framing" beta-validation bc-artifact-structure.sh alpha beta-compiler alpha-assembler
+step "beta — proof-carrying instruction refinement" beta-validation refinement.sh alpha alpha-checker beta-compiler
 
 step "gamma — interpreter" gamma test-interp.sh beta beta-compiler
 step "gamma — type checker" gamma test-typeck.sh beta beta-compiler

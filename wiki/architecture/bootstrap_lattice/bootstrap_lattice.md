@@ -123,3 +123,6 @@ The ordered implementation work is in
 
 Architecture documents define the chain. They must not grow a parallel task
 queue or freeze temporary checkpoint identities as permanent stages.
+
+The exact currently admitted and missing subjects are summarized in the
+[bootstrap chain manifest](chain_manifest.md).

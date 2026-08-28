@@ -30,6 +30,7 @@ if [ -z "${OMEGA_REPO_ROOT:-}" ]; then
 fi
 . "$OMEGA_REPO_ROOT/tools/bootstrap/paths.sh" || exit $?
 . "$OMEGA_PATH_BETA_COMPILER/artifact_env.sh" || exit $?
+. "$OMEGA_PATH_PROOF_KERNEL/artifact_env.sh" || exit $?
 cd "$OMEGA_PATH_PROOF_KERNEL"
 command -v python3 >/dev/null 2>&1 || { echo "proofs-crosscheck: skipped (python3 absent)"; exit 0; }
 . "${OMEGA_PATH_ALPHA}"/seed_env.sh
@@ -38,7 +39,7 @@ ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 stamp_beta_compiler "$T/bc.exe" >/dev/null
 bcc() { "$T/bc.exe" < "$1" > "$T/a.asm" 2>/dev/null && "$ASM" < "$T/a.asm" > "$T/a.tape" 2>/dev/null && stamp_seed "$T/a.tape" "$SEED" "$2" >/dev/null 2>&1; }
-bcc implementations/beta/check.beta "$T/check.exe"          || { echo "proofs-crosscheck: implementations/beta/check.beta build failed"; exit 1; }
+stamp_proof_checker "$T/check.exe" >/dev/null || { echo "checker artifact unavailable"; exit 1; }
 bcc "${OMEGA_PATH_GAMMA}"/interp.beta "$T/interp.exe" || { echo "proofs-crosscheck: interp.beta build failed"; exit 1; }
 CHECK="$T/check.exe"; DEFS=$(cat "${OMEGA_PATH_PROOF_KERNEL}"/implementations/gamma/checker.gamma)
 
