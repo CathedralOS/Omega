@@ -1277,13 +1277,18 @@ authored booleans, and checked published/internal interfaces to agree exactly;
 omission and inference receive no invented location. A public or otherwise
 contract-supplied machine's checked operational fact remains its published may-
 ceiling, not an observation that the current body exercised that permission.
-Review v74/row v32, recovery v8, conflict fingerprint v11, and renderer V10 bind
+Review v75/row v33, recovery v9, conflict fingerprint v12, and renderer V11 bind
 the current source schema. External executable leaves retain the exact authored
 `via` keyword beside the normalized binding identity on the same conformance.
 Projection requires binding/span parity and carries that occurrence under
 `external_binding` for public and private trait or operator supply. Semantic
 row bytes remain unchanged; missing, source-free, or contradictory custody
-rejects. Remaining per-fact spans are incremental; absent
+rejects. Public const declarations additionally retain the exact parsed
+initializer-expression span through symbol resolution and typed lowering,
+before substitution erases the value tree. `PublicConst` rows carry it as
+`const_initializer` beside the declaration-name anchor. Relocation changes the
+explanatory coordinates but not the semantic row bytes. Remaining per-fact
+spans are incremental; absent
 late-stage spans must be retained by their earlier owner, not reconstructed
 from source text.
 
@@ -1968,7 +1973,10 @@ structural declaration value even when unused. Neither source initializer text
 nor runtime storage identity substitutes for that semantic subject. A public
 const whose type exposes private data, or whose value lacks supported canonical
 identity, rejects closed. Declared-type or value changes become source-backed
-`public_const` conflicts; private const-v0 declarations remain unprojected.
+`public_const` conflicts; private const-v0 declarations remain unprojected. The
+parsed initializer occurrence survives value substitution as source custody
+and is rendered under the closed `const_initializer` role; its spelling remains
+outside semantic row identity.
 Ordinary `pub operator` visibility is now retained independently of carrier or
 domain qualification. Exact authored source provenance supplies package
 ownership, while proof-static late operator selections finalize only when

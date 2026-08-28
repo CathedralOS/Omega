@@ -820,7 +820,7 @@ end_root_policy_resolution\n",
     let rendered = conflicts
         .render_bounded(1024 * 1024)
         .expect("render bounded conflict evidence");
-    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V10\n"));
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V11\n"));
     assert!(rendered.contains("change added\nkind public_proposition\nrisk blocking\n"));
     assert!(rendered.contains("candidate_location declaration package "));
     assert!(rendered.contains(" \"main.omg\"\n"));
@@ -1277,12 +1277,28 @@ fn public_const_changes_render_as_blocking_review_conflicts() {
         ReviewOnlyCapabilityConflictChange::Changed
     );
     assert!(conflict.is_blocking());
-    assert!(
-        conflicts
-            .render_bounded(1024 * 1024)
-            .expect("render public const conflict")
-            .contains("change changed\nkind public_const\nrisk blocking\n")
-    );
+    let baseline_locations = conflict
+        .baseline_source()
+        .and_then(PackageReviewCanonicalRowSource::authored_locations)
+        .expect("changed public const retains baseline source custody");
+    let candidate_locations = conflict
+        .candidate_source()
+        .and_then(PackageReviewCanonicalRowSource::authored_locations)
+        .expect("changed public const retains candidate source custody");
+    for locations in [baseline_locations, candidate_locations] {
+        assert!(locations.iter().any(|location| {
+            location.role() == omega_compiler::PackageReviewSourceLocationRole::ConstInitializer
+                && location.relative_path() == "main.omg"
+        }));
+    }
+    let rendered = conflicts
+        .render_bounded(1024 * 1024)
+        .expect("render public const conflict");
+    assert!(rendered.starts_with("OMEGA_PACKAGE_CAPABILITY_CONFLICTS_V11\n"));
+    assert!(rendered.contains("change changed\nkind public_const\nrisk blocking\n"));
+    assert!(rendered.contains("baseline_location const_initializer package "));
+    assert!(rendered.contains("candidate_location const_initializer package "));
+    assert_ne!(conflict.fingerprint().digest(), [0; 32]);
 
     let _ = std::fs::remove_dir_all(live);
     let _ = std::fs::remove_dir_all(baseline_cache);

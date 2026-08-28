@@ -488,14 +488,19 @@ requires the authored boolean, retained keywords, and exact checked interface
 to agree; omission and inference acquire no invented location. For public or
 otherwise contract-supplied machines, the checked operational fact is the
 published may-ceiling, not a claim that the current body exercised it. Review
-v74/row v32, recovery v8, conflict fingerprint v11, and renderer V10 bind the
+v75/row v33, recovery v9, conflict fingerprint v12, and renderer V11 bind the
 current source schema. External executable leaves retain the exact authored
 `via` keyword on the same conformance as the normalized binding identity.
 Projection requires binding/span parity and carries that occurrence under
 `external_binding` for public and private trait or operator supply. Semantic
 row bytes remain unchanged; missing, source-free, or contradictory custody
-rejects. Coordinates remain explanatory rather than semantic identity.
-Remaining per-fact spans are later rungs;
+rejects. Public const declarations additionally retain the exact parsed
+initializer-expression span through symbol resolution and typed lowering,
+before substitution erases the value tree. `PublicConst` rows carry it as
+`const_initializer` beside the declaration-name anchor. Relocation changes the
+explanatory coordinates but not semantic row bytes. Coordinates remain
+explanatory rather than semantic identity. Remaining per-fact spans are later
+rungs;
 missing spans must be retained before they are erased, never recovered by
 parsing source text in package orchestration.
 
@@ -741,7 +746,10 @@ runtime storage identity do not enter the row. If the declared type exposes
 private data or the compiler cannot yet canonicalize the declaration value,
 publication rejects instead of manufacturing a weak identity. Type or value
 changes therefore become source-backed `public_const` conflicts; private
-const-v0 declarations remain unchanged and unprojected.
+const-v0 declarations remain unchanged and unprojected. The parsed initializer
+occurrence survives value substitution as source custody and is rendered under
+the closed `const_initializer` role; its spelling remains outside semantic row
+identity.
 Ordinary `pub operator` visibility now survives checked compilation as
 declaration-owned metadata, independent of a carrier-qualified path. The
 operator symbol keeps its own authored source provenance, and proof-static
