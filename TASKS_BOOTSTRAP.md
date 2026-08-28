@@ -151,18 +151,25 @@ instead of being disguised by a Rust fallback.
   `tools/bootstrap/verify-lattice.sh` only after those gates are lower-rooted.
 
 Source-only lower-rung evidence restored on 2026-08-27: the default lattice now
-runs complete marker-free elaboration of the canonical compiler source, a
-bounded exact compiler execution through Gamma, state/tree/source/argument
+runs complete marker-free elaboration of the canonical compiler source, bounded
+exact compiler-fixture execution through Gamma, state/tree/source/argument
 resource teeth, the proof-carrying certifier loop, and the path-independent
 source-closure snapshot. The obsolete native differential was removed rather
-than redirected to a hidden producer. Full compiler-on-self publication remains
-open for a measured engineering reason: copying the 168,560-byte canonical LF
-input through the generated depth-19 persistent carrier alone requires at least
-51,242,240 bytes of Node payload, before AST, compiler state, or artifact output,
-while canonical Gamma has a 47 MiB no-GC arena and correctly exits `254` without
-publication. Bounded input construction must also replace the naïve linear-depth
-`Cons` invocation before the next full-source attempt. This is not a Delta or
-Omega language-design blocker.
+than redirected to a hidden producer.
+
+The measured compiler-on-self transport blockers were then removed generally:
+canonical invocations use an ordinary depth-17 `Chunks`/`Node` carrier with four
+exact input bytes per immediate `u32`, and Gamma now reclaims evaluation values
+with a stable-address, representation-aware collector while pinning parsed
+syntax. The transport is interpreter-checked at Delta's exact 524,288-byte
+ceiling, the adjacent byte fails closed, more than 40 MiB of persistent-update
+garbage is reclaimed with aliases and temporary roots intact, and irreducibly
+live growth still exits `254` without output. A pre-publication helper also
+reconstructs the exact 168,560-byte canonical LF image and validates the bounded
+Darwin-arm64 assembly dialect without assigning authority to an unobserved
+artifact. The next step is the exact full-source execution and repeatable
+assembly observation; this remains engineering work, not a Delta or Omega
+language-design blocker.
 
 Retired-producer cleanup completed on 2026-08-27: 141 producer-dependent gate
 and refinement wrappers/composites and 33 mixed cache profiles were removed.

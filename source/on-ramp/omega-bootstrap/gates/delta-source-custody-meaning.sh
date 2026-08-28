@@ -139,29 +139,24 @@ PY
 # Each case receives an independent hard timeout, with a START line before the
 # interpreter runs and a PASS line carrying elapsed time afterward. A slow or
 # stuck case is therefore both bounded and externally visible.
-python3 - "$T/interp.exe" "$T/checker.gamma" "$T/cases/manifest.tsv" <<'PY'
+python3 - "$T/interp.exe" "$T/checker.gamma" "$T/cases/manifest.tsv" \
+  "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/encode-gamma-input.py" <<'PY'
 from pathlib import Path
+import importlib.util
 import subprocess
 import sys
 import time
 
-interpreter, template_name, manifest_name = sys.argv[1:]
-template = Path(template_name).read_text(encoding="utf-8")
-if template.count("STDIN") != 1:
-    raise SystemExit(
-        "source-custody meaning FAIL - checker Gamma must contain exactly one STDIN placeholder"
-    )
+interpreter, template_name, manifest_name, encoder_name = sys.argv[1:]
+spec = importlib.util.spec_from_file_location("encode_gamma_input", encoder_name)
+assert spec is not None and spec.loader is not None
+encoder = importlib.util.module_from_spec(spec); spec.loader.exec_module(encoder)
+template = Path(template_name).read_bytes()
 
 rows = []
 for line in Path(manifest_name).read_text(encoding="utf-8").splitlines():
     label, expected, source_name = line.split("\t")
     rows.append((label, int(expected), Path(source_name)))
-
-def gamma_list(contents):
-    value = "Nil"
-    for byte in reversed(contents):
-        value = f"(Cons {byte} {value})"
-    return value
 
 heartbeat = 15
 total = 0.0
@@ -172,7 +167,7 @@ for label, expected, source in rows:
     # checkers; lower-rung meaning executes the same checker once plus distinct
     # 251/252 paths instead of adding another two-minute equivalent positive.
     timeout = 150 if label == "actual-source-unit" else 45
-    program = template.replace("STDIN", gamma_list(source.read_bytes()))
+    program = encoder.inject(template, source.read_bytes())
     started = time.monotonic()
     print(
         f"source-custody meaning: START {label} (timeout {timeout}s)",
@@ -185,7 +180,7 @@ for label, expected, source in rows:
         stderr=subprocess.PIPE,
     )
     assert process.stdin is not None
-    process.stdin.write(program.encode("utf-8"))
+    process.stdin.write(program)
     process.stdin.close()
     process.stdin = None
     while True:

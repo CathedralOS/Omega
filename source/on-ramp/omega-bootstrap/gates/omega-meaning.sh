@@ -32,6 +32,7 @@ cd "$OMEGA_GATE_DIR"
 SEED="${OMEGA_PATH_ALPHA}"/$ALPHA_SEED
 ASM="${OMEGA_PATH_ALPHA_ASSEMBLER}"/$BETA_SEED
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+: > "$T/empty.input"
 stamp_beta_compiler "$T/bc.exe" >/dev/null || { echo "omega-meaning FAIL — Beta compiler artifact"; exit 1; }
 b() { "$T/bc.exe" < "$1" > "$T/x.asm" 2>/dev/null && "$ASM" < "$T/x.asm" > "$T/x.tape" 2>/dev/null && stamp_seed "$T/x.tape" "$SEED" "$2" >/dev/null 2>&1; }
 b "${OMEGA_PATH_OMEGA_BOOTSTRAP}/meaning/omega2gamma.beta" "$T/omega2gamma.exe" \
@@ -50,7 +51,16 @@ om() {
   # the frontend's STDIN placeholder as a free Gamma identifier made this case
   # depend accidentally on parser name-table order. input-tv.sh substitutes the
   # documented non-empty vectors separately.
-  "$T/omega2gamma.exe" < "$src" 2>/dev/null | sed 's/STDIN/Nil/' | "$T/interp.exe" > "$T/mo.out" 2>&1; got=$?
+  "$T/omega2gamma.exe" < "$src" > "$T/mo.template" 2>/dev/null
+  if grep -q STDIN "$T/mo.template"; then
+    python3 "${OMEGA_PATH_OMEGA_BOOTSTRAP}/meaning/encode-gamma-input.py" \
+      inject "$T/mo.template" "$T/empty.input" "$T/mo.program" || {
+        FAIL=$((FAIL+1)); echo "  FAIL $1 : packed empty-input injection"; return
+      }
+  else
+    cp "$T/mo.template" "$T/mo.program"
+  fi
+  "$T/interp.exe" < "$T/mo.program" > "$T/mo.out" 2>&1; got=$?
   case "$(head -c 6 "$T/mo.out")" in '(Pair ')                    # dual-channel: exit rides the pair
     got=$(head -1 "$T/mo.out" | sed 's/^(Pair \([0-9]*\) .*/\1/');; esac
   if [ "$got" = "$want" ]; then PASS=$((PASS+1)); else

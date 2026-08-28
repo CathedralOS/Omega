@@ -74,10 +74,10 @@ run_meaning_input() {
   if [ ! -s "$T/program.gamma" ] || grep -q 'E2G-UNSUPPORTED' "$T/program.gamma"; then
     FAIL=$((FAIL+1)); echo "  FAIL $label : unsupported or empty elaboration"; return
   fi
-  bytes=$(od -An -tu1 < "$input" | tr ' ' '\n' | grep -vE '^$' | tr '\n' ' ')
-  reverse=""; for byte in $bytes; do reverse="$byte $reverse"; done
-  list=Nil; for byte in $reverse; do list="(Cons $byte $list)"; done
-  sed "s/STDIN/$list/" "$T/program.gamma" > "$T/program-input.gamma"
+  python3 "$OMEGA_PATH_OMEGA_BOOTSTRAP/meaning/encode-gamma-input.py" \
+    inject "$T/program.gamma" "$input" "$T/program-input.gamma" || {
+      FAIL=$((FAIL+1)); echo "  FAIL $label : input encoding failed"; return
+    }
   set +e
   "$T/interp.exe" < "$T/program-input.gamma" > "$T/result" 2>/dev/null
   got=$?
