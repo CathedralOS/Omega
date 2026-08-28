@@ -911,11 +911,12 @@ exact_require_effect_census:
         mov r37, r27
         mov r38, r28
         mov r39, r29
+        imm r1, 524608                 ; validated live local-access count
+        load r12, r1
         imm r10, 0
         imm r11, 0
 exact_effect_local_loop:
-        imm r1, 242
-        jlt r10, r1, exact_effect_local_row
+        jlt r10, r12, exact_effect_local_row
         mov r2, r33
         sub r2, r32
         jeq r11, r2, exact_effect_memory_init
@@ -941,11 +942,12 @@ exact_effect_local_next:
         jmp exact_effect_local_loop
 
 exact_effect_memory_init:
+        imm r1, 524648                 ; validated live memory-site count
+        load r12, r1
         imm r10, 0
         imm r11, 0
 exact_effect_memory_loop:
-        imm r1, 95
-        jlt r10, r1, exact_effect_memory_row
+        jlt r10, r12, exact_effect_memory_row
         mov r2, r35
         sub r2, r34
         jeq r11, r2, exact_effect_transition_init
@@ -971,11 +973,12 @@ exact_effect_memory_next:
         jmp exact_effect_memory_loop
 
 exact_effect_transition_init:
+        imm r1, 524328                 ; validated live transition count
+        load r12, r1
         imm r10, 0
         imm r11, 0
 exact_effect_transition_loop:
-        imm r1, 291
-        jlt r10, r1, exact_effect_transition_row
+        jlt r10, r12, exact_effect_transition_row
         mov r2, r37
         sub r2, r36
         jeq r11, r2, exact_effect_event_init
@@ -1001,11 +1004,12 @@ exact_effect_transition_next:
         jmp exact_effect_transition_loop
 
 exact_effect_event_init:
+        imm r1, 524456                 ; validated live source-event count
+        load r12, r1
         imm r10, 0
         imm r11, 0
 exact_effect_event_loop:
-        imm r1, 613
-        jlt r10, r1, exact_effect_event_row
+        jlt r10, r12, exact_effect_event_row
         mov r2, r39
         sub r2, r38
         jeq r11, r2, exact_shape_ok

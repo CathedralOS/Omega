@@ -1,6 +1,7 @@
 ; Exact source/artifact shape for expect(ch).
 ;
-; This module owns procedure 24's three blocks, its guarded match transition,
+; The canonical procedure inventory owns procedure 24's total block span and
+; entry/state partition. This module owns its guarded match transition,
 ; skip_ws/cbyte/adv calls, parameter load, comparison/literals, binary push,
 ; returns/epilogues, frame, and exhaustive effect/expression/decoded censuses.
 ; The adjacent module owns the nonzero-delimiter relational meaning.
@@ -12,24 +13,7 @@ expect_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
-expect_shape_blocks:
-        imm r20, 129
-        imm r21, 24
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 130
-        imm r21, 24
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 131
-        imm r21, 24
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 129
-        imm r21, 131
-        imm r22, 24
-        call exact_require_proc_blocks
-
+expect_shape_graph:
         imm r20, 97
         imm r21, 130
         imm r22, 1

@@ -2,6 +2,7 @@
 ; keyword family in the expression semantic checker.  The historical ILET
 ; proof carries a second procedure that this tranche does not consume; keeping
 ; only p13 here avoids spending audited tape capacity on an unrelated theorem.
+; The canonical procedure inventory owns p13's total block span and partition.
 
 expression_id_char_require_shape:
         imm r20, 13
@@ -9,16 +10,6 @@ expression_id_char_require_shape:
         imm r22, 1
         imm r23, 16
         call exact_require_proc_frame_identity
-
-expression_id_char_require_block:
-        imm r20, 47
-        imm r21, 13
-        imm r22, 0                   ; id_char procedure entry
-        call exact_block_identity_pc
-        imm r20, 47
-        imm r21, 47
-        imm r22, 13
-        call exact_require_proc_blocks
 
         imm r20, 13
         imm r21, 47

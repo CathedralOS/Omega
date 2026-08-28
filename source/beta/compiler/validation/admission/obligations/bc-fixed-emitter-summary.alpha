@@ -181,15 +181,16 @@ fixed_emit_begin_unique_proc:
         call fixed_emit_scan_region
         ret
 
-; Procedure r20 must own exactly block r21 among all 355 parsed blocks.
+; Procedure r20 must own exactly block r21 in the validated live block table.
 fixed_emit_require_unique_block:
         mov r25, r20
         mov r26, r21
+        imm r1, 524320                 ; validated live block count
+        load r12, r1
         imm r10, 0
         imm r11, 0
 fixed_emit_unique_loop:
-        imm r1, 355
-        jlt r10, r1, fixed_emit_unique_row
+        jlt r10, r12, fixed_emit_unique_row
         imm r3, 1                    ; exact procedure block count
         jeq r11, r3, fixed_emit_unique_done
         jmp reject
@@ -343,10 +344,13 @@ fixed_emit_finish_identity_length:
 ; No source transition, local access, or raw-memory action belongs to block r20.
 fixed_emit_require_source_quiet:
         mov r25, r20
+        imm r1, 524328                 ; validated live transition count
+        load r12, r1
         imm r10, 0
 fixed_emit_transition_loop:
-        imm r1, 291
-        jlt r10, r1, fixed_emit_transition_row
+        jlt r10, r12, fixed_emit_transition_row
+        imm r1, 524608                 ; validated live local-access count
+        load r12, r1
         imm r10, 0
         jmp fixed_emit_local_loop
 fixed_emit_transition_row:
@@ -361,8 +365,9 @@ fixed_emit_transition_row:
         add r10, r1
         jmp fixed_emit_transition_loop
 fixed_emit_local_loop:
-        imm r1, 242
-        jlt r10, r1, fixed_emit_local_row
+        jlt r10, r12, fixed_emit_local_row
+        imm r1, 524648                 ; validated live memory-site count
+        load r12, r1
         imm r10, 0
         jmp fixed_emit_memory_loop
 fixed_emit_local_row:
@@ -377,8 +382,7 @@ fixed_emit_local_row:
         add r10, r1
         jmp fixed_emit_local_loop
 fixed_emit_memory_loop:
-        imm r1, 95
-        jlt r10, r1, fixed_emit_memory_row
+        jlt r10, r12, fixed_emit_memory_row
         ret
 fixed_emit_memory_row:
         mov r2, r10

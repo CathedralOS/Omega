@@ -1,11 +1,12 @@
 ; Exact source/artifact shape for gen_emit().
 ;
-; Procedure 28 is one straight-line block.  It composes permissive expect and
-; whitespace normalization, two new_label calls, eleven exact fixed-string
-; helpers, four label references, emit_str_body, full-Word emit_dec, a final
-; permissive expect, and an explicit zero return.  This module binds ordinary
-; calls and the remaining distinct fixed emits to exact artifact sites.  The
-; three same-key standalone newlines instead use checker-owned cardinality,
+; The canonical procedure inventory owns procedure 28's one-block span and
+; entry partition. It composes permissive expect and whitespace normalization,
+; two new_label calls, eleven exact fixed-string helpers, four label references,
+; emit_str_body, full-Word emit_dec, a final permissive expect, and an explicit
+; zero return. This module binds ordinary calls and the remaining distinct fixed
+; emits to exact artifact sites. The three same-key standalone newlines instead
+; use checker-owned cardinality,
 ; lexical occurrence, centralized helper extent, and relative artifact order.
 ; It also owns the three-slot frame, every local/literal/push row, both
 ; epilogues, and the whole decoded-region footprint.  The adjacent summary owns
@@ -15,7 +16,6 @@
 
 gen_emit_require_shape:
         call gen_emit_require_proc
-        call gen_emit_require_block
         call gen_emit_require_events
         call gen_emit_require_locals
         call gen_emit_require_primitives
@@ -37,17 +37,6 @@ gen_emit_require_proc:
         imm r23, 32
         call exact_require_proc_frame_identity
         jmp gen_emit_shape_ok
-
-gen_emit_require_block:
-        imm r20, 146
-        imm r21, 28
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 146
-        imm r21, 146
-        imm r22, 28
-        call exact_require_proc_blocks
-        ret
 
 ; r22=arity,r23=target procedure. All ordinary calls are in block146 with no
 ; ambient expression words; event identity reconstructs PC and fallthrough.

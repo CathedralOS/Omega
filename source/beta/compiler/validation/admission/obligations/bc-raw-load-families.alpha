@@ -2,7 +2,7 @@
 ;
 ; The grammar-directed phase independently classified all 61 load address
 ; expressions while parsing them in their real expression contexts.  This
-; phase scans all 95 raw-memory rows, admits no unclassified load, and closes
+; phase scans every validated live raw-memory row, admits no unclassified load, and closes
 ; the complete fixed-global family by checking the exact adjacent Alpha
 ; `imm r0,address; load r0,r0` pair.  The remaining five SRC-byte and two
 ; name-table loads are kept as explicit classes for later relational span/index

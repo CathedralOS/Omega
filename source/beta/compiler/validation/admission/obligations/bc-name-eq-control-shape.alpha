@@ -8,35 +8,9 @@ name_eq_require_shape:
         imm r23, 48                   ; exact proc35 frame bytes
         call exact_require_proc_frame_identity
 
-name_eq_shape_blocks:
-        imm r20, 173
-        imm r21, 35
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 174
-        imm r21, 35
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 175
-        imm r21, 35
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 176
-        imm r21, 35
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 177
-        imm r21, 35
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 178
-        imm r21, 35
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 173
-        imm r21, 178
-        imm r22, 35
-        call exact_require_proc_blocks
+name_eq_shape_graph:
+        ; The canonical procedure inventory owns proc35's total block span and
+        ; entry/state partition. The identities below retain its semantic graph.
         call name_eq_require_transitions
         call name_eq_require_events
         ret

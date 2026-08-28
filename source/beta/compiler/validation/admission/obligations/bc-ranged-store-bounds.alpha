@@ -2,7 +2,7 @@
 ;
 ; The preceding grammar-composition phase records only address classes which it
 ; independently proved from the exact source.  This phase exhaustively joins
-; those records to all 95 source memory rows, freezes the two small induction
+; those records to every validated live source-memory row, freezes the two small induction
 ; schemas, checks their complete source and decoded CFG edge sets, and validates
 ; inductive interval facts for slurp.n and declare.s/NLOC. No witness field
 ; supplies value facts. Transfer through Alpha frame slots remains a later

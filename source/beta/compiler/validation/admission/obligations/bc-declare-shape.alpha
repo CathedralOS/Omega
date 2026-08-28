@@ -1,6 +1,7 @@
 ; Exact source/artifact shape for declare().
 ;
-; This module owns procedure 34's three blocks, capacity guard, local snapshot,
+; The canonical procedure inventory owns procedure 34's total block span and
+; entry/state partition. This module owns its capacity guard, local snapshot,
 ; fixed/resource and ranged-name-table memory sites, arithmetic, push families,
 ; returns/epilogues, frame, and exhaustive row/decoded-region censuses.  The
 ; adjacent module owns the successful insertion and full-table meanings.
@@ -12,23 +13,7 @@ declare_require_shape:
         imm r23, 16
         call exact_require_proc_frame_identity
 
-declare_shape_blocks:
-        imm r20, 170
-        imm r21, 34
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 171
-        imm r21, 34
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 172
-        imm r21, 34
-        imm r22, 1
-        call exact_block_identity_pc
-        imm r20, 170
-        imm r21, 172
-        imm r22, 34
-        call exact_require_proc_blocks
+declare_shape_graph:
         imm r20, 128
         imm r21, 171
         imm r22, 1

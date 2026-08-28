@@ -27,8 +27,8 @@ pub trait Content<A> {
 // proof-only `old(&place)` and `separate(a, b, ...)` term formers. `old`
 // selects the same callable-entry revision used by scoped-fact and borrow
 // certificates; it is not a runtime snapshot. Neither term may be implemented,
-// overridden, stored, or executed. The Rust on-ramp still accepts the retired
-// `entry(&place)` spelling pending the tracked parser migration.
+// overridden, stored, or executed. The retired `entry(&place)` spelling is
+// rejected rather than treated as an alias for `old(&place)`.
 
 // Uniform specification-number injection. Every fixed-width integer and
 // address embeds into proof Int with its complete carrier range; a consumer

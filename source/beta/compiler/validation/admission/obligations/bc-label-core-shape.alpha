@@ -1,14 +1,14 @@
 ; Exact source/artifact shape for new_label() and emit_lref(n).
 ;
-; These are procedures 1 and 2, each with one entry block and no source
-; transitions.  new_label owns the fixed LBL load/update and explicit return;
-; emit_lref owns one exact "_L" helper event followed by one full-Word
-; emit_dec call.  This module establishes only shape/custody.  The adjacent
-; summaries own modular counter meaning and ordered output meaning.
+; The canonical procedure inventory owns procedures 1 and 2, each with one
+; entry block and no source transitions, as total spans and partitions.
+; new_label owns the fixed LBL load/update and explicit return; emit_lref owns
+; one exact "_L" helper event followed by one full-Word emit_dec call. This
+; module establishes only shape/custody. The adjacent summaries own modular
+; counter meaning and ordered output meaning.
 
 label_core_require_shape:
         call label_core_require_proc_meta
-        call label_core_require_blocks
         call label_core_require_events
         call label_core_require_locals
         call label_core_require_memory
@@ -34,25 +34,6 @@ label_core_require_proc_meta:
         imm r21, 1
         imm r22, 1
         call label_core_require_one_proc
-        ret
-
-label_core_require_blocks:
-        imm r20, 5
-        imm r21, 1
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 5
-        imm r21, 5
-        imm r22, 1
-        call exact_require_proc_blocks
-        imm r20, 6
-        imm r21, 2
-        imm r22, 0
-        call exact_block_identity_pc
-        imm r20, 6
-        imm r21, 6
-        imm r22, 2
-        call exact_require_proc_blocks
         ret
 
 label_core_require_events:
