@@ -564,6 +564,7 @@ version = "0.1.0"
 dependencies = [
  "omega-build-evaluation",
  "omega-component-deployment",
+ "omega-image",
  "omega-program-storage",
  "omega-terminal-native-artifact",
  "psi-terminal-codec",

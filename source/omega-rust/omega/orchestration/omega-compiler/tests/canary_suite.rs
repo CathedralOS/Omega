@@ -1,43 +1,57 @@
 use omega_compiler::{
-    ArtifactEmissionPolicy, CheckedCompilation, CompileHarnessRequest, CompileOptions,
-    CompileReport, CompileRequest, compile_harness, compile_to_checked,
+    ArtifactEmissionPolicy, CheckedCompilation, CompileOptions, CompileReport, CompileRequest,
+    RequestedCompileProduct, compile_to_checked,
 };
 use omega_program_storage::PROGRAM_STORAGE_INSTALLATION_ARTIFACT;
 
 fn production_compile(
     options: CompileOptions,
 ) -> Result<CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    if options.write_output {
-        compile_harness(CompileHarnessRequest::new(options))
+    let publish = options.write_output;
+    let build_dir = options.build_dir();
+    let product = if publish {
+        RequestedCompileProduct::NativeArtifact
     } else {
-        omega_compiler::compile(CompileRequest::new(options))
+        RequestedCompileProduct::Check
+    };
+    let report =
+        omega_compiler::compile(CompileRequest::new(options).with_requested_product(product))?;
+    if publish {
+        report
+            .publish_retained_native_artifact(&build_dir)
+            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
+    } else {
+        Ok(report)
     }
 }
 
-fn compile_with_test_entry_worker_count_and_artifact_policy(
+fn compile_with_artifact_policy(
     options: CompileOptions,
-    _entry_machine_name: impl Into<String>,
-    _worker_count: usize,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_harness(CompileHarnessRequest::new(options).with_artifact_policy(artifact_policy))
-}
-
-fn compile_with_worker_count_and_artifact_policy(
-    options: CompileOptions,
-    _worker_count: usize,
-    artifact_policy: ArtifactEmissionPolicy,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_harness(CompileHarnessRequest::new(options).with_artifact_policy(artifact_policy))
+    let publish = options.write_output;
+    let build_dir = options.build_dir();
+    let product = if publish {
+        RequestedCompileProduct::NativeArtifact
+    } else {
+        RequestedCompileProduct::Check
+    };
+    let report = omega_compiler::compile(
+        CompileRequest::new(options)
+            .with_requested_product(product)
+            .with_artifact_policy(artifact_policy),
+    )?;
+    if publish {
+        report
+            .publish_retained_native_artifact(&build_dir)
+            .map_err(|error| vec![Diagnostic::error(error)])
+    } else {
+        Ok(report)
+    }
 }
 
 fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_test_entry_worker_count_and_artifact_policy(
-        options,
-        "Main::main",
-        canary_backend_worker_count(),
-        ArtifactEmissionPolicy::OutputOnly,
-    )
+    compile_with_artifact_policy(options, ArtifactEmissionPolicy::OutputOnly)
 }
 
 /// Compile a canary that explicitly asserts an auxiliary compiler artifact.
@@ -46,26 +60,9 @@ fn compile(options: CompileOptions) -> Result<CompileReport, Vec<Diagnostic>> {
 fn compile_with_auxiliary_artifacts(
     options: CompileOptions,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_test_entry_worker_count_and_artifact_policy(
-        options,
-        "Main::main",
-        canary_backend_worker_count(),
-        ArtifactEmissionPolicy::Full,
-    )
+    compile_with_artifact_policy(options, ArtifactEmissionPolicy::Full)
 }
 
-/// Exercise reports that still observe the quarantined StateGraph backend.
-/// Production `Check` now stops at checked Psi; these tests remain explicit
-/// until each observer is moved onto the canonical checked/Terminal route.
-fn compile_legacy_with_auxiliary_artifacts(
-    options: CompileOptions,
-) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_worker_count_and_artifact_policy(
-        options,
-        canary_backend_worker_count(),
-        ArtifactEmissionPolicy::Full,
-    )
-}
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use psi_diagnostics::Diagnostic;
 use psi_language_semantics::content::{
@@ -1297,15 +1294,13 @@ fn compile_canary_without_output_for_target(
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_test_entry_worker_count_and_artifact_policy(
+    let result = compile_with_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
             write_output: false,
         },
-        "Main::main",
-        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
@@ -1321,37 +1316,32 @@ fn compile_canary_without_output(canary_dir: &Path) -> Result<CompileReport, Vec
     // `pass_canaries_compile` vs `capability_pass_canaries_compile_in_isolation`
     // full-suite flake. Give every no-output compile its own temp dir instead.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_worker_count_and_artifact_policy(
+    let result = compile_with_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
             write_output: false,
         },
-        canary_backend_worker_count(),
         ArtifactEmissionPolicy::OutputOnly,
     );
     let _ = fs::remove_dir_all(&build_dir);
     result
 }
 
-fn compile_legacy_backend_canary_without_output(
+fn compile_native_canary_without_output(
     canary_dir: &Path,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    // ACTIVE_PASS is legacy backend coverage, not another checked-only corpus.
-    // Name the fixture entry explicitly until each deployable/artifact fixture
-    // authors a target-owned ProgramEntry; never rediscover Main::main by name.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_test_entry_worker_count_and_artifact_policy(
-        CompileOptions {
+    let result = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: None,
             write_output: false,
-        },
-        "Main::main",
-        canary_backend_worker_count(),
-        ArtifactEmissionPolicy::OutputOnly,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     );
     let _ = fs::remove_dir_all(&build_dir);
     result
@@ -1367,19 +1357,16 @@ fn compile_rooted_backend_canary_without_output_for_target(
     canary_dir: &Path,
     target: &str,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    // Migrated runtime/backend fixtures must select their authored target root.
-    // Deliberately do not pass the legacy entry override: a missing or drifted
-    // ProgramEntry row must fail instead of being masked by `Main::main`.
     let build_dir = unique_no_output_build_dir();
-    let result = compile_with_worker_count_and_artifact_policy(
-        CompileOptions {
+    let result = omega_compiler::compile(
+        CompileRequest::new(CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir.clone()),
             target_name: Some(target.into()),
             write_output: false,
-        },
-        canary_backend_worker_count(),
-        ArtifactEmissionPolicy::OutputOnly,
+        })
+        .with_requested_product(RequestedCompileProduct::NativeArtifact)
+        .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
     );
     let _ = fs::remove_dir_all(&build_dir);
     result
@@ -1435,14 +1422,13 @@ fn compile_rooted_canary_for_target_with_artifact_policy(
     target: &str,
     artifact_policy: ArtifactEmissionPolicy,
 ) -> Result<CompileReport, Vec<Diagnostic>> {
-    compile_with_worker_count_and_artifact_policy(
+    compile_with_artifact_policy(
         CompileOptions {
             root_path: canary_dir.join("main.omg"),
             build_dir: Some(build_dir),
             target_name: Some(target.into()),
             write_output: true,
         },
-        canary_backend_worker_count(),
         artifact_policy,
     )
 }
@@ -2414,7 +2400,6 @@ fn check_canary(canary_dir: &Path) -> Result<(), Vec<Diagnostic>> {
 
 static CANARY_UMBRELLA_LOCK: Mutex<()> = Mutex::new(());
 
-const DEFAULT_CANARY_INNER_WORKERS: usize = 1;
 const DEFAULT_CANARY_OUTER_JOB_CAP: usize = 12;
 
 fn configured_canary_worker_count(
@@ -2439,24 +2424,9 @@ fn default_canary_outer_job_count(available_parallelism: usize) -> usize {
         .min(DEFAULT_CANARY_OUTER_JOB_CAP)
 }
 
-/// Prefer independent canary compiles over inner backend fan-out. On the
-/// current 215-compile pass umbrella, outer 12 / inner 1 reduced test time from
-/// 51.60s to 46.15s versus outer 8 / inner 1. The corpus has outgrown the prior
-/// 112-compile measurement where twelve jobs were flat; keep the override as an
-/// explicit profiling seam rather than multiplying each compile's backend
-/// worker count.
-fn canary_backend_worker_count() -> usize {
-    configured_canary_worker_count(
-        "OMEGA_CANARY_INNER_WORKERS",
-        std::env::var("OMEGA_CANARY_INNER_WORKERS").ok(),
-        DEFAULT_CANARY_INNER_WORKERS,
-    )
-}
-
 /// Run independent corpus members with bounded outer parallelism. Backend
-/// corpus helpers use one inner worker by default, preventing nested
-/// oversubscription while bounded independent compiles use the host. Results
-/// return in source order so diagnostics remain deterministic.
+/// compiles share the same single production route. Results return in source
+/// order so diagnostics remain deterministic.
 fn run_bounded_canary_jobs<T, R>(items: &[T], worker: impl Fn(&T) -> R + Sync) -> Vec<R>
 where
     T: Sync,
@@ -2508,7 +2478,6 @@ where
 
 #[test]
 fn canary_parallelism_defaults_and_overrides_are_pinned() {
-    assert_eq!(DEFAULT_CANARY_INNER_WORKERS, 1);
     assert_eq!(default_canary_outer_job_count(14), 12);
     assert_eq!(default_canary_outer_job_count(4), 4);
     assert_eq!(default_canary_outer_job_count(0), 1);

@@ -1612,7 +1612,7 @@ fn pass_canaries_compile() {
         failures.extend(
             run_bounded_canary_jobs(&windows_host, |canary_name| {
                 let canary = pass_canary(canary_name);
-                compile_legacy_backend_canary_without_output(&canary)
+                compile_native_canary_without_output(&canary)
                     .err()
                     .map(|diagnostics| {
                         format!(
@@ -1690,7 +1690,7 @@ fn pass_canaries_compile() {
             let result = if ROOTED_BACKEND_PASS_CANARIES.contains(canary_name) {
                 compile_rooted_backend_canary_without_output(&canary)
             } else {
-                compile_legacy_backend_canary_without_output(&canary)
+                compile_native_canary_without_output(&canary)
             };
             result.err().map(|diagnostics| {
                 format!(

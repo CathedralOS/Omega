@@ -28,20 +28,14 @@ repeat milestone history.
 
 ## Existing boundaries
 
-The repository currently has two backend lanes.
+The compiler has one executable backend lane.
 
-- The installed-output compatibility path in
-  `source/omega-rust/omega/` still lowers `CheckedTrees -> StateGraph ->
-  ControlFlowPlan -> AbstractOperations`. Its state-value planner performs
-  useful expression substitution and constant folding, but it still consumes
-  checked-tree expression handles. The retained-native product no longer uses
-  this path.
-- The target architecture lowers canonical Terminal Psi artifact sections
+- Every native product lowers canonical Terminal Psi artifact sections
   through `omega-terminal-psi-to-abstract-operations`. That path first decodes
   and verifies the semantic module and proof bundle, then produces
   source-independent operations retaining Terminal Psi value, place, operation,
   edge, claim, and machine identities.
-- The legacy assigned-target stage gives computed operands scratch registers by
+- The current assigned-target stage gives computed operands scratch registers by
   cycling through a fixed architecture-specific list. It does not compute live
   ranges, an interference graph, spills, splitting, or coalescing. The clean
   Terminal lane assigns only the deliberately bounded shapes it currently
@@ -55,10 +49,10 @@ The repository currently has two backend lanes.
   target-neutral optimizer over a verified Terminal-Psi-derived unit. It does
   not move optimization into the Psi frontend or mutate the canonical artifact.
 
-Consequently, no new optimizer should be built over `StateGraph` or
-`ControlFlowPlan`. They remain migration scaffolds. Reusable backend work such
-as allocation may serve both lanes through adapters, but the durable high-level
-optimizer begins only after canonical Terminal Psi verification.
+The former checked-tree `StateGraph`/`ControlFlowPlan` compiler route is
+deleted. Those representations survive only below historical fixtures and
+program-storage scaffolding and must not re-enter compilation. The durable
+high-level optimizer begins only after canonical Terminal Psi verification.
 
 ## Semantic contract
 
@@ -662,20 +656,17 @@ synonym for validated allocation: the receipt says nothing about liveness,
 interference, register-unit conflicts, fixed operands, spills, or frame slots,
 and grants no machine-emission or publication authority.
 
-Clean compiler staging branches before constructing optimizer state. Empty
-selection takes the prior compatibility route unchanged. Nonempty selection
-must enter `omega-optimization-pipeline`, and unsupported named families or any
-validation failure reject without fallback. The typed terminal-component route
-continues through optimized target lowering, instruction selection, liveness,
-ranges, allocation legality, exact phase dispatch, strict spill-free homes,
-and independently replayed post-allocation machine facts. Psi-only suites take
-the direct home route; mixed or lower-only suites run the selected-lowering
-projection derived from retained full-suite custody. Both deliberately stop
-before frame/exit validation, machine emission, object/image construction, or
-component publication. A source shape outside the currently admitted selected
-CFG fails at that named boundary. The legacy compiler's nonempty-selection
-firewall remains closed so selected builds can never fall through to its old
-backend.
+The compiler must never construct an optimizer branch beside native
+realization. Empty selection currently takes the one publishable bounded
+assignment route. Nonempty selection rejects before target production because
+`omega-optimization-pipeline` deliberately stops before complete baseline
+frame/exit validation, machine emission, executable-image construction, and
+publication. Its verified target lowering, instruction selection, liveness,
+ranges, allocation legality, phase dispatch, spill-free homes, and
+post-allocation facts remain experimental stage work. Once that chain covers
+the baseline and rejoins executable-image validation, it replaces bounded
+assignment inside the same realization route; it does not become a second
+compiler lane and never falls back after partial execution.
 
 The verified optimizer input is required, not an optional evidence attachment
 to a bare plan. Compatibility lowering has a separate bare-plan entry; the

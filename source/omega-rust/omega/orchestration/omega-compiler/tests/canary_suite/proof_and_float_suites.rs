@@ -40,7 +40,7 @@ fn fail_canaries_reject_with_expected_diagnostic_fragment() {
                 .find_map(|(candidate, target)| (*candidate == canary_name).then_some(*target));
             match cross_target {
                 Some(target) => compile_canary_without_output_for_target(&canary, target),
-                None => compile_legacy_backend_canary_without_output(&canary),
+                None => compile_native_canary_without_output(&canary),
             }
             .map(|report| report.summary())
         };
@@ -1358,16 +1358,15 @@ fn runtime_total_order_satisfiers_exit_canary_runs() {
             std::process::id()
         ));
         let _ = fs::remove_dir_all(&cross_dir);
-        compile_with_test_entry_worker_count_and_artifact_policy(
-            CompileOptions {
+        omega_compiler::compile(
+            CompileRequest::new(CompileOptions {
                 root_path: main_path.clone(),
                 build_dir: Some(cross_dir.clone()),
                 target_name: Some(target.into()),
-                write_output: true,
-            },
-            "Main::main",
-            canary_backend_worker_count(),
-            ArtifactEmissionPolicy::OutputOnly,
+                write_output: false,
+            })
+            .with_requested_product(RequestedCompileProduct::NativeArtifact)
+            .with_artifact_policy(ArtifactEmissionPolicy::OutputOnly),
         )
         .unwrap_or_else(|error| {
             panic!("total-order satisfier canary should cross-compile for {target}: {error:?}")

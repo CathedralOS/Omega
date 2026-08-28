@@ -7,10 +7,10 @@ mod compiler;
 mod pipeline;
 
 pub use compiler::{
-    ArtifactEmissionPolicy, CompileHarnessRequest, CompileOptions, CompileOutputKind,
-    CompileReport, CompileRequest, Compiler, ExecutablePublicationDestination,
-    ExecutablePublicationReceipt, RequestedCompileProduct, RetainedNativeArtifact,
-    TerminalComponentDeploymentReportError, compile, compile_harness,
+    ArtifactEmissionPolicy, CompileOptions, CompileOutputKind, CompileReport, CompileRequest,
+    Compiler, ExecutablePublicationDestination, ExecutablePublicationReceipt,
+    RequestedCompileProduct, RetainedNativeArtifact, TerminalComponentDeploymentReportError,
+    compile,
 };
 pub use pipeline::checked_entry::{
     CheckedCompilation, compile_to_checked, compile_to_checked_with_packages,

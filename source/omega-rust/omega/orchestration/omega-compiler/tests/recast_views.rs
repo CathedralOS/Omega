@@ -4,9 +4,7 @@
 //! carry its own end-to-end oracle without making that shared file responsible
 //! for another subsystem.
 
-use omega_compiler::{
-    CheckedCompilation, CompileHarnessRequest, CompileOptions, compile_harness, compile_to_checked,
-};
+use omega_compiler::{CheckedCompilation, CompileOptions, compile_to_checked};
 use psi_checked_interpreter::{InterpretOutcome, interpret_entry};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -41,13 +39,19 @@ fn compile_and_run(canary_rel: &str, tag: &str) -> std::process::Output {
     let build_dir = std::env::temp_dir().join(format!("omega-{tag}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&build_dir);
 
-    compile_harness(CompileHarnessRequest::new(CompileOptions {
-        root_path: canary.join("main.omg"),
-        build_dir: Some(build_dir.clone()),
-        target_name: Some(profile.target_name().to_owned()),
-        write_output: true,
-    }))
+    let report = omega_compiler::compile(
+        omega_compiler::CompileRequest::new(CompileOptions {
+            root_path: canary.join("main.omg"),
+            build_dir: Some(build_dir.clone()),
+            target_name: Some(profile.target_name().to_owned()),
+            write_output: true,
+        })
+        .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
+    )
     .unwrap_or_else(|diagnostics| panic!("{canary_rel} should compile:\n{diagnostics:#?}"));
+    report
+        .publish_retained_native_artifact(&build_dir)
+        .unwrap_or_else(|error| panic!("{canary_rel} should publish: {error}"));
 
     let executable = if cfg!(windows) {
         "omega-program.exe"
@@ -86,12 +90,15 @@ fn compile_for_cross_targets(canary_rel: &str, tag: &str) {
         std::fs::copy(canary.join("build.omg"), source_dir.join("build.omg"))
             .expect("copy exact recast root matrix");
 
-        compile_harness(CompileHarnessRequest::new(CompileOptions {
-            root_path: source_dir.join("main.omg"),
-            build_dir: Some(build_dir),
-            target_name: Some(target.to_owned()),
-            write_output: true,
-        }))
+        omega_compiler::compile(
+            omega_compiler::CompileRequest::new(CompileOptions {
+                root_path: source_dir.join("main.omg"),
+                build_dir: Some(build_dir),
+                target_name: Some(target.to_owned()),
+                write_output: false,
+            })
+            .with_requested_product(omega_compiler::RequestedCompileProduct::NativeArtifact),
+        )
         .unwrap_or_else(|diagnostics| {
             panic!(
                 "{canary_rel} should compile for {target}:\n{}",

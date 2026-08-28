@@ -74,10 +74,22 @@ use std::process::{Command, Stdio};
 fn compile_program(
     options: CompileOptions,
 ) -> Result<omega_compiler::CompileReport, Vec<psi_diagnostics::Diagnostic>> {
-    if options.write_output {
-        omega_compiler::compile_harness(omega_compiler::CompileHarnessRequest::new(options))
+    let publish = options.write_output;
+    let build_dir = options.build_dir();
+    let product = if publish {
+        omega_compiler::RequestedCompileProduct::NativeArtifact
     } else {
-        omega_compiler::compile(omega_compiler::CompileRequest::new(options))
+        omega_compiler::RequestedCompileProduct::Check
+    };
+    let report = omega_compiler::compile(
+        omega_compiler::CompileRequest::new(options).with_requested_product(product),
+    )?;
+    if publish {
+        report
+            .publish_retained_native_artifact(&build_dir)
+            .map_err(|error| vec![psi_diagnostics::Diagnostic::error(error)])
+    } else {
+        Ok(report)
     }
 }
 
