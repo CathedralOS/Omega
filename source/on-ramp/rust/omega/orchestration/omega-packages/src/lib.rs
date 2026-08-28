@@ -20,6 +20,7 @@ mod dependency_projection;
 mod graph;
 mod identity;
 mod json;
+mod package_reconstruction_question;
 mod package_source;
 mod record_file;
 mod resolver;
@@ -86,6 +87,11 @@ pub use identity::{
     GitTreeId, IdentityError, ImmutableSourceResolution, PackageKey, PackageName,
     SourceContentDigest, SourceLineage, WorkspaceLineageIdentity, WorkspaceMemberLineage,
     WorkspaceMemberPath,
+};
+pub use package_reconstruction_question::{
+    CanonicalPackageReconstructionEntry, CanonicalPackageReconstructionQuestion,
+    CanonicalPackageReconstructionQuestionError, CanonicalPackageReconstructionQuestionFingerprint,
+    CanonicalPackageReconstructionQuestionLimits, PACKAGE_RECONSTRUCTION_QUESTION_ENCODING_VERSION,
 };
 pub use package_source::{
     ResolvePackageSourceError, ResolvedPackageSource, resolve_external_local_package_source,
