@@ -1773,11 +1773,70 @@ impl FilesystemSourcePathMetadataReplayRecord {
     }
 }
 
-/// One ordered source-input replay event. Descriptor-backed file reads remain
-/// an indivisible closed chain; path metadata reads are independent events.
+/// One successful Source-rooted descriptor metadata event. The descriptor is
+/// created by the event's exact flags-zero open, observed once, and retired by
+/// its exact close; it cannot be borrowed from or leaked into another event.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FilesystemSourceDescriptorMetadataReplayRecord {
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    logical_handle_identity: FilesystemLogicalHandleIdentity,
+    open_post_error: i32,
+    metadata_post_error: i32,
+    mutable_resolution: Vec<u8>,
+    mutable_pre_state: Vec<u8>,
+    mutable_post_state: Vec<u8>,
+    metadata: FilesystemMetadataObservation,
+    close_post_error: i32,
+}
+
+impl FilesystemSourceDescriptorMetadataReplayRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        source_root: FilesystemGrantRootIdentity,
+        source_relative_path: Vec<u8>,
+        logical_handle_identity: u64,
+        open_post_error: i32,
+        metadata_post_error: i32,
+        mutable_resolution: Vec<u8>,
+        mutable_pre_state: Vec<u8>,
+        mutable_post_state: Vec<u8>,
+        metadata: FilesystemMetadataObservation,
+        close_post_error: i32,
+    ) -> Result<Self, String> {
+        let logical_handle_identity = FilesystemLogicalHandleIdentity::new(logical_handle_identity)
+            .ok_or_else(|| "filesystem replay logical identity must be nonzero".to_owned())?;
+        if !filesystem_root_relative_path_is_canonical(&source_relative_path, false)
+            || metadata.kind() != FilesystemMetadataObservationKind::OpenDescriptor
+            || metadata.output_operand_ordinal() != 1
+            || mutable_resolution != mutable_pre_state
+            || mutable_pre_state.len() != mutable_post_state.len()
+            || mutable_post_state.len() < FILESYSTEM_METADATA_API_CARRIER_BYTES
+        {
+            return Err("filesystem replay descriptor metadata is inconsistent".to_owned());
+        }
+        Ok(Self {
+            source_root,
+            source_relative_path,
+            logical_handle_identity,
+            open_post_error,
+            metadata_post_error,
+            mutable_resolution,
+            mutable_pre_state,
+            mutable_post_state,
+            metadata,
+            close_post_error,
+        })
+    }
+}
+
+/// One ordered source-input replay event. Descriptor-backed file reads and
+/// descriptor metadata remain indivisible closed chains; path metadata reads
+/// are independent events.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum FilesystemSourceInputReplayEventRecord {
     ReadChain(FilesystemSourceReadChainReplayRecord),
+    DescriptorMetadata(FilesystemSourceDescriptorMetadataReplayRecord),
     PathMetadata(FilesystemSourcePathMetadataReplayRecord),
 }
 
@@ -1795,15 +1854,22 @@ impl FilesystemSourceInputReplayRecord {
         }
         let mut identities = Vec::new();
         for event in &events {
-            let FilesystemSourceInputReplayEventRecord::ReadChain(chain) = event else {
-                continue;
+            let identity = match event {
+                FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
+                    Some(chain.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                    Some(metadata.logical_handle_identity)
+                }
+                FilesystemSourceInputReplayEventRecord::PathMetadata(_) => None,
             };
-            if identities.contains(&chain.logical_handle_identity) {
+            let Some(identity) = identity else { continue };
+            if identities.contains(&identity) {
                 return Err(
-                    "filesystem replay source-read chains must use distinct handles".to_owned(),
+                    "filesystem replay descriptor events must use distinct handles".to_owned(),
                 );
             }
-            identities.push(chain.logical_handle_identity);
+            identities.push(identity);
         }
         Ok(Self { events })
     }
@@ -1935,6 +2001,7 @@ impl FilesystemInputOutputReplayRecord {
                     FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                         chain.reads.len().checked_add(2)?
                     }
+                    FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                     FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
                 })
             })
@@ -1949,6 +2016,11 @@ impl FilesystemInputOutputReplayRecord {
             FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                 chain.source_root == output_write_chain.output_root
                     || chain.logical_handle_identity == output_write_chain.logical_handle_identity
+            }
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                metadata.source_root == output_write_chain.output_root
+                    || metadata.logical_handle_identity
+                        == output_write_chain.logical_handle_identity
             }
             FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                 metadata.source_root == output_write_chain.output_root
@@ -2129,6 +2201,17 @@ fn validate_source_input_attempts(attempts: &[FilesystemOperationAttempt]) -> Re
             );
         }
         cursor += 1;
+        if cursor < attempts.len() && attempts[cursor].operation_tag() == 39 {
+            cursor += 1;
+            if cursor == attempts.len() || attempts[cursor].operation_tag() != 8 {
+                return Err(
+                    "bounded filesystem replay requires ordered source-input events".to_owned(),
+                );
+            }
+            cursor += 1;
+            event_count += 1;
+            continue;
+        }
         let reads_start = cursor;
         while cursor < attempts.len() && matches!(attempts[cursor].operation_tag(), 4 | 6) {
             cursor += 1;
@@ -2268,6 +2351,7 @@ fn source_input_record_attempts(
         count
             + match event {
                 FilesystemSourceInputReplayEventRecord::ReadChain(chain) => chain.reads.len() + 2,
+                FilesystemSourceInputReplayEventRecord::DescriptorMetadata(_) => 3,
                 FilesystemSourceInputReplayEventRecord::PathMetadata(_) => 1,
             }
     });
@@ -2276,6 +2360,9 @@ fn source_input_record_attempts(
         match event {
             FilesystemSourceInputReplayEventRecord::ReadChain(chain) => {
                 attempts.extend(source_read_chain_attempts(chain));
+            }
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(metadata) => {
+                attempts.extend(source_descriptor_metadata_attempts(metadata));
             }
             FilesystemSourceInputReplayEventRecord::PathMetadata(metadata) => {
                 attempts.push(source_path_metadata_attempt(metadata));
@@ -2617,6 +2704,34 @@ mod filesystem_replay_record_tests {
         .expect("full output write is canonical")
     }
 
+    fn descriptor_metadata_input(identity: u64) -> FilesystemSourceInputReplayRecord {
+        let carrier = vec![0; FILESYSTEM_METADATA_API_CARRIER_BYTES];
+        let metadata = FilesystemMetadataObservation::new(
+            1,
+            FilesystemMetadataObservationKind::OpenDescriptor,
+            0o100444,
+            23,
+            1_000_000_000,
+        );
+        let event = FilesystemSourceDescriptorMetadataReplayRecord::new(
+            root(1),
+            b"main.omg".to_vec(),
+            identity,
+            0,
+            0,
+            carrier.clone(),
+            carrier.clone(),
+            carrier,
+            metadata,
+            0,
+        )
+        .expect("descriptor metadata event is canonical");
+        FilesystemSourceInputReplayRecord::new(vec![
+            FilesystemSourceInputReplayEventRecord::DescriptorMetadata(event),
+        ])
+        .expect("descriptor metadata is a source event")
+    }
+
     fn typed_replay() -> FilesystemReplay {
         let output = output_chain(2);
         let included = BuildIncludedSource::from_coordinate(
@@ -2656,6 +2771,35 @@ mod filesystem_replay_record_tests {
             .expect("one handoff coordinate is retained");
         assert_eq!(included.root(), output.output_root());
         assert_eq!(included.relative_path(), output.output_relative_path());
+    }
+
+    #[test]
+    fn typed_descriptor_metadata_record_emits_one_closed_exact_event() {
+        let replay =
+            FilesystemReplay::from_source_input_record(descriptor_metadata_input(7)).unwrap();
+        assert_eq!(
+            replay
+                .attempts()
+                .iter()
+                .map(FilesystemOperationAttempt::operation_tag)
+                .collect::<Vec<_>>(),
+            vec![2, 39, 8]
+        );
+        let metadata = &replay.attempts()[1];
+        assert_eq!(
+            metadata.logical_handle_inputs[0].resolution,
+            FilesystemLogicalHandleInputResolution::Resolved(
+                FilesystemLogicalHandleIdentity::new(7).unwrap()
+            )
+        );
+        assert_eq!(
+            metadata.metadata_observations[0].kind(),
+            FilesystemMetadataObservationKind::OpenDescriptor
+        );
+
+        let mut events = source_input(7).events;
+        events.extend(descriptor_metadata_input(7).events);
+        assert!(FilesystemSourceInputReplayRecord::new(events).is_err());
     }
 
     #[test]
@@ -2891,46 +3035,12 @@ fn source_read_chain_attempts(
     record: FilesystemSourceReadChainReplayRecord,
 ) -> Vec<FilesystemOperationAttempt> {
     let identity = record.logical_handle_identity;
-    let open = FilesystemOperationAttempt {
-        operation_tag: 2,
-        provider: FilesystemObservationProvider::RealScoped,
-        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
-            result: FilesystemOperationResult::LogicalHandle(identity),
-            post_error: record.open_post_error,
-        }),
-        scalar_operands: vec![FilesystemScalarOperand {
-            operand_ordinal: 1,
-            value: FilesystemScalarOperandValue::I32(0),
-        }],
-        byte_operands: Vec::new(),
-        path_like_operands: Vec::new(),
-        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
-            operand_ordinal: 0,
-            root: record.source_root,
-            relative_path: record.source_relative_path.clone(),
-        }],
-        returned_paths: Vec::new(),
-        observed_byte_regions: Vec::new(),
-        metadata_observations: Vec::new(),
-        mutable_byte_operand_resolutions: Vec::new(),
-        mutable_i64_operand_resolutions: Vec::new(),
-        mutable_byte_operands: Vec::new(),
-        mutable_i64_operands: Vec::new(),
-        authorized_paths: vec![FilesystemAuthorizedPath {
-            operand_ordinal: 0,
-            access: FilesystemGrantAccess::Read,
-            root: record.source_root,
-            relative_path: record.source_relative_path,
-        }],
-        logical_handle_inputs: Vec::new(),
-        logical_handle_output: Some(FilesystemLogicalHandleOutput {
-            kind: FilesystemLogicalHandleKind::Descriptor,
-            identity,
-            source: FilesystemLogicalHandleOutputSource::Created,
-        }),
-        retired_logical_handles: Vec::new(),
-        grant_refusals: Vec::new(),
-    };
+    let open = source_descriptor_open_attempt(
+        record.source_root,
+        record.source_relative_path,
+        identity,
+        record.open_post_error,
+    );
     let read_count = record.reads.len();
     let reads = record.reads.into_iter().map(|read| {
         let read_length =
@@ -3000,12 +3110,121 @@ fn source_read_chain_attempts(
             grant_refusals: Vec::new(),
         }
     });
-    let close = FilesystemOperationAttempt {
+    let close = source_descriptor_close_attempt(identity, record.close_post_error);
+    let mut attempts = Vec::with_capacity(read_count + 2);
+    attempts.push(open);
+    attempts.extend(reads);
+    attempts.push(close);
+    attempts
+}
+
+fn source_descriptor_metadata_attempts(
+    record: FilesystemSourceDescriptorMetadataReplayRecord,
+) -> [FilesystemOperationAttempt; 3] {
+    let identity = record.logical_handle_identity;
+    let open = source_descriptor_open_attempt(
+        record.source_root,
+        record.source_relative_path,
+        identity,
+        record.open_post_error,
+    );
+    let metadata = FilesystemOperationAttempt {
+        operation_tag: 39,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::Scalar(0),
+            post_error: record.metadata_post_error,
+        }),
+        scalar_operands: Vec::new(),
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: Vec::new(),
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: vec![record.metadata],
+        mutable_byte_operand_resolutions: vec![FilesystemMutableByteOperandResolution {
+            operand_ordinal: 1,
+            bytes: record.mutable_resolution,
+        }],
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: vec![FilesystemMutableByteOperand {
+            operand_ordinal: 1,
+            pre_bytes: record.mutable_pre_state,
+            post_bytes: record.mutable_post_state,
+        }],
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: Vec::new(),
+        logical_handle_inputs: vec![FilesystemLogicalHandleInput {
+            operand_ordinal: 0,
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            resolution: FilesystemLogicalHandleInputResolution::Resolved(identity),
+        }],
+        logical_handle_output: None,
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    };
+    let close = source_descriptor_close_attempt(identity, record.close_post_error);
+    [open, metadata, close]
+}
+
+fn source_descriptor_open_attempt(
+    source_root: FilesystemGrantRootIdentity,
+    source_relative_path: Vec<u8>,
+    identity: FilesystemLogicalHandleIdentity,
+    post_error: i32,
+) -> FilesystemOperationAttempt {
+    FilesystemOperationAttempt {
+        operation_tag: 2,
+        provider: FilesystemObservationProvider::RealScoped,
+        outcome: Some(FilesystemOperationAttemptOutcome::Returned {
+            result: FilesystemOperationResult::LogicalHandle(identity),
+            post_error,
+        }),
+        scalar_operands: vec![FilesystemScalarOperand {
+            operand_ordinal: 1,
+            value: FilesystemScalarOperandValue::I32(0),
+        }],
+        byte_operands: Vec::new(),
+        path_like_operands: Vec::new(),
+        rooted_path_operand_resolutions: vec![FilesystemRootedPathOperandResolution {
+            operand_ordinal: 0,
+            root: source_root,
+            relative_path: source_relative_path.clone(),
+        }],
+        returned_paths: Vec::new(),
+        observed_byte_regions: Vec::new(),
+        metadata_observations: Vec::new(),
+        mutable_byte_operand_resolutions: Vec::new(),
+        mutable_i64_operand_resolutions: Vec::new(),
+        mutable_byte_operands: Vec::new(),
+        mutable_i64_operands: Vec::new(),
+        authorized_paths: vec![FilesystemAuthorizedPath {
+            operand_ordinal: 0,
+            access: FilesystemGrantAccess::Read,
+            root: source_root,
+            relative_path: source_relative_path,
+        }],
+        logical_handle_inputs: Vec::new(),
+        logical_handle_output: Some(FilesystemLogicalHandleOutput {
+            kind: FilesystemLogicalHandleKind::Descriptor,
+            identity,
+            source: FilesystemLogicalHandleOutputSource::Created,
+        }),
+        retired_logical_handles: Vec::new(),
+        grant_refusals: Vec::new(),
+    }
+}
+
+fn source_descriptor_close_attempt(
+    identity: FilesystemLogicalHandleIdentity,
+    post_error: i32,
+) -> FilesystemOperationAttempt {
+    FilesystemOperationAttempt {
         operation_tag: 8,
         provider: FilesystemObservationProvider::RealScoped,
         outcome: Some(FilesystemOperationAttemptOutcome::Returned {
             result: FilesystemOperationResult::Scalar(0),
-            post_error: record.close_post_error,
+            post_error,
         }),
         scalar_operands: Vec::new(),
         byte_operands: Vec::new(),
@@ -3027,12 +3246,7 @@ fn source_read_chain_attempts(
         logical_handle_output: None,
         retired_logical_handles: vec![identity],
         grant_refusals: Vec::new(),
-    };
-    let mut attempts = Vec::with_capacity(read_count + 2);
-    attempts.push(open);
-    attempts.extend(reads);
-    attempts.push(close);
-    attempts
+    }
 }
 
 impl Default for EvaluationObservations {

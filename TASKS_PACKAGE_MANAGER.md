@@ -790,6 +790,21 @@ complete.
   broader build integration fixture remains blocked only at OWNER Q7's stale
   boundary-service identity seam.
 
+  Follow-up 2026-08-28: observation summary v26 and replay-record v8 admit one
+  exact successful Source-rooted `open(flags = 0)` ->
+  `read_file_metadata` -> `close` event. The descriptor is created and retired
+  inside that indivisible event; its identity cannot overlap another Source
+  event or the Output descriptor. Replay retains the exact open/close results,
+  descriptor input, `OpenDescriptor` semantic row, mutable resolution and
+  provider pre/post carrier, and post-error states. Recovery rejects a changed
+  operation, metadata kind, ordinal, descriptor lineage, carrier shape, missing
+  close, or extra event. The event composes with the existing ordered Source
+  stream and one-file Output grammar but does not permit arbitrary metadata/read
+  interleaving. Filesystem-attempt v19 and the canonical source-metadata policy
+  remain unchanged. Typed replay and strict recovery canaries pass; the full
+  build-machine canary remains at the already-recorded OWNER Q7 boundary-
+  service identity seam.
+
   Audit 2026-08-24: the authenticated object graph, exact-pin check, injective
   source identity, checkout-free materialization, bounded parent process, and
   immutable publication form a coherent portable core. The next strict-boundary
@@ -1968,6 +1983,16 @@ complete.
   facts. Operators with outcome-specific or crash contracts, and providers with
   any nonempty checked crash behavior, reject until checked operator refinement
   covers those clauses.
+  Follow-up 2026-08-28: review v76/canonical row v34 retains the optional
+  conformance alias beside each supported checked-body operator coordinate.
+  The alias already survives checked lowering and participates in realization
+  identity; package review now compares that retained custody before projecting
+  it instead of rejecting the form. Alias spelling changes only the owning
+  callable row, and canonical bytes distinguish aliased from unaliased or
+  differently aliased realizations. Post-check alias mutation rejects. This
+  extension does not admit aliases on bodyless external supply, private,
+  generic/lifetime-bearing, crash-refined, or otherwise unsupported operator
+  forms, and it does not alter OWNER Q10's overloaded boundary-provider choice.
   Public callable `requires` and `ensures` retain exact structural rows for the
   closed boolean/integer expression subset over
   parameter ordinals, `result`, generic binders, and package-qualified
@@ -2408,7 +2433,7 @@ complete.
   destinations, write failure, extra/missing state, and drift reject. Hard-link
   topology is neither retained nor leaked through the content count. This tree
   custody alone is not a receipt; the operation grammar introduced by v24/v6
-  and retained by v25/v7 is the first narrow case that joins it to complete
+  and retained by v26/v8 is the first narrow case that joins it to complete
   operation replay and generated-output handoff.
   Broader operation/output coverage and complete remaining preparation-failure
   evidence remain. Same-user host racing is not solved by this custody rung.
@@ -2962,7 +2987,7 @@ complete.
   otherwise contract-supplied machines, the checked operational summary remains
   the published may-ceiling by language design—it is not presented as a second
   observation that the retained body happened to be quiet. Current package
-  review v75/canonical row v33, conflict fingerprint v16, renderer V15, and
+  review v76/canonical row v34, conflict fingerprint v16, renderer V15, and
   canonical-row recovery envelope v13 bind the appended roles; stale envelopes
   reject rather than being reinterpreted. Any later nested source carriers
   remain incremental engineering work and require deliberate retention before
@@ -3451,7 +3476,7 @@ complete.
   ordinary `main.omg` source patch rather than a standalone or lineage-
   replacement packet.
   Progress 2026-08-26: `generated-table` exercises canonical observation-
-  summary v25 and replay-record v7 evidence and becomes `Receipted` only after
+  summary v26 and replay-record v8 evidence and becomes `Receipted` only after
   exact no-host replay reproduces its generated file and `include_source`
   handoff. Its package-level review baseline now captures, canonically encodes,
   recovers, and rejoins that verified replay record instead of limiting capsule
