@@ -482,20 +482,105 @@ mod tests {
         )
     }
 
-    fn conditional_immediate_artifact_with_type(integer_type: IntegerType) -> (Vec<u8>, Vec<u8>) {
-        let machine = MachineId::new(3_001).unwrap();
-        let entry = BlockId::new(3_002).unwrap();
-        let when_true = BlockId::new(3_003).unwrap();
-        let when_false = BlockId::new(3_004).unwrap();
-        let condition = ValueId::new(3_005).unwrap();
-        let true_value = ValueId::new(3_006).unwrap();
-        let false_value = ValueId::new(3_007).unwrap();
-        let result = ValueId::new(3_008).unwrap();
+    fn conditional_immediate_machine(
+        base: u64,
+        integer_type: IntegerType,
+        literals: [u128; 2],
+    ) -> TerminalMachine {
+        let machine = MachineId::new(base + 1).unwrap();
+        let entry = BlockId::new(base + 2).unwrap();
+        let when_true = BlockId::new(base + 3).unwrap();
+        let when_false = BlockId::new(base + 4).unwrap();
+        let condition = ValueId::new(base + 5).unwrap();
+        let true_value = ValueId::new(base + 6).unwrap();
+        let false_value = ValueId::new(base + 7).unwrap();
+        let result = ValueId::new(base + 8).unwrap();
         let scalar_type = ScalarType::Integer(integer_type);
         let declaration = |id, scalar_type| ValueDeclaration { id, scalar_type };
-        let module = TerminalModule {
+        TerminalMachine {
+            id: machine,
+            attachment: None,
+            parameters: vec![declaration(condition, ScalarType::Boolean)],
+            structural_parameters: Vec::new(),
+            result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
+            structural_places: Vec::new(),
+            entry_claims: Vec::new(),
+            published_service_ceiling: Vec::new(),
+            content_entry_claims: Vec::new(),
+            content_identity_reshuffles: Vec::new(),
+            content_partition_compositions: Vec::new(),
+            entry,
+            blocks: vec![
+                Block {
+                    id: entry,
+                    parameters: Vec::new(),
+                    operations: Vec::new(),
+                    terminator: Terminator::Conditional {
+                        condition,
+                        when_true: SuccessorEdge {
+                            edge: EdgeId::new(base + 11).unwrap(),
+                            target: when_true,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                        when_false: SuccessorEdge {
+                            edge: EdgeId::new(base + 12).unwrap(),
+                            target: when_false,
+                            arguments: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
+                        },
+                    },
+                },
+                Block {
+                    id: when_true,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(base + 9).unwrap(),
+                        result: OperationResult::Scalar(declaration(true_value, scalar_type)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(literals[0]),
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(base + 13).unwrap(),
+                        value: true_value,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+                Block {
+                    id: when_false,
+                    parameters: Vec::new(),
+                    operations: vec![Operation {
+                        id: OperationId::new(base + 10).unwrap(),
+                        result: OperationResult::Scalar(declaration(false_value, scalar_type)),
+                        kind: OperationKind::IntegerConstant {
+                            value: IntegerValue::Unsigned(literals[1]),
+                        },
+                    }],
+                    terminator: Terminator::Return {
+                        edge: EdgeId::new(base + 14).unwrap(),
+                        value: false_value,
+                        cleanup_actions: Vec::new(),
+                    },
+                },
+            ],
+            contract: MachineContract {
+                id: ContractId::new(base + 15).unwrap(),
+                crash_routes: Vec::new(),
+                requires: Vec::new(),
+                ensures: Vec::new(),
+                outcome_specific_ensures: Vec::new(),
+            },
+        }
+    }
+
+    fn conditional_immediate_module(
+        entry: MachineId,
+        machines: Vec<TerminalMachine>,
+    ) -> TerminalModule {
+        TerminalModule {
             vocabulary_marker: VocabularyMarker::CURRENT,
-            entry: machine,
+            entry,
             structural_types: Vec::new(),
             structural_domains: Vec::new(),
             services: Vec::new(),
@@ -510,82 +595,28 @@ mod tests {
             proof_output_calls: Vec::new(),
             evidence_contract_lanes: Vec::new(),
             closed_conformance_applications: Vec::new(),
-            machines: vec![TerminalMachine {
-                id: machine,
-                attachment: None,
-                parameters: vec![declaration(condition, ScalarType::Boolean)],
-                structural_parameters: Vec::new(),
-                result: TerminalMachineResult::Scalar(declaration(result, scalar_type)),
-                structural_places: Vec::new(),
-                entry_claims: Vec::new(),
-                published_service_ceiling: Vec::new(),
-                content_entry_claims: Vec::new(),
-                content_identity_reshuffles: Vec::new(),
-                content_partition_compositions: Vec::new(),
-                entry,
-                blocks: vec![
-                    Block {
-                        id: entry,
-                        parameters: Vec::new(),
-                        operations: Vec::new(),
-                        terminator: Terminator::Conditional {
-                            condition,
-                            when_true: SuccessorEdge {
-                                edge: EdgeId::new(3_011).unwrap(),
-                                target: when_true,
-                                arguments: Vec::new(),
-                                trivial_affine_discards: Vec::new(),
-                            },
-                            when_false: SuccessorEdge {
-                                edge: EdgeId::new(3_012).unwrap(),
-                                target: when_false,
-                                arguments: Vec::new(),
-                                trivial_affine_discards: Vec::new(),
-                            },
-                        },
-                    },
-                    Block {
-                        id: when_true,
-                        parameters: Vec::new(),
-                        operations: vec![Operation {
-                            id: OperationId::new(3_009).unwrap(),
-                            result: OperationResult::Scalar(declaration(true_value, scalar_type)),
-                            kind: OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(7),
-                            },
-                        }],
-                        terminator: Terminator::Return {
-                            edge: EdgeId::new(3_013).unwrap(),
-                            value: true_value,
-                            cleanup_actions: Vec::new(),
-                        },
-                    },
-                    Block {
-                        id: when_false,
-                        parameters: Vec::new(),
-                        operations: vec![Operation {
-                            id: OperationId::new(3_010).unwrap(),
-                            result: OperationResult::Scalar(declaration(false_value, scalar_type)),
-                            kind: OperationKind::IntegerConstant {
-                                value: IntegerValue::Unsigned(9),
-                            },
-                        }],
-                        terminator: Terminator::Return {
-                            edge: EdgeId::new(3_014).unwrap(),
-                            value: false_value,
-                            cleanup_actions: Vec::new(),
-                        },
-                    },
-                ],
-                contract: MachineContract {
-                    id: ContractId::new(3_015).unwrap(),
-                    crash_routes: Vec::new(),
-                    requires: Vec::new(),
-                    ensures: Vec::new(),
-                    outcome_specific_ensures: Vec::new(),
-                },
-            }],
+            machines,
+        }
+    }
+
+    fn conditional_immediate_artifact_with_type(integer_type: IntegerType) -> (Vec<u8>, Vec<u8>) {
+        let machine = conditional_immediate_machine(3_000, integer_type, [7, 9]);
+        let module = conditional_immediate_module(machine.id, vec![machine]);
+        let proof = ProofBundle {
+            evidence_producers: Vec::new(),
+            evidence: Vec::new(),
         };
+        (
+            psi_terminal_codec::encode_module(&module).unwrap(),
+            psi_terminal_codec::encode_proof_bundle(&proof).unwrap(),
+        )
+    }
+
+    fn disconnected_conditional_artifact() -> (Vec<u8>, Vec<u8>) {
+        let integer_type = IntegerType::new(IntegerSign::Unsigned, 64).unwrap();
+        let entry = conditional_immediate_machine(16_000, integer_type, [7, 9]);
+        let detached = conditional_immediate_machine(17_000, integer_type, [11, 13]);
+        let module = conditional_immediate_module(entry.id, vec![entry, detached]);
         let proof = ProofBundle {
             evidence_producers: Vec::new(),
             evidence: Vec::new(),
@@ -7329,6 +7360,223 @@ mod tests {
             .collect::<BTreeSet<_>>()
             .into_iter()
             .collect()
+    }
+
+    #[test]
+    fn disconnected_functions_reach_independent_allocator_and_machine_custody() {
+        let expected_machines = [
+            MachineId::new(16_001).unwrap(),
+            MachineId::new(17_001).unwrap(),
+        ];
+        for target in [NativeTarget::linux_x64(), NativeTarget::linux_arm64()] {
+            let (semantic, proof) = disconnected_conditional_artifact();
+            let optimized = optimize_artifact_sections(
+                &semantic,
+                &proof,
+                &AdmissionProfile::default(),
+                request(OptimizationSelections::new([Optimization::CopyPropagation]).unwrap()),
+            )
+            .unwrap();
+            let target =
+                omega_lowering_optimizer::lower_optimized_to_target_operations(optimized, target)
+                    .unwrap();
+            let selected = stage_optimized_instruction_selection(target).unwrap();
+
+            assert_eq!(selected.selected().plan().functions.len(), 2);
+            assert_eq!(
+                selected
+                    .selected()
+                    .plan()
+                    .functions
+                    .iter()
+                    .map(|function| function.machine)
+                    .collect::<Vec<_>>(),
+                expected_machines
+            );
+            for function in &selected.selected().plan().functions {
+                assert_eq!(
+                    function
+                        .virtual_registers
+                        .iter()
+                        .map(|register| register.id.0)
+                        .collect::<Vec<_>>(),
+                    vec![0, 1, 2]
+                );
+                assert_eq!(
+                    function
+                        .blocks
+                        .iter()
+                        .map(|block| block.id.0)
+                        .collect::<Vec<_>>(),
+                    vec![0, 1, 2]
+                );
+            }
+
+            let liveness = stage_optimized_liveness(selected).unwrap();
+            assert_eq!(liveness.custody().function_count(), 2);
+            assert_eq!(liveness.custody().block_count(), 6);
+            assert_eq!(liveness.custody().virtual_register_count(), 6);
+            assert_eq!(liveness.custody().instruction_count(), 12);
+            assert_eq!(liveness.custody().successor_count(), 4);
+            for (function, machine) in liveness
+                .liveness()
+                .plan()
+                .functions
+                .iter()
+                .zip(expected_machines)
+            {
+                assert_eq!(function.machine, machine);
+                assert_eq!(
+                    function
+                        .blocks
+                        .iter()
+                        .flat_map(|block| &block.instructions)
+                        .map(|instruction| instruction.position.0)
+                        .collect::<Vec<_>>(),
+                    (0..6).collect::<Vec<_>>()
+                );
+            }
+            let mut corrupted_liveness = liveness.liveness().plan().clone();
+            corrupted_liveness.functions[1].machine = expected_machines[0];
+            assert_eq!(
+                validate_terminal_liveness(
+                    liveness.selected_stage().selected(),
+                    corrupted_liveness,
+                ),
+                Err(TerminalLivenessError::FunctionMismatch { function: 1 })
+            );
+
+            let ranges = stage_optimized_live_ranges(liveness).unwrap();
+            assert_eq!(ranges.custody().function_count(), 2);
+            assert_eq!(ranges.custody().block_count(), 6);
+            assert_eq!(ranges.custody().virtual_register_count(), 6);
+            assert_eq!(ranges.custody().interference_count(), 0);
+            for (function, machine) in ranges
+                .ranges()
+                .plan()
+                .functions
+                .iter()
+                .zip(expected_machines)
+            {
+                assert_eq!(function.machine, machine);
+                assert_eq!(
+                    function
+                        .block_domains
+                        .iter()
+                        .map(|domain| (domain.block.0, domain.start.0, domain.end.0))
+                        .collect::<Vec<_>>(),
+                    vec![(0, 0, 4), (1, 4, 8), (2, 8, 12)]
+                );
+                assert!(function.interference.is_empty());
+            }
+            let mut corrupted_ranges = ranges.ranges().plan().clone();
+            corrupted_ranges.functions[1].machine = expected_machines[0];
+            assert!(
+                validate_terminal_live_ranges(
+                    ranges.liveness_stage().selected_stage().selected(),
+                    ranges.liveness_stage().liveness(),
+                    corrupted_ranges,
+                )
+                .is_err()
+            );
+
+            let legality = stage_optimized_allocation_legality(ranges).unwrap();
+            assert_eq!(legality.custody().function_count(), 2);
+            assert_eq!(legality.custody().virtual_register_count(), 6);
+            let range_stage = legality.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_legality = legality.legality().plan().clone();
+            corrupted_legality.functions[1].machine = expected_machines[0];
+            assert!(
+                validate_terminal_allocation_legality(
+                    range_stage.ranges(),
+                    legality.allocator_availability(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_legality,
+                )
+                .is_err()
+            );
+
+            let homes = stage_optimized_register_homes(legality).unwrap();
+            assert_eq!(homes.custody().function_count(), 2);
+            assert_eq!(homes.custody().assignment_count(), 6);
+            assert_eq!(
+                homes
+                    .homes()
+                    .plan()
+                    .functions
+                    .iter()
+                    .map(|function| function.machine)
+                    .collect::<Vec<_>>(),
+                expected_machines
+            );
+            assert_eq!(
+                homes.homes().plan().functions[0].assignments,
+                homes.homes().plan().functions[1].assignments
+            );
+            let legality_stage = homes.legality_stage();
+            let range_stage = legality_stage.live_range_stage();
+            let environment = range_stage
+                .liveness_stage()
+                .selected_stage()
+                .register_environment();
+            let mut corrupted_homes = homes.homes().plan().clone();
+            corrupted_homes.functions[1].machine = expected_machines[0];
+            assert!(
+                validate_terminal_register_homes(
+                    legality_stage.legality(),
+                    range_stage.ranges(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    environment.reservations(),
+                    environment.allocation_constraint_keys(),
+                    corrupted_homes,
+                )
+                .is_err()
+            );
+
+            let post = stage_optimized_post_allocation_machine_plan(&homes).unwrap();
+            assert_eq!(post.custody().instruction_count(), 12);
+            assert_eq!(post.machine().plan().functions.len(), 2);
+            assert_eq!(
+                post.machine()
+                    .plan()
+                    .functions
+                    .iter()
+                    .map(|function| function.machine)
+                    .collect::<Vec<_>>(),
+                expected_machines
+            );
+            let mut corrupted_post = post.machine().plan().clone();
+            corrupted_post.functions[1].machine = expected_machines[0];
+            let legality_stage = homes.legality_stage();
+            let range_stage = legality_stage.live_range_stage();
+            let selected_stage = range_stage.liveness_stage().selected_stage();
+            let environment = selected_stage.register_environment();
+            assert!(
+                omega_machine_optimizer::validate_terminal_post_allocation_machine_plan(
+                    selected_stage.selected(),
+                    post.effects().effects(),
+                    range_stage.ranges(),
+                    legality_stage.legality(),
+                    homes.homes(),
+                    homes.post_allocation_manifest(),
+                    environment.identity(),
+                    environment.physical(),
+                    environment.constraints(),
+                    corrupted_post,
+                )
+                .is_err()
+            );
+        }
     }
 
     #[test]
