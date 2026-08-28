@@ -338,11 +338,27 @@ occurrences, bind the selected/choice/range/legality/environment/unit/fuel roots
 plus explicit work budget and usage, and compare the entire classification.
 The versioned codec again decodes only to an unchecked plain plan.
 
-This classification grants no authority to choose a strategy, move or
+This classification alone grants no authority to choose a strategy, move or
 duplicate the original semantic instruction, add a native reconstruction,
-change logical-fuel placement, allocate private storage, or emit code.
+change logical-fuel placement, allocate private storage, or emit code. The
+first exact consumer is
+`SelectedActiveResidentImmediateU64BeforeSingleFutureFlexibleUseV1`. It admits
+only an active-resident literal with one local unconnected range, exactly one
+later same-block flexible use, and no later fixed use. The original
+`MaterializeI64`, operation provenance, and logical fuel remain unchanged for
+the already-executed segment. Immediately before the sole future use, the
+transform inserts one deterministic fresh VReg and `MaterializeI64`, rewrites
+only that operand, and gives the new instruction zero logical fuel plus only
+the original source-value lineage—never operation, edge, or obligation
+custody. Its strict v1 recipe codec roots the sealed selected analysis,
+spill-choice/classification evidence, availability, environment, budget, and
+transformed identity. A structurally independent validator replays the recipe;
+fresh liveness, ranges, interference, legality, and home assignment prove the
+admitted two-view pressure point closes. The bounded API performs no implicit
+loop and grants no memory spill, stack, frame, emission, or general
+rematerialization authority.
 
-The first transformations consuming that evidence are the separately named
+Other exact transformations consuming that evidence are the separately named
 `SelectedIncomingU12ExactAddImmediateV1` and
 `SelectedIncomingU12ExactSubtractImmediateV1` policies. They are intentionally
 not generic literal sinks or rematerializers. In the production pressure case
@@ -1295,12 +1311,16 @@ obligation fact. Independent replay reconstructs the operation, identity kind,
 integer types, literal definition and fact, active obligation reference,
 accepted row, substitution, accounting, output, provenance, and fuel. The
 active obligation reference is removed with the operation while the accepted
-catalog remains immutable history. Candidate v22, optimization-unit content
-identity v10, the named v2 pass, prephysical manifest v15, and optimized-plan
-projection validation v16 bind the current meaning; ledger v4 already
-represents the relocation. Runtime policy events, other live proof-bearing
-identities, and physical checks not represented by these exact Psi contracts
-remain open.
+catalog remains immutable history. The third rule,
+`live-proof-certified-integer-divide-by-one-elimination.v1`, admits only
+`x / 1 -> x` for exact, wrapping, and saturating integer division. It requires
+the direct typed literal-one fact and the exact accepted-obligation identity;
+absence declines the candidate, while mismatched or corrupted evidence fails
+independent validation. Candidate v23, optimization-unit content identity v10,
+the named v3 pass, prephysical manifest v16, and optimized-plan projection
+validation v17 bind the current meaning; ledger v4 already represents the
+relocation. Runtime policy events, other live proof-bearing identities, and
+physical checks not represented by these exact Psi contracts remain open.
 
 Baseline choice lives in `omega-optimization-policy`, outside rule and
 validator crates. The pass manager first obtains independently constructed
@@ -1824,16 +1844,19 @@ validator reconstructs it from the retained inputs.
 The symbolic rule owns no displacement, byte layout, or emission authority.
 The AArch64 ISA owner separately encodes and independently decodes the exact
 64-bit `CBNZ` imm19 form, reporting the qualified X-register read and PC
-use/definition without inventing an NZCV dependency. Current orchestration
-retains the symbolic completion alone or after selected lowering and rejects
-publication. Explicit sibling realization APIs now thread that custody through
-layout-independent encoding and resolved layout. The compare remains in the
+use/definition without inventing an NZCV dependency. Direct and selected-
+lowering physical-pipeline routes now return owning function-relative
+realization carriers instead of symbolic sidecars. Each carrier retains homes,
+selected machine, symbolic fusion, baseline and fused encoding/layout roots,
+and CBNZ-aware whole-function exit custody. The compare remains in the
 instruction roster as a zero-byte row; the fused branch is target-encoded and
 independently decoded as `CBNZ`; source-register, successor, PC, and absent-NZCV
-effects are replayed; and the function shrinks by exactly four bytes.
-Pre-layout identity v3 and resolved-layout identity v2 bind the full/phase
-selection custody and symbolic dispositions. Emission, relocation, image, and
-publication remain later boundaries.
+effects are replayed; and the function shrinks by exactly four bytes. The
+function-relative manifest/codec v4 binds the exact post-allocation selection,
+baseline/final pre-layout identities, optional fusion identity, and both
+resolved layouts; whole-function exit identity v3 independently admits only
+the exact elided-compare custody. Emission, relocation, image, installation,
+and publication remain later boundaries.
 
 The next boundary is implemented for layout-independent scalar forms in each
 clean ISA owner's `selected_form_encoding` module. Physical `RegisterViewId`s
