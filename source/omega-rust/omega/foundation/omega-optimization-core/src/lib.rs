@@ -20,6 +20,7 @@ pub use contracts::{
 };
 pub use identities::{
     AcceptedObligationFactIdentity, DuplicateOptimizationRuleIdentity,
+    FunctionFragmentEmissionManifestIdentity,
     FunctionRelativeOptimizationRealizationManifestIdentity, IdentityBundleDecodeError,
     IdentityDecodeError, OptimizationCandidateIdentity, OptimizationDecisionIdentity,
     OptimizationDecisionLogIdentity, OptimizationDecisionSchemaIdentity,
@@ -30,7 +31,7 @@ pub use identities::{
     OwnershipFrontierFactIdentity, PostAllocationOptimizationManifestIdentity,
     PrePhysicalOptimizationManifestIdentity, ScalarConstantFactIdentity,
     SelectedLoweringOptimizationCompletionIdentity, TargetCostModelIdentity,
-    TransformationLedgerIdentity,
+    TerminalFunctionFragmentEmissionIdentity, TransformationLedgerIdentity,
 };
 pub use manifest::{
     InvalidOptimizationManifestRecord, OptimizationDecisionRecord, OptimizationFactReference,
