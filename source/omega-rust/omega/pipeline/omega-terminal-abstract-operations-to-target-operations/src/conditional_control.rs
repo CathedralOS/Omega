@@ -69,6 +69,9 @@ fn lower_boolean_arm(
     structural_parameters: &[TerminalTargetStructuralParameter],
     structural_types: &BTreeMap<StructuralTypeId, &StructuralTypeDeclaration>,
 ) -> Result<LoweredBooleanArm, LoweringError> {
+    // Verified trivial-affine root discards carry no target operation; their
+    // ownership effect was discharged before this physical projection.
+    let _ = &successor.trivial_affine_discards;
     let mut values = values.clone();
     bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
     let mut lowered = lower_boolean_block(
@@ -158,7 +161,9 @@ pub(super) fn lower_boolean_block(
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => {
+            let _ = trivial_affine_discards;
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
             let mut lowered = lower_boolean_block(
                 function,
@@ -451,6 +456,8 @@ fn lower_conditional_arm(
     target: NativeTarget,
     functions: &BTreeMap<MachineId, &TerminalAbstractFunction>,
 ) -> Result<LoweredConditionalArm, LoweringError> {
+    // See `lower_boolean_arm`: this is an explicit verified no-code erasure.
+    let _ = &successor.trivial_affine_discards;
     let mut values = values.clone();
     bind_conditional_values(&mut values, &successor.bindings, successor.psi_edge)?;
     let mut lowered = lower_conditional_block(
@@ -538,7 +545,9 @@ fn lower_conditional_block(
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => {
+            let _ = trivial_affine_discards;
             bind_conditional_values(&mut values, bindings, *psi_edge)?;
             let mut lowered = lower_conditional_block(
                 function,

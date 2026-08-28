@@ -2078,7 +2078,7 @@ fn lower_machine(
                 edge,
                 target,
                 arguments,
-                ..
+                trivial_affine_discards,
             } => {
                 let target_block =
                     blocks
@@ -2104,6 +2104,7 @@ fn lower_machine(
                             scalar_type: parameter.scalar_type,
                         })
                         .collect(),
+                    trivial_affine_discards: trivial_affine_discards.clone(),
                 });
             }
             Terminator::Conditional {
@@ -2136,6 +2137,7 @@ fn lower_machine(
                                 scalar_type: parameter.scalar_type,
                             })
                             .collect(),
+                        trivial_affine_discards: successor.trivial_affine_discards.clone(),
                     })
                 };
                 operations.push(TerminalAbstractOperation::Conditional {

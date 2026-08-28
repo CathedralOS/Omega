@@ -153,6 +153,16 @@ pub enum OptimizationUnitValidationError {
         block: BlockId,
         node: u32,
     },
+    StructuralEdgeAffineDiscardsMismatch {
+        machine: MachineId,
+        edge: EdgeId,
+    },
+    StructuralReturnHiddenLocalCustodyMismatch {
+        machine: MachineId,
+        block: BlockId,
+        node: u32,
+        operation: OperationId,
+    },
     StructuralCatalogMismatch {
         machine: Option<MachineId>,
     },
@@ -1361,6 +1371,7 @@ pub fn validate_psi_optimization_unit(
             &structural_domains,
         )?;
     }
+    validate_retained_ownership_authority(unit)?;
     for fact in &unit.ownership_frontier_facts {
         if unit
             .functions
@@ -1379,6 +1390,204 @@ pub fn validate_psi_optimization_unit(
     }
     validate_root_service_reach(unit, &machines, &boundary_machines, &services)?;
     Ok(())
+}
+
+/// Validate the bounded ownership authority retained by the current unit.
+///
+/// This intentionally does not replay the current CFG ownership automaton.
+/// It binds authored edge cleanup and compressed hidden establishments to the
+/// immutable source-site entry/exit transitions that remain in the unit.
+fn validate_retained_ownership_authority(
+    unit: &PsiOptimizationUnit,
+) -> Result<(), OptimizationUnitValidationError> {
+    if unit.ownership_frontier_facts.is_empty() {
+        // Bare reconstruction seeds have no verifier authority to replay.
+        return Ok(());
+    }
+    let frontiers = unit
+        .ownership_frontier_facts
+        .iter()
+        .map(|fact| ((fact.machine, fact.site), &fact.snapshot))
+        .collect::<BTreeMap<_, _>>();
+
+    for function in &unit.functions {
+        for block in &function.blocks {
+            for (node_index, node) in block.nodes.iter().enumerate() {
+                let node_index = u32::try_from(node_index).expect("unit node index fits u32");
+                for edge in &node.successors {
+                    for (source_index, source) in edge.provenance.iter().enumerate() {
+                        let PsiProvenance::Edge(source) = source else {
+                            return Err(
+                                OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                                    machine: function.machine,
+                                    edge: edge.psi_edge,
+                                },
+                            );
+                        };
+                        let Some(entry) = frontiers
+                            .get(&(function.machine, OwnershipFrontierSite::EdgeEntry(*source)))
+                        else {
+                            return Err(
+                                OptimizationUnitValidationError::MissingStructuralEdgeFrontier {
+                                    machine: function.machine,
+                                    edge: *source,
+                                },
+                            );
+                        };
+                        let Some(exit) = frontiers
+                            .get(&(function.machine, OwnershipFrontierSite::EdgeExit(*source)))
+                        else {
+                            return Err(
+                                OptimizationUnitValidationError::MissingStructuralEdgeFrontier {
+                                    machine: function.machine,
+                                    edge: *source,
+                                },
+                            );
+                        };
+                        let discards = if source_index == 0 {
+                            edge.trivial_affine_discards.as_slice()
+                        } else {
+                            // Every implemented edge-combining rewrite fences
+                            // nonempty inherited cleanup work.
+                            &[]
+                        };
+                        if !valid_edge_affine_transition(function, entry, exit, discards) {
+                            return Err(
+                                OptimizationUnitValidationError::StructuralEdgeAffineDiscardsMismatch {
+                                    machine: function.machine,
+                                    edge: edge.psi_edge,
+                                },
+                            );
+                        }
+                    }
+                }
+
+                let O::ReturnStructural {
+                    trivial_affine_locals,
+                    ..
+                } = &node.operation
+                else {
+                    continue;
+                };
+                for (operation, place, _) in trivial_affine_locals {
+                    let mismatch = || {
+                        OptimizationUnitValidationError::StructuralReturnHiddenLocalCustodyMismatch {
+                            machine: function.machine,
+                            block: block.id,
+                            node: node_index,
+                            operation: *operation,
+                        }
+                    };
+                    let entry = frontiers
+                        .get(&(
+                            function.machine,
+                            OwnershipFrontierSite::OperationEntry(*operation),
+                        ))
+                        .ok_or_else(mismatch)?;
+                    let exit = frontiers
+                        .get(&(
+                            function.machine,
+                            OwnershipFrontierSite::OperationExit(*operation),
+                        ))
+                        .ok_or_else(mismatch)?;
+                    if !valid_hidden_affine_establishment(entry, exit, place.id) {
+                        return Err(mismatch());
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn valid_edge_affine_transition(
+    function: &PsiOptimizationFunction,
+    entry: &OwnershipFrontierSnapshot,
+    exit: &OwnershipFrontierSnapshot,
+    discards: &[PlaceId],
+) -> bool {
+    if entry.claims != exit.claims || entry.partial_custody != exit.partial_custody {
+        return false;
+    }
+    let live = entry
+        .owned_places
+        .iter()
+        .map(|owned| owned.place)
+        .collect::<BTreeSet<_>>();
+    let mut eligible = function
+        .structural_places
+        .iter()
+        .filter_map(|place| match place.kind {
+            StructuralPlaceKind::TrivialAffineLocal {
+                declaration_ordinal,
+                ..
+            } if live.contains(&place.id) => Some((declaration_ordinal, place.id)),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    eligible.sort_by_key(|(ordinal, _)| std::cmp::Reverse(*ordinal));
+    let mut eligible = eligible
+        .into_iter()
+        .map(|(_, place)| place)
+        .collect::<Vec<_>>();
+    eligible.extend(
+        function
+            .structural_parameters
+            .iter()
+            .rev()
+            .filter_map(|parameter| {
+                (parameter.multiplicity == psi_terminal::StructuralMultiplicity::Affine
+                    && live.contains(&parameter.place)
+                    && !entry
+                        .claims
+                        .iter()
+                        .any(|claim| claim.input == Some(parameter.place))
+                    && !function
+                        .content_entry_claims
+                        .iter()
+                        .any(|claim| claim.input.root == parameter.place))
+                .then_some(parameter.place)
+            }),
+    );
+    let mut next = 0;
+    for eligible_place in eligible {
+        if discards.get(next) == Some(&eligible_place) {
+            next += 1;
+        }
+    }
+    if next != discards.len() {
+        return false;
+    }
+    let discard_set = discards.iter().copied().collect::<BTreeSet<_>>();
+    if discard_set.len() != discards.len() {
+        return false;
+    }
+    let expected_exit = entry
+        .owned_places
+        .iter()
+        .filter(|owned| !discard_set.contains(&owned.place))
+        .copied()
+        .collect::<Vec<_>>();
+    expected_exit == exit.owned_places
+}
+
+fn valid_hidden_affine_establishment(
+    entry: &OwnershipFrontierSnapshot,
+    exit: &OwnershipFrontierSnapshot,
+    place: PlaceId,
+) -> bool {
+    let mut expected_owned = entry.owned_places.clone();
+    if expected_owned.iter().any(|owned| owned.place == place) {
+        return false;
+    }
+    expected_owned.push(OwnershipFrontierOwnedPlace {
+        place,
+        multiplicity: psi_terminal::StructuralMultiplicity::Affine,
+    });
+    expected_owned.sort_by_key(|owned| owned.place);
+    entry.claims == exit.claims
+        && entry.partial_custody == exit.partial_custody
+        && expected_owned == exit.owned_places
 }
 
 fn index_service_catalog(
@@ -3090,6 +3299,7 @@ pub fn validate_constant_conditional_candidate(
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),
+        trivial_affine_discards: selected.trivial_affine_discards.clone(),
     };
     output_node.definitions.clear();
     output_node.uses = selected
@@ -3105,6 +3315,7 @@ pub fn validate_constant_conditional_candidate(
         psi_edge: selected.psi_edge,
         target: selected.target,
         bindings: selected.bindings.clone(),
+        trivial_affine_discards: selected.trivial_affine_discards.clone(),
         provenance: vec![PsiProvenance::Edge(selected.psi_edge)],
         fuel: selected_fuel,
     }];
@@ -3364,6 +3575,7 @@ pub fn validate_linear_empty_block_candidate(
         psi_edge: outgoing_edge,
         target,
         bindings: outgoing_bindings,
+        trivial_affine_discards: outgoing_discards,
     } = &empty_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
@@ -3413,11 +3625,14 @@ pub fn validate_linear_empty_block_candidate(
         psi_edge: incoming_edge,
         target: predecessor_target,
         bindings: incoming_bindings,
+        trivial_affine_discards: incoming_discards,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if predecessor_location != patch.predecessor
+    if !incoming_discards.is_empty()
+        || !outgoing_discards.is_empty()
+        || predecessor_location != patch.predecessor
         || *incoming_edge != patch.incoming_edge
         || *predecessor_target != patch.empty.block
     {
@@ -3501,6 +3716,7 @@ pub fn validate_linear_empty_block_candidate(
         psi_edge: patch.incoming_edge,
         target: patch.target,
         bindings: composed_bindings,
+        trivial_affine_discards: Vec::new(),
     };
     output_predecessor.definitions = expected_definitions(
         &output_predecessor.operation,
@@ -3627,11 +3843,15 @@ pub fn validate_path_qualified_empty_block_candidate(
         psi_edge: outgoing_edge,
         target,
         bindings: outgoing_bindings,
+        trivial_affine_discards: outgoing_discards,
     } = &empty_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if *outgoing_edge != patch.outgoing_edge || *target != patch.target {
+    if !outgoing_discards.is_empty()
+        || *outgoing_edge != patch.outgoing_edge
+        || *target != patch.target
+    {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     if empty_block.parameters.iter().any(|parameter| {
@@ -3654,6 +3874,9 @@ pub fn validate_path_qualified_empty_block_candidate(
                 .iter()
                 .filter(|edge| edge.target == patch.empty.block)
             {
+                if !edge.trivial_affine_discards.is_empty() {
+                    return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
+                }
                 let composed = reconstruct_linear_thread_bindings(
                     &empty_block.parameters,
                     &edge.bindings,
@@ -3882,11 +4105,15 @@ pub fn validate_adjacent_block_merge_candidate(
         psi_edge,
         target: jump_target,
         bindings,
+        trivial_affine_discards,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if *psi_edge != patch.incoming_edge || *jump_target != patch.target {
+    if !trivial_affine_discards.is_empty()
+        || *psi_edge != patch.incoming_edge
+        || *jump_target != patch.target
+    {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let incoming = function
@@ -4113,11 +4340,15 @@ pub fn validate_non_adjacent_block_merge_candidate(
         psi_edge,
         target: jump_target,
         bindings,
+        trivial_affine_discards,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if *psi_edge != patch.incoming_edge || *jump_target != patch.target {
+    if !trivial_affine_discards.is_empty()
+        || *psi_edge != patch.incoming_edge
+        || *jump_target != patch.target
+    {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let incoming = function
@@ -4346,11 +4577,15 @@ pub fn validate_shared_terminal_jump_fusion_candidate(
         psi_edge,
         target: jump_target,
         bindings,
+        trivial_affine_discards,
     } = &predecessor_node.operation
     else {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     };
-    if *psi_edge != patch.incoming_edge || *jump_target != patch.target {
+    if !trivial_affine_discards.is_empty()
+        || *psi_edge != patch.incoming_edge
+        || *jump_target != patch.target
+    {
         return Err(OptimizationUnitValidationError::CandidatePatchMismatch);
     }
     let target = function
@@ -7738,6 +7973,7 @@ fn rewrite_successor_operation(
             psi_edge,
             target: operation_target,
             bindings: operation_bindings,
+            ..
         } if *psi_edge == edge => {
             *operation_target = target;
             *operation_bindings = bindings.to_vec();
@@ -9588,10 +9824,12 @@ fn validator_scalar_operation_successors(
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => vec![OptimizationEdge {
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![omega_optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -9608,6 +9846,7 @@ fn validator_scalar_operation_successors(
                 psi_edge: successor.psi_edge,
                 target: successor.target,
                 bindings: successor.bindings.clone(),
+                trivial_affine_discards: successor.trivial_affine_discards.clone(),
                 provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
                 fuel: vec![omega_optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(successor.psi_edge),
@@ -11049,6 +11288,7 @@ fn validate_trivial_affine_local_witnesses(
         .blocks
         .iter()
         .flat_map(|block| &block.nodes)
+        .filter(|node| !matches!(node.operation, O::ReturnStructural { .. }))
         .flat_map(|node| expected_provenance(&node.operation))
         .filter_map(|site| match site {
             PsiProvenance::Operation(operation) => Some(operation),
@@ -14088,10 +14328,25 @@ fn expected_provenance(
     use omega_terminal_abstract_operations::TerminalAbstractOperation as O;
     match operation {
         O::Jump { .. } | O::Conditional { .. } => Vec::new(),
-        O::Return { psi_edge, .. }
-        | O::ReturnUnit { psi_edge, .. }
-        | O::ReturnStructural { psi_edge, .. }
-        | O::Crash { psi_edge, .. } => vec![PsiProvenance::Edge(*psi_edge)],
+        O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
+            vec![PsiProvenance::Edge(*psi_edge)]
+        }
+        O::ReturnStructural {
+            psi_edge,
+            trivial_affine_locals,
+            ..
+        } => {
+            // This is deliberately primary-site-first custody order rather
+            // than execution order. The return edge anchors the node; hidden
+            // establishments follow in their exact tuple order.
+            std::iter::once(PsiProvenance::Edge(*psi_edge))
+                .chain(
+                    trivial_affine_locals
+                        .iter()
+                        .map(|(operation, _, _)| PsiProvenance::Operation(*operation)),
+                )
+                .collect()
+        }
         O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -14161,6 +14416,7 @@ fn successors_match_operation(
             actual.psi_edge == expected.psi_edge
                 && actual.target == expected.target
                 && actual.bindings == expected.bindings
+                && actual.trivial_affine_discards == expected.trivial_affine_discards
                 && actual.provenance.first() == Some(&PsiProvenance::Edge(actual.psi_edge))
                 && actual
                     .provenance
@@ -14178,10 +14434,12 @@ fn expected_edges(
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => vec![OptimizationEdge {
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![omega_optimization_unit::FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -14198,6 +14456,7 @@ fn expected_edges(
                 psi_edge: edge.psi_edge,
                 target: edge.target,
                 bindings: edge.bindings.clone(),
+                trivial_affine_discards: edge.trivial_affine_discards.clone(),
                 provenance: vec![PsiProvenance::Edge(edge.psi_edge)],
                 fuel: vec![omega_optimization_unit::FuelSettlement {
                     site: PsiProvenance::Edge(edge.psi_edge),
@@ -15739,6 +15998,7 @@ mod tests {
             psi_edge: id(4_610, EdgeId::new),
             target: use_block,
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         unit.functions[0].entry = producer;
         unit.functions[0].blocks = vec![
@@ -15780,11 +16040,13 @@ mod tests {
                 psi_edge: id(4_616, EdgeId::new),
                 target: producer,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
             when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
                 psi_edge: id(4_617, EdgeId::new),
                 target: use_block,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         };
         let mut producer_return = returned.clone();
@@ -15838,17 +16100,20 @@ mod tests {
                 psi_edge: id(4_636, EdgeId::new),
                 target: producer,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
             when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
                 psi_edge: id(4_637, EdgeId::new),
                 target: bypass,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         };
         let jump = |edge| TerminalAbstractOperation::Jump {
             psi_edge: id(edge, EdgeId::new),
             target: join,
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         let mut producer_jump = returned.clone();
         producer_jump.operation = jump(4_638);
@@ -15893,6 +16158,7 @@ mod tests {
             psi_edge: id(4_641, EdgeId::new),
             target: cleanup,
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         unit.functions[0].blocks = vec![
             omega_optimization_unit::OptimizationBlock {
@@ -15947,11 +16213,13 @@ mod tests {
                 psi_edge: id(4_625, EdgeId::new),
                 target: producer,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
             when_false: omega_terminal_abstract_operations::TerminalAbstractSuccessor {
                 psi_edge: id(4_626, EdgeId::new),
                 target: cleanup,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         };
         let mut producer_return = returned.clone();
@@ -16066,6 +16334,7 @@ mod tests {
             psi_edge: edge,
             target: join,
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         let conditional = || TerminalAbstractOperation::Conditional {
             condition,
@@ -16073,11 +16342,13 @@ mod tests {
                 psi_edge: id(383, EdgeId::new),
                 target: producer_block,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
             when_false: TerminalAbstractSuccessor {
                 psi_edge: id(384, EdgeId::new),
                 target: bypass_block,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         };
         let (block_entries, operations) = match shape {
@@ -16322,11 +16593,13 @@ mod tests {
                                 psi_edge: id(709, EdgeId::new),
                                 target: merge,
                                 bindings: vec![binding()],
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(710, EdgeId::new),
                                 target: merge,
                                 bindings: vec![binding()],
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::ExactIntegerAdd {
@@ -16721,6 +16994,34 @@ mod tests {
                 .all(|place| !compressed.functions[0].declared_places.contains(place)),
             "compressed no-ABI locals are not executable place roots"
         );
+        let node = &compressed.functions[0].blocks[0].nodes[0];
+        let O::ReturnStructural {
+            psi_edge,
+            trivial_affine_locals,
+            ..
+        } = &node.operation
+        else {
+            panic!("compressed fixture returns structurally")
+        };
+        let expected_custody = std::iter::once(PsiProvenance::Edge(*psi_edge))
+            .chain(
+                trivial_affine_locals
+                    .iter()
+                    .map(|(operation, _, _)| PsiProvenance::Operation(*operation)),
+            )
+            .collect::<Vec<_>>();
+        assert_eq!(node.provenance, expected_custody);
+        assert_eq!(
+            node.fuel
+                .iter()
+                .map(|settlement| (settlement.site, settlement.units))
+                .collect::<Vec<_>>(),
+            expected_custody
+                .iter()
+                .copied()
+                .map(|site| (site, 1))
+                .collect::<Vec<_>>()
+        );
         validate_psi_optimization_unit(&compressed)
             .expect("exact compressed local declarations and reverse cleanup validate");
         validate_psi_optimization_unit(&explicit_trivial_affine_return_unit())
@@ -16909,6 +17210,83 @@ mod tests {
                 ))
             )
         );
+    }
+
+    #[test]
+    fn retained_affine_authority_rejects_order_and_frontier_corruption() {
+        let unit = compressed_trivial_affine_return_unit();
+        let function = &unit.functions[0];
+        let owned = |place, multiplicity| OwnershipFrontierOwnedPlace {
+            place: id(place, PlaceId::new),
+            multiplicity,
+        };
+        let entry = OwnershipFrontierSnapshot {
+            claims: Vec::new(),
+            owned_places: vec![
+                owned(363, psi_terminal::StructuralMultiplicity::Linear),
+                owned(364, psi_terminal::StructuralMultiplicity::Affine),
+                owned(365, psi_terminal::StructuralMultiplicity::Affine),
+                owned(367, psi_terminal::StructuralMultiplicity::Affine),
+                owned(368, psi_terminal::StructuralMultiplicity::Affine),
+            ],
+            partial_custody: Vec::new(),
+        };
+        let exit = OwnershipFrontierSnapshot {
+            claims: Vec::new(),
+            owned_places: vec![owned(363, psi_terminal::StructuralMultiplicity::Linear)],
+            partial_custody: Vec::new(),
+        };
+        let exact_discards = [
+            id(368, PlaceId::new),
+            id(367, PlaceId::new),
+            id(365, PlaceId::new),
+            id(364, PlaceId::new),
+        ];
+        assert!(valid_edge_affine_transition(
+            function,
+            &entry,
+            &exit,
+            &exact_discards,
+        ));
+
+        let mut reordered = exact_discards;
+        reordered.swap(0, 1);
+        assert!(!valid_edge_affine_transition(
+            function, &entry, &exit, &reordered,
+        ));
+        assert!(!valid_edge_affine_transition(
+            function,
+            &entry,
+            &entry,
+            &exact_discards,
+        ));
+
+        let hidden_entry = OwnershipFrontierSnapshot {
+            claims: Vec::new(),
+            owned_places: vec![owned(363, psi_terminal::StructuralMultiplicity::Linear)],
+            partial_custody: Vec::new(),
+        };
+        let hidden_exit = OwnershipFrontierSnapshot {
+            claims: Vec::new(),
+            owned_places: vec![
+                owned(363, psi_terminal::StructuralMultiplicity::Linear),
+                owned(367, psi_terminal::StructuralMultiplicity::Affine),
+            ],
+            partial_custody: Vec::new(),
+        };
+        assert!(valid_hidden_affine_establishment(
+            &hidden_entry,
+            &hidden_exit,
+            id(367, PlaceId::new),
+        ));
+        let mut wrong_hidden_exit = hidden_exit;
+        wrong_hidden_exit.owned_places[1].multiplicity =
+            psi_terminal::StructuralMultiplicity::Unrestricted;
+        assert!(!valid_hidden_affine_establishment(
+            &hidden_entry,
+            &wrong_hidden_exit,
+            id(367, PlaceId::new),
+        ));
     }
 
     #[test]
@@ -20325,6 +20703,7 @@ mod tests {
             psi_edge: id(5, EdgeId::new),
             target: id(77, BlockId::new),
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         cfg.functions[0].blocks[0].nodes[1].successors =
             expected_edges(&cfg.functions[0].blocks[0].nodes[1].operation);
@@ -20375,6 +20754,7 @@ mod tests {
             psi_edge: id(5, EdgeId::new),
             target: block,
             bindings: Vec::new(),
+            trivial_affine_discards: Vec::new(),
         };
         let node = &mut cycle.functions[0].blocks[0].nodes[1];
         node.operation = operation;

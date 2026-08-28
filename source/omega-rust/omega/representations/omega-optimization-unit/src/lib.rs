@@ -113,6 +113,8 @@ pub struct OptimizationEdge {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<TerminalValueBinding>,
+    /// Exact ordered affine discard work executed on this edge.
+    pub trivial_affine_discards: Vec<PlaceId>,
     /// Ordered source custody charged only when this exact CFG edge is taken.
     /// The edge's own Psi identity is first; independently validated rewrites
     /// may append inherited edge sources that execute on the same path.
@@ -886,10 +888,26 @@ fn operation_node_provenance(operation: &TerminalAbstractOperation) -> Vec<PsiPr
     use TerminalAbstractOperation as O;
     let site = match operation {
         O::Jump { .. } | O::Conditional { .. } => return Vec::new(),
-        O::Return { psi_edge, .. }
-        | O::ReturnUnit { psi_edge, .. }
-        | O::ReturnStructural { psi_edge, .. }
-        | O::Crash { psi_edge, .. } => PsiProvenance::Edge(*psi_edge),
+        O::Return { psi_edge, .. } | O::ReturnUnit { psi_edge, .. } | O::Crash { psi_edge, .. } => {
+            PsiProvenance::Edge(*psi_edge)
+        }
+        O::ReturnStructural {
+            psi_edge,
+            trivial_affine_locals,
+            ..
+        } => {
+            // Provenance is custody order, not execution order: the terminal
+            // edge remains the primary realization site, followed by the
+            // compressed establishment operations in tuple order. Rewrites
+            // may append inherited custody only after this exact prefix.
+            return std::iter::once(PsiProvenance::Edge(*psi_edge))
+                .chain(
+                    trivial_affine_locals
+                        .iter()
+                        .map(|(operation, _, _)| PsiProvenance::Operation(*operation)),
+                )
+                .collect();
+        }
         O::EstablishPayloadlessCase { psi_operation, .. }
         | O::EstablishByteSequenceLiteral { psi_operation, .. }
         | O::EstablishTrivialAffineLocal { psi_operation, .. }
@@ -1139,10 +1157,12 @@ fn operation_edges(operation: &TerminalAbstractOperation) -> Vec<OptimizationEdg
             psi_edge,
             target,
             bindings,
+            trivial_affine_discards,
         } => vec![OptimizationEdge {
             psi_edge: *psi_edge,
             target: *target,
             bindings: bindings.clone(),
+            trivial_affine_discards: trivial_affine_discards.clone(),
             provenance: vec![PsiProvenance::Edge(*psi_edge)],
             fuel: vec![FuelSettlement {
                 site: PsiProvenance::Edge(*psi_edge),
@@ -1163,6 +1183,7 @@ fn successor_edge(successor: &TerminalAbstractSuccessor) -> OptimizationEdge {
         psi_edge: successor.psi_edge,
         target: successor.target,
         bindings: successor.bindings.clone(),
+        trivial_affine_discards: successor.trivial_affine_discards.clone(),
         provenance: vec![PsiProvenance::Edge(successor.psi_edge)],
         fuel: vec![FuelSettlement {
             site: PsiProvenance::Edge(successor.psi_edge),
@@ -1691,6 +1712,7 @@ mod tests {
                     argument: id(103, ValueId::new),
                     scalar_type,
                 }],
+                trivial_affine_discards: Vec::new(),
                 provenance: vec![PsiProvenance::Edge(id(101, EdgeId::new))],
                 fuel: vec![FuelSettlement {
                     site: PsiProvenance::Edge(id(101, EdgeId::new)),
@@ -1871,6 +1893,7 @@ mod tests {
                         scalar_type,
                     },
                 ],
+                trivial_affine_discards: Vec::new(),
             },
             TerminalAbstractOperation::Return {
                 psi_edge: id(61, EdgeId::new),

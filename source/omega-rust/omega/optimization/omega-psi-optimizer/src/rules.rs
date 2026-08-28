@@ -5175,6 +5175,7 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
                     psi_edge: outgoing_edge,
                     target,
                     bindings: outgoing_bindings,
+                    trivial_affine_discards: outgoing_discards,
                 } = &empty.nodes[0].operation
                 else {
                     continue;
@@ -5205,11 +5206,14 @@ impl PsiOptimizationRule for LinearEmptyBlockThreadRule {
                     psi_edge: incoming_edge,
                     target: predecessor_target,
                     bindings: incoming_bindings,
+                    trivial_affine_discards: incoming_discards,
                 } = &predecessor_node.operation
                 else {
                     continue;
                 };
-                if *predecessor_target != empty.id
+                if !incoming_discards.is_empty()
+                    || !outgoing_discards.is_empty()
+                    || *predecessor_target != empty.id
                     || empty.parameters.iter().any(|parameter| {
                         use_definitions.uses.iter().any(|(machine, use_site)| {
                             *machine == function.machine
@@ -5341,6 +5345,7 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
                     psi_edge: outgoing_edge,
                     target,
                     bindings: outgoing_bindings,
+                    trivial_affine_discards: outgoing_discards,
                 } = &empty.nodes[0].operation
                 else {
                     continue;
@@ -5361,8 +5366,12 @@ impl PsiOptimizationRule for PathQualifiedEmptyBlockThreadRule {
                             })
                     })
                     .collect::<Vec<_>>();
-                if incoming.is_empty()
+                if !outgoing_discards.is_empty()
+                    || incoming.is_empty()
                     || (incoming.len() == 1 && matches!(incoming[0].2.operation, O::Jump { .. }))
+                    || incoming
+                        .iter()
+                        .any(|(_, _, _, edge)| !edge.trivial_affine_discards.is_empty())
                     || empty.parameters.iter().any(|parameter| {
                         use_definitions.uses.iter().any(|(machine, use_site)| {
                             *machine == function.machine
@@ -5496,6 +5505,7 @@ impl PsiOptimizationRule for SharedTerminalJumpFusionRule {
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,
+                    trivial_affine_discards,
                 } = &predecessor_node.operation
                 else {
                     continue;
@@ -5507,7 +5517,8 @@ impl PsiOptimizationRule for SharedTerminalJumpFusionRule {
                 let [terminal] = target.nodes.as_slice() else {
                     continue;
                 };
-                if target.id == function.entry
+                if !trivial_affine_discards.is_empty()
+                    || target.id == function.entry
                     || !terminal.successors.is_empty()
                     || !matches!(terminal.provenance.first(), Some(PsiProvenance::Edge(_)))
                     || !matches!(
@@ -5693,11 +5704,13 @@ impl PsiOptimizationRule for AdjacentBlockMergeRule {
                     psi_edge: incoming_edge,
                     target: jump_target,
                     bindings,
+                    trivial_affine_discards,
                 } = &predecessor_node.operation
                 else {
                     continue;
                 };
-                if *jump_target != target.id
+                if !trivial_affine_discards.is_empty()
+                    || *jump_target != target.id
                     || function
                         .blocks
                         .iter()
@@ -5858,6 +5871,7 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                     psi_edge: incoming_edge,
                     target: target_id,
                     bindings,
+                    trivial_affine_discards,
                 } = &predecessor_node.operation
                 else {
                     continue;
@@ -5870,7 +5884,8 @@ impl PsiOptimizationRule for NonAdjacentBlockMergeRule {
                 else {
                     continue;
                 };
-                if target.id == function.entry
+                if !trivial_affine_discards.is_empty()
+                    || target.id == function.entry
                     || target_position == predecessor_position.saturating_add(1)
                     || !non_adjacent_merge_target_is_nonempty(target)
                     || !block_dominates(machine_dominators, predecessor.id, target.id)
@@ -9614,11 +9629,13 @@ pub(crate) mod tests {
                                 psi_edge: id(612, EdgeId::new),
                                 target: when_true,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(613, EdgeId::new),
                                 target: when_false,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::IntegerConstant {
@@ -9631,6 +9648,7 @@ pub(crate) mod tests {
                             psi_edge: id(615, EdgeId::new),
                             target: merge,
                             bindings: vec![binding(true_value)],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::IntegerConstant {
                             psi_operation: id(616, OperationId::new),
@@ -9642,6 +9660,7 @@ pub(crate) mod tests {
                             psi_edge: id(617, EdgeId::new),
                             target: merge,
                             bindings: vec![binding(false_value)],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::IntegerBitwiseNot {
                             psi_operation: id(618, OperationId::new),
@@ -9804,6 +9823,7 @@ pub(crate) mod tests {
                             psi_edge: id(911, EdgeId::new),
                             target: empty,
                             bindings: vec![binding(first, left), binding(second, right)],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(912, EdgeId::new),
@@ -9812,6 +9832,7 @@ pub(crate) mod tests {
                                 binding(target_first, second),
                                 binding(target_second, first),
                             ],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(913, EdgeId::new),
@@ -9889,27 +9910,32 @@ pub(crate) mod tests {
                                 psi_edge: id(931, EdgeId::new),
                                 target: left_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(932, EdgeId::new),
                                 target: right_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(933, EdgeId::new),
                             target: empty,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(934, EdgeId::new),
                             target: empty,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(935, EdgeId::new),
                             target,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(936, EdgeId::new),
@@ -9981,22 +10007,26 @@ pub(crate) mod tests {
                                 psi_edge: id(931, EdgeId::new),
                                 target: left_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(932, EdgeId::new),
                                 target: right_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(933, EdgeId::new),
                             target,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(934, EdgeId::new),
                             target,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::ReturnUnit {
                             psi_edge: id(936, EdgeId::new),
@@ -10351,6 +10381,7 @@ pub(crate) mod tests {
                             psi_edge: id(1_350, EdgeId::new),
                             target: dominated,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 }],
@@ -10455,6 +10486,7 @@ pub(crate) mod tests {
                             psi_edge: id(1_415, EdgeId::new),
                             target: join,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::IntegerBitwiseNot {
                             psi_operation: id(1_416, OperationId::new),
@@ -10474,17 +10506,20 @@ pub(crate) mod tests {
                                 psi_edge: id(1_418, EdgeId::new),
                                 target: left_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(1_419, EdgeId::new),
                                 target: right_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(1_420, EdgeId::new),
                             target: join,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 }],
@@ -10582,6 +10617,7 @@ pub(crate) mod tests {
                             psi_edge: id(1_453, EdgeId::new),
                             target: join,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Conditional {
                             condition,
@@ -10589,17 +10625,20 @@ pub(crate) mod tests {
                                 psi_edge: id(1_454, EdgeId::new),
                                 target: left_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(1_455, EdgeId::new),
                                 target: right_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::Jump {
                             psi_edge: id(1_456, EdgeId::new),
                             target: join,
                             bindings: Vec::new(),
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 }],
@@ -10828,6 +10867,7 @@ pub(crate) mod tests {
                                 argument: left_input,
                                 scalar_type: ScalarType::Integer(integer),
                             }],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Conditional {
                             condition,
@@ -10835,11 +10875,13 @@ pub(crate) mod tests {
                                 psi_edge: id(1_718, EdgeId::new),
                                 target: left_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(1_719, EdgeId::new),
                                 target: right_block,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         right_expression,
@@ -10851,6 +10893,7 @@ pub(crate) mod tests {
                                 argument: right_input,
                                 scalar_type: ScalarType::Integer(integer),
                             }],
+                            trivial_affine_discards: Vec::new(),
                         },
                     ],
                 }],
@@ -11019,6 +11062,7 @@ pub(crate) mod tests {
                                 argument: condition,
                                 scalar_type: ScalarType::Boolean,
                             }],
+                            trivial_affine_discards: Vec::new(),
                         },
                         TerminalAbstractOperation::Conditional {
                             condition: forwarded,
@@ -11026,11 +11070,13 @@ pub(crate) mod tests {
                                 psi_edge: id(1_111, EdgeId::new),
                                 target: left,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(1_112, EdgeId::new),
                                 target: right,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::ReturnUnit {
@@ -11069,11 +11115,13 @@ pub(crate) mod tests {
                 psi_edge: id(1_512, EdgeId::new),
                 target: predecessor,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
             when_false: TerminalAbstractSuccessor {
                 psi_edge: id(1_513, EdgeId::new),
                 target: sibling,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         };
         let descendant_operations = vec![
@@ -11101,6 +11149,7 @@ pub(crate) mod tests {
                 psi_edge: id(1_517, EdgeId::new),
                 target: descendant,
                 bindings: Vec::new(),
+                trivial_affine_discards: Vec::new(),
             },
         ];
         let sibling_operation = TerminalAbstractOperation::Return {
@@ -11124,6 +11173,7 @@ pub(crate) mod tests {
                     argument: predecessor_value,
                     scalar_type: ScalarType::Boolean,
                 }],
+                trivial_affine_discards: Vec::new(),
             },
         ];
 
@@ -11252,11 +11302,13 @@ pub(crate) mod tests {
                                 psi_edge: id(656, EdgeId::new),
                                 target: merge,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(657, EdgeId::new),
                                 target: merge,
                                 bindings: Vec::new(),
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::ReturnUnit {
@@ -11344,11 +11396,13 @@ pub(crate) mod tests {
                                 psi_edge: id(709, EdgeId::new),
                                 target: merge,
                                 bindings: vec![binding(shared)],
+                                trivial_affine_discards: Vec::new(),
                             },
                             when_false: TerminalAbstractSuccessor {
                                 psi_edge: id(710, EdgeId::new),
                                 target: merge,
                                 bindings: vec![binding(if redundant { shared } else { alternate })],
+                                trivial_affine_discards: Vec::new(),
                             },
                         },
                         TerminalAbstractOperation::ExactIntegerAdd {
@@ -18815,6 +18869,7 @@ pub(crate) mod tests {
             psi_edge,
             target,
             bindings,
+            ..
         } = &output.functions[0].blocks[0].nodes[0].operation
         else {
             unreachable!()

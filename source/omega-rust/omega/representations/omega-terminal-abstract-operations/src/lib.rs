@@ -457,6 +457,10 @@ pub enum TerminalAbstractOperation {
         psi_edge: EdgeId,
         target: BlockId,
         bindings: Vec<TerminalValueBinding>,
+        /// Exact Terminal-Psi edge cleanup order. These no-ABI affine
+        /// discards still participate in ownership semantics and therefore
+        /// cannot be reconstructed from the target block alone.
+        trivial_affine_discards: Vec<PlaceId>,
     },
     Conditional {
         condition: ValueId,
@@ -510,6 +514,8 @@ pub struct TerminalAbstractSuccessor {
     pub psi_edge: EdgeId,
     pub target: BlockId,
     pub bindings: Vec<TerminalValueBinding>,
+    /// Exact Terminal-Psi cleanup order for this conditional edge.
+    pub trivial_affine_discards: Vec<PlaceId>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
