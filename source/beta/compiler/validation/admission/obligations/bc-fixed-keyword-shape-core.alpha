@@ -309,13 +309,10 @@ fixed_keyword_require_memory:
 	load r21, r1
 	imm r2, 1
 	add r21, r2
-	imm r22, 1
-	imm r23, 8
-	imm r1, 530376
-	load r24, r1
-	imm r2, 29
-	add r24, r2
-	call transfer_require_memory
+	imm r1, 530416
+	load r25, r1
+	imm r26, 2097112             ; exact IDLEN address
+	call exact_memory_load_pc
 	ret
 
 fixed_keyword_require_primitives:
@@ -327,45 +324,23 @@ fixed_keyword_require_primitives:
 	add r21, r2
 	imm r22, 1
 	imm r23, 2097112             ; exact IDLEN address
-	imm r1, 530376
-	load r24, r1
-	imm r2, 19
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 3
 	imm r23, 10                  ; length full-word equality
-	imm r1, 530376
-	load r24, r1
-	imm r2, 58
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 1
 	imm r1, 530368
 	load r23, r1
-	imm r1, 530376
-	load r24, r1
-	imm r2, 48
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 1
 	imm r23, 0
-	imm r1, 530376
-	load r24, r1
-	imm r2, 136
-	add r24, r2
-	call transfer_require_primitive
+	call exact_primitive_identity_pc
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -393,69 +368,33 @@ fixed_keyword_primitive_char:
 	add r21, r30
 	imm r22, 1
 	mov r23, r30                 ; id_char index literal
-	imm r1, 530376
-	load r24, r1
-	imm r2, 166
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 3
 	imm r23, 10
-	imm r1, 530376
-	load r24, r1
-	imm r2, 243
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 1
 	imm r1, 530440
 	load r23, r1
 	add r23, r30
 	loadb r23, r23                ; exact spelling byte
-	imm r1, 530376
-	load r24, r1
-	imm r2, 233
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2
-	call transfer_require_primitive
-	mov r20, r25
+	call exact_primitive_identity_pc
 	imm r2, 1
 	add r20, r2
-	mov r21, r26
 	imm r22, 1
 	imm r23, 0
-	imm r1, 530376
-	load r24, r1
-	imm r2, 321
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2
-	call transfer_require_primitive
+	call exact_primitive_identity_pc
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_primitive_loop
 fixed_keyword_primitive_yes:
-	mov r21, r26
-	imm r2, 1
-	add r21, r2                  ; success block follows final character
+	imm r1, 530384
+	load r21, r1
+	imm r2, 2
+	add r21, r2
+	add r21, r30                 ; success block follows final character
 	imm r1, 530416
 	load r20, r1
 	mov r2, r30
@@ -466,15 +405,7 @@ fixed_keyword_primitive_yes:
 	add r20, r2
 	imm r22, 1
 	imm r23, 1                   ; full-match one literal
-	imm r1, 530376
-	load r24, r1
-	imm r2, 166
-	add r24, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r24, r2
-	call transfer_require_primitive
+	call exact_primitive_identity_pc
 	ret
 
 fixed_keyword_require_pushes:
@@ -484,11 +415,7 @@ fixed_keyword_require_pushes:
 	load r21, r1
 	imm r2, 1
 	add r21, r2
-	imm r1, 530376
-	load r23, r1
-	imm r2, 32
-	add r23, r2
-	call exact_require_binary_push
+	call exact_require_binary_push_identity
 	imm r1, 530448
 	imm r2, 0
 	store r1, r2
@@ -510,28 +437,13 @@ fixed_keyword_push_char:
 	imm r2, 1
 	add r20, r2
 	add r20, r30
-	imm r1, 530376
-	load r23, r1
-	imm r2, 217
-	add r23, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r23, r2
-	call exact_require_binary_push
-	mov r21, r26
+	mov r31, r21
+	call exact_require_binary_push_identity
+	mov r21, r31
 	imm r1, 530432
 	load r20, r1
 	add r20, r30
-	imm r1, 530376
-	load r23, r1
-	imm r2, 176
-	add r23, r2
-	mov r2, r30
-	imm r3, 185
-	mul r2, r3
-	add r23, r2
-	call exact_require_argument_push
+	call exact_require_argument_push_identity
 	call fixed_keyword_increment_loop
 	jmp fixed_keyword_push_loop
 

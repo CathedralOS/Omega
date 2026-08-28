@@ -20,77 +20,78 @@ expression_id_char_require_shape:
 
 expression_id_char_require_block:
         imm r20, 47
-        imm r21, 5634
-        call exact_require_block_pc
+        imm r21, 13
+        imm r22, 0                   ; id_char procedure entry
+        call exact_block_identity_pc
         imm r20, 47
         imm r21, 47
         imm r22, 13
         call exact_require_proc_blocks
 
-        imm r20, 37
+        imm r20, 13
         imm r21, 47
-        imm r22, 5
-        imm r23, 5825
-        call exact_require_event
-        imm r20, 5806
-        imm r21, 5825
-        call exact_require_epilogue
-        imm r20, 5826
-        imm r21, 5845
-        call exact_require_epilogue
+        call exact_require_event_epilogue
+        imm r20, 14                  ; next procedure identifies synthetic ret
+        call exact_require_preentry_epilogue
 
         imm r20, 33
         imm r21, 47
         imm r22, 1
         imm r23, 0
-        imm r24, 5762
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 21
         imm r21, 47
         imm r22, 1
         imm r23, 1
-        imm r24, 5803
-        call transfer_require_memory
+        call exact_memory_identity_pc
+        mov r39, r0
+        imm r20, 98
+        imm r21, 47
+        imm r22, 2
+        imm r23, 3
+        call exact_primitive_identity_pc
+        mov r38, r0
+        imm r20, 98
+        call exact_expr_primitive_extent
+        jeq r0, r38, expression_id_char_memory_start
+        jmp reject
+expression_id_char_memory_start:
+        jeq r1, r39, expression_id_char_memory_done
+        jmp reject
+expression_id_char_memory_done:
         imm r20, 22
         imm r21, 47
-        imm r22, 1
-        imm r23, 8
-        imm r24, 5721
-        call transfer_require_memory
+        imm r25, 97
+        imm r26, 2097120
+        call exact_memory_load_pc
 
         imm r20, 95
         imm r21, 47
         imm r22, 1
         imm r23, 2097152
-        imm r24, 5685
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 96
         imm r21, 47
         imm r22, 2
         imm r23, 3
-        imm r24, 5724
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 97
         imm r21, 47
         imm r22, 1
         imm r23, 2097120
-        imm r24, 5711
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 98
         imm r21, 47
         imm r22, 2
         imm r23, 3
-        imm r24, 5781
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
 
         imm r20, 27
         imm r21, 47
-        imm r23, 5695
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 28
         imm r21, 47
-        imm r23, 5746
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
 
         imm r20, 47
         imm r21, 47
@@ -114,8 +115,10 @@ expression_id_char_require_block:
         imm r28, 0
         imm r29, 0
         call summary_require_expr_census
-        imm r20, 5634
-        imm r21, 5846
+        imm r20, 13                  ; id_char procedure identity
+        call exact_proc_entry_r20
+        imm r21, 14                  ; is_let procedure identity / end
+        call exact_proc_entry_r21
         imm r22, 0
         imm r23, 2
         call skip_scan_call_region

@@ -27,17 +27,21 @@ statement_gen_to_require_proc:
 
 statement_gen_to_require_blocks:
         imm r20, 318
-        imm r21, 46098
-        call exact_require_block_pc
+        imm r21, 66
+        imm r22, 0
+        call exact_block_identity_pc
         imm r20, 319
-        imm r21, 46262
-        call exact_require_block_pc
+        imm r21, 66
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 320
-        imm r21, 46384
-        call exact_require_block_pc
+        imm r21, 66
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 321
-        imm r21, 46886
-        call exact_require_block_pc
+        imm r21, 66
+        imm r22, 1
+        call exact_block_identity_pc
         imm r20, 318
         imm r21, 321
         imm r22, 66
@@ -49,83 +53,86 @@ statement_gen_to_require_transitions:
         imm r21, 319
         imm r22, 1
         imm r23, 320
-        imm r24, 46356
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 259
         imm r21, 319
         imm r22, 0
         imm r23, 321
-        imm r24, 46375
-        call exact_require_transition
+        call exact_transition_identity_pc
         ret
 
-; r20=row,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+; r21=block,r22=arity,r23=target-procedure. The owning procedure and artifact
+; call/fallthrough coordinates are reconstructed from the complete event key.
 statement_gen_to_require_call:
+        mov r24, r23
+        imm r23, 0
+        imm r20, 66
+        call summary_require_call_fallthrough_identity
+        ret
+
+; r21=block,r22=arity,r23=target-procedure,r24=occurrence,r25=cardinality.
+statement_gen_to_require_nth_call:
         mov r26, r25
         mov r25, r24
-        imm r24, 0
-        call summary_require_call_site
+        mov r24, r23
+        imm r23, 0
+        imm r20, 66
+        call summary_require_nth_call_fallthrough_identity
         ret
 
+; r21=block,r22=literal bytes,r23=encoded length.
 statement_gen_to_require_emit:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r20, r30
-        mov r21, r31
-        imm r22, 4
-        mov r23, r32
-        call exact_require_event
-        mov r20, r32
-        imm r21, 31
-        mov r22, r32
-        imm r1, 9
-        add r22, r1
-        call exact_require_call
+        imm r20, 66
+        call exact_unique_emit_event_identity
+        mov r14, r0
+        mov r10, r1
+        call check_emit_at_call
         ret
 
+; r21=block,r22=literal bytes,r23=len,r24=occurrence,r25=cardinality.
+statement_gen_to_require_nth_emit:
+        imm r20, 66
+        call exact_nth_emit_event_identity
+        mov r14, r0
+        mov r10, r1
+        call check_emit_at_call
+        ret
+
+; r21=source block.
 statement_gen_to_require_return:
-        mov r23, r22
-        imm r22, 5
-        call exact_require_event
+        imm r20, 66
+        call exact_require_event_epilogue
         ret
 
 statement_gen_to_require_events:
         ; Entry/lookahead and classifier.
-        imm r20, 521
         imm r21, 318
-        imm r22, 46130
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 46139
-        call statement_gen_to_require_call
-        imm r20, 522
+        imm r22, 0
+        imm r23, 10                  ; skip_ws
+        imm r24, 0
+        imm r25, 2
+        call statement_gen_to_require_nth_call
         imm r21, 318
-        imm r22, 46139
-        imm r23, 0
-        imm r24, 5217
-        imm r25, 46148
-        call statement_gen_to_require_call
-        imm r20, 523
+        imm r22, 0
+        imm r23, 12                  ; read_ident
+        imm r24, 0
+        imm r25, 2
+        call statement_gen_to_require_nth_call
         imm r21, 318
-        imm r22, 46212
-        imm r23, 0
-        imm r24, 4277
-        imm r25, 46221
-        call statement_gen_to_require_call
-        imm r20, 524
+        imm r22, 0
+        imm r23, 10                  ; skip_ws
+        imm r24, 1
+        imm r25, 2
+        call statement_gen_to_require_nth_call
         imm r21, 318
-        imm r22, 46253
-        imm r23, 0
-        imm r24, 5217
-        imm r25, 46262
-        call statement_gen_to_require_call
-        imm r20, 525
+        imm r22, 0
+        imm r23, 12                  ; read_ident
+        imm r24, 1
+        imm r25, 2
+        call statement_gen_to_require_nth_call
         imm r21, 319
-        imm r22, 46262
-        imm r23, 0
-        imm r24, 9670
-        imm r25, 46271
+        imm r22, 0
+        imm r23, 18                  ; is_when
         call statement_gen_to_require_call
         call statement_gen_to_require_guarded_events
         call statement_gen_to_require_plain_events
@@ -133,100 +140,79 @@ statement_gen_to_require_events:
         ret
 
 statement_gen_to_require_guarded_events:
-        imm r20, 526
         imm r21, 320
-        imm r22, 46384
-        imm r23, 0
-        imm r24, 61                    ; gen_expr procedure identity
-        call exact_proc_entry_r24
-        imm r25, 46393
+        imm r22, 0
+        imm r23, 61                  ; gen_expr
         call statement_gen_to_require_call
-        imm r20, 527
         imm r21, 320
-        imm r22, 46393
-        imm r23, 0
-        imm r24, 1131
-        imm r25, 46402
+        imm r22, 0
+        imm r23, 1                   ; new_label
         call statement_gen_to_require_call
-        imm r20, 528
         imm r21, 320
-        imm r22, 46456
+        imm r22, statement_gen_to_literal_jz_r0
+        imm r23, 6
         call statement_gen_to_require_emit
-        imm r20, 529
         imm r21, 320
-        imm r22, 46516
+        imm r22, 1
+        imm r23, 2                   ; emit_lref
+        imm r24, 0
+        imm r25, 2
+        call statement_gen_to_require_nth_call
+        imm r21, 320
+        imm r22, statement_gen_to_literal_newline
         imm r23, 1
-        imm r24, 1366
-        imm r25, 46525
+        imm r24, 0
+        imm r25, 2
+        call statement_gen_to_require_nth_emit
+        imm r21, 320
+        imm r22, statement_gen_to_literal_jmp
+        imm r23, 4
+        call statement_gen_to_require_emit
+        imm r21, 320
+        imm r22, 2
+        imm r23, 64                  ; emit_state_label
         call statement_gen_to_require_call
-        imm r20, 530
         imm r21, 320
-        imm r22, 46555
-        call statement_gen_to_require_emit
-        imm r20, 531
+        imm r22, statement_gen_to_literal_newline
+        imm r23, 1
+        imm r24, 1
+        imm r25, 2
+        call statement_gen_to_require_nth_emit
         imm r21, 320
-        imm r22, 46597
-        call statement_gen_to_require_emit
-        imm r20, 532
+        imm r22, 1
+        imm r23, 2                   ; emit_lref
+        imm r24, 1
+        imm r25, 2
+        call statement_gen_to_require_nth_call
         imm r21, 320
-        imm r22, 46708
+        imm r22, statement_gen_to_literal_label_suffix
         imm r23, 2
-        imm r24, 45404
-        imm r25, 46717
-        call statement_gen_to_require_call
-        imm r20, 533
-        imm r21, 320
-        imm r22, 46747
         call statement_gen_to_require_emit
-        imm r20, 534
         imm r21, 320
-        imm r22, 46807
-        imm r23, 1
-        imm r24, 1366
-        imm r25, 46816
-        call statement_gen_to_require_call
-        imm r20, 535
-        imm r21, 320
-        imm r22, 46847
-        call statement_gen_to_require_emit
-        imm r20, 536
-        imm r21, 320
-        imm r22, 46885
         call statement_gen_to_require_return
         ret
 
 statement_gen_to_require_plain_events:
-        imm r20, 537
         imm r21, 321
-        imm r22, 46983
+        imm r22, statement_gen_to_literal_jmp
+        imm r23, 4
         call statement_gen_to_require_emit
-        imm r20, 538
         imm r21, 321
-        imm r22, 47094
-        imm r23, 2
-        imm r24, 45404
-        imm r25, 47103
+        imm r22, 2
+        imm r23, 64                  ; emit_state_label
         call statement_gen_to_require_call
-        imm r20, 539
         imm r21, 321
-        imm r22, 47133
+        imm r22, statement_gen_to_literal_newline
+        imm r23, 1
         call statement_gen_to_require_emit
-        imm r20, 540
         imm r21, 321
-        imm r22, 47171
         call statement_gen_to_require_return
         ret
 
 statement_gen_to_require_epilogues:
-        imm r20, 46866
-        imm r21, 46885
-        call exact_require_epilogue
-        imm r20, 47152
-        imm r21, 47171
-        call exact_require_epilogue
-        imm r20, 47172
-        imm r21, 47191
-        call exact_require_epilogue
+        ; Explicit returns are bound with their event identities above.
+        imm r20, 67                  ; next procedure owns synthetic epilogue
+        call exact_require_preentry_epilogue
         ret
 
 statement_gen_to_require_data:
@@ -241,181 +227,134 @@ statement_gen_to_require_locals:
         imm r21, 318
         imm r22, 2
         imm r23, 0
-        imm r24, 46161
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 208
         imm r21, 318
         imm r22, 2
         imm r23, 1
-        imm r24, 46193
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 209
         imm r21, 318
         imm r22, 2
         imm r23, 2
-        imm r24, 46234
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 210
         imm r21, 320
         imm r22, 2
         imm r23, 3
-        imm r24, 46402
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 211
         imm r21, 320
         imm r22, 1
         imm r23, 3
-        imm r24, 46465
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 212
         imm r21, 320
         imm r22, 1
         imm r23, 0
-        imm r24, 46606
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 213
         imm r21, 320
         imm r22, 1
         imm r23, 1
-        imm r24, 46641
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 214
         imm r21, 320
         imm r22, 1
         imm r23, 3
-        imm r24, 46756
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 215
         imm r21, 321
         imm r22, 1
         imm r23, 2
-        imm r24, 46912
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 216
         imm r21, 321
         imm r22, 1
         imm r23, 0
-        imm r24, 46992
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 217
         imm r21, 321
         imm r22, 1
         imm r23, 1
-        imm r24, 47027
-        call transfer_require_local
+        call exact_local_identity_pc
         ret
 
 statement_gen_to_require_memory:
         imm r20, 78
         imm r21, 318
-        imm r22, 1
-        imm r23, 8
-        imm r24, 46158
-        call transfer_require_memory
+        imm r25, 733
+        imm r26, 2097120
+        call exact_memory_load_pc
         imm r20, 79
         imm r21, 318
-        imm r22, 1
-        imm r23, 8
-        imm r24, 46190
-        call transfer_require_memory
+        imm r25, 734
+        imm r26, 2097112
+        call exact_memory_load_pc
         imm r20, 80
         imm r21, 318
-        imm r22, 1
-        imm r23, 8
-        imm r24, 46231
-        call transfer_require_memory
+        imm r25, 735
+        imm r26, 2097144
+        call exact_memory_load_pc
         imm r20, 81
         imm r21, 321
-        imm r22, 2
-        imm r23, 8
-        imm r24, 46947
-        call transfer_require_memory
+        call exact_memory_store_pc
         ret
 
 statement_gen_to_require_primitives:
-        imm r20, 733
-        imm r21, 318
-        imm r22, 1
-        imm r23, 2097120
-        imm r24, 46148
-        call transfer_require_primitive
-        imm r20, 734
-        imm r21, 318
-        imm r22, 1
-        imm r23, 2097112
-        imm r24, 46180
-        call transfer_require_primitive
-        imm r20, 735
-        imm r21, 318
-        imm r22, 1
-        imm r23, 2097144
-        imm r24, 46221
-        call transfer_require_primitive
+        ; Address literals 733..735 are rejoined to loads above.
         imm r20, 736
         imm r21, 319
         imm r22, 3
         imm r23, 10
-        imm r24, 46297
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 737
         imm r21, 319
         imm r22, 1
         imm r23, 1
-        imm r24, 46287
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 738
         imm r21, 320
         imm r22, 1
         imm r23, 0
-        imm r24, 46856
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 739
         imm r21, 321
         imm r22, 1
         imm r23, 2097144
-        imm r24, 46886
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 740
         imm r21, 321
         imm r22, 1
         imm r23, 0
-        imm r24, 47142
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         ret
 
 statement_gen_to_require_pushes:
         imm r20, 215
         imm r21, 319
-        imm r23, 46271
-        call exact_require_binary_push
+        call exact_require_binary_push_identity
         imm r20, 353
         imm r21, 320
-        imm r23, 46484
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 354
         imm r21, 320
-        imm r23, 46625
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 355
         imm r21, 320
-        imm r23, 46660
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 356
         imm r21, 320
-        imm r23, 46775
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 357
         imm r21, 321
-        imm r23, 47011
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 358
         imm r21, 321
-        imm r23, 47046
-        call exact_require_argument_push
+        call exact_require_argument_push_identity
         imm r20, 399
         imm r21, 321
-        imm r23, 46896
-        call exact_require_store_push
+        call exact_require_store_push_identity
         ret
 
 statement_gen_to_require_censuses:
@@ -444,10 +383,24 @@ statement_gen_to_require_censuses:
         ret
 
 statement_gen_to_require_decoded:
-        imm r20, 46098
-        imm r21, 47192
+        imm r0, 66
+        call exact_proc_entry_pc
+        mov r30, r0
+        imm r0, 67
+        call exact_proc_entry_pc
+        mov r21, r0
+        mov r20, r30
         imm r22, 18
         imm r23, 3
         imm r24, 14
         call exact_quiet_scan_region
         ret
+
+statement_gen_to_literal_jz_r0:
+        db "jz r0,"
+statement_gen_to_literal_jmp:
+        db "jmp "
+statement_gen_to_literal_newline:
+        db "\n"
+statement_gen_to_literal_label_suffix:
+        db ":\n"

@@ -66,67 +66,41 @@ expression_call_require_imports:
         store r1, r2
         ret
 
-; r20=event,r21=block,r22=pc,r23=arity,r24=target,r25=continuation.
+; r21=source block, r22=arity, r23=target procedure. Reconstruct the unique
+; call PC, target entry, and canonical nine-byte fallthrough locally because
+; the semantic checker does not concatenate the control-shape helper labels.
 expression_call_require_site:
-        mov r30, r20
-        mov r31, r21
-        mov r32, r22
-        mov r33, r23
-        mov r34, r24
-        mov r35, r25
-        mov r20, r30
-        mov r21, r31
-        mov r22, r32
-        mov r23, r33
-        imm r24, 0
-        mov r25, r34
-        mov r26, r35
-        call summary_require_call_site
+        mov r24, r23
+        imm r23, 0
+        imm r20, 32                    ; gen_call owning procedure identity
+        call summary_require_call_fallthrough_identity
         ret
 
 expression_call_prove_dispatch:
         ; Exact predicate/delegate pairs in source priority order.
-        imm r20, 242
         imm r21, 151
-        imm r22, 21702
-        imm r23, 0
-        imm r24, 12538
-        imm r25, 21711
+        imm r22, 0
+        imm r23, 21                    ; is_read_byte
         call expression_call_require_site
-        imm r20, 243
         imm r21, 152
-        imm r22, 21824
-        imm r23, 0
-        imm r24, 21226
-        imm r25, 21833
+        imm r22, 0
+        imm r23, 30                    ; gen_read_byte
         call expression_call_require_site
-        imm r20, 245
         imm r21, 153
-        imm r22, 21863
-        imm r23, 0
-        imm r24, 14419
-        imm r25, 21872
+        imm r22, 0
+        imm r23, 22                    ; is_write_byte
         call expression_call_require_site
-        imm r20, 246
         imm r21, 154
-        imm r22, 21985
-        imm r23, 0
-        imm r24, 21443
-        imm r25, 21994
+        imm r22, 0
+        imm r23, 31                    ; gen_write_byte
         call expression_call_require_site
-        imm r20, 248
         imm r21, 155
-        imm r22, 22024
-        imm r23, 0
-        imm r24, 16485
-        imm r25, 22033
+        imm r22, 0
+        imm r23, 23                    ; is_emit
         call expression_call_require_site
-        imm r20, 249
         imm r21, 156
-        imm r22, 22146
-        imm r23, 0
-        imm r24, 19556
-        imm r25, 22155
+        imm r22, 0
+        imm r23, 28                    ; gen_emit
         call expression_call_require_site
         imm r1, 540408
         imm r2, 4                     ; read/write/emit/normal partition
@@ -145,28 +119,24 @@ expression_call_prove_saved_name:
         ; distinct locals0/1. Later identifier parsing may clobber globals only.
         imm r20, 33
         imm r21, 157
-        imm r22, 1
-        imm r23, 8
-        imm r24, 22195
-        call transfer_require_memory
+        imm r25, 400
+        imm r26, 2097120
+        call exact_memory_load_pc
         imm r20, 34
         imm r21, 157
-        imm r22, 1
-        imm r23, 8
-        imm r24, 22227
-        call transfer_require_memory
+        imm r25, 401
+        imm r26, 2097112
+        call exact_memory_load_pc
         imm r20, 52
         imm r21, 157
         imm r22, 2
         imm r23, 0
-        imm r24, 22198
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r20, 53
         imm r21, 157
         imm r22, 2
         imm r23, 1
-        imm r24, 22230
-        call transfer_require_local
+        call exact_local_identity_pc
         imm r1, 540440
         imm r2, 1                     ; stable saved slice provenance
         store r1, r2
@@ -205,13 +175,9 @@ expression_call_arg_domain_done:
         ret
 
 expression_call_require_arg_child:
-        imm r20, 255
         imm r21, 160
-        imm r22, 22677
-        imm r23, 0
-        imm r24, 61                    ; gen_expr procedure identity
-        call exact_proc_entry_r24
-        imm r25, 22686
+        imm r22, 0
+        imm r23, 61                    ; gen_expr procedure identity
         call expression_call_require_site
         ret
 
@@ -221,16 +187,14 @@ expression_call_prove_child_resource:
         ; restricts the compositional status to numeric0 or252.
         imm r20, 36
         imm r21, 160
-        imm r22, 1
-        imm r23, 8
-        imm r24, 22696
-        call transfer_require_memory
+        imm r25, 411
+        imm r26, 2097072
+        call exact_memory_load_pc
         imm r20, 118
         imm r21, 160
         imm r22, 1
         imm r23, 161
-        imm r24, 22784
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r1, 540464
         imm r2, 1                     ; child trace retained
         store r1, r2
@@ -244,40 +208,32 @@ expression_call_prove_child_resource:
 
 expression_call_prove_arg_success:
         call expression_call_require_arg_child
-        imm r20, 256
         imm r21, 160
-        imm r22, 22803
-        imm r23, 0
-        imm r24, 47                    ; emit_push procedure identity
-        call exact_proc_entry_r24
-        imm r25, 22812
+        imm r22, 0
+        imm r23, 47                    ; emit_push procedure identity
         call expression_call_require_site
         imm r20, 56
         imm r21, 160
         imm r22, 2
         imm r23, 2
-        imm r24, 22879
-        call transfer_require_local
+        call exact_local_identity_pc
         ; Both comma and no-comma continuations rejoin argloop. Comma consumes
         ; exactly one byte before SWS; separators are otherwise optional.
         imm r20, 119
         imm r21, 160
         imm r22, 1
         imm r23, 162
-        imm r24, 23001
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 120
         imm r21, 160
         imm r22, 0
         imm r23, 158
-        imm r24, 23020
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r20, 121
         imm r21, 162
         imm r22, 0
         imm r23, 158
-        imm r24, 23077
-        call exact_require_transition
+        call exact_transition_identity_pc
         imm r1, 540496
         imm r2, 1                     ; 33-byte push after child success only
         store r1, r2
@@ -292,20 +248,15 @@ expression_call_prove_capacity_exit:
         ; At nargs=4 and byte!=')', row35 writes252 before any fifth child.
         imm r20, 35
         imm r21, 159
-        imm r22, 2
-        imm r23, 8
-        imm r24, 22644
-        call transfer_require_memory
+        call exact_memory_store_pc
         imm r20, 409
         imm r21, 159
         imm r22, 1
         imm r23, 252
-        imm r24, 22618
-        call transfer_require_primitive
+        call exact_primitive_identity_pc
         imm r20, 383
         imm r21, 159
-        imm r23, 22602
-        call exact_require_store_push
+        call exact_require_store_push_identity
         imm r1, 540520
         imm r2, 1                     ; numeric252 exact writer
         store r1, r2
@@ -319,20 +270,13 @@ expression_call_prove_capacity_exit:
 
 expression_call_prove_success:
         ; Close consumes ')' then the finite pop rank k=nargs reaches zero.
-        imm r20, 262
         imm r21, 163
-        imm r22, 23086
-        imm r23, 0
-        imm r24, 1939
-        imm r25, 23095
+        imm r22, 0
+        imm r23, 5                     ; adv
         call expression_call_require_site
-        imm r20, 263
         imm r21, 165
-        imm r22, 23411
-        imm r23, 1
-        imm r24, 44                    ; emit_pop_into procedure identity
-        call exact_proc_entry_r24
-        imm r25, 23420
+        imm r22, 1
+        imm r23, 44                    ; emit_pop_into procedure identity
         call expression_call_require_site
         imm r10, 0
         imm r11, 0
@@ -357,12 +301,9 @@ expression_call_emit_suffix:
         jeq r1, r2, expression_call_ident_site
         jmp reject
 expression_call_ident_site:
-        imm r20, 265
         imm r21, 166
-        imm r22, 23574
-        imm r23, 2
-        imm r24, 31465
-        imm r25, 23583
+        imm r22, 2
+        imm r23, 45                    ; emit_ident_at procedure identity
         call expression_call_require_site
         imm r20, 266
         call write_str_require_emit_event
