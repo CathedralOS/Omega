@@ -71,6 +71,13 @@ impl ResolverExecutionPhase {
         matches!(self, Self::RepositoryInitialization | Self::Fetch)
     }
 
+    const fn uses_self_contained_macos_policy(self) -> bool {
+        matches!(
+            self,
+            Self::RepositoryInitialization | Self::RepositoryInspection
+        )
+    }
+
     const fn tag(self) -> u8 {
         match self {
             Self::TransportDiscovery => 1,
@@ -604,7 +611,7 @@ impl ResolverExecutionBackend {
                 "macOS resolver selected a non-Seatbelt backend",
             ));
         };
-        let mut profile = if phase == ResolverExecutionPhase::RepositoryInspection {
+        let mut profile = if phase.uses_self_contained_macos_policy() {
             format!(
                 "(version 1) (deny default) \
                  (allow process-fork) (allow signal) (allow file-read*) \
@@ -669,7 +676,7 @@ fn guarantee_disposition(
     match guarantee {
         FilesystemWritesConfined | ExecutablePathsConfined
             if matches!(backend, MacosSeatbelt { .. })
-                && phase == ResolverExecutionPhase::RepositoryInspection =>
+                && phase.uses_self_contained_macos_policy() =>
         {
             Enforced
         }
@@ -680,7 +687,7 @@ fn guarantee_disposition(
         | AggregateResourcesConfined => Unavailable,
         NetworkDenied
             if matches!(backend, MacosSeatbelt { .. })
-                && phase == ResolverExecutionPhase::RepositoryInspection =>
+                && phase.uses_self_contained_macos_policy() =>
         {
             Enforced
         }
@@ -1537,6 +1544,14 @@ mod tests {
                 None,
             )
             .expect("issue inspection policy observation");
+        let (initialization_command, initialization) = backend
+            .command_with_observation(
+                executable,
+                &[],
+                ResolverExecutionPhase::RepositoryInitialization,
+                Some(&mutable_root),
+            )
+            .expect("issue initialization policy observation");
         let (fetch_command, fetch) = backend
             .command_with_observation(
                 executable,
@@ -1546,6 +1561,7 @@ mod tests {
             )
             .expect("issue fetch policy observation");
         assert!(inspection.generated_policy_sha256().is_some());
+        assert!(initialization.generated_policy_sha256().is_some());
         assert!(fetch.generated_policy_sha256().is_some());
         assert_ne!(
             inspection.generated_policy_sha256(),
@@ -1572,6 +1588,17 @@ mod tests {
             inspection_profile
                 .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
         );
+        let initialization_profile = profile(&initialization_command);
+        assert!(!initialization_profile.contains("(import"));
+        assert!(!initialization_profile.contains("network-outbound"));
+        assert!(
+            initialization_profile
+                .contains("(allow file-write* (subpath (param \"MUTABLE_ROOT\")))")
+        );
+        assert!(
+            initialization_profile
+                .contains("(allow file-test-existence file-write-data (literal \"/dev/null\"))")
+        );
         assert!(profile(&fetch_command).contains("(import \"system.sb\")"));
 
         let disposition = |observation: &super::ResolverExecutionPolicyObservation, guarantee| {
@@ -1588,6 +1615,23 @@ mod tests {
                 ResolverExecutionGuarantee::FilesystemWritesConfined
             ),
             ResolverExecutionGuaranteeDisposition::Enforced
+        );
+        for guarantee in [
+            ResolverExecutionGuarantee::FilesystemWritesConfined,
+            ResolverExecutionGuarantee::NetworkDenied,
+            ResolverExecutionGuarantee::ExecutablePathsConfined,
+        ] {
+            assert_eq!(
+                disposition(&initialization, guarantee),
+                ResolverExecutionGuaranteeDisposition::Enforced
+            );
+        }
+        assert_eq!(
+            disposition(
+                &initialization,
+                ResolverExecutionGuarantee::FilesystemReadsConfined
+            ),
+            ResolverExecutionGuaranteeDisposition::Unavailable
         );
         assert_eq!(
             disposition(
@@ -1926,7 +1970,7 @@ mod tests {
 
     #[cfg(target_os = "macos")]
     #[test]
-    fn seatbelt_denies_remote_tcp_in_an_inspection_phase() {
+    fn seatbelt_denies_remote_tcp_in_nonnetwork_phases() {
         use std::io::ErrorKind;
         use std::net::TcpListener;
 
@@ -1951,6 +1995,31 @@ mod tests {
             .expect("attempt denied loopback connection");
         assert!(!status.success());
         assert!(matches!(listener.accept(), Err(error) if error.kind() == ErrorKind::WouldBlock));
+
+        let mutable_root = std::env::temp_dir().join(format!(
+            "omega-resolver-network-denial-{}-{port}",
+            std::process::id(),
+        ));
+        std::fs::create_dir(&mutable_root).expect("create network-denial mutable root");
+        let mutable_root = mutable_root
+            .canonicalize()
+            .expect("canonicalize network-denial mutable root");
+        let mut denied = backend
+            .command(
+                Path::new("/usr/bin/nc"),
+                &[],
+                ResolverExecutionPhase::RepositoryInitialization,
+                Some(&mutable_root),
+            )
+            .expect("build initialization network-denied sandbox");
+        let status = denied
+            .args(["127.0.0.1", &port.to_string()])
+            .stdin(Stdio::null())
+            .status()
+            .expect("attempt denied initialization loopback connection");
+        assert!(!status.success());
+        assert!(matches!(listener.accept(), Err(error) if error.kind() == ErrorKind::WouldBlock));
+        std::fs::remove_dir(mutable_root).expect("remove network-denial mutable root");
 
         let acceptance = std::thread::spawn(move || {
             let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);

@@ -13,11 +13,12 @@ text or containment claims.
 
 ## Current enforcement
 
-- macOS uses compiler-fixed Seatbelt profiles. Repository inspection does not
-  import a host profile: it admits broad reads, the exact compiler-selected
-  executable set, and write-data only to the fixed `/dev/null` sink. Its
-  filesystem-write, network-denial, and executable-path rows are therefore
-  enforced. Discovery, initialization, and fetch still import Apple's mutable
+- macOS uses compiler-fixed Seatbelt profiles. Repository initialization and
+  inspection do not import a host profile. Both admit broad reads, the exact
+  compiler-selected executable set, and write-data to the fixed `/dev/null`
+  sink; initialization additionally admits writes only beneath its mutable
+  quarantine root. Their filesystem-write, network-denial, and executable-path
+  rows are enforced. Discovery and fetch still import Apple's mutable
   `system.sb`, whose special-file writes and local socket access keep those
   phases' corresponding rows unavailable.
 - The exact root-owned `system.sb` and `dyld-support.sb` bytes, metadata, ACL
@@ -43,7 +44,7 @@ text or containment claims.
 
 This is engineering enforcement and one input to a future package-source
 receipt, not that accepted receipt. macOS still permits broad file reads in
-every phase, imported system exceptions outside inspection, and unbrokered
+every phase, imported system exceptions during discovery/fetch, and unbrokered
 outbound endpoints; aggregate resource quotas and Linux/Windows strict backends
 remain package-manager tasks. See
 [`SOURCE_RESOLVER_SECURITY.md`](../omega-packages/SOURCE_RESOLVER_SECURITY.md).
