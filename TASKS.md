@@ -9180,15 +9180,23 @@ boundary without its corresponding checked law.
   from retained `sh_flags`. It packs each domain independently in numeric roster
   order with checked `sh_addralign`, exact relative offsets and spans,
   deterministic identity, and recoverable replay of every row and geometry.
-  These offsets begin at zero per domain and are not `sh_offset` or `sh_addr`;
-  absolute region bases, W^X load/program-header placement, all twenty-one
-  header-fixup resolutions, payload mutation, and final-byte replay remain open.
-  Runnable ELF emission remains fail closed before image mutation: section-header
-  placement and fixup resolution, `PT_INTERP` program-header placement,
-  `PT_DYNAMIC`, `.dynamic` address resolution, optional
-  `.gnu.hash`, address-resolved fixup application, complete
-  load/program-header layout, image mutation, and independent final-byte
-  replay remain unimplemented. Validated semantic tags do not constitute a dynamic image.
+  These offsets begin at zero per domain and are not `sh_offset` or `sh_addr`.
+  The absolute-load rung now consumes that exact owner and binds both admitted
+  Linux profiles to the fixed `0x400000` image base and a target-derived 64-KiB
+  maximum-page alignment. It closes the canonical `PT_INTERP`, R/RX/RW
+  `PT_LOAD`, `PT_DYNAMIC` order with exact `p_paddr == p_vaddr`, strict W^X,
+  retained source text/data/aligned-BSS placement, file-only `.shstrtab` and
+  section-header-table coordinates, and all twenty-one `sh_addr`/`sh_offset`
+  resolutions. Independent replay checks the segment/section/source extents,
+  congruence, alignment, special-header aliases, exact upstream fixup coverage,
+  and deferred procedure-placement envelopes while keeping AArch64 relocation
+  pages at 4 KiB. No template or payload bytes are mutated.
+  Runnable ELF emission remains fail closed before image mutation: section-
+  header fixup application, ELF/program/section-header serialization, the seven
+  internal `.dynamic` address fixups, optional `.gnu.hash`, procedure/source
+  address-fixup application, image mutation, and independent final-byte replay
+  remain unimplemented. Validated semantic tags and absolute geometry do not
+  constitute a dynamic image.
   The generic contextual byte-literal rung is also live for owned direct
   `[u8; N]` destinations used by final results, locals/owned initializers,
   exact resolved call arguments, and record/case fields. It copies source bytes

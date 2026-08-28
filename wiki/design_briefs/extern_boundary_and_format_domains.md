@@ -316,12 +316,27 @@ relative offset zero. These are neither `sh_offset` nor `sh_addr`, and the
 carrier grants no absolute base, segment, header-fixup, byte-mutation, loader,
 publication, or runnable-image authority.
 
-Section-header placement and fixup resolution,
-`PT_INTERP` program-header placement, `PT_DYNAMIC`, `.dynamic` address
-resolution, optional `.gnu.hash`, address-resolved fixup
-application, complete load/program-header layout, image mutation, and
-independent final-byte replay remain open. Validated semantic tags still
-grant no layout, loader, publication, or runnable-image authority. An owned
+The following absolute-load carrier consumes that exact relative owner. Both
+current Linux profiles select the fixed `0x400000` image base and a sealed
+64-KiB maximum-page alignment, while AArch64 instruction relocations continue
+to use their distinct 4-KiB `Page(expr)` rule. The carrier closes one canonical
+`PT_INTERP`, R/RX/RW `PT_LOAD`, `PT_DYNAMIC` order with
+`p_paddr == p_vaddr`, congruent load offsets/addresses, and strict W^X. The R
+load owns the ELF/program-header prefix and read-only dynamic sections; RX owns
+the retained source text and `.plt`; RW owns writable dynamic sections,
+initialized source data, and the aligned BSS zero-fill tail. `.shstrtab` and
+the 768-byte section-header table receive file-only coordinates outside the
+load file extents. All twenty-one typed section-header placement obligations
+receive exact retained values without mutating their zero templates.
+Independent replay checks source, section, segment, alignment, alias, and
+fixup coverage plus the deferred procedure-placement envelopes. This remains
+geometry only, not loader, publication, or runnable-image authority.
+
+Section-header fixup application, program/ELF/section-header serialization,
+internal `.dynamic` and procedure address-fixup application, optional
+`.gnu.hash`, image mutation, and independent final-byte replay remain open.
+Validated semantic tags and absolute geometry still grant no loader,
+publication, or runnable-image authority. An owned
 direct `[u8; N]` destination now contextually
 copies a quoted literal into an ordinary raw-byte array only when `N` is a
 resolved integer literal and the source byte count matches exactly; non-byte
